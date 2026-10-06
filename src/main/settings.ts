@@ -1,12 +1,15 @@
 import * as fs from 'fs'
 import { dirname } from 'path'
 import { randomUUID } from 'crypto'
-import { DEFAULT_NDI, sanitizeSettings, type Settings } from '../shared/settings'
+import { DEFAULT_HDMI, DEFAULT_NDI, sanitizeSettings, type Settings } from '../shared/settings'
 
 export type { Settings } from '../shared/settings'
 
-/** Spec defaults: NDI on, "PPT Share", 1920×1080 at 30 fps. */
-export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({ ndi: DEFAULT_NDI })
+/** Spec defaults: NDI on, "PPT Share", 1920×1080 at 30 fps; HDMI off. */
+export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
+  ndi: DEFAULT_NDI,
+  hdmi: DEFAULT_HDMI
+})
 
 /**
  * Reads `settings.json`. A missing, unreadable or corrupt file gives the

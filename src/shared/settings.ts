@@ -7,8 +7,18 @@ export interface NdiSettings {
   fps: number
 }
 
+/**
+ * Program fullscreen on a second display (HDMI, Windows "Extend"). `displayId`
+ * is Electron's `Display.id` of the chosen screen; null = not chosen yet.
+ */
+export interface HdmiSettings {
+  enabled: boolean
+  displayId: number | null
+}
+
 export interface Settings {
   ndi: NdiSettings
+  hdmi: HdmiSettings
 }
 
 export const DEFAULT_NDI: Readonly<NdiSettings> = Object.freeze({
@@ -17,6 +27,11 @@ export const DEFAULT_NDI: Readonly<NdiSettings> = Object.freeze({
   width: 1920,
   height: 1080,
   fps: 30
+})
+
+export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
+  enabled: false,
+  displayId: null
 })
 
 /** The only output sizes offered (spec): Full HD and UHD. */
@@ -65,7 +80,19 @@ export function ndiSettingsError(v: unknown): string | null {
   return null
 }
 
-/** Any parsed JSON → valid Settings; each invalid field falls back to its default. */
+/** Any parsed JSON → valid HdmiSettings (a non-integer displayId becomes null). */
+export function sanitizeHdmi(raw: unknown): HdmiSettings {
+  const h = isObject(raw) ? raw : {}
+  return {
+    enabled: typeof h.enabled === 'boolean' ? h.enabled : DEFAULT_HDMI.enabled,
+    displayId: Number.isSafeInteger(h.displayId) ? (h.displayId as number) : null
+  }
+}
+
+/**
+ * Any parsed JSON → valid Settings; each invalid field falls back to its
+ * default. Files from before HDMI output (no `hdmi`) get the HDMI defaults.
+ */
 export function sanitizeSettings(raw: unknown): Settings {
   const n = isObject(raw) && isObject(raw.ndi) ? raw.ndi : {}
   const res = isResolution(n.width, n.height)
@@ -77,6 +104,7 @@ export function sanitizeSettings(raw: unknown): Settings {
       name: cleanName(n.name) ?? DEFAULT_NDI.name,
       ...res,
       fps: isFps(n.fps) ? n.fps : DEFAULT_NDI.fps
-    }
+    },
+    hdmi: sanitizeHdmi(isObject(raw) ? raw.hdmi : null)
   }
 }
