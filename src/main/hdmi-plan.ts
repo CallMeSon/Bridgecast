@@ -10,7 +10,7 @@
  * - added    → show again on that display (matched by id, else label + size)
  * - metrics  → setBounds to the display's new bounds
  */
-import { pickDisplay, type DisplayInfo } from '../shared/displays'
+import { OPERATOR_DISPLAY, pickDisplay, type DisplayInfo } from '../shared/displays'
 import type { HdmiSettings } from '../shared/settings'
 import type { HdmiStatus } from '../shared/ipc'
 
@@ -87,11 +87,17 @@ function findTarget(
   )
 }
 
+/**
+ * @param operatorId the display holding the operator window (null when
+ *   unknown). The output never goes there, even when it is not the primary
+ *   (primary swapped in Windows, or the operator window dragged across).
+ */
 export function planHdmi(
   hdmi: HdmiSettings,
   displays: ScreenDisplay[],
   memo: TargetMemo | null,
-  win: WindowView
+  win: WindowView,
+  operatorId: number | null = null
 ): HdmiPlan {
   if (!hdmi.enabled) {
     return {
@@ -120,6 +126,15 @@ export function planHdmi(
     label: target.label,
     width: target.width,
     height: target.height
+  }
+  if (target.id === operatorId) {
+    // Remembered: shown again once the operator window moves away.
+    return {
+      action: win.exists && win.visible ? { type: 'hide' } : { type: 'none' },
+      status: { state: 'error', message: OPERATOR_DISPLAY },
+      memo: next,
+      targetId: null
+    }
   }
   const { bounds } = target
   const preparing: HdmiStatus = { state: 'hidden', message: 'Menyiapkan output HDMI…' }

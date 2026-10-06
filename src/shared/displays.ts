@@ -8,13 +8,26 @@ export interface DisplayInfo {
   /** Native resolution in device pixels. */
   width: number
   height: number
-  /** The Windows main display: the operator's screen, never used for HDMI output. */
+  /** The Windows main display: never used for HDMI output. */
   primary: boolean
+  /**
+   * Holds the operator window (it may differ from the primary after a primary
+   * swap, or when the operator window was dragged): never used for HDMI output.
+   */
+  operator?: boolean
 }
 
 /** Shown when HDMI cannot be enabled because Windows reports a single screen. */
 export const NO_SECOND_DISPLAY =
   'Layar kedua tidak terdeteksi. Sambungkan HDMI lalu atur Windows ke mode Extend (Win+P → Extend).'
+
+/** Shown when the chosen display holds the operator window. */
+export const OPERATOR_DISPLAY =
+  'Layar ini dipakai jendela operator. Pindahkan jendela operator ke layar lain atau pilih layar HDMI yang lain.'
+
+/** May carry the HDMI output: neither the primary nor the operator window's display. */
+export const isHdmiCandidate = (d: DisplayInfo, operatorId: number | null): boolean =>
+  !d.primary && d.id !== operatorId
 
 /**
  * The display for HDMI output: the saved one if it is connected and not the
@@ -61,10 +74,11 @@ export function toDisplayInfo(d: DisplayLike, primaryId: number, index: number):
   }
 }
 
-/** "EPSON PJ · 1920×1080", the primary marked as the operator's screen. */
+/** "EPSON PJ · 1920×1080"; the primary and the operator window's display are marked. */
 export function displayText(d: DisplayInfo): string {
   const text = `${d.label} · ${d.width}×${d.height}`
-  return d.primary ? `${text} — Layar utama (operator)` : text
+  if (d.primary) return `${text} — Layar utama (operator)`
+  return d.operator ? `${text} — Layar operator` : text
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -72,14 +86,15 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 
 /**
  * Indonesian error (with the fix) for HDMI settings coming from the renderer,
- * checked against the displays that are connected right now; null when valid.
- * `savedId` (the current setting) may be missing so HDMI can be turned off
- * while its display is unplugged.
+ * checked against the displays connected right now and the display holding
+ * the operator window (`operatorId`); null when valid. Turning HDMI off is
+ * always accepted (whatever became of its display), so the operator can
+ * never be stuck with an output that will not switch off.
  */
 export function hdmiSettingsError(
   v: unknown,
   displays: DisplayInfo[],
-  savedId: number | null
+  operatorId: number | null
 ): string | null {
   if (
     !isObject(v) ||
@@ -88,22 +103,33 @@ export function hdmiSettingsError(
   ) {
     return 'Pengaturan HDMI tidak valid. Tutup panel output lalu buka lagi.'
   }
+  if (!v.enabled) return null
   const id = v.displayId as number | null
   if (id !== null) {
     const d = displays.find((x) => x.id === id)
     if (d?.primary) {
       return 'Layar utama (operator) tidak bisa dipakai untuk output HDMI. Pilih layar kedua.'
     }
-    if (!d && (v.enabled || id !== savedId)) {
+    if (!d) {
       return 'Layar yang dipilih tidak tersambung. Sambungkan layarnya lagi, atau pilih layar lain.'
     }
+    return id === operatorId ? OPERATOR_DISPLAY : null
   }
-  if (v.enabled && !displays.some((d) => !d.primary)) return NO_SECOND_DISPLAY
+  if (!displays.some((d) => !d.primary)) return NO_SECOND_DISPLAY
+  if (!displays.some((d) => isHdmiCandidate(d, operatorId))) return OPERATOR_DISPLAY
   return null
 }
 
-/** Valid settings → what is saved: "enabled, no display chosen" gets the first non-primary one. */
-export function resolveHdmi(h: HdmiSettings, displays: DisplayInfo[]): HdmiSettings {
+/**
+ * Valid settings → what is saved: "enabled, no display chosen" gets the first
+ * display that is neither primary nor the operator window's.
+ */
+export function resolveHdmi(
+  h: HdmiSettings,
+  displays: DisplayInfo[],
+  operatorId: number | null = null
+): HdmiSettings {
   if (!h.enabled || h.displayId !== null) return { ...h }
-  return { enabled: true, displayId: pickDisplay(displays, null)?.id ?? null }
+  const d = displays.find((x) => isHdmiCandidate(x, operatorId))
+  return { enabled: true, displayId: d?.id ?? null }
 }
