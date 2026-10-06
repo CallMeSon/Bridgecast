@@ -15,11 +15,92 @@ function check(cond, msg) {
   console.log(`ok - ${msg}`)
 }
 
+const frameDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-frames-'))
+const W = 1920
+const H = 1080
+
 const app = await electron.launch({
   args: [root],
   cwd: root,
-  env: { ...process.env, PPT_SHARE_USER_DATA: userData, ELECTRON_RENDERER_URL: '' }
+  env: {
+    ...process.env,
+    PPT_SHARE_USER_DATA: userData,
+    PPT_OUTPUT_DUMP: frameDir,
+    ELECTRON_RENDERER_URL: ''
+  }
 })
+
+// --- Output frame helpers (main-process debug hook, only with PPT_OUTPUT_DUMP) ---
+const counters = () =>
+  app.evaluate(() => {
+    const d = globalThis.__pptOutput
+    return { paints: d.paints, sent: d.sent, lastLength: d.lastLength, restarts: d.restarts }
+  })
+
+/** Dumps the latest output frame as PNG, decodes it with nativeImage, samples [r,g,b] at points. */
+async function dumpFrame(points) {
+  // Playwright occasionally reports "Resulting promise was garbage collected"
+  // when a main-process GC (8 MB frames) hits during evaluate; retry that.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await dumpFrameOnce(points)
+    } catch (e) {
+      if (attempt >= 3 || !/garbage collected/.test(String(e))) throw e
+    }
+  }
+}
+
+const dumpFrameOnce = (points) =>
+  app.evaluate(({ nativeImage }, pts) => {
+    const file = globalThis.__pptOutput.dump()
+    if (!file) return null
+    const img = nativeImage.createFromPath(file)
+    const { width, height } = img.getSize()
+    const bmp = img.toBitmap() // BGRA
+    const px = pts.map(([x, y]) => {
+      const i = (y * width + x) * 4
+      return [bmp[i + 2], bmp[i + 1], bmp[i]]
+    })
+    return { file, width, height, bytes: bmp.length, px }
+  }, points)
+
+const lum = ([r, g, b]) => Math.max(r, g, b)
+const isBlack = (p) => lum(p) <= 8
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// Slide 2 of sample.pdf has a light-blue background (232,240,255); 1 and 3 are white.
+const blue = (p) => p[0] < 245 && p[2] > 245
+
+/** Polls output frames until `pred(px)` holds; returns the frame. */
+async function waitFrame(points, pred, what, timeout = 5000) {
+  const end = Date.now() + timeout
+  let f = null
+  while (Date.now() < end) {
+    f = await dumpFrame(points)
+    if (f && pred(f.px)) return f
+    await sleep(150)
+  }
+  throw new Error(`ASSERT: ${what} (last frame ${f?.file}: ${JSON.stringify(f?.px)})`)
+}
+
+// Centre column above the "Halaman n" text (the exact centre is dark text).
+const CENTRE = [W / 2, 300]
+const GRID = []
+for (let gx = 0; gx < 12; gx++) {
+  for (let gy = 0; gy < 7; gy++) GRID.push([5 + gx * 173, 5 + gy * 178])
+}
+// A 4:3 slide at 1920×1080 is 1440 wide: x 240..1679.
+const BARS = [
+  [10, 540],
+  [230, 540],
+  [1690, 540],
+  [1910, 540]
+]
+const INSIDE_43 = [
+  [250, 540],
+  [1670, 540],
+  [960, 20],
+  [960, 1060]
+]
 const errors = []
 let failed = false
 try {
@@ -32,7 +113,7 @@ try {
 
   // 1280×720 window: the Program panel and controls must stay on screen.
   await app.evaluate(({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows()[0]
+    const w = BrowserWindow.getAllWindows().find((x) => !x.webContents.isOffscreen())
     w.setMinimumSize(800, 500)
     w.setContentSize(1280, 720)
   })
@@ -82,12 +163,38 @@ try {
   check((await pos.textContent()) === '1 / 3', 'first Space takes slide 1 LIVE')
   check((await cap.textContent()) === 'Slide 2', 'Next panel then shows slide 2')
 
+  // Output: slide 1 (white 16:9 page) fills the 1920×1080 frame.
+  const f1 = await waitFrame(
+    [CENTRE, [10, 10], [1910, 1070]],
+    (px) => px.every((p) => lum(p) > 200),
+    'output shows slide 1'
+  )
+  const c1 = await counters()
+  check(
+    c1.lastLength === W * H * 4,
+    `raw output frame is ${W}×${H}×4 BGRA bytes (${c1.lastLength})`
+  )
+  check(f1.width === W && f1.height === H, `dumped frame is ${f1.width}×${f1.height}`)
+  check(true, `16:9 slide fills the frame, centre ${JSON.stringify(f1.px[0])}`)
+
+  // Repeater: a static slide still produces ~30 frames per second.
+  await sleep(2000)
+  const c2 = await counters()
+  const sent = c2.sent - c1.sent
+  const paints = c2.paints - c1.paints
+  check(
+    sent >= 50 && sent <= 70,
+    `repeater sent ${sent} frames in 2 s on a static slide (paint events: ${paints})`
+  )
+
   await win.keyboard.press('Space')
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
   )
   check((await tally.textContent()) === 'LIVE', 'Space puts the next slide LIVE')
   check((await cap.textContent()) === 'Slide 3', 'Next panel shows slide 3')
+  await waitFrame([[10, 10]], (px) => blue(px[0]), 'output follows to slide 2')
+  check(true, 'output follows Space to slide 2')
   const img = win.locator('.screen img')
   await img.waitFor()
   await win.waitForFunction(() => {
@@ -116,17 +223,33 @@ try {
     () => document.querySelector('[data-testid=tally]')?.textContent === 'FROZEN'
   )
   check(true, 'F shows FROZEN')
+  await waitFrame([[10, 10]], (px) => blue(px[0]), 'frozen output still slide 2')
+  await win.keyboard.press('Space')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '3 / 3'
+  )
+  await sleep(800)
+  const fz = await dumpFrame([[10, 10]])
+  check(blue(fz.px[0]), `F then Space keeps the old frame (corner ${JSON.stringify(fz.px[0])})`)
+  await win.keyboard.press('ArrowLeft')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+  )
   await win.keyboard.press('b')
   await win.waitForFunction(
     () => document.querySelector('[data-testid=tally]')?.textContent === 'BLACK'
   )
   check(true, 'B shows BLACK')
+  await waitFrame(GRID, (px) => px.every(isBlack), 'B makes the output frame fully black')
+  check(true, `B makes the output fully black (${GRID.length} sample points)`)
   await win.keyboard.press('b')
   await win.keyboard.press('f')
   await win.waitForFunction(
     () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
   )
   check(true, 'B and F again return to LIVE')
+  await waitFrame([[10, 10]], (px) => blue(px[0]), 'output returns to slide 2 after B off')
+  check(true, 'output shows slide 2 again after B off')
 
   // Layout at 1280×720: controls fully visible above the strip.
   const ctr = await win.locator('.controls').boundingBox()
@@ -137,6 +260,51 @@ try {
 
   await win.screenshot({ path: shot })
   console.log(`screenshot: ${shot}`)
+
+  // 4:3 deck (PDF, no PowerPoint needed): letterboxed with black bars, taken with a Fade.
+  await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample-4x3.pdf'))
+  const deck43 = win.locator('.deck', { has: win.locator('.name', { hasText: 'sample-4x3' }) })
+  await deck43.locator('.meta', { hasText: '2 slide' }).waitFor({ timeout: 60_000 })
+  check(true, '4:3 PDF imported')
+  await win.getByRole('radio', { name: 'Fade' }).click()
+  await win.waitForFunction(
+    () => document.querySelector('[role=radio][aria-checked=true]')?.textContent === 'Fade'
+  )
+  // Sample where the left bar will be while the fade runs: blue slide 2 → black.
+  const t0 = Date.now()
+  await deck43.click()
+  const seen = []
+  while (Date.now() - t0 < 1000) {
+    const p = await app.evaluate(() => globalThis.__pptOutput.pixel(100, 540))
+    seen.push([Date.now() - t0, p[2]])
+    await sleep(10)
+  }
+  const mid = seen.filter(([, r]) => r > 20 && r < 215)
+  check(
+    mid.length > 0,
+    `Fade shows intermediate frames (${mid.length} of ${seen.length} samples mid-way: ${JSON.stringify(mid.slice(0, 6))})`
+  )
+  const f43 = await waitFrame(
+    [...BARS, ...INSIDE_43, CENTRE],
+    (px) =>
+      BARS.every((_, i) => isBlack(px[i])) && px.slice(BARS.length).every((p) => lum(p) > 200),
+    '4:3 slide letterboxed'
+  )
+  check(
+    true,
+    `4:3 slide: black bars ${JSON.stringify(f43.px.slice(0, 4))}, content ${JSON.stringify(f43.px.slice(4))}`
+  )
+  fs.copyFileSync(f43.file, path.join(path.dirname(shot), 'task-7-output-4x3.png'))
+  await win.getByRole('radio', { name: 'Cut' }).click()
+  // Back to the 16:9 deck at slide 2 for the remaining steps.
+  await win.locator('.deck', { has: win.locator('.name', { hasText: /^sample$/ }) }).click()
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '1 / 3'
+  )
+  await win.keyboard.press('Space')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+  )
 
   // Optional: PPTX through PowerPoint COM (needs PowerPoint installed).
   if (process.env.PPT_E2E === '1') {
@@ -179,6 +347,37 @@ try {
     'theme persists after reload'
   )
 
+  // The hidden output window refuses to close (only app quit destroys it).
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((w) => w.webContents.isOffscreen())
+      .close()
+  )
+  await sleep(300)
+  const alive = await app.evaluate(
+    ({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().filter((w) => w.webContents.isOffscreen()).length
+  )
+  check(alive === 1, 'output window cannot be closed')
+
+  // Output renderer crash: the window is recreated and shows the slide again.
+  const before = await counters()
+  await app.evaluate(() => globalThis.__pptOutput.crash())
+  const end = Date.now() + 10_000
+  let after = before
+  while (Date.now() < end) {
+    after = await counters()
+    if (after.restarts === before.restarts + 1 && after.paints > before.paints) break
+    await sleep(200)
+  }
+  check(after.restarts === before.restarts + 1, 'output window recreated after renderer crash')
+  await waitFrame([[10, 10]], (px) => blue(px[0]), 'recreated output shows slide 2')
+  const outputs = await app.evaluate(
+    ({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().filter((w) => w.webContents.isOffscreen()).length
+  )
+  check(outputs === 1, `recreated output shows slide 2; single output window (${outputs})`)
+
   const relevant = errors.filter((e) => !/Electron Security Warning/.test(e))
   check(
     relevant.length === 0,
@@ -191,6 +390,8 @@ try {
 } finally {
   await app.close()
   fs.rmSync(userData, { recursive: true, force: true })
+  if (failed) console.error(`output frames kept in ${frameDir}`)
+  else fs.rmSync(frameDir, { recursive: true, force: true })
 }
 console.log(failed ? 'SMOKE FAILED' : 'SMOKE PASSED')
 process.exit(failed ? 1 : 0)

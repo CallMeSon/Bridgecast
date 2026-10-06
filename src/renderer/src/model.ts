@@ -1,5 +1,6 @@
 import type { DeckMeta } from '../../shared/types'
 import { pendingTake, type Action, type ProgramState } from '../../shared/program'
+import { slideUrl } from '../../shared/ipc'
 
 export type NextView =
   | { kind: 'none' }
@@ -108,4 +109,13 @@ export function errorMessage(err: unknown): string {
 
 export function baseName(name: string): string {
   return name.replace(/\.[^.\\/]+$/, '')
+}
+
+/**
+ * What the Program output shows: the `shown` slide (never the operator
+ * position), or null for black (Black on, or nothing shown yet).
+ */
+export function outputSource(s: ProgramState): string | null {
+  if (s.black || !s.shown) return null
+  return slideUrl(s.shown.deckId, s.shown.index)
 }

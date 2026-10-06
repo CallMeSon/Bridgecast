@@ -9,6 +9,7 @@ import {
   keyToAction,
   nextIndex,
   nextView,
+  outputSource,
   tally
 } from './model'
 
@@ -122,5 +123,23 @@ describe('errorMessage', () => {
     const e = new Error("Error invoking remote method 'events:create': Error: Nama event kosong")
     expect(errorMessage(e)).toBe('Nama event kosong')
     expect(errorMessage(new Error('Biasa'))).toBe('Biasa')
+  })
+})
+
+describe('outputSource', () => {
+  const shown = { deckId: '11111111-1111-1111-1111-111111111111', index: 2 }
+  it('shows the shown slide, not the operator position', () => {
+    const s: ProgramState = { ...initialState, deckId: 'other', index: 5, shown }
+    expect(outputSource(s)).toBe(`slide://${shown.deckId}/2.png`)
+  })
+  it('is black when nothing is shown', () => {
+    expect(outputSource({ ...initialState, deckId: 'd', index: 1 })).toBeNull()
+  })
+  it('is black when Black is on', () => {
+    expect(outputSource({ ...initialState, shown, black: true })).toBeNull()
+  })
+  it('keeps the shown slide while frozen', () => {
+    const s: ProgramState = { ...initialState, deckId: shown.deckId, index: 3, shown, frozen: true }
+    expect(outputSource(s)).toBe(`slide://${shown.deckId}/2.png`)
   })
 })

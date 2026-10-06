@@ -8,6 +8,8 @@ import { Library } from './library'
 import { AppState } from './state'
 import { importPptx } from './import/pptx'
 import { isInside, parseSlideUrl } from './slide-protocol'
+import { Output } from './output'
+import { OUTPUT_DEFAULTS } from './output-window'
 import {
   Broadcast,
   Invoke,
@@ -159,7 +161,20 @@ function registerIpc(lib: Library, state: AppState): void {
   state.onChange((s) => broadcast(Broadcast.programState, s))
 }
 
-function createWindow(): void {
+// Task 8 replaces this with the NDI sender; until then frames go nowhere.
+const sendFrame: (frame: Buffer) => void = () => {}
+
+function startOutput(): Output {
+  // PPT_OUTPUT_DUMP=<dir> (dev/e2e only): exposes counters and a PNG frame dump
+  // on globalThis.__pptOutput for the smoke test.
+  const dumpDir = process.env['PPT_OUTPUT_DUMP'] || undefined
+  const output = new Output(OUTPUT_DEFAULTS, sendFrame, dumpDir)
+  if (dumpDir) (globalThis as Record<string, unknown>)['__pptOutput'] = output.debug
+  app.on('before-quit', () => output.shutdown())
+  return output
+}
+
+function createWindow(onReady?: () => void): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -180,6 +195,11 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    onReady?.()
+  })
+  // The hidden output window keeps the app alive otherwise.
+  mainWindow.on('closed', () => {
+    if (process.platform !== 'darwin') app.quit()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -194,6 +214,7 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+  return mainWindow
 }
 
 // Lets the e2e smoke test (and power users) point the library at another folder.
@@ -226,10 +247,11 @@ Lokasi: ${root}`
   registerSlideProtocol(root, lib)
   registerIpc(lib, state)
 
-  createWindow()
+  const output = startOutput()
+  createWindow(() => output.start())
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(() => output.start())
   })
 })
 

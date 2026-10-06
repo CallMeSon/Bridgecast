@@ -1,4 +1,4 @@
-// Generates fixtures/*.pptx and fixtures/sample.pdf used by the PowerPoint COM integration test.
+// Generates fixtures/*.pptx and fixtures/*.pdf used by the PowerPoint COM integration test.
 // Run: npx tsx scripts/make-fixtures.ts
 import PptxGenJS from 'pptxgenjs'
 import path from 'node:path'
@@ -21,19 +21,25 @@ async function make(file: string, count: number, notesOn: number[]): Promise<voi
   await pptx.writeFile({ fileName: path.join(outDir, file) })
 }
 
-async function makePdf(file: string, count: number): Promise<void> {
+async function makePdf(file: string, count: number, width = 960, height = 540): Promise<void> {
   const pdf = await PDFDocument.create()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
   for (let i = 1; i <= count; i++) {
-    const page = pdf.addPage([960, 540])
+    const page = pdf.addPage([width, height])
     page.drawRectangle({
       x: 0,
       y: 0,
-      width: 960,
-      height: 540,
+      width,
+      height,
       color: i % 2 ? rgb(1, 1, 1) : rgb(0.91, 0.94, 1)
     })
-    page.drawText(`Halaman ${i}`, { x: 300, y: 250, size: 64, font, color: rgb(0.1, 0.1, 0.1) })
+    page.drawText(`Halaman ${i}`, {
+      x: width / 2 - 180,
+      y: height / 2 - 20,
+      size: 64,
+      font,
+      color: rgb(0.1, 0.1, 0.1)
+    })
   }
   fs.writeFileSync(path.join(outDir, file), await pdf.save())
 }
@@ -42,6 +48,8 @@ async function main(): Promise<void> {
   await make('sample-4x3.pptx', 3, [2])
   await make('sample-12.pptx', 12, [2, 10])
   await makePdf('sample.pdf', 3)
+  // 4:3 deck for the output letterbox check (no PowerPoint needed).
+  await makePdf('sample-4x3.pdf', 2, 720, 540)
 }
 
 main().catch((e) => {
