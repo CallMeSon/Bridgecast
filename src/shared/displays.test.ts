@@ -3,6 +3,7 @@ import {
   NO_SECOND_DISPLAY,
   displayText,
   hdmiSettingsError,
+  nativeLength,
   pickDisplay,
   resolveHdmi,
   toDisplayInfo,
@@ -52,6 +53,15 @@ describe('pickDisplay', () => {
 })
 
 describe('toDisplayInfo / displayText', () => {
+  it('uses a measured native size when given', () => {
+    const d = { id: 7, label: 'X', size: { width: 1715, height: 965 }, scaleFactor: 1.12 }
+    expect(toDisplayInfo(d, 1, 0, { width: 1920, height: 1080 })).toMatchObject({
+      width: 1920,
+      height: 1080
+    })
+    expect(toDisplayInfo(d, 1, 0)).toMatchObject({ width: 1920, height: 1080 })
+  })
+
   it('reports the native resolution (DIP size × scale factor) and marks the primary', () => {
     const d = { id: 7, label: 'DELL', size: { width: 1280, height: 720 }, scaleFactor: 1.5 }
     expect(toDisplayInfo(d, 7, 0)).toEqual({
@@ -72,6 +82,32 @@ describe('toDisplayInfo / displayText', () => {
   it('shows label and resolution, and marks the operator screen', () => {
     expect(displayText(projector)).toBe('EPSON PJ · 1920×1080')
     expect(displayText(laptop)).toBe('Layar laptop · 2880×1800 — Layar utama (operator)')
+  })
+})
+
+describe('nativeLength', () => {
+  // Windows reports a display's DIP size rounded up: ceil(pixels / scale).
+  it('recovers the pixel size from the DIP size and scale', () => {
+    expect(nativeLength(1715, 1.1200000047683716)).toBe(1920) // measured: 1920×1080 at 112 %
+    expect(nativeLength(965, 1.1200000047683716)).toBe(1080)
+    expect(nativeLength(1536, 1.25)).toBe(1920)
+    expect(nativeLength(1280, 1.5)).toBe(1920)
+    expect(nativeLength(1920, 1)).toBe(1920)
+    expect(nativeLength(1920, 2)).toBe(3840)
+  })
+
+  it('prefers the even length when two pixel sizes give the same DIP size', () => {
+    expect(nativeLength(1098, 1.75)).toBe(1920) // 1920 or 1921 px → 1098 DIP
+    expect(nativeLength(2195, 1.75)).toBe(3840)
+    expect(nativeLength(683, 2)).toBe(1366)
+  })
+
+  it('round-trips common resolutions at scalings up to 200 %', () => {
+    for (const sf of [1, 1.12, 1.25, 1.5, 1.75, 2]) {
+      for (const px of [768, 900, 1050, 1080, 1200, 1366, 1440, 1600, 1920, 2160, 2560, 3840]) {
+        expect(nativeLength(Math.ceil(px / sf - 1e-6), sf), `${px} @ ${sf}`).toBe(px)
+      }
+    }
   })
 })
 
