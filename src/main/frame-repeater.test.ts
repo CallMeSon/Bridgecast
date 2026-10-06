@@ -80,14 +80,56 @@ describe('FrameRepeater', () => {
   })
 
   it('does not burst to catch up after the event loop was blocked', () => {
+    let offset = 0
+    const send = vi.fn()
+    const r = new FrameRepeater(send, 30, setInterval, () => performance.now() + offset)
+    r.push(Buffer.from([1]))
+    vi.advanceTimersByTime(1000)
+    const n = send.mock.calls.length
+    offset += 2000 // 2 s passed without any timer running
+    vi.advanceTimersByTime(100)
+    expect(send.mock.calls.length - n).toBeLessThanOrEqual(4)
+    r.stop()
+  })
+
+  // Windows time sync or a manual clock fix can step the wall clock backwards.
+  it('keeps sending at fps after the wall clock steps back (default clock)', () => {
     const send = vi.fn()
     const r = new FrameRepeater(send, 30)
     r.push(Buffer.from([1]))
     vi.advanceTimersByTime(1000)
-    const n = send.mock.calls.length
-    vi.setSystemTime(Date.now() + 2000) // clock jumps, no timers ran
-    vi.advanceTimersByTime(100)
-    expect(send.mock.calls.length - n).toBeLessThanOrEqual(4)
+    vi.setSystemTime(Date.now() - 10_000) // Date.now() goes back 10 s
+    send.mockClear()
+    vi.advanceTimersByTime(1000)
+    expect(send.mock.calls.length).toBeGreaterThanOrEqual(29)
+    r.stop()
+  })
+
+  it('recovers when an injected clock jumps backwards', () => {
+    let offset = 0
+    const now = (): number => performance.now() + offset
+    const send = vi.fn()
+    const r = new FrameRepeater(send, 30, setInterval, now)
+    r.push(Buffer.from([1]))
+    vi.advanceTimersByTime(1000)
+    offset -= 10_000
+    send.mockClear()
+    vi.advanceTimersByTime(1000)
+    expect(send.mock.calls.length).toBeGreaterThanOrEqual(28)
+    expect(send.mock.calls.length).toBeLessThanOrEqual(31)
+    r.stop()
+  })
+
+  it('uses the injected clock', () => {
+    let t = 0
+    const send = vi.fn()
+    const r = new FrameRepeater(send, 30, setInterval, () => t)
+    r.push(Buffer.from([1]))
+    vi.advanceTimersByTime(1000) // timers run, but the injected clock stands still
+    expect(send).not.toHaveBeenCalled()
+    t = 34
+    vi.advanceTimersByTime(10)
+    expect(send).toHaveBeenCalledTimes(1)
     r.stop()
   })
 

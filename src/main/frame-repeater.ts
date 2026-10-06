@@ -8,6 +8,9 @@
  * runs at 21 fps instead of 30. The timer therefore ticks at a quarter period
  * and a frame goes out whenever its deadline has passed: on average exactly
  * `fps` frames per second, with at most one tick of jitter.
+ *
+ * Deadlines use a monotonic clock (`performance.now()`): a wall clock stepped
+ * back by Windows time sync would otherwise stop all frames until it caught up.
  */
 export class FrameRepeater {
   private last: Buffer | null = null
@@ -18,10 +21,11 @@ export class FrameRepeater {
   constructor(
     private send: (frame: Buffer) => void,
     fps: number,
-    schedule: typeof setInterval = setInterval
+    schedule: typeof setInterval = setInterval,
+    private now: () => number = () => performance.now()
   ) {
     this.period = 1000 / fps
-    this.due = Date.now() + this.period
+    this.due = this.now() + this.period
     this.timer = schedule(() => this.tick(), this.period / 4)
   }
 
@@ -36,7 +40,9 @@ export class FrameRepeater {
   }
 
   private tick(): void {
-    const now = Date.now()
+    const now = this.now()
+    // Deadline unreasonably far ahead: the clock went backwards. Resync.
+    if (this.due - now > 2 * this.period) this.due = now
     if (now < this.due) return
     this.due += this.period
     // More than a period behind (blocked event loop, sleep): skip, don't burst.
