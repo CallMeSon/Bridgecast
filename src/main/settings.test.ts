@@ -17,14 +17,16 @@ afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
 describe('loadSettings / saveSettings', () => {
   it('returns the defaults when the file does not exist', () => {
     expect(loadSettings(file)).toEqual({
-      ndi: { enabled: true, name: 'PPT Share', width: 1920, height: 1080, fps: 30 }
+      ndi: { enabled: true, name: 'PPT Share', width: 1920, height: 1080, fps: 30 },
+      hdmi: { enabled: false, displayId: null }
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
   })
 
   it('save then load returns the same values', () => {
     const s = {
-      ndi: { enabled: false, name: 'Panggung Utama', width: 3840, height: 2160, fps: 60 }
+      ndi: { enabled: false, name: 'Panggung Utama', width: 3840, height: 2160, fps: 60 },
+      hdmi: { enabled: true, displayId: 2528732444 }
     }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
@@ -55,6 +57,30 @@ describe('loadSettings / saveSettings', () => {
     const a = loadSettings(file)
     a.ndi.name = 'diubah'
     expect(loadSettings(file).ndi.name).toBe('PPT Share')
+  })
+})
+
+describe('hdmi settings', () => {
+  const ndi = { enabled: false, name: 'Aula', width: 1920, height: 1080, fps: 60 }
+
+  it('an old settings file without hdmi loads with the hdmi defaults', () => {
+    fs.writeFileSync(file, JSON.stringify({ ndi }))
+    expect(loadSettings(file)).toEqual({ ndi, hdmi: { enabled: false, displayId: null } })
+  })
+
+  it('a displayId that is not an integer becomes null', () => {
+    for (const displayId of [2.5, '2', -0.1, NaN, null, true, {}]) {
+      fs.writeFileSync(file, JSON.stringify({ ndi, hdmi: { enabled: true, displayId } }))
+      expect(loadSettings(file).hdmi).toEqual({ enabled: true, displayId: null })
+    }
+  })
+
+  it('an invalid enabled flag falls back to off', () => {
+    expect(sanitizeSettings({ ndi, hdmi: { enabled: 1, displayId: 5 } }).hdmi).toEqual({
+      enabled: false,
+      displayId: 5
+    })
+    expect(sanitizeSettings({ ndi, hdmi: 'on' }).hdmi).toEqual({ enabled: false, displayId: null })
   })
 })
 

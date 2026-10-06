@@ -1,0 +1,157 @@
+import { describe, expect, it } from 'vitest'
+import { planHdmi, type ScreenDisplay, type TargetMemo, type WindowView } from './hdmi-plan'
+
+const laptop: ScreenDisplay = {
+  id: 1,
+  label: 'Layar laptop',
+  width: 2880,
+  height: 1800,
+  primary: true,
+  bounds: { x: 0, y: 0, width: 1920, height: 1200 }
+}
+const projector: ScreenDisplay = {
+  id: 2,
+  label: 'EPSON PJ',
+  width: 1920,
+  height: 1080,
+  primary: false,
+  bounds: { x: 1920, y: 0, width: 1920, height: 1080 }
+}
+const memo: TargetMemo = { id: 2, label: 'EPSON PJ', width: 1920, height: 1080 }
+
+const none: WindowView = { exists: false, ready: false, visible: false, bounds: null }
+const shown: WindowView = { exists: true, ready: true, visible: true, bounds: projector.bounds }
+const hidden: WindowView = { ...shown, visible: false }
+const on = { enabled: true, displayId: 2 }
+
+describe('planHdmi', () => {
+  it('off: destroys an existing window, status off', () => {
+    expect(
+      planHdmi({ enabled: false, displayId: 2 }, [laptop, projector], memo, shown)
+    ).toMatchObject({ action: { type: 'destroy' }, status: { state: 'off' } })
+    expect(planHdmi({ enabled: false, displayId: null }, [laptop], null, none)).toMatchObject({
+      action: { type: 'none' },
+      status: { state: 'off' }
+    })
+  })
+
+  it('enabled with the display present: creates the window on its bounds (shown once ready)', () => {
+    const p = planHdmi(on, [laptop, projector], null, none)
+    expect(p.action).toEqual({ type: 'create', bounds: projector.bounds })
+    expect(p.status.state).toBe('hidden')
+    expect(p.status.message).toMatch(/Menyiapkan/)
+    expect(p.memo).toEqual(memo)
+    expect(p.targetId).toBe(2)
+  })
+
+  it('window became ready: shows it on the display', () => {
+    const p = planHdmi(on, [laptop, projector], memo, { ...hidden, ready: true })
+    expect(p.action).toEqual({ type: 'show', bounds: projector.bounds })
+    expect(p.status).toEqual({ state: 'showing' })
+  })
+
+  it('not ready yet: never shows (no white/black flash), only places it', () => {
+    const p = planHdmi(on, [laptop, projector], memo, { ...none, exists: true, bounds: null })
+    expect(p.action).toEqual({ type: 'setBounds', bounds: projector.bounds })
+    expect(p.status.state).toBe('hidden')
+  })
+
+  it('already showing on the right bounds: nothing to do', () => {
+    expect(planHdmi(on, [laptop, projector], memo, shown)).toEqual({
+      action: { type: 'none' },
+      status: { state: 'showing' },
+      memo,
+      targetId: 2
+    })
+  })
+
+  it('display-removed: hides the window (never moves it to the operator screen)', () => {
+    const p = planHdmi(on, [laptop], memo, shown)
+    expect(p.action).toEqual({ type: 'hide' })
+    expect(p.status).toEqual({ state: 'hidden' })
+    expect(p.memo).toEqual(memo) // remembered for the reconnect
+    // Already hidden: stays hidden, window kept alive (rendering) for a quick return.
+    expect(planHdmi(on, [laptop], memo, hidden).action).toEqual({ type: 'none' })
+  })
+
+  it('display-removed with another external display present: still hidden, no jump', () => {
+    const tv: ScreenDisplay = {
+      ...projector,
+      id: 3,
+      label: 'SAMSUNG',
+      width: 3840,
+      height: 2160
+    }
+    expect(planHdmi(on, [laptop, tv], memo, shown).action).toEqual({ type: 'hide' })
+  })
+
+  it('display-added with the same id: shows again on its bounds', () => {
+    expect(planHdmi(on, [laptop, projector], memo, hidden).action).toEqual({
+      type: 'show',
+      bounds: projector.bounds
+    })
+  })
+
+  it('display-added with a new id: re-matched by label and size', () => {
+    const again = { ...projector, id: 99, bounds: { x: -1920, y: 0, width: 1920, height: 1080 } }
+    const p = planHdmi(on, [laptop, again], memo, hidden)
+    expect(p.action).toEqual({ type: 'show', bounds: again.bounds })
+    expect(p.targetId).toBe(99)
+    expect(p.memo).toEqual({ ...memo, id: 99 })
+  })
+
+  it('label+size fallback never picks another model or size', () => {
+    const other = { ...projector, id: 99, label: 'BENQ' }
+    expect(planHdmi(on, [laptop, other], memo, hidden).action).toEqual({ type: 'none' })
+    const smaller = { ...projector, id: 98, width: 1280, height: 720 }
+    expect(planHdmi(on, [laptop, smaller], memo, hidden).status.state).toBe('hidden')
+  })
+
+  it('display-metrics-changed: re-applies the new bounds while showing', () => {
+    const bigger = {
+      ...projector,
+      width: 3840,
+      height: 2160,
+      bounds: { ...projector.bounds, width: 2560, height: 1440 }
+    }
+    const p = planHdmi(on, [laptop, bigger], memo, shown)
+    expect(p.action).toEqual({ type: 'setBounds', bounds: bigger.bounds })
+    expect(p.status).toEqual({ state: 'showing' })
+    // Moved because the operator screen changed size (the projector now starts further right).
+    const moved = { ...projector, bounds: { ...projector.bounds, x: 2560 } }
+    expect(planHdmi(on, [laptop, moved], memo, shown).action).toEqual({
+      type: 'setBounds',
+      bounds: moved.bounds
+    })
+  })
+
+  it('the chosen display became the Windows primary: hidden with an error and the fix', () => {
+    const p = planHdmi(
+      on,
+      [
+        { ...laptop, primary: false },
+        { ...projector, primary: true }
+      ],
+      memo,
+      shown
+    )
+    expect(p.action).toEqual({ type: 'hide' })
+    expect(p.status.state).toBe('error')
+    expect(p.status.message).toMatch(/layar utama.*Pilih layar lain/)
+  })
+
+  it('no display chosen (null) and no memo: uses the first non-primary display', () => {
+    const p = planHdmi({ enabled: true, displayId: null }, [laptop, projector], null, none)
+    expect(p.action).toEqual({ type: 'create', bounds: projector.bounds })
+    expect(p.targetId).toBe(2)
+  })
+
+  it('saved display missing at startup (no memo): hidden, the window is not even created', () => {
+    expect(planHdmi(on, [laptop], null, none)).toEqual({
+      action: { type: 'none' },
+      status: { state: 'hidden' },
+      memo: null,
+      targetId: null
+    })
+  })
+})
