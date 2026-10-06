@@ -74,7 +74,6 @@ describe('Library', () => {
     expect(got.slides.map((s) => s.notes)).toEqual(['note-2', 'note-0', 'note-1'])
     expect(fs.readFileSync(lib.slidePath(d.id, 0), 'utf8')).toBe('png-2')
     expect(fs.readFileSync(lib.slidePath(d.id, 2), 'utf8')).toBe('png-1')
-    expect(path.basename(lib.slidePath(d.id, 0))).toBe('001.png')
     const lib2 = new Library(root)
     expect(fs.readFileSync(lib2.slidePath(d.id, 0), 'utf8')).toBe('png-2')
     expect(lib2.getDecks(ev.id)[0].slides.map((s) => s.notes)).toEqual(['note-2', 'note-0', 'note-1'])
@@ -98,6 +97,45 @@ describe('Library', () => {
     expect(() => lib.reorderDecks(ev.id, [a.id, 'nope'])).toThrow()
     expect(lib.getDecks(ev.id).map((d) => d.id)).toEqual([a.id, b.id])
     expect(lib.listEvents()[0].deckIds).toEqual([a.id, b.id])
+  })
+
+  it('reorderSlides leaves PNG files untouched and consistent', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const d = lib.addDeck(ev.id, deckInput(3))
+    const before = fs.readdirSync(path.join(root, 'decks', d.id)).sort()
+    lib.reorderSlides(d.id, [1, 2, 0])
+    expect(fs.readdirSync(path.join(root, 'decks', d.id)).sort()).toEqual(before)
+    expect(fs.readFileSync(lib.slidePath(d.id, 2), 'utf8')).toBe('png-0')
+  })
+
+  it('removeDeck rejects traversal and foreign ids, deleting nothing', () => {
+    const lib = new Library(root)
+    const e1 = lib.createEvent('E1')
+    const e2 = lib.createEvent('E2')
+    const d1 = lib.addDeck(e1.id, deckInput(1))
+    expect(() => lib.removeDeck(e1.id, '..')).toThrow(/tidak valid|tidak ditemukan/)
+    expect(() => lib.removeDeck(e2.id, d1.id)).toThrow(/tidak ditemukan/)
+    expect(fs.existsSync(path.join(root, 'events.json'))).toBe(true)
+    expect(fs.existsSync(path.join(root, 'decks', d1.id, 'deck.json'))).toBe(true)
+    expect(lib.getDecks(e1.id)).toHaveLength(1)
+  })
+
+  it('slidePath and lookups throw Indonesian errors', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const d = lib.addDeck(ev.id, deckInput(1))
+    expect(() => lib.slidePath(d.id, 5)).toThrow(/Slide tidak ditemukan\. /)
+    expect(() => lib.slidePath('..', 0)).toThrow(/Id deck tidak valid/)
+    expect(() => lib.slidePath('00000000-0000-4000-8000-000000000000', 0)).toThrow(
+      /Deck tidak ditemukan\. /
+    )
+    expect(() => lib.getDecks('nope')).toThrow(/Event tidak ditemukan\. /)
+  })
+
+  it('corrupt events.json gives an Indonesian error', () => {
+    fs.writeFileSync(path.join(root, 'events.json'), '{not json')
+    expect(() => new Library(root)).toThrow(/events\.json rusak/)
   })
 
   it('removeDeck deletes folder and id', () => {

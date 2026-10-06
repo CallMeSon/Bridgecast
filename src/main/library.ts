@@ -11,6 +11,8 @@ type DeckInput = {
   slides: { pngPath: string; notes: string }[]
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const slideName = (i: number): string => `${String(i + 1).padStart(3, '0')}.png`
 
 function writeJsonAtomic(file: string, data: unknown): void {
@@ -32,12 +34,21 @@ export class Library {
   }
 
   private deckDir(deckId: string): string {
+    if (!UUID_RE.test(deckId)) {
+      throw new Error('Id deck tidak valid. Muat ulang daftar deck lalu pilih deck dari daftar.')
+    }
     return path.join(this.root, 'decks', deckId)
   }
 
   private loadEvents(): EventMeta[] {
     if (!fs.existsSync(this.eventsFile)) return []
-    return JSON.parse(fs.readFileSync(this.eventsFile, 'utf8')) as EventMeta[]
+    try {
+      return JSON.parse(fs.readFileSync(this.eventsFile, 'utf8')) as EventMeta[]
+    } catch {
+      throw new Error(
+        'File events.json rusak dan tidak bisa dibaca. Pulihkan dari cadangan atau hapus file tersebut untuk memulai dari awal.'
+      )
+    }
   }
 
   private saveEvents(): void {
@@ -46,13 +57,13 @@ export class Library {
 
   private findEvent(eventId: string): EventMeta {
     const ev = this.events.find((e) => e.id === eventId)
-    if (!ev) throw new Error(`Event tidak ditemukan: ${eventId}`)
+    if (!ev) throw new Error('Event tidak ditemukan. Pilih event lain dari menu atau buat event baru.')
     return ev
   }
 
   private readDeck(deckId: string): DeckMeta {
     const file = path.join(this.deckDir(deckId), 'deck.json')
-    if (!fs.existsSync(file)) throw new Error(`Deck tidak ditemukan: ${deckId}`)
+    if (!fs.existsSync(file)) throw new Error('Deck tidak ditemukan. Muat ulang daftar deck atau impor deck kembali.')
     return JSON.parse(fs.readFileSync(file, 'utf8')) as DeckMeta
   }
 
@@ -130,20 +141,16 @@ export class Library {
     if (!valid) {
       throw new Error('Urutan slide tidak valid: harus permutasi dari semua indeks slide')
     }
-    const dir = this.deckDir(deckId)
-    const tmpName = (i: number): string => `.tmp-${slideName(i)}`
-    // Two-phase rename so no file is overwritten mid-way.
-    deck.slides.forEach((s, i) => fs.renameSync(path.join(dir, s.file), path.join(dir, tmpName(i))))
-    const slides = order.map((from, to) => {
-      const file = slideName(to)
-      fs.renameSync(path.join(dir, tmpName(from)), path.join(dir, file))
-      return { file, notes: deck.slides[from].notes }
-    })
+    // File PNG tetap; hanya urutan di deck.json yang berubah (satu rename atomik).
+    const slides = order.map((from) => deck.slides[from])
     this.writeDeck({ ...deck, slides })
   }
 
   removeDeck(eventId: string, deckId: string): void {
     const ev = this.findEvent(eventId)
+    if (!ev.deckIds.includes(deckId)) {
+      throw new Error('Deck tidak ditemukan di event ini. Muat ulang daftar deck lalu pilih deck dari daftar.')
+    }
     ev.deckIds = ev.deckIds.filter((id) => id !== deckId)
     this.saveEvents()
     fs.rmSync(this.deckDir(deckId), { recursive: true, force: true })
@@ -152,7 +159,7 @@ export class Library {
   slidePath(deckId: string, index: number): string {
     const deck = this.readDeck(deckId)
     const slide = deck.slides[index]
-    if (!slide) throw new Error(`Slide tidak ditemukan: ${index}`)
+    if (!slide) throw new Error('Slide tidak ditemukan. Pilih nomor slide yang ada di deck ini.')
     return path.join(this.deckDir(deckId), slide.file)
   }
 }
