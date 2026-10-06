@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { initialState, type ProgramState } from '../../shared/program'
+import type { ProgramState } from '../../shared/program'
 import { outputSource } from './model'
 
 /** Crossfade length for transition 'fade' (spec: 250 ms); also in output.css. */
@@ -19,16 +19,50 @@ async function preload(src: string): Promise<void> {
   await img.decode().catch(() => undefined)
 }
 
+const timingId = (key: number): string => `layer-${key}`
+
+/**
+ * Resolves once Chromium has painted the <img elementtiming={id}> (Element
+ * Timing API). Painting a large image can lag the DOM commit by a few frames
+ * even after decode(), so animation frames alone do not prove it is on screen.
+ * Resolves anyway after `timeoutMs` in case no entry is reported.
+ */
+function imagePainted(id: string, timeoutMs = 1500): Promise<void> {
+  return new Promise((resolve) => {
+    let obs: PerformanceObserver | null = null
+    const done = (): void => {
+      obs?.disconnect()
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(done, timeoutMs)
+    try {
+      obs = new PerformanceObserver((list) => {
+        if (list.getEntries().some((e) => (e as { identifier?: string }).identifier === id)) done()
+      })
+      obs.observe({ type: 'element', buffered: true })
+    } catch {
+      // Element Timing unsupported: the timeout above resolves.
+    }
+  })
+}
+
 /**
  * Program output (route `#/output`), rendered in the hidden offscreen window
  * and captured as frames. No chrome, no input: only black or the `shown` slide,
  * letterboxed with `object-fit: contain`.
  */
 export function OutputView(): React.JSX.Element {
-  const [program, setProgram] = useState<ProgramState>(initialState)
+  // null until the real program state is known (initial fetch or a broadcast):
+  // the black placeholder before that is not "the current state".
+  const [program, setProgram] = useState<ProgramState | null>(null)
   const [layers, setLayers] = useState<Layer[]>([{ key: 0, src: null, fade: false }])
   const seq = useRef(0)
-  const topSrc = useRef<string | null>(null)
+  /** undefined = nothing committed for a known state yet. */
+  const topSrc = useRef<string | null | undefined>(undefined)
+  /** Key of the first layer for a known state; `output:ready` once it is on screen. */
+  const readyKey = useRef<number | null>(null)
+  const readySent = useRef(false)
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
@@ -50,11 +84,14 @@ export function OutputView(): React.JSX.Element {
     }
   }, [])
 
-  const target = outputSource(program)
-  const fade = program.transition === 'fade'
+  const target = program ? outputSource(program) : undefined
+  const fade = program?.transition === 'fade'
 
   useEffect(() => {
-    if (target === topSrc.current) return
+    if (target === undefined || target === topSrc.current) return
+    // The very first layer is a cut: a fresh window (new resolution, or a
+    // restart) must show the current state at once, not fade it in from black.
+    const first = topSrc.current === undefined
     topSrc.current = target
     const key = ++seq.current
     ;(async () => {
@@ -62,7 +99,8 @@ export function OutputView(): React.JSX.Element {
       if (target) await preload(target)
       if (key !== seq.current) return // superseded while loading
       clearTimeout(fadeTimer.current)
-      if (!fade) {
+      if (!fade || first || !readySent.current) {
+        if (!readySent.current) readyKey.current = key
         setLayers([{ key, src: target, fade: false }])
         return
       }
@@ -81,11 +119,32 @@ export function OutputView(): React.JSX.Element {
     })()
   }, [target, fade])
 
+  // Tell main once the first real layer is committed and painted, so
+  // NdiPipeline can switch to this window without ever putting the black
+  // placeholder on Program. The <img> in the DOM is decoded itself (the
+  // preload decoded another Image object; Chromium may otherwise paint a large
+  // image a frame late), then two animation frames let that frame be drawn.
+  useEffect(() => {
+    const top = layers[layers.length - 1]
+    if (readySent.current || readyKey.current === null || top?.key !== readyKey.current) return
+    readySent.current = true
+    const shown = top.src ? imagePainted(timingId(top.key)) : Promise.resolve()
+    void shown.then(() =>
+      requestAnimationFrame(() => requestAnimationFrame(() => window.api.outputReady()))
+    )
+  }, [layers])
+
   return (
     <div className="output" aria-hidden="true">
       {layers.map((l) => (
-        <div key={l.key} className={l.fade ? 'output-layer fade' : 'output-layer'}>
-          {l.src && <img src={l.src} alt="" draggable={false} />}
+        <div
+          key={l.key}
+          data-layer={l.key}
+          className={l.fade ? 'output-layer fade' : 'output-layer'}
+        >
+          {l.src && (
+            <img src={l.src} alt="" draggable={false} {...{ elementtiming: timingId(l.key) }} />
+          )}
         </div>
       ))}
     </div>

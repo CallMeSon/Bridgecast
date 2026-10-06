@@ -9,6 +9,8 @@
 //         "<PC> (PPT Share)", and checks the received frames: slide 1 is not
 //         black, B makes it black, B again restores it, 3840×2160 @ 60 fps
 //         arrives at 4K after "Terapkan", and reports the per-frame cost.
+//         Across 1080p→4K (cut) and 4K→1080p (fade) applies with a slide live,
+//         EVERY received frame must show that slide (no black / fade from black).
 import { _electron as electron } from 'playwright'
 import grandi from 'grandi'
 import * as fs from 'node:fs'
@@ -68,6 +70,71 @@ async function waitFrame(rx, pred, what, timeout = 8000) {
   }
   throw new Error(
     `${what} (last frame: ${last ? `${last.xres}×${last.yres} centre ${px(last, last.xres >> 1, last.yres >> 1)}` : 'none'})`
+  )
+}
+
+/** Pixel at the 1080p coordinates (x, y), scaled to the frame's size. */
+const at = (f, x, y) => px(f, Math.round((x * f.xres) / 1920), Math.round((y * f.yres) / 1080))
+/** Slide 1 of sample.pdf is white at (960,300); black or a fade from black is not. */
+const slide1 = (f) => lum(at(f, 960, 300)) > 200
+/** Slide 2 of sample.pdf has a light-blue background (232,240,255). */
+const isBlue = ([r, g, b]) => r < 245 && b > 245 && b - r > 10 && g > r
+const slide2 = (f) => isBlue(at(f, 20, 20))
+
+/**
+ * Applies `ndi` settings in the app while recording EVERY frame received,
+ * from just before the apply until 1 s after the first frame at the new width
+ * that satisfies `pred`. Returns that first frame and the per-frame record.
+ */
+async function applyAndRecord(win, rx, ndi, pred = slide1, timeout = 15_000) {
+  const frames = []
+  let first = null
+  let applied = false
+  let stopAt = Infinity
+  const end = Date.now() + timeout
+  const pump = (async () => {
+    while (Date.now() < Math.min(end, stopAt)) {
+      let f
+      try {
+        f = await rx.video(500)
+      } catch {
+        continue
+      }
+      if (!applied) continue // frames still queued from before the apply
+      const ok = pred(f)
+      frames.push({ xres: f.xres, ok, sample: [at(f, 960, 300), at(f, 20, 20)] })
+      if (!first && ok && f.xres === ndi.width) {
+        first = f
+        stopAt = Date.now() + 1000
+      }
+    }
+  })()
+  // Drain what is queued, then apply.
+  await new Promise((r) => setTimeout(r, 300))
+  applied = true
+  await win.evaluate((s) => window.api.setSettings({ ndi: s }), ndi)
+  await pump
+  if (!first) throw new Error(`no ${ndi.width}×${ndi.height} slide frame after the apply`)
+  return { first, frames }
+}
+
+/** Fails when any recorded frame does not show the live slide. */
+function noBlank(frames, label) {
+  const bad = frames.filter((f) => !f.ok)
+  const sizes = [...new Set(frames.map((f) => f.xres))].join('→')
+  // Runs in arrival order, e.g. "1920 ok×20, 3840 BLANK×1, 3840 ok×40".
+  const runs = []
+  for (const f of frames) {
+    const tag = `${f.xres} ${f.ok ? 'ok' : 'BLANK'}`
+    if (runs.length && runs[runs.length - 1][0] === tag) runs[runs.length - 1][1]++
+    else runs.push([tag, 1])
+  }
+  check(
+    frames.length > 0 && bad.length === 0,
+    `${label}: ${frames.length} frames received (widths ${sizes}), ${bad.length} without the live slide` +
+      (bad.length
+        ? `; sequence ${runs.map(([t, n]) => `${t}×${n}`).join(', ')}; e.g. ${JSON.stringify(bad.slice(0, 4).map((f) => [f.xres, f.sample]))}`
+        : '')
   )
 }
 
@@ -201,24 +268,22 @@ async function appPass() {
     await waitFrame(rx, (f) => lum(px(f, 960, 300)) > 200, 'B off did not restore slide 1')
     check(true, 'B again → slide 1 back over NDI')
 
-    // 4K @ 60 fps through the same path the popover uses.
+    // 4K @ 60 fps through the same path the popover uses, while slide 1 is
+    // LIVE (cut). Every frame between the apply and 1 s after the first 4K
+    // slide frame must show the slide: no black / fade-from-black on Program.
     const t0 = Date.now()
-    await win.evaluate(() =>
-      window.api.setSettings({
-        ndi: { enabled: true, name: 'PPT Share', width: 3840, height: 2160, fps: 60 }
-      })
-    )
-    const uhd = await waitFrame(
-      rx,
-      (f) => f.xres === 3840 && lum(px(f, 1920, 600)) > 200,
-      'no 3840×2160 frame after switching to 4K',
-      15_000
-    )
+    const { first: uhd, frames: rec } = await applyAndRecord(win, rx, {
+      enabled: true,
+      name: 'PPT Share',
+      width: 3840,
+      height: 2160,
+      fps: 60
+    })
     check(
       uhd.yres === 2160 && uhd.frameRateN === 60 && uhd.frameRateD === 1,
       `after Terapkan 4K/60: ${uhd.xres}×${uhd.yres} @ ${uhd.frameRateN}/${uhd.frameRateD} received ${Date.now() - t0} ms later, slide visible`
     )
-    // Count frames received in 3 s (a gap would show as a long wait).
+    noBlank(rec, '1920×1080/30 → 3840×2160/60 (cut, slide 1 live)') // Count frames received in 3 s (a gap would show as a long wait).
     let n = 0
     let maxGap = 0
     let prev = Date.now()
@@ -247,19 +312,25 @@ async function appPass() {
     // A change on the slide repaints at 4K: measure that path too.
     // Slide 2 of sample.pdf has a light-blue background (232,240,255); slide 1 is white.
     await win.keyboard.press('Space')
-    const isBlue = ([r, g, b]) => r < 245 && b > 245 && b - r > 10 && g > r
-    const s2 = await waitFrame(
-      rx,
-      (f) => f.xres === 3840 && isBlue(px(f, 20, 20)),
-      'slide 2 at 4K',
-      8000
-    )
+    const s2 = await waitFrame(rx, (f) => f.xres === 3840 && slide2(f), 'slide 2 at 4K', 8000)
     check(true, `slide 2 over NDI at 4K: corner ${px(s2, 20, 20)} (light blue)`)
     const paint2 = await app.evaluate(() => globalThis.__pptOutput.paint)
     console.log(
       `  after a slide change at 4K: ${(paint2.totalMs / paint2.count).toFixed(1)} ms avg / ${paint2.maxMs.toFixed(1)} ms max over ${paint2.count} paints`
     )
     check(paint2.mode !== 'resize', `4K frames are not resampled (mode ${paint2.mode})`)
+
+    // Back to 1080p/30 with the Fade transition on and slide 2 LIVE: the new
+    // window must not fade in from black either.
+    await win.getByRole('radio', { name: 'Fade' }).click()
+    const { frames: rec2 } = await applyAndRecord(
+      win,
+      rx,
+      { enabled: true, name: 'PPT Share', width: 1920, height: 1080, fps: 30 },
+      slide2
+    )
+    noBlank(rec2, '3840×2160/60 → 1920×1080/30 (fade, slide 2 live)')
+    await win.getByRole('radio', { name: 'Cut' }).click()
   } finally {
     rx?.destroy()
     await app.close()

@@ -182,16 +182,16 @@ class NdiOutput {
 
   constructor(private file: string) {
     this.settings = loadSettings(file)
-    this.sender = new GrandiNdiSender((s) => {
-      this.status = s
-      if (s.state === 'error') console.error(`[ndi] ${s.message}`)
-      broadcast(Broadcast.ndiStatus, s)
-    })
+    this.sender = new GrandiNdiSender((s) => this.setStatus(s))
     // PPT_OUTPUT_DUMP=<dir> (dev/e2e only): exposes counters and a PNG frame
     // dump of the current output window on globalThis.__pptOutput, and the
     // sender's counters on globalThis.__pptNdi.
     const dumpDir = process.env['PPT_OUTPUT_DUMP'] || undefined
-    this.pipeline = new NdiPipeline(this.sender, (opts, send) => new Output(opts, send, dumpDir))
+    this.pipeline = new NdiPipeline(
+      this.sender,
+      (opts, send, ready) => new Output(opts, send, dumpDir, ready),
+      (message) => this.setStatus({ state: 'error', message })
+    )
     if (dumpDir) {
       Object.defineProperty(globalThis, '__pptOutput', {
         configurable: true,
@@ -202,6 +202,12 @@ class NdiOutput {
         get: () => ({ ...this.sender.stats, connections: this.sender.stats.connections() })
       })
     }
+  }
+
+  private setStatus(s: NdiStatus): void {
+    this.status = s
+    if (s.state === 'error') console.error(`[ndi] ${s.message}`)
+    broadcast(Broadcast.ndiStatus, s)
   }
 
   /** Starts the output once the operator window is up. */

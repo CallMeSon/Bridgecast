@@ -3,8 +3,11 @@ import * as fs from 'fs'
 import { join } from 'path'
 import { FrameRepeater } from './frame-repeater'
 import { createOutputWindow, type OutputOptions, type PaintStats } from './output-window'
+import { Send } from '../shared/ipc'
 
 const RESTART_DELAY_MS = 1000
+/** After `output:ready`, force a repaint if no paint arrived within this time. */
+const READY_REPAINT_MS = 250
 
 /** Counters and frame dump, only exposed when PPT_OUTPUT_DUMP is set (dev/e2e). */
 export interface OutputDebug {
@@ -14,6 +17,8 @@ export interface OutputDebug {
   sent: number
   lastLength: number
   restarts: number
+  /** How many times a window of this output became ready (see `onReady`). */
+  readies: number
   /** Scale factor, window DIP size, painted bitmap size, fit mode and per-paint ms. */
   paint: PaintStats
   /** Writes the latest frame as `output-<n>.png` into the dump dir; returns its path. */
@@ -37,12 +42,22 @@ export class Output {
   private last: Buffer | null = null
   private restartTimer: ReturnType<typeof setTimeout> | null = null
   private dumpSeq = 0
+  /** The renderer said it is ready; the next paint is its first real frame. */
+  private awaitingReadyPaint = false
+  private readyRepaint: ReturnType<typeof setTimeout> | null = null
   readonly debug: OutputDebug
 
+  /**
+   * @param onReady called on the first paint after the window's renderer sent
+   *   `output:ready` (current program state decoded and committed), i.e. the
+   *   first frame that shows real content rather than the black placeholder.
+   *   Called again for a window recreated after a crash or scale change.
+   */
   constructor(
     private opts: OutputOptions,
     send: (frame: Buffer) => void,
-    private dumpDir?: string
+    private dumpDir?: string,
+    private onReady: () => void = () => {}
   ) {
     const counted = (frame: Buffer): void => {
       this.debug.sent++
@@ -55,6 +70,7 @@ export class Output {
       sent: 0,
       lastLength: 0,
       restarts: 0,
+      readies: 0,
       paint: {
         scaleFactor: 1,
         windowDip: { width: 0, height: 0 },
@@ -95,9 +111,34 @@ export class Output {
         this.debug.lastLength = frame.length
         this.last = frame
         this.repeater.push(frame)
+        if (this.awaitingReadyPaint && this.win === win) {
+          this.awaitingReadyPaint = false
+          this.clearReadyRepaint()
+          this.debug.readies++
+          this.onReady()
+        }
       },
       this.debug.paint
     )
+    // Only this window's own renderer can make it ready: webContents.ipc only
+    // receives messages sent by this webContents (the operator window's
+    // window.api.outputReady() never arrives here).
+    win.webContents.ipc.on(Send.outputReady, () => {
+      if (this.win !== win || win.isDestroyed()) return
+      this.awaitingReadyPaint = true
+      // The frame with the committed content may still be on its way from the
+      // GPU (offscreen paints lag the renderer by a few frames), so the next
+      // natural paint is awaited; invalidate() right now would repaint the
+      // stale frame the browser already holds. If that frame had already
+      // arrived before this message, no paint follows: force one later.
+      this.clearReadyRepaint()
+      this.readyRepaint = setTimeout(() => {
+        this.readyRepaint = null
+        if (this.awaitingReadyPaint && this.win === win && !win.isDestroyed()) {
+          win.webContents.invalidate()
+        }
+      }, READY_REPAINT_MS)
+    })
     win.on('close', (e) => {
       if (!this.quitting) e.preventDefault()
     })
@@ -113,9 +154,15 @@ export class Output {
     this.quitting = true
     screen.removeListener('display-metrics-changed', this.onMetrics)
     if (this.restartTimer) clearTimeout(this.restartTimer)
+    this.clearReadyRepaint()
     this.repeater.stop()
     if (this.win && !this.win.isDestroyed()) this.win.destroy()
     this.win = null
+  }
+
+  private clearReadyRepaint(): void {
+    if (this.readyRepaint) clearTimeout(this.readyRepaint)
+    this.readyRepaint = null
   }
 
   private scheduleRestart(dead: BrowserWindow): void {
@@ -131,6 +178,8 @@ export class Output {
     if (this.quitting) return
     if (!old.isDestroyed()) old.destroy()
     if (this.win === old) this.win = null
+    this.awaitingReadyPaint = false
+    this.clearReadyRepaint()
     this.debug.restarts++
     this.start()
   }

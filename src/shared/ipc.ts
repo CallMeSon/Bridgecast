@@ -20,6 +20,19 @@ export const Invoke = {
   ndiGetStatus: 'ndi:getStatus'
 } as const
 
+/**
+ * Renderer → main one-way messages (ipcRenderer.send). Main only accepts them
+ * from the webContents they concern (see Output), so another window cannot
+ * spoof them.
+ */
+export const Send = {
+  /**
+   * Sent once by an output window (`#/output`) when its first layer for the
+   * current program state (a slide, or black) is decoded, committed and painted.
+   */
+  outputReady: 'output:ready'
+} as const
+
 /** Main → renderer broadcasts (webContents.send ↔ ipcRenderer.on). */
 export const Broadcast = {
   programState: 'program:state',
@@ -115,5 +128,7 @@ export interface Api {
   setSettings(s: Settings): Promise<Settings>
   getNdiStatus(): Promise<NdiStatus>
   onNdiStatus(cb: (s: NdiStatus) => void): () => void
+  /** Output window only: its first frame for the current program state is rendered. */
+  outputReady(): void
   pathForFile(file: File): string
 }

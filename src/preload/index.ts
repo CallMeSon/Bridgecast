@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import {
   Broadcast,
   Invoke,
+  Send,
   type Api,
   type BroadcastMap,
   type InvokeChannel,
@@ -44,6 +45,7 @@ const api: Api = {
   setSettings: (s) => invoke(Invoke.settingsSet, s),
   getNdiStatus: () => invoke(Invoke.ndiGetStatus),
   onNdiStatus: (cb) => subscribe(Broadcast.ndiStatus, cb),
+  outputReady: () => ipcRenderer.send(Send.outputReady),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }

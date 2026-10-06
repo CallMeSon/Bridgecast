@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FrameRepeater } from '../frame-repeater'
 import { FakeNdiSender } from './fake-sender'
-import { NdiPipeline, type OutputHandle } from './pipeline'
+import { NdiPipeline, SWAP_TIMEOUT_MS, type OutputHandle } from './pipeline'
 import { DEFAULT_SETTINGS } from '../settings'
 import type { OutputOptions } from '../output-window'
 import type { NdiSettings } from '../../shared/settings'
@@ -9,7 +9,8 @@ import type { NdiSettings } from '../../shared/settings'
 /**
  * Stand-in for the offscreen output window (createOutputWindow + Output):
  * `paint()` pushes a width*height*4 BGRA frame into a real FrameRepeater,
- * exactly like the window's paint handler does.
+ * exactly like the window's paint handler does. `paint(true)` is the first
+ * paint after the renderer said `output:ready` (Output then calls `ready`).
  */
 class FakeOutput implements OutputHandle {
   readonly repeater: FrameRepeater
@@ -17,15 +18,17 @@ class FakeOutput implements OutputHandle {
   closed = false
   constructor(
     readonly opts: OutputOptions,
-    send: (frame: Buffer) => void
+    send: (frame: Buffer) => void,
+    private ready: () => void
   ) {
     this.repeater = new FrameRepeater(send, opts.fps)
   }
   start(): void {
     this.started = true
   }
-  paint(): void {
+  paint(ready = false): void {
     this.repeater.push(Buffer.alloc(this.opts.width * this.opts.height * 4))
+    if (ready) this.ready()
   }
   shutdown(): void {
     this.closed = true
@@ -36,6 +39,7 @@ class FakeOutput implements OutputHandle {
 let sender: FakeNdiSender
 let outputs: FakeOutput[]
 let pipeline: NdiPipeline<FakeOutput>
+let errors: string[]
 const ndi = (patch: Partial<NdiSettings> = {}): NdiSettings => ({
   ...DEFAULT_SETTINGS.ndi,
   ...patch
@@ -46,11 +50,16 @@ beforeEach(() => {
   vi.useFakeTimers()
   sender = new FakeNdiSender()
   outputs = []
-  pipeline = new NdiPipeline(sender, (opts, send) => {
-    const o = new FakeOutput(opts, send)
-    outputs.push(o)
-    return o
-  })
+  errors = []
+  pipeline = new NdiPipeline(
+    sender,
+    (opts, send, ready) => {
+      const o = new FakeOutput(opts, send, ready)
+      outputs.push(o)
+      return o
+    },
+    (m) => errors.push(m)
+  )
 })
 afterEach(() => {
   pipeline.shutdown()
@@ -138,13 +147,36 @@ describe('NdiPipeline', () => {
       expect(pipeline.current).toBe(old)
     })
 
-    it('swaps on the first frame of the new output: restarts the sender with the new size', () => {
+    it('does not swap on the new output first (black placeholder) paints before it is ready', () => {
+      pipeline.apply(DEFAULT_SETTINGS.ndi)
+      const old = last()
+      old.paint()
+      pipeline.apply(uhd)
+      const fresh = last()
+      // The freshly loaded page paints black, then e.g. a program change
+      // repaints it, all before `output:ready`: none of it may reach NDI.
+      fresh.paint()
+      vi.advanceTimersByTime(200)
+      fresh.paint()
+      const before = sender.frames.length
+      vi.advanceTimersByTime(500)
+      expect(sender.starts.map((s) => s.width)).toEqual([1920])
+      expect(old.closed).toBe(false)
+      expect(pipeline.current).toBe(old)
+      const sent = sender.frames.slice(before)
+      expect(sent.length).toBeGreaterThanOrEqual(14)
+      expect(sent.every((n) => n === 1920 * 1080 * 4)).toBe(true)
+    })
+
+    it('swaps on the first paint after ready: restarts the sender with the new size', () => {
       pipeline.apply(DEFAULT_SETTINGS.ndi)
       const old = last()
       old.paint()
       pipeline.apply(uhd)
       const fresh = last()
       fresh.paint()
+      vi.advanceTimersByTime(100)
+      fresh.paint(true)
       vi.advanceTimersByTime(50)
       expect(sender.starts[sender.starts.length - 1]).toEqual({
         name: 'PPT Share',
@@ -154,6 +186,7 @@ describe('NdiPipeline', () => {
       })
       expect(old.closed).toBe(true)
       expect(pipeline.current).toBe(fresh)
+      expect(errors).toEqual([])
       const n = sender.frames.length
       vi.advanceTimersByTime(1000)
       const sent = sender.frames.slice(n)
@@ -161,14 +194,50 @@ describe('NdiPipeline', () => {
       expect(sent.every((x) => x === 3840 * 2160 * 4)).toBe(true)
     })
 
-    it('swaps anyway after a timeout when the new output never paints', () => {
+    it('timeout: keeps the old output sending, drops the new one and reports an error', () => {
+      pipeline.apply(DEFAULT_SETTINGS.ndi)
+      const old = last()
+      old.paint()
+      pipeline.apply(uhd)
+      const pending = last()
+      pending.paint() // painted, but never ready
+      vi.advanceTimersByTime(SWAP_TIMEOUT_MS + 10)
+      expect(pending.closed).toBe(true)
+      expect(old.closed).toBe(false)
+      expect(pipeline.current).toBe(old)
+      expect(sender.starts.map((s) => s.width)).toEqual([1920])
+      expect(errors).toHaveLength(1)
+      expect(errors[0]).toMatch(/3840×2160 60 fps tidak siap/)
+      expect(errors[0]).toMatch(/tetap mengirim 1920×1080 30 fps/)
+      expect(errors[0]).toMatch(/Coba lagi/)
+      const n = sender.frames.length
+      vi.advanceTimersByTime(1000)
+      expect(sender.frames.length - n).toBeGreaterThanOrEqual(29)
+      expect(sender.frames.slice(n).every((x) => x === 1920 * 1080 * 4)).toBe(true)
+      // A late ready from the dropped window changes nothing.
+      pending.paint(true)
+      expect(pipeline.current).toBe(old)
+    })
+
+    it('retrying after a timeout builds the new output again and can still swap', () => {
+      pipeline.apply(DEFAULT_SETTINGS.ndi)
+      pipeline.apply(uhd)
+      vi.advanceTimersByTime(SWAP_TIMEOUT_MS + 10)
+      pipeline.apply(uhd)
+      expect(outputs).toHaveLength(3)
+      last().paint(true)
+      expect(pipeline.current).toBe(last())
+      expect(sender.starts[sender.starts.length - 1].width).toBe(3840)
+    })
+
+    it('a ready from the active output (e.g. recreated after a crash) does not swap anything', () => {
       pipeline.apply(DEFAULT_SETTINGS.ndi)
       const old = last()
       pipeline.apply(uhd)
-      vi.advanceTimersByTime(5000)
-      expect(old.closed).toBe(true)
-      expect(pipeline.current).toBe(last())
-      expect(sender.starts[sender.starts.length - 1].width).toBe(3840)
+      old.paint(true)
+      expect(pipeline.current).toBe(old)
+      expect(outputs[1].closed).toBe(false)
+      expect(sender.starts).toHaveLength(1)
     })
 
     it('a second change while one is pending discards the pending output', () => {
@@ -178,7 +247,12 @@ describe('NdiPipeline', () => {
       pipeline.apply(ndi({ fps: 60 }))
       expect(pending.closed).toBe(true)
       expect(outputs).toHaveLength(3)
+      pending.paint(true) // late ready from the discarded window: ignored
+      expect(sender.starts).toHaveLength(1)
       last().paint()
+      vi.advanceTimersByTime(50)
+      expect(sender.starts).toHaveLength(1) // not ready yet
+      last().paint(true)
       vi.advanceTimersByTime(50)
       expect(sender.starts[sender.starts.length - 1]).toEqual({
         name: 'PPT Share',
