@@ -1,4 +1,5 @@
 import { app, shell, BrowserWindow, dialog, ipcMain, protocol } from 'electron'
+import * as path from 'path'
 import { join } from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -7,6 +8,7 @@ import icon from '../../resources/icon.png?asset'
 import { Library } from './library'
 import { AppState } from './state'
 import { importPptx } from './import/pptx'
+import { ImportQueue } from './import-queue'
 import { isInside, parseSlideUrl } from './slide-protocol'
 import { Output } from './output'
 import { loadSettings, saveSettings, type Settings } from './settings'
@@ -27,6 +29,9 @@ import {
 import type { Action } from '../shared/program'
 
 const IMPORT_WIDTH = 1920
+const PPTX_RE = /\.pptx?$/i
+/** Upper bound for one import request (a drop of a whole folder's worth of files). */
+const MAX_FILES = 200
 
 // Must run before `ready`: lets <img src="slide://..."> load under the CSP.
 protocol.registerSchemesAsPrivileged([
@@ -60,7 +65,7 @@ function registerSlideProtocol(root: string, lib: Library): void {
     const parsed = parseSlideUrl(req.url)
     if (!parsed) return new Response('Bad request', { status: 400 })
     try {
-      const file = lib.slidePath(parsed.deckId, parsed.index)
+      const file = lib.slideFilePath(parsed.deckId, parsed.file)
       if (!isInside(root, file)) return new Response('Forbidden', { status: 403 })
       const data = await fs.promises.readFile(file)
       return new Response(data, {
@@ -91,50 +96,85 @@ function registerIpc(lib: Library, state: AppState, ndi: NdiOutput): void {
   handle(Invoke.programDispatch, (action: Action) => state.dispatch(action))
   handle(Invoke.programGet, () => ({ eventId: state.eventId, state: state.state }))
 
-  // PPT/PPTX via PowerPoint COM, one file after another (COM must not run in
-  // parallel). Task 9 replaces this loop with the ImportQueue.
-  let chain: Promise<void> = Promise.resolve()
+  // PPT/PPTX via PowerPoint COM through the import queue: one file at a time
+  // (COM must never run in parallel); a failed file never blocks the next.
+  // Both the "Tambah file…" dialog and drag and drop end up here.
+  const jobEvent = new Map<string, string>()
+  const queue = new ImportQueue(
+    async (job) => {
+      const eventId = jobEvent.get(job.id)
+      if (!eventId) throw new Error('Event tujuan tidak ditemukan. Pilih event lalu impor lagi.')
+      if (!PPTX_RE.test(job.path)) {
+        throw new Error('Format file tidak didukung. Pilih file PPTX, PPT, atau PDF.')
+      }
+      const out = tempDir()
+      try {
+        const deck = await importPptx(job.path, out, IMPORT_WIDTH)
+        progress({ id: job.id, name: job.name, percent: 90, status: 'busy' })
+        lib.addDeck(eventId, { ...deck, source: 'pptx' })
+        state.refresh()
+      } finally {
+        fs.rmSync(out, { recursive: true, force: true })
+      }
+    },
+    1,
+    (job, status, error) => {
+      if (status !== 'busy') jobEvent.delete(job.id)
+      progress({
+        id: job.id,
+        name: job.name,
+        percent: status === 'busy' ? 10 : 100,
+        status,
+        ...(error ? { message: error.message } : {})
+      })
+    }
+  )
+  if (process.env['PPT_OUTPUT_DUMP']) {
+    Object.defineProperty(globalThis, '__pptImportQueue', { configurable: true, value: queue })
+  }
+
   handle(Invoke.decksImport, (eventId, files: ImportRequest[]) => {
     assertString(eventId, 'Id event')
-    if (!Array.isArray(files)) throw new Error('Daftar file tidak valid. Pilih file lagi.')
-    const run = async (): Promise<void> => {
-      for (const f of files) {
-        const name = String(f.path).split(/[\\/]/).pop() ?? 'file'
-        const id = String(f.id)
-        progress({ id, name, percent: 10, status: 'busy' })
-        const out = tempDir()
-        try {
-          if (!/\.pptx?$/i.test(f.path)) {
-            throw new Error('Format file tidak didukung. Pilih file PPTX, PPT, atau PDF.')
-          }
-          const deck = await importPptx(f.path, out, IMPORT_WIDTH)
-          progress({ id, name, percent: 90, status: 'busy' })
-          lib.addDeck(eventId, { ...deck, source: 'pptx' })
-          state.refresh()
-          progress({ id, name, percent: 100, status: 'done' })
-        } catch (err) {
-          progress({ id, name, percent: 100, status: 'error', message: (err as Error).message })
-        } finally {
-          fs.rmSync(out, { recursive: true, force: true })
-        }
-      }
+    lib.getDecks(eventId) // throws (Indonesian message) if the event does not exist
+    if (!Array.isArray(files) || files.length > MAX_FILES) {
+      throw new Error('Daftar file tidak valid. Pilih file lagi.')
     }
-    chain = chain.then(run, run)
-    return chain
+    const jobs = files.map((f) => {
+      if (!f || typeof f !== 'object') throw new Error('Daftar file tidak valid. Pilih file lagi.')
+      assertString(f.id, 'Id impor')
+      assertString(f.path, 'Lokasi file')
+      if (!path.isAbsolute(f.path)) {
+        throw new Error(
+          'Lokasi file tidak valid. Seret file dari Explorer atau pilih lewat Tambah file.'
+        )
+      }
+      return { id: f.id, name: path.basename(f.path), path: f.path }
+    })
+    // Enqueue only; progress arrives as import:progress.
+    for (const job of jobs) {
+      jobEvent.set(job.id, eventId)
+      queue.add(job)
+    }
   })
 
-  handle(Invoke.decksAddRendered, (eventId, payload: RenderedDeck) => {
+  handle(Invoke.decksAddRendered, async (eventId, payload: RenderedDeck) => {
     assertString(eventId, 'Id event')
     if (!payload || !Array.isArray(payload.pages) || payload.pages.length === 0) {
       throw new Error('Hasil render PDF kosong. Coba impor ulang file PDF-nya.')
     }
+    if (!payload.pages.every((p) => p instanceof Uint8Array)) {
+      throw new Error('Hasil render PDF tidak valid. Coba impor ulang file PDF-nya.')
+    }
     const out = tempDir()
     try {
-      const slides = payload.pages.map((page, i) => {
-        const pngPath = join(out, `${String(i + 1).padStart(3, '0')}.png`)
-        fs.writeFileSync(pngPath, Buffer.from(page))
-        return { pngPath, notes: payload.notes?.[i] ?? '' }
-      })
+      // Async writes keep the main process (and the NDI frame repeater) responsive.
+      const slides = await Promise.all(
+        payload.pages.map(async (page, i) => {
+          const pngPath = join(out, `${String(i + 1).padStart(3, '0')}.png`)
+          await fs.promises.writeFile(pngPath, page)
+          return { pngPath, notes: String(payload.notes?.[i] ?? '') }
+        })
+      )
       const deck = lib.addDeck(eventId, {
         name: String(payload.name),
         source: 'pdf',
@@ -150,16 +190,23 @@ function registerIpc(lib: Library, state: AppState, ndi: NdiOutput): void {
   })
 
   handle(Invoke.decksReorder, (eventId, deckIds) => {
-    lib.reorderDecks(eventId, deckIds)
-    state.refresh()
+    assertString(eventId, 'Id event')
+    if (!Array.isArray(deckIds) || !deckIds.every((id) => typeof id === 'string')) {
+      throw new Error('Urutan deck tidak valid. Muat ulang aplikasi lalu coba lagi.')
+    }
+    state.reorderDecks(eventId, deckIds)
   })
   handle(Invoke.slidesReorder, (deckId, order) => {
-    lib.reorderSlides(deckId, order)
-    state.refresh()
+    assertString(deckId, 'Id deck')
+    if (!Array.isArray(order)) {
+      throw new Error('Urutan slide tidak valid. Muat ulang aplikasi lalu coba lagi.')
+    }
+    state.reorderSlides(deckId, order)
   })
   handle(Invoke.decksRemove, (eventId, deckId) => {
-    lib.removeDeck(eventId, deckId)
-    state.refresh()
+    assertString(eventId, 'Id event')
+    assertString(deckId, 'Id deck')
+    state.removeDeck(eventId, deckId)
   })
 
   handle(Invoke.settingsGet, () => ndi.getSettings())

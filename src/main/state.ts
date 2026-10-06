@@ -1,6 +1,14 @@
 import type { Library } from './library'
 import type { DeckMeta } from '../shared/types'
-import { initialState, reconcile, reduce, type Action, type ProgramState } from '../shared/program'
+import {
+  followSlideOrder,
+  initialState,
+  locateShown,
+  reconcile,
+  reduce,
+  type Action,
+  type ProgramState
+} from '../shared/program'
 
 type Position = { deckId: string | null; index: number }
 
@@ -12,7 +20,8 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.black === b.black &&
     a.transition === b.transition &&
     a.shown?.deckId === b.shown?.deckId &&
-    a.shown?.index === b.shown?.index
+    a.shown?.index === b.shown?.index &&
+    a.shown?.file === b.shown?.file
   )
 }
 
@@ -73,12 +82,40 @@ export class AppState {
     return this.commit(this.normalize(this.current))
   }
 
-  private slideExists(deckId: string, index: number): boolean {
+  /** Reorder the decks of an event; position and shown do not change. */
+  reorderDecks(eventId: string, deckIds: string[]): ProgramState {
+    this.lib.reorderDecks(eventId, deckIds)
+    return this.refresh()
+  }
+
+  /**
+   * Reorder the slides of a deck (`order[newIndex] = oldIndex`). The operator
+   * position and the output stay on the same slides: `shown` keeps its image,
+   * only its index changes.
+   */
+  reorderSlides(deckId: string, order: number[]): ProgramState {
+    this.lib.reorderSlides(deckId, order) // validates; throws before anything changes
+    for (const [ev, pos] of this.positions) {
+      if (pos.deckId === deckId) {
+        this.positions.set(ev, { ...pos, index: Math.max(0, order.indexOf(pos.index)) })
+      }
+    }
+    return this.commit(this.normalize(followSlideOrder(this.current, deckId, order)))
+  }
+
+  /** Remove a deck; if it is on the output, the output goes black. */
+  removeDeck(eventId: string, deckId: string): ProgramState {
+    this.lib.removeDeck(eventId, deckId)
+    return this.refresh()
+  }
+
+  /** `shown` re-located in its deck (any event), or null when that slide is gone. */
+  private locate(s: ProgramState): ProgramState['shown'] {
+    if (!s.shown) return null
     try {
-      this.lib.slidePath(deckId, index)
-      return true
+      return locateShown(s.shown, this.lib.getDeck(s.shown.deckId))
     } catch {
-      return false
+      return null
     }
   }
 
@@ -87,8 +124,7 @@ export class AppState {
     // reconcile moves it to the first ready deck at index 0 (no selectDeck, so
     // `shown` stays untouched).
     const pos = reconcile({ ...s, shown: null }, this.decks())
-    const shown = s.shown && this.slideExists(s.shown.deckId, s.shown.index) ? s.shown : null
-    return { ...pos, shown }
+    return { ...pos, shown: this.locate(s) }
   }
 
   private commit(next: ProgramState): ProgramState {

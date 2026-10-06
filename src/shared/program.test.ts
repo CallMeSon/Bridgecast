@@ -1,8 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { reduce, reconcile, initialState, pendingTake, type ProgramState } from './program'
+import {
+  reduce,
+  reconcile,
+  followSlideOrder,
+  initialState,
+  pendingTake,
+  type ProgramState,
+  type ShownSlide
+} from './program'
 
 const s = (n: number): { file: string; notes: string }[] =>
   Array.from({ length: n }, (_, i) => ({ file: `${i}.png`, notes: '' }))
+/** Slide files are named after their original index (`0.png`, `1.png`, …). */
+const sh = (deckId: string, index: number, file = `${index}.png`): ShownSlide => ({
+  deckId,
+  index,
+  file
+})
 const decks = [
   { id: 'A', slides: s(3) },
   { id: 'B', slides: s(2) }
@@ -11,7 +25,7 @@ const at = (deckId: string, index: number, extra: Partial<ProgramState> = {}): P
   ...initialState,
   deckId,
   index,
-  shown: { deckId, index },
+  shown: sh(deckId, index),
   ...extra
 })
 
@@ -33,7 +47,7 @@ describe('reduce navigation', () => {
     const r = reduce(at('A', 0), { type: 'next' }, decks)
     expect(r.deckId).toBe('A')
     expect(r.index).toBe(1)
-    expect(r.shown).toEqual({ deckId: 'A', index: 1 })
+    expect(r.shown).toEqual(sh('A', 1))
   })
   it('next at A/2 goes to B/0; at B/1 no change', () => {
     const r = reduce(at('A', 2), { type: 'next' }, decks)
@@ -51,11 +65,11 @@ describe('reduce navigation', () => {
     const f = at('A', 0, { frozen: true })
     const r = reduce(f, { type: 'next' }, decks)
     expect(r.index).toBe(1)
-    expect(r.shown).toEqual({ deckId: 'A', index: 0 })
+    expect(r.shown).toEqual(sh('A', 0))
     const u = reduce(r, { type: 'toggleFreeze' }, decks)
     expect(u.frozen).toBe(false)
     const n = reduce(u, { type: 'next' }, decks)
-    expect(n.shown).toEqual({ deckId: 'A', index: 2 })
+    expect(n.shown).toEqual(sh('A', 2))
   })
   it('toggleBlack changes neither position nor shown', () => {
     const st = at('A', 1)
@@ -68,13 +82,13 @@ describe('reduce navigation', () => {
     expect(reduce(st, { type: 'goto', index: -1 }, decks)).toEqual(st)
     const r = reduce(st, { type: 'goto', index: 2 }, decks)
     expect(r.index).toBe(2)
-    expect(r.shown).toEqual({ deckId: 'A', index: 2 })
+    expect(r.shown).toEqual(sh('A', 2))
   })
   it('selectDeck moves to deckId/0; unknown ignored', () => {
     const st = at('A', 2)
     const r = reduce(st, { type: 'selectDeck', deckId: 'B' }, decks)
     expect([r.deckId, r.index]).toEqual(['B', 0])
-    expect(r.shown).toEqual({ deckId: 'B', index: 0 })
+    expect(r.shown).toEqual(sh('B', 0))
     expect(reduce(st, { type: 'selectDeck', deckId: 'Z' }, decks)).toEqual(st)
   })
   it('setTransition works', () => {
@@ -110,7 +124,7 @@ describe('reconcile', () => {
     expect(r.shown).toBeNull()
     expect([r.deckId, r.index]).toEqual(['B', 0])
   })
-  it('drops shown when its index is out of range', () => {
+  it('drops shown when its slide is gone', () => {
     const st = at('A', 2)
     const r = reconcile(st, [{ id: 'A', slides: s(2) }])
     expect(r.shown).toBeNull()
@@ -124,7 +138,50 @@ describe('reconcile', () => {
   })
   it('keeps valid state unchanged', () => {
     const st = at('A', 1)
-    expect(reconcile(st, decks)).toEqual(st)
+    expect(reconcile(st, decks)).toBe(st)
+  })
+  it('shown follows its slide (by file) when the slides of its deck moved', () => {
+    // Slide 2.png moved to the front: [2.png, 0.png, 1.png].
+    const moved = [{ id: 'A', slides: [2, 0, 1].map((i) => ({ file: `${i}.png`, notes: '' })) }]
+    const r = reconcile(at('A', 2, { deckId: 'A', index: 2 }), moved)
+    expect(r.shown).toEqual(sh('A', 0, '2.png'))
+  })
+  it('drops shown when its slide file is no longer in the deck', () => {
+    const other = [{ id: 'A', slides: [{ file: 'x.png', notes: '' }, ...s(2)] }]
+    const st = at('A', 2)
+    expect(reconcile(st, other).shown).toBeNull()
+  })
+})
+
+describe('followSlideOrder', () => {
+  it('position and shown follow the slide that moved', () => {
+    // A: 2.png moves to the front.
+    const r = followSlideOrder(at('A', 2), 'A', [2, 0, 1])
+    expect([r.deckId, r.index]).toEqual(['A', 0])
+    expect(r.shown).toEqual(sh('A', 0, '2.png'))
+  })
+  it('keeps the same slide when another slide moved around it', () => {
+    // Live slide 0.png; 2.png moves between 0.png and 1.png: [0, 2, 1].
+    const r = followSlideOrder(at('A', 0), 'A', [0, 2, 1])
+    expect(r.index).toBe(0)
+    expect(r.shown).toEqual(sh('A', 0))
+    // Position on 1.png (index 1) is pushed to index 2.
+    const p = followSlideOrder(at('A', 1, { shown: sh('A', 0) }), 'A', [0, 2, 1])
+    expect(p.index).toBe(2)
+    expect(p.shown).toEqual(sh('A', 0))
+  })
+  it('position and shown in different decks are remapped independently', () => {
+    const st = at('B', 1, { shown: sh('A', 1) })
+    const r = followSlideOrder(st, 'A', [1, 2, 0])
+    expect([r.deckId, r.index]).toEqual(['B', 1])
+    expect(r.shown).toEqual(sh('A', 0, '1.png'))
+  })
+  it('returns the same state for another deck or an invalid order', () => {
+    const st = at('A', 1)
+    expect(followSlideOrder(st, 'B', [1, 0])).toBe(st)
+    expect(followSlideOrder(st, 'A', [0, 0, 1])).toBe(st)
+    expect(followSlideOrder(st, 'A', [0, 1])).toBe(st)
+    expect(followSlideOrder(st, 'A', [0, 1, 2])).toBe(st)
   })
 })
 
@@ -138,32 +195,32 @@ describe('take on first Next/Prev when nothing of this event is shown', () => {
   it('STANDBY: first Next takes the position live without advancing', () => {
     const r = reduce(standby('A', 0), { type: 'next' }, decks)
     expect([r.deckId, r.index]).toEqual(['A', 0])
-    expect(r.shown).toEqual({ deckId: 'A', index: 0 })
+    expect(r.shown).toEqual(sh('A', 0))
     const r2 = reduce(r, { type: 'next' }, decks)
-    expect(r2.shown).toEqual({ deckId: 'A', index: 1 })
+    expect(r2.shown).toEqual(sh('A', 1))
   })
 
   it('shown left over from another event: first Next takes the position', () => {
-    const st = standby('B', 0, { shown: { deckId: 'OTHER', index: 4 } })
+    const st = standby('B', 0, { shown: sh('OTHER', 4) })
     const r = reduce(st, { type: 'next' }, decks)
-    expect(r.shown).toEqual({ deckId: 'B', index: 0 })
+    expect(r.shown).toEqual(sh('B', 0))
     expect(r.index).toBe(0)
   })
 
   it('Prev takes the position the same way', () => {
     const r = reduce(standby('A', 2), { type: 'prev' }, decks)
     expect([r.deckId, r.index]).toEqual(['A', 2])
-    expect(r.shown).toEqual({ deckId: 'A', index: 2 })
+    expect(r.shown).toEqual(sh('A', 2))
   })
 
   it('STANDBY on the last slide of the last deck can still go live', () => {
     const r = reduce(standby('B', 1), { type: 'next' }, decks)
-    expect(r.shown).toEqual({ deckId: 'B', index: 1 })
+    expect(r.shown).toEqual(sh('B', 1))
   })
 
   it('taking while black keeps black (badge goes STANDBY -> BLACK)', () => {
     const r = reduce(standby('A', 0, { black: true }), { type: 'next' }, decks)
-    expect(r.shown).toEqual({ deckId: 'A', index: 0 })
+    expect(r.shown).toEqual(sh('A', 0))
     expect(r.black).toBe(true)
   })
 
@@ -180,11 +237,11 @@ describe('take on first Next/Prev when nothing of this event is shown', () => {
     st = reduce(st, { type: 'toggleFreeze' }, decks)
     st = reduce(st, { type: 'next' }, decks)
     st = reduce(st, { type: 'toggleFreeze' }, decks)
-    expect(st.shown).toEqual({ deckId: 'A', index: 0 })
+    expect(st.shown).toEqual(sh('A', 0))
     expect(pendingTake(st, decks)).toBe(false)
     const r = reduce(st, { type: 'next' }, decks)
     expect([r.deckId, r.index]).toEqual(['A', 2])
-    expect(r.shown).toEqual({ deckId: 'A', index: 2 })
+    expect(r.shown).toEqual(sh('A', 2))
   })
 
   it('no take without a valid position', () => {

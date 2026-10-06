@@ -15,7 +15,14 @@ export interface RenderedPdf {
   pages: Uint8Array[]
 }
 
-export async function renderPdf(data: Uint8Array, targetWidth: number): Promise<RenderedPdf> {
+/** Lets input, IPC and paints run between pages so a long PDF never freezes the operator UI. */
+const yieldToUi = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+
+export async function renderPdf(
+  data: Uint8Array,
+  targetWidth: number,
+  onPage?: (done: number, total: number) => void
+): Promise<RenderedPdf> {
   let doc: pdfjs.PDFDocumentProxy
   try {
     doc = await pdfjs.getDocument({ data: data.slice() }).promise
@@ -56,6 +63,8 @@ export async function renderPdf(data: Uint8Array, targetWidth: number): Promise<
           height = h
         }
         page.cleanup()
+        onPage?.(n, doc.numPages)
+        await yieldToUi()
       } catch (err) {
         throw new Error(
           `Halaman ${n} gagal dirender. Coba ekspor ulang PDF dari aplikasi asalnya.`,

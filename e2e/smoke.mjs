@@ -227,6 +227,307 @@ async function ndiChecks(win, tally, pos) {
   check(true, 'Escape closes the popover')
 }
 
+// --- Drag and drop (Task 9) ---
+// Playwright cannot start an OS-level drag from Explorer into Electron. The
+// closest real path: real files are attached to a scratch <input type=file>
+// (so they are path-backed File objects exactly like an Explorer drop, and
+// webUtils.getPathForFile works), put into a DataTransfer, and dispatched as
+// dragenter/dragover/drop DragEvents on the window. Reordering uses the same
+// synthetic HTML5 drag events on the deck rows and thumbnails.
+
+/** A DataTransfer holding real, path-backed files. */
+async function filesTransfer(win, paths) {
+  await win.evaluate(() => {
+    if (document.getElementById('e2e-drop-src')) return
+    const i = document.createElement('input')
+    i.type = 'file'
+    i.multiple = true
+    i.id = 'e2e-drop-src'
+    i.style.display = 'none'
+    document.body.appendChild(i)
+  })
+  await win.setInputFiles('#e2e-drop-src', paths)
+  return win.evaluateHandle(() => {
+    const dt = new DataTransfer()
+    for (const f of document.getElementById('e2e-drop-src').files) dt.items.add(f)
+    return dt
+  })
+}
+
+const fireDrag = (win, selector, type, dt) =>
+  win.evaluate(
+    ([sel, t, d]) =>
+      document
+        .querySelector(sel)
+        .dispatchEvent(new DragEvent(t, { dataTransfer: d, bubbles: true, cancelable: true })),
+    [selector, type, dt]
+  )
+
+/** HTML5 drag of element `from` onto element `to` (both CSS selectors). */
+const dragOnto = (win, from, to) =>
+  win.evaluate(
+    ([f, t]) => {
+      const a = document.querySelector(f)
+      const b = document.querySelector(t)
+      const dt = new DataTransfer()
+      const fire = (el, type) =>
+        el.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }))
+      fire(a, 'dragstart')
+      fire(b, 'dragenter')
+      fire(b, 'dragover')
+      fire(b, 'drop')
+      fire(a, 'dragend')
+    },
+    [from, to]
+  )
+
+const thumbs = (win) =>
+  win.$$eval('[data-testid=strip] .th', (els) =>
+    els.map((e) => {
+      const img = e.querySelector('img')
+      return {
+        file: e.dataset.file,
+        role: e.dataset.role ?? null,
+        src: img?.getAttribute('src'),
+        loaded: !!img && img.complete && img.naturalWidth > 0
+      }
+    })
+  )
+
+/** Colour of a stored slide image (by deck + file) at (10,10), read in main from disk. */
+const fileCorner = (deckId, file) =>
+  app.evaluate(
+    ({ nativeImage }, p) => {
+      const img = nativeImage.createFromPath(p)
+      const bmp = img.toBitmap()
+      const i = (10 * img.getSize().width + 10) * 4
+      return [bmp[i + 2], bmp[i + 1], bmp[i]]
+    },
+    path.join(userData, 'decks', deckId, file)
+  )
+
+async function dragAndDropChecks(win, tally, pos, cap) {
+  const overlay = win.getByTestId('drop-overlay')
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-drop-'))
+  const pdf = path.join(tmp, 'dropped.pdf')
+  const txt = path.join(tmp, 'catatan.txt')
+  fs.copyFileSync(path.join(root, 'fixtures/sample.pdf'), pdf)
+  fs.writeFileSync(txt, 'bukan slide')
+  const dropList = [pdf, txt]
+  const pptE2E = process.env.PPT_E2E === '1'
+  if (pptE2E) {
+    // A copy of the fixture: never a user's own PowerPoint document.
+    const pptx = path.join(tmp, 'dropped-pptx.pptx')
+    fs.copyFileSync(path.join(root, 'fixtures/sample-4x3.pptx'), pptx)
+    dropList.unshift(pptx)
+  }
+
+  try {
+    // Overlay: counter-based, only for drags carrying Files.
+    const dt = await filesTransfer(win, dropList)
+    const resolved = await win.evaluate(
+      (d) => [...d.files].map((f) => window.api.pathForFile(f)),
+      dt
+    )
+    check(
+      JSON.stringify(resolved) === JSON.stringify(dropList),
+      `dropped files are path-backed like an Explorer drop (pathForFile: ${JSON.stringify(resolved)})`
+    )
+    check(!(await overlay.isVisible()), 'drop overlay hidden before a drag')
+    await fireDrag(win, 'main', 'dragenter', dt)
+    await overlay.waitFor({ state: 'visible' })
+    await fireDrag(win, '.left', 'dragenter', dt)
+    await fireDrag(win, 'main', 'dragleave', dt)
+    check(await overlay.isVisible(), 'overlay stays while the drag moves between elements')
+    await win.screenshot({ path: path.join(path.dirname(shot), 'task-9-overlay.png') })
+    await fireDrag(win, '.left', 'dragleave', dt)
+    await overlay.waitFor({ state: 'hidden' })
+    check(true, 'overlay appears on dragenter with files and hides when the drag leaves')
+    await dragOnto(
+      win,
+      '[data-testid=strip] .th:nth-child(1)',
+      '[data-testid=strip] .th:nth-child(1)'
+    )
+    check(!(await overlay.isVisible()), 'reordering drags (no files) never show the overlay')
+
+    // Drop: PDF imported into the active event, .txt becomes a "Tidak didukung" row.
+    await fireDrag(win, 'main', 'dragenter', dt)
+    await fireDrag(win, 'main', 'dragover', dt)
+    await fireDrag(win, 'main', 'drop', dt)
+    await overlay.waitFor({ state: 'hidden' })
+    const errRow = win.getByTestId('import-error').filter({ hasText: 'catatan.txt' })
+    await errRow.waitFor({ timeout: 2000 })
+    check(
+      (await errRow.locator('.meta').textContent()) === 'Tidak didukung' &&
+        /PPTX, PPT, atau PDF/.test(await errRow.locator('.msg').textContent()),
+      `unsupported file shows an error row: "${await errRow.textContent()}"`
+    )
+    const dropped = win.locator('.deck', { has: win.locator('.name', { hasText: /^dropped$/ }) })
+    await dropped.locator('.meta', { hasText: '3 slide' }).waitFor({ timeout: 60_000 })
+    check(true, 'dropped PDF imported as a 3-slide deck into the active event')
+    if (pptE2E) {
+      const pptDeck = win.locator('.deck:not(.busy) .name', { hasText: /^dropped-pptx$/ })
+      await pptDeck.waitFor({ timeout: 180_000 })
+      check(true, 'dropped PPTX imported through the queue')
+    }
+    check((await tally.textContent()) === 'LIVE', 'dropping files does not change the output')
+    await errRow.click()
+    await errRow.waitFor({ state: 'detached' })
+    check(true, 'clicking the error row removes it')
+
+    // Reorder slides of the LIVE deck: move the live slide 2 (blue, 002.png) to the front.
+    const sample = win.locator('.deck', { has: win.locator('.name', { hasText: /^sample$/ }) })
+    const deckId = await sample.getAttribute('data-deck-id')
+    check((await pos.textContent()) === '2 / 3', 'live deck "sample" on slide 2 before reordering')
+    const t0 = await thumbs(win)
+    check(
+      t0.map((t) => t.file).join() === '001.png,002.png,003.png' && t0[1].role === 'live',
+      `thumbnails before: ${JSON.stringify(t0.map((t) => [t.file, t.role]))}`
+    )
+    await dragOnto(
+      win,
+      '[data-testid=strip] .th:nth-child(2)',
+      '[data-testid=strip] .th:nth-child(1)'
+    )
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=pos]')?.textContent === '1 / 3'
+    )
+    // The output must keep the same slide the whole time (never another image).
+    for (let i = 0; i < 8; i++) {
+      const f = await dumpFrame([[10, 10]])
+      check(blue(f.px[0]), `output still shows the moved live slide (frame ${i + 1}/8)`)
+      await sleep(100)
+    }
+    await win.waitForFunction(() =>
+      [...document.querySelectorAll('[data-testid=strip] .th img')].every(
+        (i) => i.complete && i.naturalWidth > 0
+      )
+    )
+    const t1 = await thumbs(win)
+    check(
+      t1.map((t) => t.file).join() === '002.png,001.png,003.png' &&
+        t1[0].role === 'live' &&
+        t1.every((t, i) => t.src === `slide://${deckId}/${t.file}` && t.loaded && i >= 0),
+      `thumbnails after: ${JSON.stringify(t1.map((t) => [t.file, t.role, t.src]))}`
+    )
+    const colours = []
+    for (const t of t1) colours.push(await fileCorner(deckId, t.file))
+    check(
+      blue(colours[0]) && !blue(colours[1]) && !blue(colours[2]),
+      `thumbnail images are the moved slides (corner colours ${JSON.stringify(colours)})`
+    )
+    const programSrc = await win.locator('.screen img').getAttribute('src')
+    check(
+      programSrc === t1[0].src && (await tally.textContent()) === 'LIVE',
+      `Program shows the same image as the live thumbnail (${programSrc})`
+    )
+    check(
+      (await cap.textContent()) === 'Slide 2' &&
+        (await win.locator('.next-card img').getAttribute('src')) === t1[1].src,
+      'Next panel shows the new slide 2 (001.png)'
+    )
+    const saved = JSON.parse(
+      fs.readFileSync(path.join(userData, 'decks', deckId, 'deck.json'), 'utf8')
+    )
+    check(
+      saved.slides.map((s) => s.file).join() === '002.png,001.png,003.png',
+      'new slide order saved in deck.json'
+    )
+    await win.screenshot({ path: path.join(path.dirname(shot), 'task-9-reorder.png') })
+
+    // Navigation follows the new order: Space shows 001.png (white), ArrowLeft back to blue.
+    await win.keyboard.press('Space')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+    )
+    await waitFrame([[10, 10]], (px) => !blue(px[0]) && lum(px[0]) > 200, 'Space shows 001.png')
+    await win.keyboard.press('ArrowLeft')
+    await waitFrame([[10, 10]], (px) => blue(px[0]), 'ArrowLeft shows 002.png again')
+    check(true, 'Next/Prev follow the new slide order')
+
+    // Moving a slide that is not live leaves the output alone.
+    await dragOnto(
+      win,
+      '[data-testid=strip] .th:nth-child(3)',
+      '[data-testid=strip] .th:nth-child(2)'
+    )
+    await win.waitForFunction(
+      () =>
+        [...document.querySelectorAll('[data-testid=strip] .th')]
+          .map((e) => e.dataset.file)
+          .join() === '002.png,003.png,001.png'
+    )
+    check(
+      (await pos.textContent()) === '1 / 3' && blue((await dumpFrame([[10, 10]])).px[0]),
+      'moving another slide keeps the live slide and position'
+    )
+
+    // Reorder decks: drag "dropped" (last ready deck) onto the first row.
+    const names = () =>
+      win.$$eval('[data-testid=decks] .deck:not(.busy):not(.err) .name', (e) =>
+        e.map((x) => x.textContent)
+      )
+    const before = await names()
+    const fromIdx = before.indexOf('dropped') + 1
+    await dragOnto(
+      win,
+      `[data-testid=decks] > .deck:nth-child(${fromIdx})`,
+      '[data-testid=decks] > .deck:nth-child(1)'
+    )
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=decks] .deck .name')?.textContent === 'dropped'
+    )
+    const after = await names()
+    const events = JSON.parse(fs.readFileSync(path.join(userData, 'events.json'), 'utf8'))
+    check(
+      after[0] === 'dropped' &&
+        after.length === before.length &&
+        events[0].deckIds.length === after.length,
+      `decks reordered: ${JSON.stringify(before)} -> ${JSON.stringify(after)} (saved)`
+    )
+    check(
+      (await tally.textContent()) === 'LIVE' &&
+        (await pos.textContent()) === '1 / 3' &&
+        blue((await dumpFrame([[10, 10]])).px[0]),
+      'reordering decks does not change the output or position'
+    )
+
+    // Delete the live deck: right-click → "Hapus deck…" → inline confirmation.
+    await sample.click({ button: 'right' })
+    await win.getByTestId('deck-menu').getByRole('menuitem', { name: 'Hapus deck…' }).click()
+    const confirm = win.getByTestId('confirm-remove')
+    await confirm.waitFor()
+    check(
+      (await confirm.textContent()).includes('Hapus deck ini?'),
+      'inline confirmation "Hapus deck ini?" (no modal)'
+    )
+    await confirm.screenshot({ path: path.join(path.dirname(shot), 'task-9-confirm.png') })
+    await confirm.getByRole('button', { name: 'Batal' }).click()
+    await sample.waitFor()
+    check((await tally.textContent()) === 'LIVE', 'Batal keeps the deck and the output')
+    await sample.click({ button: 'right' })
+    await win.getByRole('menuitem', { name: 'Hapus deck…' }).click()
+    await confirm.getByRole('button', { name: 'Hapus' }).click()
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=tally]')?.textContent === 'STANDBY'
+    )
+    await sample.waitFor({ state: 'detached' })
+    check(
+      (await win.locator('.screen img').count()) === 0 &&
+        (await win.locator('.screen').textContent()).includes('Belum ada slide'),
+      'Program shows the empty card, no image'
+    )
+    await waitFrame(GRID, (px) => px.every(isBlack), 'deleting the live deck blacks out the output')
+    check(true, `deleting the live deck makes the output black (${GRID.length} sample points)`)
+    check(
+      !fs.existsSync(path.join(userData, 'decks', deckId)),
+      'deleted deck folder is removed from disk'
+    )
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
 const errors = []
 let failed = false
 try {
@@ -510,6 +811,8 @@ try {
       BrowserWindow.getAllWindows().filter((w) => w.webContents.isOffscreen()).length
   )
   check(outputs === 1, `recreated output shows slide 2; single output window (${outputs})`)
+
+  await dragAndDropChecks(win, tally, pos, cap)
 
   await ndiChecks(win, tally, pos)
 

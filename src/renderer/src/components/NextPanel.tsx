@@ -18,7 +18,7 @@ export function NextPanel({
   let card: React.JSX.Element
   let cap = ''
   if (nx.kind === 'slide') {
-    card = <SlideImage src={slideUrl(nx.deckId, nx.index)} alt={`Slide ${nx.index + 1}`} />
+    card = <SlideImage src={slideUrl(nx.deckId, nx.file)} alt={`Slide ${nx.index + 1}`} />
     cap = `Slide ${nx.index + 1}`
   } else if (nx.kind === 'end') {
     card = <EndCard title="Akhir deck" />

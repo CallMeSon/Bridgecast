@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { ImportQueue, type ImportJob, type JobStatus } from './import-queue'
 
-const job = (n: number): ImportJob => ({ id: `j${n}`, name: `file${n}.pptx`, path: `C:\\x\\${n}.pptx` })
+const job = (n: number): ImportJob => ({
+  id: `j${n}`,
+  name: `file${n}.pptx`,
+  path: `C:\\x\\${n}.pptx`
+})
 
 /** A promise resolved from outside, to control when a job finishes. */
 function deferred(): { promise: Promise<void>; resolve(): void; reject(e: Error): void } {

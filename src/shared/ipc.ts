@@ -104,9 +104,13 @@ export interface BroadcastMap {
 
 export type InvokeChannel = keyof InvokeMap
 
-/** `slide://<deckId>/<index>.png` (index is 0-based). */
-export function slideUrl(deckId: string, index: number): string {
-  return `slide://${deckId}/${index}.png`
+/**
+ * `slide://<deckId>/<file>`, e.g. `slide://<uuid>/003.png`. Built from the
+ * slide's file (SlideMeta.file / ShownSlide.file), never its index: the same
+ * URL is always the same image, so a reorder can never show a stale image.
+ */
+export function slideUrl(deckId: string, file: string): string {
+  return `slide://${deckId}/${file}`
 }
 
 export interface Api {

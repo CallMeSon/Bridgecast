@@ -1,14 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DeckMeta, EventMeta } from '../../shared/types'
 import { initialState, type Action, type ProgramState } from '../../shared/program'
-import type { ImportProgress, ImportRequest } from '../../shared/ipc'
+import type { ImportRequest } from '../../shared/ipc'
 import { Header } from './components/Header'
-import { Library } from './components/Library'
+import { Library, type ImportRow } from './components/Library'
+import { DropOverlay } from './components/DropOverlay'
 import { Program } from './components/Program'
 import { Controls } from './components/Controls'
 import { NextPanel } from './components/NextPanel'
 import { Strip } from './components/Strip'
-import { baseName, canPrev, currentDeck, errorMessage, fileKind, keyToAction } from './model'
+import {
+  baseName,
+  canPrev,
+  currentDeck,
+  errorMessage,
+  fileKind,
+  keyToAction,
+  moveItem,
+  moveOrder,
+  UNSUPPORTED
+} from './model'
 import { applyTheme, loadTheme, type Theme } from './theme'
 import { renderPdf } from './import/pdf'
 
@@ -22,11 +33,11 @@ function App(): React.JSX.Element {
   const [eventId, setEventId] = useState<string | null>(null)
   const [decks, setDecks] = useState<DeckMeta[]>([])
   const [program, setProgram] = useState<ProgramState>(initialState)
-  const [imports, setImports] = useState<ImportProgress[]>([])
+  const [imports, setImports] = useState<ImportRow[]>([])
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const eventRef = useRef<string | null>(null)
 
-  const upsertImport = useCallback((p: ImportProgress) => {
+  const upsertImport = useCallback((p: ImportRow) => {
     setImports((xs) => {
       if (p.status === 'done') return xs.filter((x) => x.id !== p.id)
       const i = xs.findIndex((x) => x.id === p.id)
@@ -127,50 +138,154 @@ function App(): React.JSX.Element {
     [api, selectEvent, reportError]
   )
 
+  // PDFs render here (pdf.js) one at a time, so several dropped PDFs never
+  // compete for the renderer; PPT/PPTX go to main's import queue.
+  const pdfChain = useRef<Promise<void>>(Promise.resolve())
+
+  const importPdf = useCallback(
+    async (target: string, id: string, f: File) => {
+      const name = f.name
+      try {
+        upsertImport({ id, name, percent: 5, status: 'busy' })
+        const data = new Uint8Array(await f.arrayBuffer())
+        const r = await renderPdf(data, IMPORT_WIDTH, (done, total) =>
+          upsertImport({ id, name, percent: 5 + Math.round((85 * done) / total), status: 'busy' })
+        )
+        upsertImport({ id, name, percent: 95, status: 'busy' })
+        await api.addRendered(target, {
+          name: baseName(f.name),
+          width: r.width,
+          height: r.height,
+          pages: r.pages
+        })
+        upsertImport({ id, name, percent: 100, status: 'done' })
+        await reloadDecks(target)
+      } catch (e) {
+        upsertImport({ id, name, percent: 100, status: 'error', message: errorMessage(e) })
+      }
+    },
+    [api, upsertImport, reloadDecks]
+  )
+
+  /**
+   * One path for the "Tambah file" dialog and drag and drop: imports into the
+   * active event. Unsupported files and folders become error rows at once.
+   */
   const importFiles = useCallback(
-    (files: File[]) => {
+    (files: File[], folders: string[] = []) => {
       const target = eventRef.current
-      if (!target) return
-      const pptx: ImportRequest[] = []
-      const pdfs: File[] = []
-      for (const f of files) {
-        const kind = fileKind(f.name)
-        if (kind === 'pptx') pptx.push({ id: newImportId(), path: api.pathForFile(f) })
-        else if (kind === 'pdf') pdfs.push(f)
-        else
+      const unsupported = (name: string, message: string): void =>
+        upsertImport({
+          id: newImportId(),
+          name,
+          percent: 100,
+          status: 'error',
+          meta: UNSUPPORTED.meta,
+          message
+        })
+      for (const name of folders) unsupported(name, UNSUPPORTED.folder)
+      if (!target) {
+        for (const f of files) {
           reportError(
             f.name,
-            new Error('Format file tidak didukung. Pilih file PPTX, PPT, atau PDF.')
+            new Error('Belum ada event. Buat event lewat menu event, lalu impor lagi.')
           )
-      }
-      if (pptx.length) api.importDecks(target, pptx).catch((e) => reportError('PowerPoint', e))
-
-      // PDFs are rendered here with pdf.js, then handed to main as PNG buffers.
-      ;(async () => {
-        for (const f of pdfs) {
-          const id = newImportId()
-          const name = f.name
-          upsertImport({ id, name, percent: 15, status: 'busy' })
-          try {
-            const data = new Uint8Array(await f.arrayBuffer())
-            upsertImport({ id, name, percent: 40, status: 'busy' })
-            const r = await renderPdf(data, IMPORT_WIDTH)
-            upsertImport({ id, name, percent: 85, status: 'busy' })
-            await api.addRendered(target, {
-              name: baseName(f.name),
-              width: r.width,
-              height: r.height,
-              pages: r.pages
-            })
-            upsertImport({ id, name, percent: 100, status: 'done' })
-            await reloadDecks(target)
-          } catch (e) {
-            upsertImport({ id, name, percent: 100, status: 'error', message: errorMessage(e) })
-          }
         }
-      })()
+        return
+      }
+      const pptx: ImportRequest[] = []
+      for (const f of files) {
+        const kind = fileKind(f.name)
+        if (kind === 'unsupported') {
+          unsupported(f.name, UNSUPPORTED.file)
+          continue
+        }
+        const id = newImportId()
+        // Queued row right away, so every dropped file is visible while it waits.
+        upsertImport({ id, name: f.name, percent: 0, status: 'busy' })
+        if (kind === 'pdf') {
+          pdfChain.current = pdfChain.current.then(() => importPdf(target, id, f))
+          continue
+        }
+        const p = api.pathForFile(f)
+        if (!p) {
+          upsertImport({
+            id,
+            name: f.name,
+            percent: 100,
+            status: 'error',
+            message: 'Lokasi file tidak diketahui. Simpan file ke disk, lalu seret dari Explorer.'
+          })
+          continue
+        }
+        pptx.push({ id, path: p })
+      }
+      if (pptx.length) {
+        api.importDecks(target, pptx).catch((e) => {
+          for (const r of pptx) {
+            upsertImport({
+              id: r.id,
+              name: r.path.split(/[\\/]/).pop() || 'PowerPoint',
+              percent: 100,
+              status: 'error',
+              message: errorMessage(e)
+            })
+          }
+        })
+      }
     },
-    [api, upsertImport, reloadDecks, reportError]
+    [api, upsertImport, reportError, importPdf]
+  )
+
+  // Reorder and delete: the list moves at once (optimistic), main persists it,
+  // then the authoritative list is reloaded. Program follows via program:state.
+  const moveDeck = useCallback(
+    (from: number, to: number) => {
+      const target = eventRef.current
+      if (!target || from === to) return
+      const next = moveItem(decks, from, to)
+      setDecks(next)
+      api
+        .reorderDecks(
+          target,
+          next.map((d) => d.id)
+        )
+        .catch((e) => reportError('Urutan deck', e))
+        .finally(() => reloadDecks(target).catch((e) => reportError('Library', e)))
+    },
+    [api, decks, reloadDecks, reportError]
+  )
+
+  const moveSlide = useCallback(
+    (deckId: string, from: number, to: number) => {
+      const target = eventRef.current
+      const deck = decks.find((d) => d.id === deckId)
+      if (!target || !deck || from === to) return
+      const order = moveOrder(deck.slides.length, from, to)
+      setDecks((ds) =>
+        ds.map((d) => (d.id === deckId ? { ...d, slides: order.map((i) => d.slides[i]) } : d))
+      )
+      api
+        .reorderSlides(deckId, order)
+        .catch((e) => reportError('Urutan slide', e))
+        .finally(() => reloadDecks(target).catch((e) => reportError('Library', e)))
+    },
+    [api, decks, reloadDecks, reportError]
+  )
+
+  const removeDeck = useCallback(
+    (deckId: string) => {
+      const target = eventRef.current
+      if (!target) return
+      const name = decks.find((d) => d.id === deckId)?.name ?? 'Deck'
+      // Drop it from the list first so nothing requests its images any more.
+      setDecks((ds) => ds.filter((d) => d.id !== deckId))
+      api
+        .removeDeck(target, deckId)
+        .catch((e) => reportError(name, e))
+        .finally(() => reloadDecks(target).catch((e) => reportError('Library', e)))
+    },
+    [api, decks, reloadDecks, reportError]
   )
 
   const toggleTheme = (): void => {
@@ -200,6 +315,8 @@ function App(): React.JSX.Element {
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}
           onDismissImport={(id) => setImports((xs) => xs.filter((x) => x.id !== id))}
           onFiles={importFiles}
+          onMoveDeck={moveDeck}
+          onRemoveDeck={removeDeck}
         />
         <section className="stage-col">
           <Program state={program} />
@@ -212,7 +329,13 @@ function App(): React.JSX.Element {
         </section>
         <NextPanel decks={decks} state={program} />
       </main>
-      <Strip decks={decks} state={program} onGoto={(index) => dispatch({ type: 'goto', index })} />
+      <Strip
+        decks={decks}
+        state={program}
+        onGoto={(index) => dispatch({ type: 'goto', index })}
+        onMoveSlide={moveSlide}
+      />
+      <DropOverlay onDrop={({ files, folders }) => importFiles(files, folders)} />
     </div>
   )
 }

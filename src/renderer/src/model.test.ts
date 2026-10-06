@@ -6,7 +6,11 @@ import {
   canPrev,
   errorMessage,
   fileKind,
+  hasFiles,
+  importMeta,
   keyToAction,
+  moveItem,
+  moveOrder,
   nextIndex,
   ndiBadge,
   nextView,
@@ -31,7 +35,7 @@ const at = (
   ...initialState,
   deckId,
   index,
-  shown: deckId ? { deckId, index } : null,
+  shown: deckId ? { deckId, index, file: `${index}.png` } : null,
   ...extra
 })
 
@@ -42,6 +46,7 @@ describe('nextView', () => {
       kind: 'slide',
       deckId: 'a',
       index: 1,
+      file: '1.png',
       notes: 'n1'
     })
   })
@@ -54,9 +59,10 @@ describe('nextView', () => {
       kind: 'slide',
       deckId: 'a',
       index: 0,
+      file: '0.png',
       notes: 'n0'
     })
-    const leftover = at('b', 0, { shown: { deckId: 'other', index: 3 } })
+    const leftover = at('b', 0, { shown: { deckId: 'other', index: 3, file: '004.png' } })
     expect(nextView(decks, leftover)).toMatchObject({ kind: 'slide', deckId: 'b', index: 0 })
     expect(nextIndex(decks, leftover)).toBe(0)
   })
@@ -81,7 +87,7 @@ describe('canPrev', () => {
 })
 
 describe('tally', () => {
-  const shown = { deckId: 'a', index: 0 }
+  const shown = { deckId: 'a', index: 0, file: '001.png' }
   it('maps state to badge', () => {
     expect(tally(at('a', 0, { shown: null }))).toBe('idle')
     expect(tally(at('a', 0, { shown }))).toBe('live')
@@ -173,10 +179,11 @@ describe('errorMessage', () => {
 })
 
 describe('outputSource', () => {
-  const shown = { deckId: '11111111-1111-1111-1111-111111111111', index: 2 }
-  it('shows the shown slide, not the operator position', () => {
+  // The slide at index 2 is file 005.png (its deck was reordered).
+  const shown = { deckId: '11111111-1111-1111-1111-111111111111', index: 2, file: '005.png' }
+  it('shows the shown slide by its file, not the operator position or index', () => {
     const s: ProgramState = { ...initialState, deckId: 'other', index: 5, shown }
-    expect(outputSource(s)).toBe(`slide://${shown.deckId}/2.png`)
+    expect(outputSource(s)).toBe(`slide://${shown.deckId}/005.png`)
   })
   it('is black when nothing is shown', () => {
     expect(outputSource({ ...initialState, deckId: 'd', index: 1 })).toBeNull()
@@ -186,6 +193,42 @@ describe('outputSource', () => {
   })
   it('keeps the shown slide while frozen', () => {
     const s: ProgramState = { ...initialState, deckId: shown.deckId, index: 3, shown, frozen: true }
-    expect(outputSource(s)).toBe(`slide://${shown.deckId}/2.png`)
+    expect(outputSource(s)).toBe(`slide://${shown.deckId}/005.png`)
+  })
+})
+
+describe('drag and drop helpers', () => {
+  it('hasFiles only for drags from outside carrying files', () => {
+    expect(hasFiles(['Files'])).toBe(true)
+    expect(hasFiles(['text/uri-list', 'Files'])).toBe(true)
+    expect(hasFiles(['application/x-ppt-share-slide'])).toBe(false)
+    expect(hasFiles([])).toBe(false)
+    expect(hasFiles(null)).toBe(false)
+  })
+  it('moveItem takes the item out and inserts it at the target index', () => {
+    expect(moveItem(['a', 'b', 'c', 'd'], 3, 0)).toEqual(['d', 'a', 'b', 'c'])
+    expect(moveItem(['a', 'b', 'c', 'd'], 0, 2)).toEqual(['b', 'c', 'a', 'd'])
+    expect(moveItem(['a', 'b'], 1, 1)).toEqual(['a', 'b'])
+    expect(moveItem(['a', 'b'], 5, 0)).toEqual(['a', 'b'])
+    expect(moveItem(['a', 'b'], 0, -1)).toEqual(['a', 'b'])
+    const src = ['a', 'b']
+    moveItem(src, 0, 1)
+    expect(src).toEqual(['a', 'b'])
+  })
+  it('moveOrder gives order[newIndex] = oldIndex for slides:reorder', () => {
+    expect(moveOrder(3, 1, 0)).toEqual([1, 0, 2])
+    expect(moveOrder(3, 0, 2)).toEqual([1, 2, 0])
+    expect(moveOrder(3, 2, 2)).toEqual([0, 1, 2])
+  })
+  it('fileKind is case-insensitive', () => {
+    expect(fileKind('A.PPTX')).toBe('pptx')
+    expect(fileKind('b.Ppt')).toBe('pptx')
+    expect(fileKind('c.PDF')).toBe('pdf')
+    expect(fileKind('notes.txt')).toBe('unsupported')
+    expect(fileKind('pptx')).toBe('unsupported')
+  })
+  it('importMeta: queued at 0 %, converting after', () => {
+    expect(importMeta(0)).toBe('Menunggu')
+    expect(importMeta(10)).toBe('Mengonversi')
   })
 })

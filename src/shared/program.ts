@@ -1,8 +1,15 @@
 import type { DeckMeta } from './types'
 
+/**
+ * The slide on the output. `file` is the slide's image in its deck and never
+ * changes for that slide; `index` is where it currently sits in the deck. After
+ * the deck's slides are reordered `shown` follows the slide (same file, new
+ * index), so the output keeps showing the same image.
+ */
 export interface ShownSlide {
   deckId: string
   index: number
+  file: string
 }
 
 export interface ProgramState {
@@ -34,26 +41,77 @@ export const initialState: ProgramState = {
   transition: 'cut'
 }
 
-/** Move the operator position; `shown` follows unless frozen. */
-function moveTo(state: ProgramState, deckId: string, index: number): ProgramState {
+/** Move the operator position (index must exist in deck); `shown` follows unless frozen. */
+function moveTo(state: ProgramState, deck: DeckLike, index: number): ProgramState {
   return {
     ...state,
-    deckId,
+    deckId: deck.id,
     index,
-    shown: state.frozen ? state.shown : { deckId, index }
+    shown: state.frozen ? state.shown : { deckId: deck.id, index, file: deck.slides[index].file }
   }
 }
 
 function step(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramState {
-  const flat: ShownSlide[] = []
+  const flat: { deck: DeckLike; index: number }[] = []
   for (const d of decks) {
-    for (let i = 0; i < d.slides.length; i++) flat.push({ deckId: d.id, index: i })
+    for (let i = 0; i < d.slides.length; i++) flat.push({ deck: d, index: i })
   }
-  const pos = flat.findIndex((p) => p.deckId === state.deckId && p.index === state.index)
+  const pos = flat.findIndex((p) => p.deck.id === state.deckId && p.index === state.index)
   if (pos < 0) return state
   const target = flat[pos + dir]
   if (!target) return state
-  return moveTo(state, target.deckId, target.index)
+  return moveTo(state, target.deck, target.index)
+}
+
+/**
+ * Where `shown` is now in its deck: the same slide file, at whatever index it
+ * has after a reorder; null when the deck or that slide is gone. Returns the
+ * same object when nothing changed.
+ */
+export function locateShown(
+  shown: ShownSlide | null,
+  deck: DeckLike | undefined
+): ShownSlide | null {
+  if (!shown || !deck || deck.id !== shown.deckId) return null
+  if (deck.slides[shown.index]?.file === shown.file) return shown
+  const index = deck.slides.findIndex((s) => s.file === shown.file)
+  return index < 0 ? null : { ...shown, index }
+}
+
+function isPermutation(order: number[], n: number): boolean {
+  return (
+    Array.isArray(order) &&
+    order.length === n &&
+    new Set(order).size === n &&
+    order.every((i) => Number.isInteger(i) && i >= 0 && i < n)
+  )
+}
+
+/**
+ * The slides of `deckId` were reordered: `order[newIndex] = oldIndex`. The
+ * operator position and `shown` stay on the same slides (their indices are
+ * remapped); nothing else changes.
+ */
+export function followSlideOrder(
+  state: ProgramState,
+  deckId: string,
+  order: number[]
+): ProgramState {
+  const remap = (i: number): number => {
+    const n = order.indexOf(i)
+    return n < 0 ? i : n
+  }
+  let maxIndex = -1
+  if (state.deckId === deckId) maxIndex = Math.max(maxIndex, state.index)
+  if (state.shown?.deckId === deckId) maxIndex = Math.max(maxIndex, state.shown.index)
+  if (maxIndex < 0 || !isPermutation(order, order.length) || maxIndex >= order.length) return state
+  const index = state.deckId === deckId ? remap(state.index) : state.index
+  const shown =
+    state.shown && state.shown.deckId === deckId
+      ? { ...state.shown, index: remap(state.shown.index) }
+      : state.shown
+  if (index === state.index && shown?.index === state.shown?.index) return state
+  return { ...state, index, shown }
 }
 
 /**
@@ -77,18 +135,24 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
   switch (action.type) {
     case 'next':
     case 'prev':
-      if (pendingTake(state, decks)) return moveTo(state, state.deckId!, state.index)
+      if (pendingTake(state, decks)) {
+        return moveTo(
+          state,
+          decks.find((d) => d.id === state.deckId)!,
+          state.index
+        )
+      }
       return step(state, decks, action.type === 'next' ? 1 : -1)
     case 'goto': {
       const deck = decks.find((d) => d.id === state.deckId)
       if (!deck || !Number.isInteger(action.index)) return state
       if (action.index < 0 || action.index >= deck.slides.length) return state
-      return moveTo(state, deck.id, action.index)
+      return moveTo(state, deck, action.index)
     }
     case 'selectDeck': {
       const deck = decks.find((d) => d.id === action.deckId)
       if (!deck || deck.slides.length === 0) return state
-      return moveTo(state, deck.id, 0)
+      return moveTo(state, deck, 0)
     }
     case 'toggleFreeze':
       return { ...state, frozen: !state.frozen }
@@ -99,12 +163,18 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
   }
 }
 
+/**
+ * Re-validate after the decks changed (added, removed, reordered): `shown`
+ * follows its slide or is dropped (output goes black) when the slide is gone;
+ * the operator position is clamped, or moved to the first ready deck.
+ */
 export function reconcile(state: ProgramState, decks: DeckLike[]): ProgramState {
-  let shown = state.shown
-  if (shown) {
-    const d = decks.find((x) => x.id === shown!.deckId)
-    if (!d || shown.index < 0 || shown.index >= d.slides.length) shown = null
-  }
+  const shown = state.shown
+    ? locateShown(
+        state.shown,
+        decks.find((x) => x.id === state.shown!.deckId)
+      )
+    : null
 
   let deckId = state.deckId
   let index = state.index

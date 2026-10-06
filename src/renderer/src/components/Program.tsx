@@ -12,8 +12,8 @@ export function Program({ state }: { state: ProgramState }): React.JSX.Element {
       <div className="screen" data-black={state.black}>
         {shown ? (
           <SlideImage
-            key={`${shown.deckId}/${shown.index}`}
-            src={slideUrl(shown.deckId, shown.index)}
+            key={`${shown.deckId}/${shown.file}`}
+            src={slideUrl(shown.deckId, shown.file)}
             fade={state.transition === 'fade'}
             alt={`Slide ${shown.index + 1} di Program`}
           />

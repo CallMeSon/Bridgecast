@@ -57,13 +57,15 @@ export class Library {
 
   private findEvent(eventId: string): EventMeta {
     const ev = this.events.find((e) => e.id === eventId)
-    if (!ev) throw new Error('Event tidak ditemukan. Pilih event lain dari menu atau buat event baru.')
+    if (!ev)
+      throw new Error('Event tidak ditemukan. Pilih event lain dari menu atau buat event baru.')
     return ev
   }
 
   private readDeck(deckId: string): DeckMeta {
     const file = path.join(this.deckDir(deckId), 'deck.json')
-    if (!fs.existsSync(file)) throw new Error('Deck tidak ditemukan. Muat ulang daftar deck atau impor deck kembali.')
+    if (!fs.existsSync(file))
+      throw new Error('Deck tidak ditemukan. Muat ulang daftar deck atau impor deck kembali.')
     return JSON.parse(fs.readFileSync(file, 'utf8')) as DeckMeta
   }
 
@@ -149,11 +151,30 @@ export class Library {
   removeDeck(eventId: string, deckId: string): void {
     const ev = this.findEvent(eventId)
     if (!ev.deckIds.includes(deckId)) {
-      throw new Error('Deck tidak ditemukan di event ini. Muat ulang daftar deck lalu pilih deck dari daftar.')
+      throw new Error(
+        'Deck tidak ditemukan di event ini. Muat ulang daftar deck lalu pilih deck dari daftar.'
+      )
     }
     ev.deckIds = ev.deckIds.filter((id) => id !== deckId)
     this.saveEvents()
     fs.rmSync(this.deckDir(deckId), { recursive: true, force: true })
+  }
+
+  getDeck(deckId: string): DeckMeta {
+    return this.readDeck(deckId)
+  }
+
+  /**
+   * Path of a slide image by its file name. Files never change for a slide
+   * (a reorder only changes their order in deck.json), so a URL built from the
+   * file always shows the same image.
+   */
+  slideFilePath(deckId: string, file: string): string {
+    const deck = this.readDeck(deckId)
+    if (!deck.slides.some((s) => s.file === file)) {
+      throw new Error('Slide tidak ditemukan. Pilih slide yang ada di deck ini.')
+    }
+    return path.join(this.deckDir(deckId), file)
   }
 
   slidePath(deckId: string, index: number): string {

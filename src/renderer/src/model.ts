@@ -5,7 +5,7 @@ import type { NdiSettings } from '../../shared/settings'
 
 export type NextView =
   | { kind: 'none' }
-  | { kind: 'slide'; deckId: string; index: number; notes: string }
+  | { kind: 'slide'; deckId: string; index: number; file: string; notes: string }
   | { kind: 'end'; nextDeck: string | null }
 
 export function currentDeck(decks: DeckMeta[], s: ProgramState): DeckMeta | null {
@@ -26,10 +26,13 @@ export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
   const deck = currentDeck(decks, s)
   if (!deck) return { kind: 'none' }
   if (pendingTake(s, decks)) {
-    return { kind: 'slide', deckId: deck.id, index: s.index, notes: deck.slides[s.index].notes }
+    const cur = deck.slides[s.index]
+    return { kind: 'slide', deckId: deck.id, index: s.index, file: cur.file, notes: cur.notes }
   }
   const nxt = deck.slides[s.index + 1]
-  if (nxt) return { kind: 'slide', deckId: deck.id, index: s.index + 1, notes: nxt.notes }
+  if (nxt) {
+    return { kind: 'slide', deckId: deck.id, index: s.index + 1, file: nxt.file, notes: nxt.notes }
+  }
   const pos = decks.indexOf(deck)
   const nd = decks.slice(pos + 1).find((d) => d.slides.length > 0)
   return { kind: 'end', nextDeck: nd ? nd.name : null }
@@ -109,6 +112,44 @@ export function fileKind(name: string): FileKind {
   return 'unsupported'
 }
 
+/** Copy for a dropped or picked item that cannot be imported (an error row). */
+export const UNSUPPORTED = {
+  meta: 'Tidak didukung',
+  file: 'Hanya file PPTX, PPT, atau PDF yang bisa diimpor.',
+  folder: 'Folder tidak diimpor. Buka foldernya, lalu seret file PPTX, PPT, atau PDF di dalamnya.'
+} as const
+
+/** True when a drag carries files from outside (Explorer), not a deck or slide being reordered. */
+export function hasFiles(types: ArrayLike<string> | null | undefined): boolean {
+  return !!types && Array.from(types).includes('Files')
+}
+
+/**
+ * Move one item from index `from` to index `to` (as in the mockup: take it
+ * out, insert it at `to`). Returns a new array; invalid indices return a copy.
+ */
+export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
+  const next = [...list]
+  if (from === to || !(from in next) || !(to in next)) return next
+  const [m] = next.splice(from, 1)
+  next.splice(to, 0, m)
+  return next
+}
+
+/** Order for `slides:reorder` after moving slide `from` to `to`: order[newIndex] = oldIndex. */
+export function moveOrder(n: number, from: number, to: number): number[] {
+  return moveItem(
+    Array.from({ length: n }, (_, i) => i),
+    from,
+    to
+  )
+}
+
+/** Status text of a busy import row: queued (0 %) or converting. */
+export function importMeta(percent: number): string {
+  return percent <= 0 ? 'Menunggu' : 'Mengonversi'
+}
+
 /** Strip Electron's "Error invoking remote method 'x': Error: " prefix so the user sees our message. */
 export function errorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
@@ -125,7 +166,7 @@ export function baseName(name: string): string {
  */
 export function outputSource(s: ProgramState): string | null {
   if (s.black || !s.shown) return null
-  return slideUrl(s.shown.deckId, s.shown.index)
+  return slideUrl(s.shown.deckId, s.shown.file)
 }
 
 export interface NdiBadge {

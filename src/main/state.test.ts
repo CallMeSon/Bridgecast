@@ -47,7 +47,7 @@ describe('AppState', () => {
     app.dispatch({ type: 'selectDeck', deckId: da })
     app.dispatch({ type: 'next' })
     const shown = app.state.shown
-    expect(shown).toEqual({ deckId: da, index: 1 })
+    expect(shown).toEqual({ deckId: da, index: 1, file: '002.png' })
 
     const s = app.setEvent(b.id)
     expect(s.shown).toEqual(shown)
@@ -63,7 +63,7 @@ describe('AppState', () => {
     const app = new AppState(lib)
     app.dispatch({ type: 'selectDeck', deckId: da })
     const s = app.setEvent(b.id)
-    expect(s.shown).toEqual({ deckId: da, index: 0 })
+    expect(s.shown).toEqual({ deckId: da, index: 0, file: '001.png' })
     expect(s.deckId).toBeNull()
   })
 
@@ -116,7 +116,7 @@ describe('AppState', () => {
     app.dispatch({ type: 'selectDeck', deckId: da })
     app.setEvent(b.id)
     const s = app.dispatch({ type: 'next' })
-    expect(s.shown).toEqual({ deckId: db, index: 0 })
+    expect(s.shown).toEqual({ deckId: db, index: 0, file: '001.png' })
   })
 
   it('does not call onChange when the state does not change', () => {
@@ -176,5 +176,83 @@ describe('AppState', () => {
     const s = app.refresh()
     expect(s.shown).toBeNull()
     expect(s.deckId).toBe(d2)
+  })
+
+  it('reorderSlides: the live slide stays on the output and the position follows it', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 3)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    app.dispatch({ type: 'goto', index: 1 }) // 002.png live
+    const cb = vi.fn()
+    app.onChange(cb)
+    // 002.png moves to the end: [001, 003, 002]
+    const s = app.reorderSlides(d, [0, 2, 1])
+    expect(s).toMatchObject({
+      deckId: d,
+      index: 2,
+      shown: { deckId: d, index: 2, file: '002.png' }
+    })
+    expect(lib.slidePath(d, 2)).toBe(path.join(root, 'decks', d, '002.png'))
+    expect(cb).toHaveBeenCalledTimes(1)
+  })
+
+  it('reorderSlides of other slides keeps shown on the same slide and index', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 3)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    const before = app.state
+    const s = app.reorderSlides(d, [0, 2, 1])
+    expect(s).toBe(before)
+  })
+
+  it('reorderSlides of a shown deck from another event follows the slide too', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const b = lib.createEvent('B')
+    const da = addDeck(lib, a.id, 3, 'a')
+    addDeck(lib, b.id, 2, 'b')
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: da })
+    app.setEvent(b.id)
+    const s = app.reorderSlides(da, [2, 1, 0])
+    expect(s.shown).toEqual({ deckId: da, index: 2, file: '001.png' })
+  })
+
+  it('reorderSlides rejects an invalid order and changes nothing', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 3)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    const before = app.state
+    expect(() => app.reorderSlides(d, [0, 0, 1])).toThrow()
+    expect(app.state).toBe(before)
+  })
+
+  it('reorderDecks keeps position and shown', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d1 = addDeck(lib, a.id, 2, 'one')
+    const d2 = addDeck(lib, a.id, 2, 'two')
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d1 })
+    app.dispatch({ type: 'next' })
+    const before = app.state
+    expect(app.reorderDecks(a.id, [d2, d1])).toBe(before)
+    expect(lib.listEvents()[0].deckIds).toEqual([d2, d1])
+  })
+
+  it('removeDeck of the live deck makes the output black', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d1 = addDeck(lib, a.id, 2, 'one')
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d1 })
+    const s = app.removeDeck(a.id, d1)
+    expect(s).toMatchObject({ deckId: null, index: 0, shown: null })
   })
 })

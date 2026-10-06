@@ -76,7 +76,33 @@ describe('Library', () => {
     expect(fs.readFileSync(lib.slidePath(d.id, 2), 'utf8')).toBe('png-1')
     const lib2 = new Library(root)
     expect(fs.readFileSync(lib2.slidePath(d.id, 0), 'utf8')).toBe('png-2')
-    expect(lib2.getDecks(ev.id)[0].slides.map((s) => s.notes)).toEqual(['note-2', 'note-0', 'note-1'])
+    expect(lib2.getDecks(ev.id)[0].slides.map((s) => s.notes)).toEqual([
+      'note-2',
+      'note-0',
+      'note-1'
+    ])
+  })
+
+  it('slideFilePath serves a slide by its file, before and after a reorder', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const d = lib.addDeck(ev.id, deckInput(3))
+    const p = lib.slideFilePath(d.id, '002.png')
+    expect(p).toBe(path.join(root, 'decks', d.id, '002.png'))
+    lib.reorderSlides(d.id, [1, 2, 0])
+    expect(lib.slideFilePath(d.id, '002.png')).toBe(p)
+    expect(fs.readFileSync(p, 'utf8')).toBe('png-1')
+    expect(() => lib.slideFilePath(d.id, '004.png')).toThrow(/tidak ditemukan/)
+    expect(() => lib.slideFilePath(d.id, 'deck.json')).toThrow(/tidak ditemukan/)
+    expect(() => lib.slideFilePath('..', '001.png')).toThrow(/tidak valid/)
+  })
+
+  it('getDeck returns one deck by id', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const d = lib.addDeck(ev.id, deckInput(2, 'Satu'))
+    expect(lib.getDeck(d.id)).toMatchObject({ id: d.id, name: 'Satu' })
+    expect(() => lib.getDeck('3f2504e0-4f89-41d3-9a0c-0305e82c3301')).toThrow(/tidak ditemukan/)
   })
 
   it('reorderSlides rejects an invalid permutation and keeps state', () => {
@@ -85,7 +111,11 @@ describe('Library', () => {
     const d = lib.addDeck(ev.id, deckInput(3))
     expect(() => lib.reorderSlides(d.id, [0, 0, 1])).toThrow(/urutan/i)
     expect(() => lib.reorderSlides(d.id, [0, 1])).toThrow(/urutan/i)
-    expect(lib.getDecks(ev.id)[0].slides.map((s) => s.notes)).toEqual(['note-0', 'note-1', 'note-2'])
+    expect(lib.getDecks(ev.id)[0].slides.map((s) => s.notes)).toEqual([
+      'note-0',
+      'note-1',
+      'note-2'
+    ])
   })
 
   it('reorderDecks rejects incomplete or unknown ids and keeps order', () => {
