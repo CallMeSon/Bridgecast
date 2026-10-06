@@ -773,7 +773,6 @@ async function realHdmiChecks(win, pop, real) {
 
 /** Window lifecycle with simulated displays (unplug, re-plug with a new id, resolution change). */
 async function simulatedHdmiChecks(win, real) {
-  const tally = win.getByTestId('tally')
   const pos = win.getByTestId('pos')
   const primary = real.all.find((d) => d.id === real.primary)
   const fakePrimary = {
