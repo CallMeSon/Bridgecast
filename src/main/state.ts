@@ -49,14 +49,19 @@ export class AppState {
   }
 
   dispatch(a: Action): ProgramState {
-    return this.commit(reduce(this.current, a, this.decks()))
+    // Actions arrive over IPC; an unknown type makes reduce return undefined.
+    const next = reduce(this.current, a, this.decks()) as ProgramState | undefined
+    return next ? this.commit(next) : this.current
   }
 
   /** Switch the active event. `shown` is never changed here (spec: output stays until the operator picks a slide). */
   setEvent(eventId: string): ProgramState {
     this.lib.getDecks(eventId) // throws (Indonesian message) if the event does not exist
     if (this.activeEvent) {
-      this.positions.set(this.activeEvent, { deckId: this.current.deckId, index: this.current.index })
+      this.positions.set(this.activeEvent, {
+        deckId: this.current.deckId,
+        index: this.current.index
+      })
     }
     this.activeEvent = eventId
     const pos = this.positions.get(eventId) ?? { deckId: null, index: 0 }

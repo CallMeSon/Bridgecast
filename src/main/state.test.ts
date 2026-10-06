@@ -122,6 +122,16 @@ describe('AppState', () => {
     expect(app.state.black).toBe(true)
   })
 
+  it('ignores an unknown action type (IPC input)', () => {
+    const lib = new Library(root)
+    lib.createEvent('A')
+    const app = new AppState(lib)
+    const before = app.state
+    expect(app.dispatch({ type: 'bogus' } as unknown as Parameters<AppState['dispatch']>[0])).toBe(
+      before
+    )
+  })
+
   it('dispatch with no events at all does not throw', () => {
     const lib = new Library(root)
     const app = new AppState(lib)
