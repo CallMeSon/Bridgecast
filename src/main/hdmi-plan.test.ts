@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { planHdmi, type ScreenDisplay, type TargetMemo, type WindowView } from './hdmi-plan'
+import {
+  fitDip,
+  placeRect,
+  planHdmi,
+  type ScreenDisplay,
+  type TargetMemo,
+  type WindowView
+} from './hdmi-plan'
 
 const laptop: ScreenDisplay = {
   id: 1,
@@ -153,5 +160,33 @@ describe('planHdmi', () => {
       memo: null,
       targetId: null
     })
+  })
+})
+
+describe('fitDip / placeRect (exact cover at fractional scaling)', () => {
+  // Windows maps a window's DIP size to device pixels as ceil(dip × scale)
+  // (measured: 1715 DIP at 112 % → 1921 px on a 1920 px panel, 1714 → 1920).
+  const px = (dip: number, sf: number): number => Math.ceil(dip * sf - 1e-6)
+
+  it('picks the DIP size that maps to exactly the native pixels', () => {
+    expect(fitDip(1920, 1.1200000047683716)).toBe(1714)
+    expect(fitDip(1080, 1.1200000047683716)).toBe(964)
+    for (const sf of [1, 1.12, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 3]) {
+      for (const native of [1080, 1200, 1440, 1920, 2160, 2560, 3840]) {
+        expect(px(fitDip(native, sf), sf), `${native} px at ${sf}`).toBe(native)
+      }
+    }
+  })
+
+  it('keeps integer scales unchanged', () => {
+    expect(fitDip(1920, 1)).toBe(1920)
+    expect(fitDip(3840, 2)).toBe(1920)
+    expect(fitDip(1920, 1.25)).toBe(1536)
+  })
+
+  it('placeRect keeps the display origin and fits the size', () => {
+    const d = { ...projector, bounds: { x: 1715, y: 0, width: 1715, height: 965 } }
+    expect(placeRect(d, 1.1200000047683716)).toEqual({ x: 1715, y: 0, width: 1714, height: 964 })
+    expect(placeRect(projector, 1)).toEqual(projector.bounds)
   })
 })
