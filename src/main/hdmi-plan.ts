@@ -24,6 +24,8 @@ export interface Bounds {
 /** DisplayInfo plus its bounds in DIP screen coordinates (Electron `Display.bounds`). */
 export interface ScreenDisplay extends DisplayInfo {
   bounds: Bounds
+  /** setBounds rect covering it exactly (see placeRect); `bounds` when absent. */
+  place?: Bounds
 }
 
 /** The display the output was last on, to recognise it when it comes back with a new id. */
@@ -135,4 +137,23 @@ export function planHdmi(
     action = sameBounds(win.bounds, bounds) ? { type: 'none' } : { type: 'setBounds', bounds }
   }
   return { action, status, memo: next, targetId: target.id }
+}
+
+/**
+ * DIP length whose device-pixel size is exactly `native` px at scale `sf`.
+ * Windows sizes a window as ceil(dip × sf): at 112 % a 1920 px display is
+ * 1715 DIP wide, but a 1715 DIP window is 1921 px and spills 1 px onto the
+ * neighbouring screen; 1714 DIP is exactly 1920 px. When no DIP length is
+ * exact (possible above 200 %), the one just covering is used: never a gap.
+ */
+export function fitDip(native: number, sf: number): number {
+  const s = Number.isFinite(sf) && sf > 0 ? sf : 1
+  const px = (dip: number): number => Math.ceil(dip * s - 1e-6)
+  const dip = Math.floor(native / s + 1e-6)
+  return px(dip) === native ? dip : dip + 1
+}
+
+/** The setBounds rect that covers the display exactly (its origin, size fitted to its pixels). */
+export function placeRect(d: ScreenDisplay, sf: number): Bounds {
+  return { x: d.bounds.x, y: d.bounds.y, width: fitDip(d.width, sf), height: fitDip(d.height, sf) }
 }

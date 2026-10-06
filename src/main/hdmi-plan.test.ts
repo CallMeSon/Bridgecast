@@ -171,9 +171,33 @@ describe('fitDip / placeRect (exact cover at fractional scaling)', () => {
   it('picks the DIP size that maps to exactly the native pixels', () => {
     expect(fitDip(1920, 1.1200000047683716)).toBe(1714)
     expect(fitDip(1080, 1.1200000047683716)).toBe(964)
-    for (const sf of [1, 1.12, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 3]) {
+    // Common Windows scalings of common panels all have an exact DIP size.
+    for (const [native, sf] of [
+      [1920, 1.25],
+      [1080, 1.25],
+      [1920, 1.5],
+      [1080, 1.75],
+      [1920, 1.75],
+      [2560, 1.25],
+      [3840, 1.5],
+      [2160, 1.5]
+    ]) {
+      expect(px(fitDip(native, sf), sf), `${native} px at ${sf}`).toBe(native)
+    }
+  })
+
+  it('when no DIP size is exact, covers rather than leaving a gap', () => {
+    // 2560 px at 150 %: 1706 DIP → 2559 px (gap), 1707 → 2561 px (covers).
+    expect(fitDip(2560, 1.5)).toBe(1707)
+    expect(fitDip(2560, 3)).toBe(854)
+    for (const sf of [1, 1.12, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 3, 3.5]) {
       for (const native of [1080, 1200, 1440, 1920, 2160, 2560, 3840]) {
-        expect(px(fitDip(native, sf), sf), `${native} px at ${sf}`).toBe(native)
+        const got = px(fitDip(native, sf), sf)
+        const exact = Math.floor(native / sf + 1e-6) * sf > native - 1 + 1e-6
+        expect(
+          exact ? got === native : got > native && got < native + sf,
+          `${native} @ ${sf}: ${got}`
+        ).toBe(true)
       }
     }
   })

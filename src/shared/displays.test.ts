@@ -53,12 +53,8 @@ describe('pickDisplay', () => {
 })
 
 describe('toDisplayInfo / displayText', () => {
-  it('uses a measured native size when given', () => {
+  it('reports 1920×1080 for a 1715×965 DIP display at 112 %', () => {
     const d = { id: 7, label: 'X', size: { width: 1715, height: 965 }, scaleFactor: 1.12 }
-    expect(toDisplayInfo(d, 1, 0, { width: 1920, height: 1080 })).toMatchObject({
-      width: 1920,
-      height: 1080
-    })
     expect(toDisplayInfo(d, 1, 0)).toMatchObject({ width: 1920, height: 1080 })
   })
 

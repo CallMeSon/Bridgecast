@@ -5,6 +5,7 @@ import { toDisplayInfo, type DisplayInfo } from '../shared/displays'
 import { Send, type HdmiStatus } from '../shared/ipc'
 import type { HdmiSettings } from '../shared/settings'
 import {
+  placeRect,
   planHdmi,
   type Bounds,
   type HdmiPlan,
@@ -14,12 +15,13 @@ import {
 
 const RESTART_DELAY_MS = 1000
 
-/** Connected displays with their DIP bounds, primary marked. */
+/** Connected displays with their DIP bounds and exact-cover rect, primary marked. */
 export function screenDisplays(): ScreenDisplay[] {
   const primaryId = screen.getPrimaryDisplay().id
-  return screen
-    .getAllDisplays()
-    .map((d, i) => ({ ...toDisplayInfo(d, primaryId, i), bounds: { ...d.bounds } }))
+  return screen.getAllDisplays().map((d, i) => {
+    const info = { ...toDisplayInfo(d, primaryId, i), bounds: { ...d.bounds } }
+    return { ...info, place: placeRect(info, d.scaleFactor) }
+  })
 }
 
 export const displayInfos = (ds: ScreenDisplay[]): DisplayInfo[] =>
@@ -35,6 +37,8 @@ export interface HdmiDebug {
   bounds: Bounds | null
   creates: number
   plans: string[]
+  /** Displays as HDMI sees them (with the exact-cover rect). */
+  displays: ScreenDisplay[]
 }
 
 /**
@@ -114,7 +118,8 @@ export class HdmiOutput {
       focusable: !!w?.isFocusable(),
       bounds: w ? w.getBounds() : null,
       creates: this.creates,
-      plans: [...this.plans]
+      plans: [...this.plans],
+      displays: this.getDisplays()
     }
   }
 
@@ -154,18 +159,19 @@ export class HdmiOutput {
     }
     switch (a.type) {
       case 'create':
-        this.create(a.bounds)
+        this.create(this.placeFor(a.bounds))
         return
       case 'show':
         if (!w) return
-        place(w, a.bounds)
+        place(w, this.placeFor(a.bounds))
         // Above the taskbar of that display; it is the only thing on it.
         w.setAlwaysOnTop(true, 'screen-saver')
         w.showInactive()
-        place(w, a.bounds) // Windows may rescale on the first show on a display with other DPI
+        // Windows may rescale on the first show on a display with other DPI.
+        place(w, this.placeFor(a.bounds))
         return
       case 'setBounds':
-        if (w) place(w, a.bounds)
+        if (w) place(w, this.placeFor(a.bounds))
         return
       case 'hide':
         w?.hide()
@@ -176,6 +182,12 @@ export class HdmiOutput {
       case 'none':
         return
     }
+  }
+
+  /** The exact-cover rect of the display with these bounds (see placeRect). */
+  private placeFor(bounds: Bounds): Bounds {
+    const d = this.getDisplays().find((x) => sameRect(x.bounds, bounds))
+    return d?.place ?? bounds
   }
 
   private setStatus(s: HdmiStatus): void {
@@ -228,6 +240,8 @@ export class HdmiOutput {
     win.on('close', (e) => {
       if (!this.quitting) e.preventDefault()
     })
+    // Keep "PPT Share HDMI" (the page's <title> would rename it "PPT Share").
+    win.on('page-title-updated', (e) => e.preventDefault())
     wc.on('render-process-gone', (_e, details) => {
       console.error(`[hdmi] renderer berhenti (${details.reason}); dibuat ulang`)
       this.scheduleRestart(win)
@@ -263,15 +277,15 @@ export class HdmiOutput {
   }
 }
 
+const sameRect = (a: Bounds, b: Bounds): boolean =>
+  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+
 /**
- * Covers exactly `b`. With different scaling on the laptop panel and the HDMI
- * display, Windows can scale the size while moving the window between them,
- * so the size is set a second time once it is on the target display.
+ * Sets the window to `b` (a placeRect). With different scaling on the laptop
+ * panel and the HDMI display, Windows can scale the size while it moves the
+ * window between them, so the bounds are set again once it is on the target.
  */
 function place(w: BrowserWindow, b: Bounds): void {
   w.setBounds(b)
-  const got = w.getBounds()
-  if (got.x !== b.x || got.y !== b.y || got.width !== b.width || got.height !== b.height) {
-    w.setBounds(b)
-  }
+  w.setBounds(b)
 }

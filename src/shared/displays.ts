@@ -36,13 +36,27 @@ export interface DisplayLike {
   scaleFactor: number
 }
 
+/**
+ * Pixel length of a display side from its DIP length. Windows rounds the DIP
+ * size up (1920 px at 112 % → 1715 DIP), so the pixels lie in
+ * ((dip − 1) × sf, dip × sf]; when two lengths fit, the even one is the
+ * real resolution (1098 DIP at 175 % is 1920, not 1921).
+ */
+export function nativeLength(dip: number, scaleFactor: number): number {
+  const sf = Number.isFinite(scaleFactor) && scaleFactor > 0 ? scaleFactor : 1
+  const max = Math.floor(dip * sf + 1e-6)
+  const min = Math.floor((dip - 1) * sf + 1e-6) + 1
+  for (let px = max; px >= min; px--) if (px % 2 === 0) return px
+  return max
+}
+
 export function toDisplayInfo(d: DisplayLike, primaryId: number, index: number): DisplayInfo {
   const sf = Number.isFinite(d.scaleFactor) && d.scaleFactor > 0 ? d.scaleFactor : 1
   return {
     id: d.id,
     label: d.label?.trim() || `Layar ${index + 1}`,
-    width: Math.round(d.size.width * sf),
-    height: Math.round(d.size.height * sf),
+    width: nativeLength(d.size.width, sf),
+    height: nativeLength(d.size.height, sf),
     primary: d.id === primaryId
   }
 }
