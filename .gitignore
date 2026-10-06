@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+.superpowers/
+.playwright-mcp/
+*.png
+!fixtures/**/*.png
+!resources/**/*.png
