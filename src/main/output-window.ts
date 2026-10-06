@@ -1,6 +1,7 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
+import { cropOrPad, dipSize, fitMode, tolerance, type FitMode, type Size } from './output-geometry'
 
 export interface OutputOptions {
   width: number
@@ -11,6 +12,17 @@ export interface OutputOptions {
 /** Settings defaults (spec: 1920×1080, 30 fps). Task 8 replaces this with saved settings. */
 export const OUTPUT_DEFAULTS: OutputOptions = { width: 1920, height: 1080, fps: 30 }
 
+/** Per-paint processing measurements (read by the dev/e2e debug hook). */
+export interface PaintStats {
+  scaleFactor: number
+  windowDip: Size
+  painted: Size | null
+  mode: FitMode | null
+  count: number
+  totalMs: number
+  maxMs: number
+}
+
 /**
  * Hidden offscreen window rendering the renderer's `#/output` route. Every
  * `paint` hands the whole frame (BGRA on Windows, width*height*4 bytes) to
@@ -19,12 +31,27 @@ export const OUTPUT_DEFAULTS: OutputOptions = { width: 1920, height: 1080, fps: 
  */
 export function createOutputWindow(
   opts: OutputOptions,
-  onFrame: (frame: Buffer) => void
+  onFrame: (frame: Buffer) => void,
+  stats?: PaintStats
 ): BrowserWindow {
+  // Offscreen windows paint at the display scale factor (at 112 % a 1920×1080
+  // DIP window paints 2152×1211) and Electron 39 has no per-window override;
+  // zoom and device emulation do not change the bitmap size. So the window is
+  // sized in DIP = target / scaleFactor: Chromium then rasterizes the slide at
+  // ≈ target device pixels, with no up- then down-sampling.
+  const sf = screen.getPrimaryDisplay().scaleFactor
+  const dip = dipSize(opts.width, opts.height, sf)
+  const tol = tolerance(sf)
+  const target = { width: opts.width, height: opts.height }
+  if (stats) {
+    Object.assign(stats, { scaleFactor: sf, windowDip: dip, painted: null, mode: null })
+    Object.assign(stats, { count: 0, totalMs: 0, maxMs: 0 })
+  }
+
   const win = new BrowserWindow({
     show: false,
-    width: opts.width,
-    height: opts.height,
+    width: dip.width,
+    height: dip.height,
     useContentSize: true,
     frame: false,
     resizable: false,
@@ -45,31 +72,43 @@ export function createOutputWindow(
   })
   // A window can be clamped to the screen size on creation; the offscreen
   // surface follows the content size, so set it explicitly.
-  win.setContentSize(opts.width, opts.height)
+  win.setContentSize(dip.width, dip.height)
 
   const wc = win.webContents
   wc.setFrameRate(opts.fps)
-  // Offscreen frames are rendered at the display's scale factor: at 112 %
-  // Windows scaling a 1920×1080 window paints 2152×1211 (and the window itself
-  // rounds to 1921×1081 DIP). Neither setZoomFactor nor device emulation
-  // changes the bitmap size, so such frames are downscaled to exactly
-  // width×height here; at 100 % scaling the bitmap is used as is.
+  // Windows may still round the window by a DIP (112 %: 1714 asked, 1715
+  // given → 1921 px), so small mismatches are cropped/padded with black. Only
+  // a large mismatch (scale factor changed under us) is resampled.
   // toBitmap() is the non-deprecated name of getBitmap() (BGRA on Windows).
   let warned = false
   wc.on('paint', (_e, _dirty, image) => {
     if (image.isEmpty()) return
+    const t0 = performance.now()
     const size = image.getSize()
-    if (size.width === opts.width && size.height === opts.height) {
-      onFrame(image.toBitmap())
-      return
+    const mode = fitMode(size, target, tol)
+    let frame: Buffer
+    if (mode === 'exact') {
+      frame = image.toBitmap()
+    } else if (mode === 'cropPad') {
+      frame = cropOrPad(image.toBitmap(), size.width, size.height, opts.width, opts.height)
+    } else {
+      if (!warned) {
+        warned = true
+        console.log(
+          `[output] frame ${size.width}×${size.height} diskalakan ke ${opts.width}×${opts.height} (skala layar ${sf})`
+        )
+      }
+      frame = image.resize({ width: opts.width, height: opts.height, quality: 'best' }).toBitmap()
     }
-    if (!warned) {
-      warned = true
-      console.log(
-        `[output] frame ${size.width}×${size.height} (skala layar) diskalakan ke ${opts.width}×${opts.height}`
-      )
+    if (stats) {
+      const ms = performance.now() - t0
+      stats.painted = size
+      stats.mode = mode
+      stats.count++
+      stats.totalMs += ms
+      stats.maxMs = Math.max(stats.maxMs, ms)
     }
-    onFrame(image.resize({ width: opts.width, height: opts.height, quality: 'good' }).toBitmap())
+    onFrame(frame)
   })
 
   // Output only: no keyboard/mouse input, no navigation, no popups.

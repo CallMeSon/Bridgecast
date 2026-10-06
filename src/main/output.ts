@@ -1,8 +1,8 @@
-import { nativeImage, type BrowserWindow } from 'electron'
+import { nativeImage, screen, type BrowserWindow } from 'electron'
 import * as fs from 'fs'
 import { join } from 'path'
 import { FrameRepeater } from './frame-repeater'
-import { createOutputWindow, type OutputOptions } from './output-window'
+import { createOutputWindow, type OutputOptions, type PaintStats } from './output-window'
 
 const RESTART_DELAY_MS = 1000
 
@@ -12,6 +12,8 @@ export interface OutputDebug {
   sent: number
   lastLength: number
   restarts: number
+  /** Scale factor, window DIP size, painted bitmap size, fit mode and per-paint ms. */
+  paint: PaintStats
   /** Writes the latest frame as `output-<n>.png` into the dump dir; returns its path. */
   dump(): string | null
   /** [b, g, r, a] of the latest frame at (x, y), or null before the first frame. */
@@ -49,6 +51,15 @@ export class Output {
       sent: 0,
       lastLength: 0,
       restarts: 0,
+      paint: {
+        scaleFactor: 1,
+        windowDip: { width: 0, height: 0 },
+        painted: null,
+        mode: null,
+        count: 0,
+        totalMs: 0,
+        maxMs: 0
+      },
       dump: () => this.dump(),
       pixel: (x, y) => {
         if (!this.last) return null
@@ -57,16 +68,30 @@ export class Output {
       },
       crash: () => this.win?.webContents.forcefullyCrashRenderer()
     }
+    // The window's DIP size depends on the display scale factor (see
+    // output-window.ts). If the user changes Windows scaling while the app
+    // runs, rebuild the window at the new size; meanwhile the repeater keeps
+    // sending the last frame.
+    screen.on('display-metrics-changed', (_e, _display, changed) => {
+      if (!changed.includes('scaleFactor') || !this.win || this.win.isDestroyed()) return
+      if (screen.getPrimaryDisplay().scaleFactor === this.debug.paint.scaleFactor) return
+      console.log('[output] skala layar berubah; jendela output dibuat ulang')
+      this.replace(this.win)
+    })
   }
 
   start(): void {
     if (this.quitting || (this.win && !this.win.isDestroyed())) return
-    const win = createOutputWindow(this.opts, (frame) => {
-      this.debug.paints++
-      this.debug.lastLength = frame.length
-      this.last = frame
-      this.repeater.push(frame)
-    })
+    const win = createOutputWindow(
+      this.opts,
+      (frame) => {
+        this.debug.paints++
+        this.debug.lastLength = frame.length
+        this.last = frame
+        this.repeater.push(frame)
+      },
+      this.debug.paint
+    )
     win.on('close', (e) => {
       if (!this.quitting) e.preventDefault()
     })
@@ -90,11 +115,17 @@ export class Output {
     if (this.quitting || this.restartTimer) return
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null
-      if (!dead.isDestroyed()) dead.destroy()
-      if (this.win === dead) this.win = null
-      this.debug.restarts++
-      this.start()
+      this.replace(dead)
     }, RESTART_DELAY_MS)
+  }
+
+  /** Destroys `old` (if still current) and creates a fresh output window. */
+  private replace(old: BrowserWindow): void {
+    if (this.quitting) return
+    if (!old.isDestroyed()) old.destroy()
+    if (this.win === old) this.win = null
+    this.debug.restarts++
+    this.start()
   }
 
   private dump(): string | null {

@@ -187,6 +187,13 @@ try {
     `repeater sent ${sent} frames in 2 s on a static slide (paint events: ${paints})`
   )
 
+  // Display scaling: the window is sized in DIP so frames are never resampled.
+  const ps = await app.evaluate(() => globalThis.__pptOutput.paint)
+  check(
+    ps.mode !== 'resize',
+    `no resampling: scale ${ps.scaleFactor}, window ${ps.windowDip.width}×${ps.windowDip.height} DIP, painted ${ps.painted.width}×${ps.painted.height}, mode ${ps.mode}, ${(ps.totalMs / ps.count).toFixed(1)} ms avg / ${ps.maxMs.toFixed(1)} ms max per paint (${ps.count} paints)`
+  )
+
   await win.keyboard.press('Space')
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
