@@ -1,5 +1,6 @@
 import type { DeckMeta, EventMeta } from './types'
 import type { Action, ProgramState } from './program'
+import type { Settings } from './settings'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
 export const Invoke = {
@@ -13,13 +14,17 @@ export const Invoke = {
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
   programDispatch: 'program:dispatch',
-  programGet: 'program:get'
+  programGet: 'program:get',
+  settingsGet: 'settings:get',
+  settingsSet: 'settings:set',
+  ndiGetStatus: 'ndi:getStatus'
 } as const
 
 /** Main → renderer broadcasts (webContents.send ↔ ipcRenderer.on). */
 export const Broadcast = {
   programState: 'program:state',
-  importProgress: 'import:progress'
+  importProgress: 'import:progress',
+  ndiStatus: 'ndi:status'
 } as const
 
 export interface ImportProgress {
@@ -31,6 +36,17 @@ export interface ImportProgress {
 }
 
 /** PDF pages rendered in the renderer (pdf.js) and handed to main to store. */
+/**
+ * NDI sender state. `running` only once the NDI source actually exists;
+ * `message` (Indonesian, with the fix) on `error`; `source` is the full name
+ * receivers show, e.g. "STUDIO-PC (PPT Share)".
+ */
+export interface NdiStatus {
+  state: 'running' | 'stopped' | 'error'
+  message?: string
+  source?: string
+}
+
 export interface RenderedDeck {
   name: string
   width: number
@@ -62,11 +78,15 @@ export interface InvokeMap {
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
   'program:dispatch': { args: [action: Action]; result: ProgramState }
   'program:get': { args: []; result: Session }
+  'settings:get': { args: []; result: Settings }
+  'settings:set': { args: [settings: Settings]; result: Settings }
+  'ndi:getStatus': { args: []; result: NdiStatus }
 }
 
 export interface BroadcastMap {
   'program:state': ProgramState
   'import:progress': ImportProgress
+  'ndi:status': NdiStatus
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -90,5 +110,10 @@ export interface Api {
   getSession(): Promise<Session>
   onProgramState(cb: (s: ProgramState) => void): () => void
   onImportProgress(cb: (p: ImportProgress) => void): () => void
+  getSettings(): Promise<Settings>
+  /** Validates, saves and applies (restarts output + sender when needed). */
+  setSettings(s: Settings): Promise<Settings>
+  getNdiStatus(): Promise<NdiStatus>
+  onNdiStatus(cb: (s: NdiStatus) => void): () => void
   pathForFile(file: File): string
 }

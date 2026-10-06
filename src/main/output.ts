@@ -23,9 +23,10 @@ export interface OutputDebug {
 }
 
 /**
- * Owns the single offscreen output window and the frame repeater. The window
- * cannot be closed by the user, is recreated when its renderer dies, and is
- * destroyed only through `shutdown()` when the app quits.
+ * Owns one offscreen output window and its frame repeater. The window cannot
+ * be closed by the user, is recreated when its renderer dies, and is destroyed
+ * only through `shutdown()` (app quit, or NdiPipeline replacing it with a
+ * window of another size).
  */
 export class Output {
   private win: BrowserWindow | null = null
@@ -72,12 +73,14 @@ export class Output {
     // output-window.ts). If the user changes Windows scaling while the app
     // runs, rebuild the window at the new size; meanwhile the repeater keeps
     // sending the last frame.
-    screen.on('display-metrics-changed', (_e, _display, changed) => {
-      if (!changed.includes('scaleFactor') || !this.win || this.win.isDestroyed()) return
-      if (screen.getPrimaryDisplay().scaleFactor === this.debug.paint.scaleFactor) return
-      console.log('[output] skala layar berubah; jendela output dibuat ulang')
-      this.replace(this.win)
-    })
+    screen.on('display-metrics-changed', this.onMetrics)
+  }
+
+  private onMetrics = (_e: unknown, _display: unknown, changed: string[]): void => {
+    if (!changed.includes('scaleFactor') || !this.win || this.win.isDestroyed()) return
+    if (screen.getPrimaryDisplay().scaleFactor === this.debug.paint.scaleFactor) return
+    console.log('[output] skala layar berubah; jendela output dibuat ulang')
+    this.replace(this.win)
   }
 
   start(): void {
@@ -105,6 +108,7 @@ export class Output {
 
   shutdown(): void {
     this.quitting = true
+    screen.removeListener('display-metrics-changed', this.onMetrics)
     if (this.restartTimer) clearTimeout(this.restartTimer)
     this.repeater.stop()
     if (this.win && !this.win.isDestroyed()) this.win.destroy()

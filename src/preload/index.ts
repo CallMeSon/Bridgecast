@@ -40,6 +40,10 @@ const api: Api = {
   getSession: () => invoke(Invoke.programGet),
   onProgramState: (cb) => subscribe(Broadcast.programState, cb),
   onImportProgress: (cb) => subscribe(Broadcast.importProgress, cb),
+  getSettings: () => invoke(Invoke.settingsGet),
+  setSettings: (s) => invoke(Invoke.settingsSet, s),
+  getNdiStatus: () => invoke(Invoke.ndiGetStatus),
+  onNdiStatus: (cb) => subscribe(Broadcast.ndiStatus, cb),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }

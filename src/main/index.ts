@@ -9,7 +9,10 @@ import { AppState } from './state'
 import { importPptx } from './import/pptx'
 import { isInside, parseSlideUrl } from './slide-protocol'
 import { Output } from './output'
-import { OUTPUT_DEFAULTS } from './output-window'
+import { loadSettings, saveSettings, type Settings } from './settings'
+import { GrandiNdiSender } from './ndi/grandi-sender'
+import { NdiPipeline } from './ndi/pipeline'
+import { ndiSettingsError, sanitizeSettings } from '../shared/settings'
 import {
   Broadcast,
   Invoke,
@@ -17,6 +20,7 @@ import {
   type ImportProgress,
   type ImportRequest,
   type InvokeChannel,
+  type NdiStatus,
   type InvokeMap,
   type RenderedDeck
 } from '../shared/ipc'
@@ -68,7 +72,7 @@ function registerSlideProtocol(root: string, lib: Library): void {
   })
 }
 
-function registerIpc(lib: Library, state: AppState): void {
+function registerIpc(lib: Library, state: AppState, ndi: NdiOutput): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
   handle(Invoke.eventsList, () => lib.listEvents())
@@ -158,20 +162,82 @@ function registerIpc(lib: Library, state: AppState): void {
     state.refresh()
   })
 
+  handle(Invoke.settingsGet, () => ndi.getSettings())
+  handle(Invoke.settingsSet, (settings) => ndi.set(settings))
+  handle(Invoke.ndiGetStatus, () => ndi.getStatus())
+
   state.onChange((s) => broadcast(Broadcast.programState, s))
 }
 
-// Task 8 replaces this with the NDI sender; until then frames go nowhere.
-const sendFrame: (frame: Buffer) => void = () => {}
+/**
+ * NDI output: settings.json → NdiPipeline (offscreen output window + frame
+ * repeater) → GrandiNdiSender. Status changes are pushed as `ndi:status`.
+ */
+class NdiOutput {
+  private settings: Settings
+  private status: NdiStatus = { state: 'stopped' }
+  private readonly sender: GrandiNdiSender
+  private readonly pipeline: NdiPipeline<Output>
+  private started = false
 
-function startOutput(): Output {
-  // PPT_OUTPUT_DUMP=<dir> (dev/e2e only): exposes counters and a PNG frame dump
-  // on globalThis.__pptOutput for the smoke test.
-  const dumpDir = process.env['PPT_OUTPUT_DUMP'] || undefined
-  const output = new Output(OUTPUT_DEFAULTS, sendFrame, dumpDir)
-  if (dumpDir) (globalThis as Record<string, unknown>)['__pptOutput'] = output.debug
-  app.on('before-quit', () => output.shutdown())
-  return output
+  constructor(private file: string) {
+    this.settings = loadSettings(file)
+    this.sender = new GrandiNdiSender((s) => {
+      this.status = s
+      if (s.state === 'error') console.error(`[ndi] ${s.message}`)
+      broadcast(Broadcast.ndiStatus, s)
+    })
+    // PPT_OUTPUT_DUMP=<dir> (dev/e2e only): exposes counters and a PNG frame
+    // dump of the current output window on globalThis.__pptOutput, and the
+    // sender's counters on globalThis.__pptNdi.
+    const dumpDir = process.env['PPT_OUTPUT_DUMP'] || undefined
+    this.pipeline = new NdiPipeline(this.sender, (opts, send) => new Output(opts, send, dumpDir))
+    if (dumpDir) {
+      Object.defineProperty(globalThis, '__pptOutput', {
+        configurable: true,
+        get: () => this.pipeline.current?.debug ?? null
+      })
+      Object.defineProperty(globalThis, '__pptNdi', {
+        configurable: true,
+        get: () => ({ ...this.sender.stats, connections: this.sender.stats.connections() })
+      })
+    }
+  }
+
+  /** Starts the output once the operator window is up. */
+  start(): void {
+    if (this.started) return
+    this.started = true
+    this.pipeline.apply(this.settings.ndi)
+  }
+
+  getSettings(): Settings {
+    return this.settings
+  }
+
+  getStatus(): NdiStatus {
+    return this.status
+  }
+
+  /** Validates, saves, then restarts the output window and sender as needed. */
+  set(input: Settings): Settings {
+    const error = ndiSettingsError(input?.ndi)
+    if (error) throw new Error(error)
+    const next = sanitizeSettings(input)
+    try {
+      saveSettings(this.file, next)
+    } catch (err) {
+      console.error('[settings] gagal disimpan:', err)
+      throw new Error('Pengaturan tidak bisa disimpan. Periksa ruang disk lalu coba lagi.')
+    }
+    this.settings = next
+    if (this.started) this.pipeline.apply(next.ndi)
+    return next
+  }
+
+  shutdown(): void {
+    this.pipeline.shutdown()
+  }
 }
 
 function createWindow(onReady?: () => void): BrowserWindow {
@@ -244,14 +310,15 @@ Lokasi: ${root}`
     return
   }
   const state = new AppState(lib)
+  const ndi = new NdiOutput(join(root, 'settings.json'))
+  app.on('before-quit', () => ndi.shutdown())
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state)
+  registerIpc(lib, state, ndi)
 
-  const output = startOutput()
-  createWindow(() => output.start())
+  createWindow(() => ndi.start())
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(() => output.start())
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(() => ndi.start())
   })
 })
 

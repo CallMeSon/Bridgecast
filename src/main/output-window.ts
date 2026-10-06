@@ -9,9 +9,6 @@ export interface OutputOptions {
   fps: number
 }
 
-/** Settings defaults (spec: 1920×1080, 30 fps). Task 8 replaces this with saved settings. */
-export const OUTPUT_DEFAULTS: OutputOptions = { width: 1920, height: 1080, fps: 30 }
-
 /** Per-paint processing measurements (read by the dev/e2e debug hook). */
 export interface PaintStats {
   scaleFactor: number

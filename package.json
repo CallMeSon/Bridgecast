@@ -27,6 +27,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@fontsource-variable/geist": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
+    "grandi": "2.0.2",
     "pdfjs-dist": "^6.4.299"
   },
   "devDependencies": {
