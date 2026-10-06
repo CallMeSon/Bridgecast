@@ -112,9 +112,11 @@ async function ndiChecks(win, tally, pos) {
   const ndi0 = await app.evaluate(() => globalThis.__pptNdi)
   check(
     ndi0.sent > 0 && /\(PPT Share\)$/.test(ndi0.source),
-    `sender is sending as "${ndi0.source}" (${ndi0.sent} frames, ${ndi0.dropped} dropped, ${(ndi0.sendMsTotal / ndi0.sent).toFixed(1)} ms avg / ${ndi0.sendMsMax.toFixed(1)} ms max per send off the main thread)`
+    `sender is sending as "${ndi0.source}" (${ndi0.sent} frames, ${ndi0.dropped} dropped, ${(ndi0.sendMsTotal / ndi0.sent).toFixed(1)} ms avg / ${ndi0.sendMsMax.toFixed(1)} ms max per send round trip incl. main-thread latency)`
   )
 
+  if (ndi0.slow.length)
+    console.log(`  slow NDI sends (at ms since start: ms): ${JSON.stringify(ndi0.slow)}`)
   await status.click()
   const pop = win.getByTestId('ndi-popover')
   await pop.waitFor()

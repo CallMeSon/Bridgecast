@@ -99,9 +99,13 @@ export interface NdiStats {
   failed: number
   sendMsTotal: number
   sendMsMax: number
+  /** Last sends slower than SLOW_SEND_MS: when (ms since the app started) and how long. */
+  slow: { at: number; ms: number }[]
   source: string | null
   connections(): number
 }
+
+const SLOW_SEND_MS = 50
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
@@ -120,6 +124,7 @@ export class GrandiNdiSender implements NdiSender {
     failed: 0,
     sendMsTotal: 0,
     sendMsMax: 0,
+    slow: [],
     source: null,
     connections: () => this.native?.connections() ?? 0
   }
@@ -177,6 +182,10 @@ export class GrandiNdiSender implements NdiSender {
           this.stats.sent++
           this.stats.sendMsTotal += ms
           this.stats.sendMsMax = Math.max(this.stats.sendMsMax, ms)
+          if (ms > SLOW_SEND_MS) {
+            this.stats.slow.push({ at: Math.round(t0), ms: Math.round(ms) })
+            if (this.stats.slow.length > 20) this.stats.slow.shift()
+          }
         },
         (err) => {
           this.stats.failed++
