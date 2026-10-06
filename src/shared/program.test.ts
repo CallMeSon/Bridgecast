@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { reduce, reconcile, initialState, type ProgramState } from './program'
 
-const s = (n: number) => Array.from({ length: n }, (_, i) => ({ file: `${i}.png`, notes: '' }))
+const s = (n: number): { file: string; notes: string }[] => Array.from({ length: n }, (_, i) => ({ file: `${i}.png`, notes: '' }))
 const decks = [
   { id: 'A', slides: s(3) },
   { id: 'B', slides: s(2) }
