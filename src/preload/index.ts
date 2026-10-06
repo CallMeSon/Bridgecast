@@ -45,6 +45,11 @@ const api: Api = {
   setSettings: (s) => invoke(Invoke.settingsSet, s),
   getNdiStatus: () => invoke(Invoke.ndiGetStatus),
   onNdiStatus: (cb) => subscribe(Broadcast.ndiStatus, cb),
+  listDisplays: () => invoke(Invoke.displaysList),
+  onDisplaysChanged: (cb) => subscribe(Broadcast.displaysChanged, cb),
+  setHdmi: (h) => invoke(Invoke.hdmiSet, h),
+  getHdmiStatus: () => invoke(Invoke.hdmiGetStatus),
+  onHdmiStatus: (cb) => subscribe(Broadcast.hdmiStatus, cb),
   outputReady: () => ipcRenderer.send(Send.outputReady),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)

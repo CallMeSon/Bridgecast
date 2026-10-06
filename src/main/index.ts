@@ -14,7 +14,15 @@ import { Output } from './output'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import { GrandiNdiSender } from './ndi/grandi-sender'
 import { NdiPipeline } from './ndi/pipeline'
-import { ndiSettingsError, sanitizeSettings } from '../shared/settings'
+import { HdmiOutput, screenDisplays } from './display-output'
+import type { ScreenDisplay } from './hdmi-plan'
+import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
+import {
+  ndiSettingsError,
+  sanitizeSettings,
+  type HdmiSettings,
+  type NdiSettings
+} from '../shared/settings'
 import {
   Broadcast,
   Invoke,
@@ -22,6 +30,7 @@ import {
   type ImportProgress,
   type ImportRequest,
   type InvokeChannel,
+  type HdmiStatus,
   type NdiStatus,
   type InvokeMap,
   type RenderedDeck
@@ -77,7 +86,7 @@ function registerSlideProtocol(root: string, lib: Library): void {
   })
 }
 
-function registerIpc(lib: Library, state: AppState, ndi: NdiOutput): void {
+function registerIpc(lib: Library, state: AppState, ndi: NdiOutput, hdmi: HdmiOutput): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
   handle(Invoke.eventsList, () => lib.listEvents())
@@ -213,6 +222,19 @@ function registerIpc(lib: Library, state: AppState, ndi: NdiOutput): void {
   handle(Invoke.settingsSet, (settings) => ndi.set(settings))
   handle(Invoke.ndiGetStatus, () => ndi.getStatus())
 
+  handle(Invoke.displaysList, () => hdmi.displays())
+  handle(Invoke.hdmiGetStatus, () => hdmi.getStatus())
+  handle(Invoke.hdmiSet, (input: HdmiSettings) => {
+    // Checked against the screens connected right now: a stale or forged id,
+    // or the operator's own (primary) screen, is refused with the fix.
+    const displays = hdmi.displays()
+    const error = hdmiSettingsError(input, displays, ndi.getSettings().hdmi.displayId)
+    if (error) throw new Error(error)
+    const saved = ndi.saveHdmi(resolveHdmi(input, displays))
+    hdmi.apply(saved.hdmi)
+    return saved
+  })
+
   state.onChange((s) => broadcast(Broadcast.programState, s))
 }
 
@@ -272,10 +294,24 @@ class NdiOutput {
     return this.status
   }
 
-  /** Validates, saves, then restarts the output window and sender as needed. */
-  set(input: Settings): Settings {
+  /**
+   * Validates, saves, then restarts the output window and sender as needed.
+   * Only `ndi` is taken from the renderer; the saved HDMI settings are kept.
+   */
+  set(input: { ndi: NdiSettings }): Settings {
     const error = ndiSettingsError(input?.ndi)
     if (error) throw new Error(error)
+    const next = this.persist({ ndi: input.ndi, hdmi: this.settings.hdmi })
+    if (this.started) this.pipeline.apply(next.ndi)
+    return next
+  }
+
+  /** Saves HDMI settings (validated by the caller); NDI is left untouched. */
+  saveHdmi(hdmi: HdmiSettings): Settings {
+    return this.persist({ ...this.settings, hdmi })
+  }
+
+  private persist(input: Settings): Settings {
     const next = sanitizeSettings(input)
     try {
       saveSettings(this.file, next)
@@ -284,13 +320,47 @@ class NdiOutput {
       throw new Error('Pengaturan tidak bisa disimpan. Periksa ruang disk lalu coba lagi.')
     }
     this.settings = next
-    if (this.started) this.pipeline.apply(next.ndi)
     return next
   }
 
   shutdown(): void {
     this.pipeline.shutdown()
   }
+}
+
+/** HDMI output on a second display; its status and the display list are pushed to the UI. */
+function createHdmiOutput(ndi: NdiOutput): HdmiOutput {
+  // PPT_OUTPUT_DUMP (dev/e2e only): HDMI window state on globalThis.__pptHdmi,
+  // and __pptHdmiFakeDisplays(list | null) to simulate plugging and unplugging
+  // a second display on a machine that has only one.
+  let fakeDisplays: ScreenDisplay[] | null = null
+  const hdmi = new HdmiOutput(
+    ndi.getSettings().hdmi,
+    (s: HdmiStatus) => broadcast(Broadcast.hdmiStatus, s),
+    (d) => broadcast(Broadcast.displaysChanged, d),
+    (displayId) => {
+      try {
+        ndi.saveHdmi({ ...ndi.getSettings().hdmi, displayId })
+      } catch (err) {
+        console.error('[hdmi] layar baru tidak bisa disimpan:', err)
+      }
+    },
+    () => fakeDisplays ?? screenDisplays()
+  )
+  if (process.env['PPT_OUTPUT_DUMP']) {
+    Object.defineProperty(globalThis, '__pptHdmi', {
+      configurable: true,
+      get: () => hdmi.debug
+    })
+    Object.defineProperty(globalThis, '__pptHdmiFakeDisplays', {
+      configurable: true,
+      value: (list: ScreenDisplay[] | null) => {
+        fakeDisplays = list
+        hdmi.onScreen()
+      }
+    })
+  }
+  return hdmi
 }
 
 function createWindow(onReady?: () => void): BrowserWindow {
@@ -364,14 +434,22 @@ Lokasi: ${root}`
   }
   const state = new AppState(lib)
   const ndi = new NdiOutput(join(root, 'settings.json'))
-  app.on('before-quit', () => ndi.shutdown())
+  const hdmi = createHdmiOutput(ndi)
+  app.on('before-quit', () => {
+    hdmi.shutdown()
+    ndi.shutdown()
+  })
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state, ndi)
+  registerIpc(lib, state, ndi, hdmi)
 
-  createWindow(() => ndi.start())
+  const startOutputs = (): void => {
+    ndi.start()
+    hdmi.start()
+  }
+  createWindow(startOutputs)
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(() => ndi.start())
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(startOutputs)
   })
 })
 
