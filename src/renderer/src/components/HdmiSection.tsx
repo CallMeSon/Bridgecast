@@ -1,12 +1,7 @@
 import { useState } from 'react'
 import type { HdmiStatus } from '../../../shared/ipc'
 import type { HdmiSettings, Settings } from '../../../shared/settings'
-import {
-  NO_SECOND_DISPLAY,
-  displayText,
-  pickDisplay,
-  type DisplayInfo
-} from '../../../shared/displays'
+import { NO_SECOND_DISPLAY, displayText, type DisplayInfo } from '../../../shared/displays'
 import { errorMessage, hdmiBadge, hdmiStatusText } from '../model'
 
 interface Props {
@@ -28,7 +23,9 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
   const hasSecond = displays.some((d) => !d.primary)
   // Turning on is impossible with one screen; turning off always works.
   const blocked = !hdmi.enabled && !hasSecond
-  const selected = hdmi.displayId ?? pickDisplay(displays, null)?.id ?? null
+  // Never the primary nor the display holding the operator window (marked "— Layar operator").
+  const unusable = (d: DisplayInfo): boolean => d.primary || !!d.operator
+  const selected = hdmi.displayId ?? displays.find((d) => !unusable(d))?.id ?? null
   const savedMissing = hdmi.displayId !== null && !displays.some((d) => d.id === hdmi.displayId)
   const tone = hdmiBadge(status, hdmi).tone
 
@@ -86,9 +83,13 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
           disabled={busy || !hasSecond}
           onChange={(e) => void save({ enabled: hdmi.enabled, displayId: Number(e.target.value) })}
         >
-          {selected === null && <option value="">Tidak ada layar kedua</option>}
+          {selected === null && (
+            <option value="">
+              {hasSecond ? 'Tidak ada layar yang bisa dipakai' : 'Tidak ada layar kedua'}
+            </option>
+          )}
           {displays.map((d) => (
-            <option key={d.id} value={String(d.id)} disabled={d.primary}>
+            <option key={d.id} value={String(d.id)} disabled={unusable(d)}>
               {displayText(d)}
             </option>
           ))}

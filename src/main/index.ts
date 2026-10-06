@@ -226,11 +226,13 @@ function registerIpc(lib: Library, state: AppState, ndi: NdiOutput, hdmi: HdmiOu
   handle(Invoke.hdmiGetStatus, () => hdmi.getStatus())
   handle(Invoke.hdmiSet, (input: HdmiSettings) => {
     // Checked against the screens connected right now: a stale or forged id,
-    // or the operator's own (primary) screen, is refused with the fix.
+    // the primary, or the display holding the operator window is refused with
+    // the fix. Turning HDMI off is always accepted.
     const displays = hdmi.displays()
-    const error = hdmiSettingsError(input, displays, ndi.getSettings().hdmi.displayId)
+    const operatorId = hdmi.operatorDisplayId()
+    const error = hdmiSettingsError(input, displays, operatorId)
     if (error) throw new Error(error)
-    const saved = ndi.saveHdmi(resolveHdmi(input, displays))
+    const saved = ndi.saveHdmi(resolveHdmi(input, displays, operatorId))
     hdmi.apply(saved.hdmi)
     return saved
   })
@@ -446,10 +448,10 @@ Lokasi: ${root}`
     ndi.start()
     hdmi.start()
   }
-  createWindow(startOutputs)
+  hdmi.watchOperator(createWindow(startOutputs))
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(startOutputs)
+    if (BrowserWindow.getAllWindows().length === 0) hdmi.watchOperator(createWindow(startOutputs))
   })
 })
 

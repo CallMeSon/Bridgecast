@@ -24,8 +24,22 @@ export function screenDisplays(): ScreenDisplay[] {
   })
 }
 
-export const displayInfos = (ds: ScreenDisplay[]): DisplayInfo[] =>
-  ds.map(({ id, label, width, height, primary }) => ({ id, label, width, height, primary }))
+/** Displays for the renderer; the one holding the operator window is marked. */
+export const displayInfos = (
+  ds: ScreenDisplay[],
+  operatorId: number | null = null
+): DisplayInfo[] =>
+  ds.map(({ id, label, width, height, primary }) => ({
+    id,
+    label,
+    width,
+    height,
+    primary,
+    ...(id === operatorId ? { operator: true } : {})
+  }))
+
+/** Operator window moves/resizes are coalesced before HDMI is re-planned. */
+const OPERATOR_MOVE_DEBOUNCE_MS = 150
 
 /** Read by the dev/e2e debug hook (globalThis.__pptHdmi, only with PPT_OUTPUT_DUMP). */
 export interface HdmiDebug {
@@ -39,6 +53,8 @@ export interface HdmiDebug {
   plans: string[]
   /** Displays as HDMI sees them (with the exact-cover rect). */
   displays: ScreenDisplay[]
+  /** The display holding the operator window (never used for HDMI). */
+  operatorId: number | null
 }
 
 /**
@@ -55,6 +71,9 @@ export interface HdmiDebug {
  * - Follows `screen` events through planHdmi (see hdmi-plan.ts): unplugged →
  *   hidden (never moved onto another screen), re-plugged → shown again,
  *   resolution/scale change → bounds re-applied.
+ * - Never on the display holding the operator window (it can differ from the
+ *   primary after a primary swap, or when the operator window is dragged
+ *   across): hidden there with an error, re-planned when that window moves.
  */
 export class HdmiOutput {
   private win: BrowserWindow | null = null
@@ -66,6 +85,9 @@ export class HdmiOutput {
   private restartTimer: ReturnType<typeof setTimeout> | null = null
   private creates = 0
   private plans: string[] = []
+  private operatorWin: BrowserWindow | null = null
+  private operatorTimer: ReturnType<typeof setTimeout> | null = null
+  private lastOperatorId: number | null = null
 
   /**
    * @param onRetarget called when the output display was re-matched under a
@@ -94,7 +116,40 @@ export class HdmiOutput {
   }
 
   displays(): DisplayInfo[] {
-    return displayInfos(this.getDisplays())
+    return displayInfos(this.getDisplays(), this.operatorDisplayId())
+  }
+
+  /** The display holding the operator window, or null when there is none. */
+  operatorDisplayId(): number | null {
+    const w = this.operatorWin
+    if (!w || w.isDestroyed()) return null
+    return screen.getDisplayMatching(w.getBounds()).id
+  }
+
+  /**
+   * Follows the operator window: when it moves to another display (dragged,
+   * maximized there, snapped), the display list is re-sent and HDMI re-planned
+   * so the output never covers it.
+   */
+  watchOperator(win: BrowserWindow): void {
+    this.operatorWin = win
+    this.lastOperatorId = this.operatorDisplayId()
+    const changed = (): void => {
+      if (this.operatorTimer) clearTimeout(this.operatorTimer)
+      this.operatorTimer = setTimeout(() => {
+        this.operatorTimer = null
+        if (this.quitting || this.operatorWin !== win || win.isDestroyed()) return
+        const id = this.operatorDisplayId()
+        if (id === this.lastOperatorId) return
+        this.onScreen()
+      }, OPERATOR_MOVE_DEBOUNCE_MS)
+    }
+    win.on('move', changed)
+    win.on('resize', changed)
+    win.on('closed', () => {
+      if (this.operatorWin === win) this.operatorWin = null
+    })
+    if (this.started) this.onScreen()
   }
 
   getStatus(): HdmiStatus {
@@ -104,6 +159,7 @@ export class HdmiOutput {
   /** A display was added, removed or changed (also used by the e2e fake displays). */
   readonly onScreen = (): void => {
     if (this.quitting) return
+    this.lastOperatorId = this.operatorDisplayId()
     this.onDisplays(this.displays())
     this.reconcile()
   }
@@ -119,7 +175,8 @@ export class HdmiOutput {
       bounds: w ? w.getBounds() : null,
       creates: this.creates,
       plans: [...this.plans],
-      displays: this.getDisplays()
+      displays: this.getDisplays(),
+      operatorId: this.operatorDisplayId()
     }
   }
 
@@ -130,18 +187,26 @@ export class HdmiOutput {
     screen.removeListener('display-metrics-changed', this.onScreen)
     if (this.restartTimer) clearTimeout(this.restartTimer)
     this.restartTimer = null
+    if (this.operatorTimer) clearTimeout(this.operatorTimer)
+    this.operatorTimer = null
     this.destroyWindow()
   }
 
   private reconcile(): void {
     if (this.quitting) return
     const w = this.win && !this.win.isDestroyed() ? this.win : null
-    const plan = planHdmi(this.hdmi, this.getDisplays(), this.memo, {
-      exists: !!w,
-      ready: this.ready,
-      visible: !!w?.isVisible(),
-      bounds: w ? w.getBounds() : null
-    })
+    const plan = planHdmi(
+      this.hdmi,
+      this.getDisplays(),
+      this.memo,
+      {
+        exists: !!w,
+        ready: this.ready,
+        visible: !!w?.isVisible(),
+        bounds: w ? w.getBounds() : null
+      },
+      this.operatorDisplayId()
+    )
     this.memo = plan.memo
     this.run(plan, w)
     this.setStatus(plan.status)
