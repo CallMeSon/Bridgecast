@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { DeckMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
-import { currentDeck } from '../model'
+import { currentDeck, nextIndex } from '../model'
 import { SlideImage } from './Slide'
 
 interface Props {
@@ -31,11 +31,12 @@ export function Strip({ decks, state, onGoto }: Props): React.JSX.Element {
     )
   }
 
+  const nxt = nextIndex(decks, state)
   const role = (i: number): string | undefined => {
     const live = state.shown && state.shown.deckId === deck.id && state.shown.index === i
     if (live) return 'live'
+    if (i === nxt) return 'next'
     if (i === state.index) return 'pos'
-    if (i === state.index + 1) return 'next'
     return undefined
   }
 

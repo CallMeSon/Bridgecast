@@ -56,12 +56,29 @@ function step(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramState
   return moveTo(state, target.deckId, target.index)
 }
 
+/**
+ * True when the output shows nothing from these decks (STANDBY, or a slide left
+ * over from another event) while the operator position is valid and not frozen.
+ * Then Next/Prev first take the current position live instead of stepping, so
+ * the slide at the position is never skipped. Shared with the renderer so the
+ * "Slide berikutnya" panel shows what Next will actually put live.
+ */
+export function pendingTake(state: ProgramState, decks: DeckLike[]): boolean {
+  if (state.frozen || state.deckId === null) return false
+  const shown = state.shown
+  if (shown && decks.some((d) => d.id === shown.deckId)) return false
+  const deck = decks.find((d) => d.id === state.deckId)
+  return (
+    !!deck && Number.isInteger(state.index) && state.index >= 0 && state.index < deck.slides.length
+  )
+}
+
 export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): ProgramState {
   switch (action.type) {
     case 'next':
-      return step(state, decks, 1)
     case 'prev':
-      return step(state, decks, -1)
+      if (pendingTake(state, decks)) return moveTo(state, state.deckId!, state.index)
+      return step(state, decks, action.type === 'next' ? 1 : -1)
     case 'goto': {
       const deck = decks.find((d) => d.id === state.deckId)
       if (!deck || !Number.isInteger(action.index)) return state

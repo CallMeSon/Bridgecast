@@ -69,6 +69,18 @@ try {
   check(true, 'PDF imported as a 3-slide deck')
   check((await pos.textContent()) === '1 / 3', 'position on slide 1 after import')
   check((await tally.textContent()) === 'STANDBY', 'import does not change the output')
+  check(
+    (await cap.textContent()) === 'Slide 1',
+    'STANDBY: Next panel shows slide 1 (what Next takes)'
+  )
+
+  // First Space from STANDBY takes slide 1 live (no skip).
+  await win.keyboard.press('Space')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
+  )
+  check((await pos.textContent()) === '1 / 3', 'first Space takes slide 1 LIVE')
+  check((await cap.textContent()) === 'Slide 2', 'Next panel then shows slide 2')
 
   await win.keyboard.press('Space')
   await win.waitForFunction(

@@ -1,5 +1,5 @@
 import type { DeckMeta } from '../../shared/types'
-import type { Action, ProgramState } from '../../shared/program'
+import { pendingTake, type Action, type ProgramState } from '../../shared/program'
 
 export type NextView =
   | { kind: 'none' }
@@ -11,10 +11,21 @@ export function currentDeck(decks: DeckMeta[], s: ProgramState): DeckMeta | null
   return d && d.slides.length > 0 ? d : null
 }
 
-/** What the "Slide berikutnya" panel shows: the slide after the operator position. */
+/**
+ * What the "Slide berikutnya" panel shows: the slide Next will put live. That is
+ * the slide after the operator position, or the position itself while nothing
+ * from this event is on the output (see `pendingTake`).
+ */
+export function nextIndex(decks: DeckMeta[], s: ProgramState): number {
+  return pendingTake(s, decks) ? s.index : s.index + 1
+}
+
 export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
   const deck = currentDeck(decks, s)
   if (!deck) return { kind: 'none' }
+  if (pendingTake(s, decks)) {
+    return { kind: 'slide', deckId: deck.id, index: s.index, notes: deck.slides[s.index].notes }
+  }
   const nxt = deck.slides[s.index + 1]
   if (nxt) return { kind: 'slide', deckId: deck.id, index: s.index + 1, notes: nxt.notes }
   const pos = decks.indexOf(deck)
@@ -25,7 +36,7 @@ export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
 export function canPrev(decks: DeckMeta[], s: ProgramState): boolean {
   const deck = currentDeck(decks, s)
   if (!deck) return false
-  if (s.index > 0) return true
+  if (pendingTake(s, decks) || s.index > 0) return true
   return decks.slice(0, decks.indexOf(deck)).some((d) => d.slides.length > 0)
 }
 

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { reduce, reconcile, initialState, type ProgramState } from './program'
+import { reduce, reconcile, initialState, pendingTake, type ProgramState } from './program'
 
-const s = (n: number): { file: string; notes: string }[] => Array.from({ length: n }, (_, i) => ({ file: `${i}.png`, notes: '' }))
+const s = (n: number): { file: string; notes: string }[] =>
+  Array.from({ length: n }, (_, i) => ({ file: `${i}.png`, notes: '' }))
 const decks = [
   { id: 'A', slides: s(3) },
   { id: 'B', slides: s(2) }
@@ -17,7 +18,12 @@ const at = (deckId: string, index: number, extra: Partial<ProgramState> = {}): P
 describe('initialState', () => {
   it('has defaults', () => {
     expect(initialState).toEqual({
-      deckId: null, index: 0, shown: null, frozen: false, black: false, transition: 'cut'
+      deckId: null,
+      index: 0,
+      shown: null,
+      frozen: false,
+      black: false,
+      transition: 'cut'
     })
   })
 })
@@ -72,7 +78,9 @@ describe('reduce navigation', () => {
     expect(reduce(st, { type: 'selectDeck', deckId: 'Z' }, decks)).toEqual(st)
   })
   it('setTransition works', () => {
-    expect(reduce(initialState, { type: 'setTransition', transition: 'fade' }, decks).transition).toBe('fade')
+    expect(
+      reduce(initialState, { type: 'setTransition', transition: 'fade' }, decks).transition
+    ).toBe('fade')
   })
   it('empty decks: nav is no-op, toggles work', () => {
     expect(reduce(initialState, { type: 'next' }, [])).toEqual(initialState)
@@ -83,7 +91,11 @@ describe('reduce navigation', () => {
     expect(reduce(initialState, { type: 'toggleBlack' }, []).black).toBe(true)
   })
   it('skips decks without slides and does not mutate', () => {
-    const ds = [{ id: 'A', slides: s(1) }, { id: 'E', slides: [] }, { id: 'B', slides: s(1) }]
+    const ds = [
+      { id: 'A', slides: s(1) },
+      { id: 'E', slides: [] },
+      { id: 'B', slides: s(1) }
+    ]
     const frozen = JSON.stringify(ds)
     const r = reduce(at('A', 0), { type: 'next' }, ds)
     expect([r.deckId, r.index]).toEqual(['B', 0])
@@ -113,5 +125,71 @@ describe('reconcile', () => {
   it('keeps valid state unchanged', () => {
     const st = at('A', 1)
     expect(reconcile(st, decks)).toEqual(st)
+  })
+})
+
+describe('take on first Next/Prev when nothing of this event is shown', () => {
+  const standby = (
+    deckId: string,
+    index: number,
+    extra: Partial<ProgramState> = {}
+  ): ProgramState => at(deckId, index, { shown: null, ...extra })
+
+  it('STANDBY: first Next takes the position live without advancing', () => {
+    const r = reduce(standby('A', 0), { type: 'next' }, decks)
+    expect([r.deckId, r.index]).toEqual(['A', 0])
+    expect(r.shown).toEqual({ deckId: 'A', index: 0 })
+    const r2 = reduce(r, { type: 'next' }, decks)
+    expect(r2.shown).toEqual({ deckId: 'A', index: 1 })
+  })
+
+  it('shown left over from another event: first Next takes the position', () => {
+    const st = standby('B', 0, { shown: { deckId: 'OTHER', index: 4 } })
+    const r = reduce(st, { type: 'next' }, decks)
+    expect(r.shown).toEqual({ deckId: 'B', index: 0 })
+    expect(r.index).toBe(0)
+  })
+
+  it('Prev takes the position the same way', () => {
+    const r = reduce(standby('A', 2), { type: 'prev' }, decks)
+    expect([r.deckId, r.index]).toEqual(['A', 2])
+    expect(r.shown).toEqual({ deckId: 'A', index: 2 })
+  })
+
+  it('STANDBY on the last slide of the last deck can still go live', () => {
+    const r = reduce(standby('B', 1), { type: 'next' }, decks)
+    expect(r.shown).toEqual({ deckId: 'B', index: 1 })
+  })
+
+  it('taking while black keeps black (badge goes STANDBY -> BLACK)', () => {
+    const r = reduce(standby('A', 0, { black: true }), { type: 'next' }, decks)
+    expect(r.shown).toEqual({ deckId: 'A', index: 0 })
+    expect(r.black).toBe(true)
+  })
+
+  it('frozen + STANDBY steps normally and does not take', () => {
+    const st = standby('A', 0, { frozen: true })
+    expect(pendingTake(st, decks)).toBe(false)
+    const r = reduce(st, { type: 'next' }, decks)
+    expect([r.deckId, r.index]).toEqual(['A', 1])
+    expect(r.shown).toBeNull()
+  })
+
+  it('after freeze, move, unfreeze, Next steps normally (shown differs from position)', () => {
+    let st = at('A', 0)
+    st = reduce(st, { type: 'toggleFreeze' }, decks)
+    st = reduce(st, { type: 'next' }, decks)
+    st = reduce(st, { type: 'toggleFreeze' }, decks)
+    expect(st.shown).toEqual({ deckId: 'A', index: 0 })
+    expect(pendingTake(st, decks)).toBe(false)
+    const r = reduce(st, { type: 'next' }, decks)
+    expect([r.deckId, r.index]).toEqual(['A', 2])
+    expect(r.shown).toEqual({ deckId: 'A', index: 2 })
+  })
+
+  it('no take without a valid position', () => {
+    expect(pendingTake(initialState, decks)).toBe(false)
+    expect(pendingTake(standby('A', 9), decks)).toBe(false)
+    expect(reduce(initialState, { type: 'next' }, decks)).toEqual(initialState)
   })
 })

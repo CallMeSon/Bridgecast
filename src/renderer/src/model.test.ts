@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import type { DeckMeta } from '../../shared/types'
 import { initialState, type ProgramState } from '../../shared/program'
-import { baseName, canPrev, errorMessage, fileKind, keyToAction, nextView, tally } from './model'
+import {
+  baseName,
+  canPrev,
+  errorMessage,
+  fileKind,
+  keyToAction,
+  nextIndex,
+  nextView,
+  tally
+} from './model'
 
 const deck = (id: string, n: number, name = id): DeckMeta => ({
   id,
@@ -20,6 +29,7 @@ const at = (
   ...initialState,
   deckId,
   index,
+  shown: deckId ? { deckId, index } : null,
   ...extra
 })
 
@@ -37,6 +47,20 @@ describe('nextView', () => {
     expect(nextView(decks, at('a', 1))).toEqual({ kind: 'end', nextDeck: 'B' })
     expect(nextView(decks, at('b', 0))).toEqual({ kind: 'end', nextDeck: null })
   })
+  it('shows the current slide while nothing of this event is shown (Next takes it)', () => {
+    expect(nextView(decks, at('a', 0, { shown: null }))).toEqual({
+      kind: 'slide',
+      deckId: 'a',
+      index: 0,
+      notes: 'n0'
+    })
+    const leftover = at('b', 0, { shown: { deckId: 'other', index: 3 } })
+    expect(nextView(decks, leftover)).toMatchObject({ kind: 'slide', deckId: 'b', index: 0 })
+    expect(nextIndex(decks, leftover)).toBe(0)
+  })
+  it('frozen STANDBY still previews the following slide', () => {
+    expect(nextView(decks, at('a', 0, { shown: null, frozen: true }))).toMatchObject({ index: 1 })
+  })
   it('is none without a position', () => {
     expect(nextView([], at(null, 0))).toEqual({ kind: 'none' })
   })
@@ -49,13 +73,15 @@ describe('canPrev', () => {
     expect(canPrev(decks, at('a', 1))).toBe(true)
     expect(canPrev(decks, at('b', 0))).toBe(true)
     expect(canPrev([], at(null, 0))).toBe(false)
+    // Prev takes the position live while STANDBY, so it is enabled.
+    expect(canPrev(decks, at('a', 0, { shown: null }))).toBe(true)
   })
 })
 
 describe('tally', () => {
   const shown = { deckId: 'a', index: 0 }
   it('maps state to badge', () => {
-    expect(tally(at('a', 0))).toBe('idle')
+    expect(tally(at('a', 0, { shown: null }))).toBe('idle')
     expect(tally(at('a', 0, { shown }))).toBe('live')
     expect(tally(at('a', 0, { shown, frozen: true }))).toBe('frozen')
     expect(tally(at('a', 0, { shown, frozen: true, black: true }))).toBe('black')

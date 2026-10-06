@@ -98,8 +98,25 @@ describe('AppState', () => {
     const s = app.dispatch({ type: 'next' })
     expect(cb).toHaveBeenCalledTimes(1)
     expect(cb).toHaveBeenCalledWith(s)
-    expect(s).toMatchObject({ deckId: d, index: 1, shown: { deckId: d, index: 1 } })
+    // From STANDBY the first Next takes the current slide live (no skip).
+    expect(s).toMatchObject({ deckId: d, index: 0, shown: { deckId: d, index: 0 } })
     expect(app.state).toBe(s)
+    const s2 = app.dispatch({ type: 'next' })
+    expect(cb).toHaveBeenCalledTimes(2)
+    expect(s2).toMatchObject({ deckId: d, index: 1, shown: { deckId: d, index: 1 } })
+  })
+
+  it('first Next after switching event takes slide 1 of the new event live', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const b = lib.createEvent('B')
+    const da = addDeck(lib, a.id, 3, 'a')
+    const db = addDeck(lib, b.id, 3, 'b')
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: da })
+    app.setEvent(b.id)
+    const s = app.dispatch({ type: 'next' })
+    expect(s.shown).toEqual({ deckId: db, index: 0 })
   })
 
   it('does not call onChange when the state does not change', () => {
