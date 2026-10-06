@@ -148,6 +148,7 @@ header {
   display: inline-flex;
 }
 .ndi-btn {
+  gap: 10px;
   height: 32px;
   padding: 0 10px;
   border: 0;
@@ -161,8 +162,25 @@ header {
 .ndi-btn[aria-expanded='true'] {
   background: var(--btn);
 }
-.ndi-btn[data-tone='error'] {
+.ind {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ind[data-tone='error'] {
   color: var(--live);
+}
+.ind[data-tone='warn'] {
+  color: var(--warn);
+}
+.ind-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--line);
+}
+.dot.warn {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 25%, transparent);
 }
 .popover {
   position: absolute;
@@ -174,10 +192,19 @@ header {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
+}
+.pop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 .pop-head {
   display: flex;
@@ -234,6 +261,10 @@ header {
   color: var(--text);
   font-weight: 600;
 }
+.pop-status.warn {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
 .pop-status.error,
 .pop-error {
   color: var(--live);
@@ -267,6 +298,17 @@ header {
   color: var(--text);
   background: var(--panel);
   border: 1px solid var(--line);
+}
+select.text-input {
+  cursor: pointer;
+}
+select.text-input:disabled {
+  cursor: default;
+  color: var(--muted);
+}
+.switch[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .text-input:focus {
   border-color: var(--accent);

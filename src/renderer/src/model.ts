@@ -1,7 +1,7 @@
 import type { DeckMeta } from '../../shared/types'
 import { pendingTake, type Action, type ProgramState } from '../../shared/program'
-import { slideUrl, type NdiStatus } from '../../shared/ipc'
-import type { NdiSettings } from '../../shared/settings'
+import { slideUrl, type HdmiStatus, type NdiStatus } from '../../shared/ipc'
+import type { HdmiSettings, NdiSettings } from '../../shared/settings'
 
 export type NextView =
   | { kind: 'none' }
@@ -184,4 +184,30 @@ export function ndiBadge(status: NdiStatus | null, ndi: NdiSettings): NdiBadge {
     return { tone: 'ok', name: ndi.name, detail: `${ndi.width}×${ndi.height} · ${ndi.fps} fps` }
   }
   return { tone: 'off', name: ndi.name, detail: 'memulai…' }
+}
+
+export interface HdmiBadge {
+  /** ok = green (window showing), off = gray, warn = amber (display unplugged), error = red. */
+  tone: 'ok' | 'off' | 'warn' | 'error'
+  text: string
+}
+
+/** Header HDMI status: green only when the window is actually on the second display. */
+export function hdmiBadge(status: HdmiStatus | null, hdmi: HdmiSettings): HdmiBadge {
+  if (!hdmi.enabled || status?.state === 'off') return { tone: 'off', text: 'HDMI mati' }
+  if (status?.state === 'error') return { tone: 'error', text: 'HDMI bermasalah' }
+  if (status?.state === 'showing') return { tone: 'ok', text: 'HDMI tampil' }
+  if (status?.state === 'hidden' && !status.message) {
+    return { tone: 'warn', text: 'HDMI tersembunyi' }
+  }
+  return { tone: 'off', text: 'HDMI memulai…' }
+}
+
+/** Status line of the HDMI section in the output popover. */
+export function hdmiStatusText(status: HdmiStatus | null, hdmi: HdmiSettings): string {
+  if (!hdmi.enabled || status?.state === 'off') return 'Mati'
+  if (!status) return 'Memulai output HDMI…'
+  if (status.message) return status.message
+  if (status.state === 'showing') return 'Tampil'
+  return 'Tersembunyi — layar tidak tersambung'
 }

@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import type { NdiStatus } from '../../../shared/ipc'
+import type { HdmiStatus, NdiStatus } from '../../../shared/ipc'
+import type { DisplayInfo } from '../../../shared/displays'
 import {
   FPS_OPTIONS,
   NAME_MAX,
   RESOLUTIONS,
   ndiSettingsError,
+  type HdmiSettings,
   type NdiSettings
 } from '../../../shared/settings'
-import { errorMessage, ndiBadge } from '../model'
+import { errorMessage, hdmiBadge, ndiBadge } from '../model'
+import { HdmiSection } from './HdmiSection'
 
 const same = (a: NdiSettings, b: NdiSettings): boolean =>
   a.enabled === b.enabled &&
@@ -16,11 +19,18 @@ const same = (a: NdiSettings, b: NdiSettings): boolean =>
   a.height === b.height &&
   a.fps === b.fps
 
-/** Header NDI status (green dot only while sending) + settings popover. */
+/**
+ * Header output status — NDI (green dot only while sending) and HDMI (green
+ * only while its window shows on the second display) — and the output
+ * settings popover with both sections.
+ */
 export function NdiMenu(): React.JSX.Element {
   const api = window.api
   const [settings, setSettings] = useState<NdiSettings | null>(null)
   const [status, setStatus] = useState<NdiStatus | null>(null)
+  const [hdmi, setHdmi] = useState<HdmiSettings | null>(null)
+  const [hdmiStatus, setHdmiStatus] = useState<HdmiStatus | null>(null)
+  const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<NdiSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -30,15 +40,31 @@ export function NdiMenu(): React.JSX.Element {
   const first = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    const off = api.onNdiStatus(setStatus)
+    const offs = [
+      api.onNdiStatus(setStatus),
+      api.onHdmiStatus(setHdmiStatus),
+      api.onDisplaysChanged(setDisplays)
+    ]
     api.getSettings().then(
-      (s) => setSettings(s.ndi),
+      (s) => {
+        setSettings(s.ndi)
+        setHdmi(s.hdmi)
+      },
       (e) => setError(errorMessage(e))
     )
     // A status pushed before this resolves is newer; keep it.
     api.getNdiStatus().then((s) => setStatus((cur) => cur ?? s))
-    return off
+    api.getHdmiStatus().then((s) => setHdmiStatus((cur) => cur ?? s))
+    api.listDisplays().then(setDisplays)
+    return () => offs.forEach((off) => off())
   }, [api])
+
+  // Main may re-save the HDMI display id (a re-plugged screen got a new id).
+  useEffect(() => {
+    if (!open) return
+    api.getSettings().then((s) => setHdmi(s.hdmi))
+    api.listDisplays().then(setDisplays)
+  }, [api, open])
 
   useEffect(() => {
     if (!open) return
@@ -59,16 +85,19 @@ export function NdiMenu(): React.JSX.Element {
     }
   }, [open])
 
-  if (!settings) {
+  if (!settings || !hdmi) {
     return (
       <div className="status">
         <span className="dot off" />
         <span>NDI</span>
+        <span className="dot off" />
+        <span>HDMI</span>
       </div>
     )
   }
 
   const badge = ndiBadge(status, settings)
+  const hBadge = hdmiBadge(hdmiStatus, hdmi)
   const toggle = (): void => {
     if (!open) {
       setDraft(settings)
@@ -110,24 +139,30 @@ export function NdiMenu(): React.JSX.Element {
       <button
         ref={trigger}
         className="status ndi-btn"
-        data-testid="ndi-status"
-        data-tone={badge.tone}
+        data-testid="output-status"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={toggle}
       >
-        <span className={`dot ${badge.tone}`} />
-        <span>
-          NDI {badge.name && <b>{badge.name}</b>}
-          {badge.name ? ' · ' : ''}
-          {badge.detail}
+        <span className="ind" data-testid="ndi-status" data-tone={badge.tone}>
+          <span className={`dot ${badge.tone}`} />
+          <span>
+            NDI {badge.name && <b>{badge.name}</b>}
+            {badge.name ? ' · ' : ''}
+            {badge.detail}
+          </span>
+        </span>
+        <span className="ind-sep" aria-hidden="true" />
+        <span className="ind" data-testid="hdmi-status" data-tone={hBadge.tone}>
+          <span className={`dot ${hBadge.tone}`} />
+          <span>{hBadge.text}</span>
         </span>
       </button>
       {open && (
         <div
           className="popover"
           role="dialog"
-          aria-label="Pengaturan NDI"
+          aria-label="Pengaturan output"
           data-no-shortcuts
           data-testid="ndi-popover"
         >
@@ -225,6 +260,12 @@ export function NdiMenu(): React.JSX.Element {
               {applying ? 'Menerapkan…' : retry && !dirty ? 'Coba lagi' : 'Terapkan'}
             </button>
           </div>
+          <HdmiSection
+            hdmi={hdmi}
+            displays={displays}
+            status={hdmiStatus}
+            onSaved={(s) => setHdmi(s.hdmi)}
+          />
           <p className="fine">NDI® adalah merek dagang terdaftar milik Vizrt NDI AB.</p>
         </div>
       )}

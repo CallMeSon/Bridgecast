@@ -12,6 +12,8 @@ import {
   moveItem,
   moveOrder,
   nextIndex,
+  hdmiBadge,
+  hdmiStatusText,
   ndiBadge,
   nextView,
   outputSource,
@@ -230,5 +232,46 @@ describe('drag and drop helpers', () => {
   it('importMeta: queued at 0 %, converting after', () => {
     expect(importMeta(0)).toBe('Menunggu')
     expect(importMeta(10)).toBe('Mengonversi')
+  })
+})
+
+describe('hdmiBadge', () => {
+  const on = { enabled: true, displayId: 2 }
+  it('green only while the window is actually showing', () => {
+    expect(hdmiBadge({ state: 'showing' }, on)).toEqual({ tone: 'ok', text: 'HDMI tampil' })
+  })
+  it('gray when off or still preparing, amber when the display is unplugged, red on error', () => {
+    expect(hdmiBadge({ state: 'off' }, { enabled: false, displayId: 2 })).toEqual({
+      tone: 'off',
+      text: 'HDMI mati'
+    })
+    expect(hdmiBadge(null, on)).toEqual({ tone: 'off', text: 'HDMI memulai…' })
+    expect(hdmiBadge({ state: 'hidden', message: 'Menyiapkan output HDMI…' }, on)).toEqual({
+      tone: 'off',
+      text: 'HDMI memulai…'
+    })
+    expect(hdmiBadge({ state: 'hidden' }, on)).toEqual({ tone: 'warn', text: 'HDMI tersembunyi' })
+    expect(hdmiBadge({ state: 'error', message: 'x' }, on)).toEqual({
+      tone: 'error',
+      text: 'HDMI bermasalah'
+    })
+  })
+  it('settings say off: gray even before the status arrives', () => {
+    expect(hdmiBadge(null, { enabled: false, displayId: null }).tone).toBe('off')
+  })
+})
+
+describe('hdmiStatusText', () => {
+  const on = { enabled: true, displayId: 2 }
+  it('uses the agreed copy', () => {
+    expect(hdmiStatusText({ state: 'showing' }, on)).toBe('Tampil')
+    expect(hdmiStatusText({ state: 'hidden' }, on)).toBe('Tersembunyi — layar tidak tersambung')
+    expect(hdmiStatusText({ state: 'off' }, { enabled: false, displayId: null })).toBe('Mati')
+    expect(hdmiStatusText({ state: 'error', message: 'Pilih layar lain.' }, on)).toBe(
+      'Pilih layar lain.'
+    )
+    expect(hdmiStatusText({ state: 'hidden', message: 'Menyiapkan output HDMI…' }, on)).toBe(
+      'Menyiapkan output HDMI…'
+    )
   })
 })

@@ -5,6 +5,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { execFileSync } from 'node:child_process'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const shot = path.join(root, '.superpowers/sdd/2026-10-06-ppt-share/task-6-smoke.png')
@@ -121,8 +122,8 @@ async function ndiChecks(win, tally, pos) {
   const pop = win.getByTestId('ndi-popover')
   await pop.waitFor()
   check(
-    (await pop.locator('.pop-status').textContent()).startsWith('Mengirim sebagai'),
-    `popover shows the source name: "${await pop.locator('.pop-status').textContent()}"`
+    (await pop.locator('.pop-status').first().textContent()).startsWith('Mengirim sebagai'),
+    `popover shows the source name: "${await pop.locator('.pop-status').first().textContent()}"`
   )
   await pop.screenshot({ path: path.join(path.dirname(shot), 'task-8-popover.png') })
 
@@ -141,7 +142,7 @@ async function ndiChecks(win, tally, pos) {
     'typing B/F/Space in the name field does not trigger shortcuts'
   )
   await name.fill('PPT Share')
-  const sw = pop.getByRole('switch')
+  const sw = pop.getByRole('switch', { name: 'Output NDI aktif' })
   await sw.focus()
   await win.keyboard.press('Space')
   check(
@@ -528,9 +529,458 @@ async function dragAndDropChecks(win, tally, pos, cap) {
   }
 }
 
+// --- HDMI output (Task 11) ---
+const NO_SECOND =
+  'Layar kedua tidak terdeteksi. Sambungkan HDMI lalu atur Windows ke mode Extend (Win+P → Extend).'
+const HDMI_TITLE = 'PPT Share HDMI'
+const hdmiDebug = () => app.evaluate(() => globalThis.__pptHdmi)
+const hdmiWindows = () =>
+  app.evaluate(
+    ({ BrowserWindow }, title) =>
+      BrowserWindow.getAllWindows()
+        .filter((w) => !w.isDestroyed() && w.getTitle() === title)
+        .map((w) => ({
+          bounds: w.getBounds(),
+          visible: w.isVisible(),
+          focusable: w.isFocusable(),
+          focused: w.isFocused(),
+          onTop: w.isAlwaysOnTop(),
+          offscreen: w.webContents.isOffscreen(),
+          url: w.webContents.getURL()
+        })),
+    HDMI_TITLE
+  )
+const sameBounds = (a, b) =>
+  a && b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+/**
+ * The fake display is a corner of the real screen at an arbitrary DIP
+ * position; at fractional scaling getBounds() reports the enclosing DIP rect
+ * of the window's pixels, so it may be 1 DIP larger on each side.
+ */
+const nearBounds = (a, b) =>
+  a &&
+  b &&
+  Math.abs(a.x - b.x) <= 1 &&
+  Math.abs(a.y - b.y) <= 1 &&
+  Math.abs(a.x + a.width - (b.x + b.width)) <= 1 &&
+  Math.abs(a.y + a.height - (b.y + b.height)) <= 1
+
+/** [r,g,b] at the top centre of the HDMI window, captured from its own compositor. */
+const hdmiCentre = () =>
+  app.evaluate(async ({ BrowserWindow }, title) => {
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === title)
+    const img = await w.webContents.capturePage()
+    const { width, height } = img.getSize()
+    if (!width || !height) return null
+    const bmp = img.toBitmap()
+    // Same spot as CENTRE on the NDI frame: above the slide's dark "Halaman n" text.
+    const i = (Math.floor((height * 300) / 1080) * width + Math.floor(width / 2)) * 4
+    return [bmp[i + 2], bmp[i + 1], bmp[i]]
+  }, HDMI_TITLE)
+
+async function waitHdmiCentre(pred, what, timeout = 5000) {
+  const end = Date.now() + timeout
+  let px = null
+  while (Date.now() < end) {
+    px = await hdmiCentre()
+    if (px && pred(px)) return px
+    await sleep(150)
+  }
+  throw new Error(`ASSERT: ${what} (last ${JSON.stringify(px)})`)
+}
+
+const savedHdmi = () =>
+  JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).hdmi
+
+async function openOutputPopover(win) {
+  const pop = win.getByTestId('ndi-popover')
+  if (!(await pop.isVisible())) await win.getByTestId('output-status').click()
+  await pop.waitFor()
+  return pop
+}
+
+/**
+ * HDMI: header indicator, the popover section, validation in main, and the
+ * window itself. With one real display the toggle shows the "not detected"
+ * message; the window path is then driven by simulated displays (a fake
+ * second display in a corner of the real screen).
+ */
+async function hdmiChecks(win) {
+  const hStatus = win.getByTestId('hdmi-status')
+  check(
+    (await hStatus.textContent()) === 'HDMI mati' &&
+      (await hStatus.getAttribute('data-tone')) === 'off',
+    `header shows the HDMI indicator next to NDI: "${await win.getByTestId('output-status').textContent()}"`
+  )
+  const real = await app.evaluate(({ screen }) => ({
+    primary: screen.getPrimaryDisplay().id,
+    all: screen.getAllDisplays().map((d) => ({ id: d.id, label: d.label, bounds: d.bounds }))
+  }))
+  console.log(`  displays on this machine: ${JSON.stringify(real.all)}`)
+
+  const seen = await app.evaluate(() =>
+    globalThis.__pptHdmi.displays.map(
+      (d) => `${d.id} ${d.width}×${d.height} place ${JSON.stringify(d.place)}`
+    )
+  )
+  console.log(`  HDMI sees: ${seen.join(' | ')}`)
+
+  // Main refuses invalid input whatever the UI does.
+  const reject = (h) =>
+    win.evaluate(
+      (x) =>
+        window.api.setHdmi(x).then(
+          () => 'ok',
+          (e) => String(e.message)
+        ),
+      h
+    )
+  const primaryErr = await reject({ enabled: true, displayId: real.primary })
+  check(
+    /Layar utama \(operator\) tidak bisa dipakai/.test(primaryErr),
+    `main refuses the primary display: "${primaryErr}"`
+  )
+  const badErr = await reject({ enabled: true, displayId: 1.5 })
+  check(/tidak valid/.test(badErr), `main refuses a non-integer display id: "${badErr}"`)
+  const goneErr = await reject({ enabled: true, displayId: 987654321 })
+  check(/tidak tersambung/.test(goneErr), `main refuses an unknown display: "${goneErr}"`)
+
+  const pop = await openOutputPopover(win)
+  const section = pop.getByTestId('hdmi-section')
+  const sw = section.getByTestId('hdmi-switch')
+  const msg = section.getByTestId('hdmi-message')
+  const select = section.getByLabel('Layar tujuan')
+
+  if (real.all.length === 1) {
+    console.log('  HDMI branch: single display (no second screen connected)')
+    check((await msg.textContent()) === NO_SECOND, `one display: "${await msg.textContent()}"`)
+    // aria-disabled (not disabled): a real click still lands, so force it like a user would.
+    await sw.click({ force: true })
+    await sleep(500)
+    check(
+      (await sw.getAttribute('aria-checked')) === 'false' &&
+        (await msg.textContent()) === NO_SECOND &&
+        (await hdmiWindows()).length === 0,
+      'toggling HDMI with one display keeps it off, shows the message, creates no window'
+    )
+    check(
+      (await reject({ enabled: true, displayId: null })).endsWith(`Error: ${NO_SECOND}`),
+      'main refuses to enable HDMI with one display (same message)'
+    )
+    check(
+      (await select.isDisabled()) &&
+        (await select.locator('option').allTextContents()).some((t) =>
+          t.endsWith('— Layar utama (operator)')
+        ),
+      'display select is disabled and marks the primary as "Layar utama (operator)"'
+    )
+    await pop.screenshot({ path: path.join(path.dirname(shot), 'task-11-popover-single.png') })
+  } else {
+    console.log('  HDMI branch: a real second display is connected')
+    await realHdmiChecks(win, pop, real)
+  }
+
+  await simulatedHdmiChecks(win, real)
+}
+
+/** Real second display: the window covers exactly its bounds and never takes focus. */
+/** Win32 rects in device pixels: windows titled HDMI_TITLE (of this app) and every monitor. */
+function winRects() {
+  const script = `
+Add-Type @"
+using System; using System.Text; using System.Runtime.InteropServices;
+public class PptW {
+  public delegate bool EnumProc(IntPtr h, IntPtr p);
+  [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Ri, B; }
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr p);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr v);
+}
+"@
+[PptW]::SetProcessDpiAwarenessContext([IntPtr]-4) | Out-Null
+$out = @()
+[PptW]::EnumWindows({ param($h, $p)
+  $sb = New-Object System.Text.StringBuilder 256
+  [PptW]::GetWindowText($h, $sb, 256) | Out-Null
+  if ($sb.ToString() -eq '${HDMI_TITLE}' -and [PptW]::IsWindowVisible($h)) {
+    $r = New-Object PptW+R; [PptW]::GetWindowRect($h, [ref]$r) | Out-Null
+    $script:out += "W $($r.L) $($r.T) $($r.Ri) $($r.B)"
+  }
+  $true }, [IntPtr]::Zero) | Out-Null
+$out
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.Screen]::AllScreens | % { "S $($_.Bounds.X) $($_.Bounds.Y) $($_.Bounds.Right) $($_.Bounds.Bottom)" }
+`
+  const lines = execFileSync('powershell', ['-NoProfile', '-Command', script])
+    .toString()
+    .trim()
+    .split(/\r?\n/)
+  const rect = (l) => {
+    const [, x, y, r, b] = l.trim().split(' ').map(Number)
+    return { x, y, width: r - x, height: b - y }
+  }
+  return {
+    windows: lines.filter((l) => l.startsWith('W ')).map(rect),
+    screens: lines.filter((l) => l.startsWith('S ')).map(rect)
+  }
+}
+
+async function realHdmiChecks(win, pop, real) {
+  const section = pop.getByTestId('hdmi-section')
+  const target = real.all.find((d) => d.id !== real.primary)
+  await section.getByLabel('Layar tujuan').selectOption(String(target.id))
+  if ((await section.getByTestId('hdmi-switch').getAttribute('aria-checked')) !== 'true') {
+    await section.getByTestId('hdmi-switch').click()
+  }
+  await win.locator('[data-testid=hdmi-status][data-tone=ok]').waitFor({ timeout: 15_000 })
+  const [w] = await hdmiWindows()
+  check(
+    w && w.visible && !w.offscreen && sameBounds(w.bounds, target.bounds),
+    `HDMI window covers real display ${target.id} exactly: ${JSON.stringify(w?.bounds)} vs ${JSON.stringify(target.bounds)}`
+  )
+  check(!w.focusable && !w.focused, 'HDMI window is not focusable and not focused')
+  const shown = await section.getByLabel('Layar tujuan').locator('option:checked').textContent()
+  check(
+    (await section.getByTestId('hdmi-message').textContent()) === 'Tampil',
+    `popover: Tampil on "${shown}"`
+  )
+  await pop.screenshot({ path: path.join(path.dirname(shot), 'task-11-popover-real.png') })
+  // Same Program as NDI (STANDBY here: black).
+  const ndiPx = (await dumpFrame([CENTRE])).px[0]
+  const hdmiPx = await waitHdmiCentre(
+    (p) => Math.abs(lum(p) - lum(ndiPx)) <= 8,
+    'real HDMI window shows the same as NDI'
+  )
+  check(
+    true,
+    `real HDMI window shows the same as NDI: ${JSON.stringify(hdmiPx)} vs ${JSON.stringify(ndiPx)}`
+  )
+  // Real pixels: the window's Win32 rect equals the monitor's rect exactly.
+  const px = winRects()
+  console.log(`  Win32: ${JSON.stringify(px)}`)
+  const hwndRect = px.windows[0]
+  check(
+    px.screens.some((r) => sameBounds(r, hwndRect)),
+    `HDMI window covers a monitor pixel-exactly: window ${JSON.stringify(hwndRect)}, monitors ${JSON.stringify(px.screens)}`
+  )
+  await section.getByTestId('hdmi-switch').click()
+  await win.locator('[data-testid=hdmi-status][data-tone=off]').waitFor({ timeout: 10_000 })
+  check((await hdmiWindows()).length === 0, 'turning HDMI off destroys the window')
+  await win.keyboard.press('Escape')
+}
+
+/** Window lifecycle with simulated displays (unplug, re-plug with a new id, resolution change). */
+async function simulatedHdmiChecks(win, real) {
+  const tally = win.getByTestId('tally')
+  const pos = win.getByTestId('pos')
+  const primary = real.all.find((d) => d.id === real.primary)
+  const fakePrimary = {
+    id: primary.id,
+    label: primary.label || 'Layar 1',
+    width: primary.bounds.width,
+    height: primary.bounds.height,
+    primary: true,
+    bounds: primary.bounds
+  }
+  // The fake display is a 480×270 corner of the real screen: off-screen
+  // coordinates are not mapped like a real display (Windows DPI conversion), so
+  // the window covers that corner for a few seconds instead.
+  const pb = primary.bounds
+  const corner = (w, h, dx = 0) => ({
+    x: pb.x + pb.width - w - dx,
+    y: pb.y + pb.height - h,
+    width: w,
+    height: h
+  })
+  const proj = {
+    id: 424242,
+    label: 'E2E PROYEKTOR',
+    width: 1280,
+    height: 720,
+    primary: false,
+    bounds: corner(480, 270)
+  }
+  const fake = (list) => app.evaluate((_e, l) => globalThis.__pptHdmiFakeDisplays(l), list)
+
+  // Something live on Program: deck "dropped", slide 1 (white).
+  if (await win.getByTestId('ndi-popover').isVisible()) await win.keyboard.press('Escape')
+  await win.locator('.deck', { has: win.locator('.name', { hasText: /^dropped$/ }) }).click()
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '1 / 3'
+  )
+  await win.keyboard.press('Space')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
+  )
+
+  try {
+    await fake([fakePrimary, proj])
+    const pop = await openOutputPopover(win)
+    const section = pop.getByTestId('hdmi-section')
+    const select = section.getByLabel('Layar tujuan')
+    await select
+      .locator('option', { hasText: 'E2E PROYEKTOR · 1280×720' })
+      .waitFor({ state: 'attached' })
+    const options = await select.locator('option').allTextContents()
+    check(
+      (await section.getByTestId('hdmi-message').textContent()) === 'Mati',
+      `a second display appears in the select (displays:changed): ${JSON.stringify(options)}`
+    )
+    if (savedHdmi()?.displayId != null) {
+      // A display chosen earlier (the real one) is not connected in this simulation.
+      check(
+        options.includes('Layar tersimpan (tidak tersambung)') &&
+          (await select.inputValue()) === String(savedHdmi().displayId),
+        'the saved but missing display stays selected as "Layar tersimpan (tidak tersambung)"'
+      )
+      await select.selectOption(String(proj.id))
+      await win.waitForFunction(() => document.querySelector('#hdmi-display')?.value)
+    }
+    check((await select.inputValue()) === String(proj.id), 'the simulated display is selected')
+    await section.getByTestId('hdmi-switch').click()
+    await win.locator('[data-testid=hdmi-status][data-tone=ok]').waitFor({ timeout: 15_000 })
+    const d1 = await hdmiDebug()
+    const [w1] = await hdmiWindows()
+    check(
+      w1 && w1.visible && !w1.offscreen && w1.onTop && w1.url.endsWith('#/output'),
+      `HDMI window shown (visible, on top, renders #/output): ${JSON.stringify(w1)}`
+    )
+    check(
+      nearBounds(w1.bounds, proj.bounds),
+      `HDMI window covers the display bounds ${JSON.stringify(w1.bounds)} (display ${JSON.stringify(proj.bounds)})`
+    )
+    check(
+      d1.plans.slice(-2).join() === 'create,show' && d1.ready,
+      `shown only after output:ready (plans: ${d1.plans.join(' → ')})`
+    )
+    check(!w1.focusable && !w1.focused, 'HDMI window is not focusable and never focused')
+    check(
+      (await section.getByTestId('hdmi-message').textContent()) === 'Tampil' &&
+        (await win.getByTestId('hdmi-status').textContent()) === 'HDMI tampil',
+      'popover says "Tampil", header "HDMI tampil"'
+    )
+    check(savedHdmi().enabled && savedHdmi().displayId === proj.id, 'settings.json hdmi saved')
+    await pop.screenshot({ path: path.join(path.dirname(shot), 'task-11-popover-showing.png') })
+    await win.getByTestId('output-status').screenshot({
+      path: path.join(path.dirname(shot), 'task-11-header.png')
+    })
+
+    // Same Program as NDI; operator shortcuts keep working (focus never moved).
+    await win.keyboard.press('Escape')
+    await waitHdmiCentre((p) => lum(p) > 200, 'HDMI window shows the live slide')
+    await win.keyboard.press('b')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=tally]')?.textContent === 'BLACK'
+    )
+    await waitHdmiCentre(isBlack, 'B makes the HDMI window black')
+    await waitFrame([CENTRE], (px) => isBlack(px[0]), 'B makes NDI black too')
+    await win.keyboard.press('b')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
+    )
+    // To slide 1 (white), then Space to slide 2 (light blue), as on NDI.
+    while ((await pos.textContent()) !== '1 / 3') {
+      const before = await pos.textContent()
+      await win.keyboard.press('ArrowLeft')
+      await win.waitForFunction(
+        (b) => document.querySelector('[data-testid=pos]')?.textContent !== b,
+        before
+      )
+    }
+    await waitHdmiCentre((p) => lum(p) > 200 && !blue(p), 'ArrowLeft shows white slide 1 on HDMI')
+    await win.keyboard.press('Space')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+    )
+    await waitHdmiCentre((p) => blue(p), 'Space takes slide 2 (blue) live on HDMI')
+    check(true, 'B and Space in the operator window drive the HDMI window like NDI')
+
+    // Unplug: hidden in place (not moved onto the operator screen), amber status.
+    await fake([fakePrimary])
+    await win.locator('[data-testid=hdmi-status][data-tone=warn]').waitFor({ timeout: 5000 })
+    const [w2] = await hdmiWindows()
+    check(
+      w2 && !w2.visible && nearBounds(w2.bounds, proj.bounds),
+      `unplugged: window hidden and not moved (${JSON.stringify(w2?.bounds)})`
+    )
+    const pop2 = await openOutputPopover(win)
+    check(
+      (await pop2.getByTestId('hdmi-message').textContent()) ===
+        'Tersembunyi — layar tidak tersambung',
+      'popover says "Tersembunyi — layar tidak tersambung"'
+    )
+    await win.keyboard.press('Escape')
+
+    // Re-plugged with a new id (same model and size): shown again, id saved.
+    const again = { ...proj, id: 424243, bounds: corner(480, 270, 100) }
+    await fake([fakePrimary, again])
+    await win.locator('[data-testid=hdmi-status][data-tone=ok]').waitFor({ timeout: 5000 })
+    const [w3] = await hdmiWindows()
+    check(
+      w3.visible && nearBounds(w3.bounds, again.bounds) && savedHdmi().displayId === again.id,
+      `re-plugged with a new id: shown again on its bounds, id ${savedHdmi().displayId} saved`
+    )
+    await waitHdmiCentre((p) => blue(p), 'after re-plug the HDMI window shows the current slide')
+
+    // Resolution change (display-metrics-changed): bounds re-applied.
+    const bigger = {
+      ...again,
+      width: 1920,
+      height: 1080,
+      bounds: corner(640, 360, 100)
+    }
+    await fake([fakePrimary, bigger])
+    await sleep(300)
+    const [w4] = await hdmiWindows()
+    check(
+      w4.visible && nearBounds(w4.bounds, bigger.bounds),
+      `resolution change: bounds follow ${JSON.stringify(w4.bounds)}`
+    )
+    check(
+      (await hdmiDebug()).creates === d1.creates,
+      'one HDMI window through unplug, re-plug and resize (never rebuilt)'
+    )
+
+    // The window refuses to close; turning HDMI off destroys it.
+    await app.evaluate(({ BrowserWindow }, t) => {
+      BrowserWindow.getAllWindows()
+        .find((w) => w.getTitle() === t)
+        .close()
+    }, HDMI_TITLE)
+    await sleep(300)
+    check((await hdmiWindows()).length === 1, 'HDMI window cannot be closed')
+    const pop3 = await openOutputPopover(win)
+    await pop3.getByTestId('hdmi-switch').click()
+    await win.locator('[data-testid=hdmi-status][data-tone=off]').waitFor({ timeout: 5000 })
+    check(
+      (await hdmiWindows()).length === 0 && savedHdmi().enabled === false,
+      'turning HDMI off destroys the window and saves enabled=false'
+    )
+    await win.keyboard.press('Escape')
+  } finally {
+    await fake(null)
+  }
+  check(
+    (await win.getByTestId('hdmi-status').textContent()) === 'HDMI mati',
+    'back to the real displays: HDMI off'
+  )
+}
+
 const errors = []
 let failed = false
 try {
+  // Output windows (NDI offscreen, HDMI) are checked for console errors too.
+  app.on('window', (page) => {
+    const isOutput = () => page.url().endsWith('#/output')
+    page.on('console', (m) => {
+      if (isOutput() && m.type() === 'error') errors.push(`[output] ${m.text()}`)
+    })
+    page.on('pageerror', (e) => {
+      if (isOutput()) errors.push(`[output] ${e}`)
+    })
+  })
   const win = await app.firstWindow()
   win.on('console', (m) => {
     if (m.type() === 'error') errors.push(m.text())
@@ -815,6 +1265,8 @@ try {
   await dragAndDropChecks(win, tally, pos, cap)
 
   await ndiChecks(win, tally, pos)
+
+  await hdmiChecks(win)
 
   const relevant = errors.filter((e) => !/Electron Security Warning/.test(e))
   check(
