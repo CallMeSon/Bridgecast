@@ -56,11 +56,48 @@ describe('FrameRepeater', () => {
     expect(send.mock.calls.length).toBe(n)
   })
 
-  it('uses the injected scheduler with a 1000/fps interval', () => {
+  it('uses the injected scheduler', () => {
     const handle = { id: 1 } as unknown as ReturnType<typeof setInterval>
     const schedule = vi.fn(() => handle) as unknown as typeof setInterval
     const r = new FrameRepeater(vi.fn(), 25, schedule)
-    expect(schedule).toHaveBeenCalledWith(expect.any(Function), 40)
+    expect(schedule).toHaveBeenCalledTimes(1)
+    r.stop()
+  })
+
+  // Windows timers fire on a 15.625 ms grid: setInterval(33.3) really runs every
+  // 46.9 ms (21 fps). Measured in the e2e smoke test: 43 frames in 2 s.
+  const coarse = ((fn: () => void, ms: number) =>
+    setInterval(fn, Math.ceil(ms / 15.625) * 15.625)) as unknown as typeof setInterval
+
+  it('keeps the average rate at fps with a coarse (Windows) timer', () => {
+    const send = vi.fn()
+    const r = new FrameRepeater(send, 30, coarse)
+    r.push(Buffer.from([1]))
+    vi.advanceTimersByTime(10_000)
+    expect(send.mock.calls.length).toBeGreaterThanOrEqual(297)
+    expect(send.mock.calls.length).toBeLessThanOrEqual(301)
+    r.stop()
+  })
+
+  it('does not burst to catch up after the event loop was blocked', () => {
+    const send = vi.fn()
+    const r = new FrameRepeater(send, 30)
+    r.push(Buffer.from([1]))
+    vi.advanceTimersByTime(1000)
+    const n = send.mock.calls.length
+    vi.setSystemTime(Date.now() + 2000) // clock jumps, no timers ran
+    vi.advanceTimersByTime(100)
+    expect(send.mock.calls.length - n).toBeLessThanOrEqual(4)
+    r.stop()
+  })
+
+  it('also works at 60 fps', () => {
+    const send = vi.fn()
+    const r = new FrameRepeater(send, 60, coarse)
+    r.push(Buffer.from([1]))
+    vi.advanceTimersByTime(1000)
+    expect(send.mock.calls.length).toBeGreaterThanOrEqual(58)
+    expect(send.mock.calls.length).toBeLessThanOrEqual(61)
     r.stop()
   })
 
