@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   NO_SECOND_DISPLAY,
+  OPERATOR_DISPLAY,
   displayText,
   hdmiSettingsError,
   nativeLength,
@@ -77,6 +78,12 @@ describe('toDisplayInfo / displayText', () => {
 
   it('shows label and resolution, and marks the operator screen', () => {
     expect(displayText(projector)).toBe('EPSON PJ · 1920×1080')
+    expect(displayText({ ...projector, operator: true })).toBe(
+      'EPSON PJ · 1920×1080 — Layar operator'
+    )
+    expect(displayText({ ...laptop, operator: true })).toBe(
+      'Layar laptop · 2880×1800 — Layar utama (operator)'
+    )
     expect(displayText(laptop)).toBe('Layar laptop · 2880×1800 — Layar utama (operator)')
   })
 })
@@ -117,7 +124,39 @@ describe('hdmiSettingsError', () => {
   })
 
   it('lets HDMI be turned off while the saved display is unplugged', () => {
-    expect(hdmiSettingsError({ enabled: false, displayId: 3 }, [laptop], 3)).toBeNull()
+    expect(hdmiSettingsError({ enabled: false, displayId: 3 }, [laptop], null)).toBeNull()
+  })
+
+  it('always lets HDMI be turned off, even when its display became primary or holds the operator', () => {
+    // Projector made the Windows primary: the switch sends exactly this payload.
+    const swapped = [
+      { ...laptop, primary: false },
+      { ...projector, primary: true }
+    ]
+    expect(hdmiSettingsError({ enabled: false, displayId: 2 }, swapped, 1)).toBeNull()
+    expect(hdmiSettingsError({ enabled: false, displayId: 2 }, all, 2)).toBeNull()
+    expect(hdmiSettingsError({ enabled: false, displayId: 42 }, all, null)).toBeNull()
+  })
+
+  it('rejects the display holding the operator window, with the fix', () => {
+    expect(hdmiSettingsError({ enabled: true, displayId: 2 }, all, 2)).toBe(OPERATOR_DISPLAY)
+    expect(OPERATOR_DISPLAY).toMatch(/jendela operator.*Pindahkan.*pilih layar HDMI yang lain/)
+  })
+
+  it('primary swap: the old laptop panel (now non-primary) holds the operator and is refused', () => {
+    const swapped = [
+      { ...laptop, primary: false },
+      { ...projector, primary: true }
+    ]
+    expect(hdmiSettingsError({ enabled: true, displayId: 1 }, swapped, 1)).toBe(OPERATOR_DISPLAY)
+    expect(hdmiSettingsError({ enabled: true, displayId: null }, swapped, 1)).toBe(OPERATOR_DISPLAY)
+  })
+
+  it('operator dragged onto the second display: enabling with no choice is refused', () => {
+    expect(hdmiSettingsError({ enabled: true, displayId: null }, [laptop, projector], 2)).toBe(
+      OPERATOR_DISPLAY
+    )
+    expect(hdmiSettingsError({ enabled: true, displayId: null }, all, 2)).toBeNull() // tv is free
   })
 
   it('rejects malformed input', () => {
@@ -154,6 +193,13 @@ describe('resolveHdmi', () => {
     expect(resolveHdmi({ enabled: true, displayId: null }, [laptop, projector])).toEqual({
       enabled: true,
       displayId: 2
+    })
+  })
+
+  it('never picks the display holding the operator window', () => {
+    expect(resolveHdmi({ enabled: true, displayId: null }, [laptop, projector, tv], 2)).toEqual({
+      enabled: true,
+      displayId: 3
     })
   })
 

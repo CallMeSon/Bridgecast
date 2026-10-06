@@ -7,6 +7,7 @@ import {
   type TargetMemo,
   type WindowView
 } from './hdmi-plan'
+import { OPERATOR_DISPLAY } from '../shared/displays'
 
 const laptop: ScreenDisplay = {
   id: 1,
@@ -145,6 +146,47 @@ describe('planHdmi', () => {
     expect(p.action).toEqual({ type: 'hide' })
     expect(p.status.state).toBe('error')
     expect(p.status.message).toMatch(/layar utama.*Pilih layar lain/)
+  })
+
+  describe('operator display (the screen holding the operator window)', () => {
+    it('operator on the primary: HDMI shows as usual', () => {
+      expect(planHdmi(on, [laptop, projector], memo, hidden, 1).action).toEqual({
+        type: 'show',
+        bounds: projector.bounds
+      })
+    })
+
+    it('primary swap, operator stays on the laptop (now non-primary): never covers it', () => {
+      const swapped = [
+        { ...laptop, primary: false },
+        { ...projector, primary: true }
+      ]
+      const onLaptop = { enabled: true, displayId: 1 }
+      const p = planHdmi(onLaptop, swapped, null, shown, 1)
+      expect(p.action).toEqual({ type: 'hide' })
+      expect(p.status).toEqual({ state: 'error', message: OPERATOR_DISPLAY })
+      expect(planHdmi(onLaptop, swapped, null, none, 1).action).toEqual({ type: 'none' })
+    })
+
+    it('operator dragged onto the target: hidden with the error, remembered', () => {
+      const p = planHdmi(on, [laptop, projector], memo, shown, 2)
+      expect(p.action).toEqual({ type: 'hide' })
+      expect(p.status).toEqual({ state: 'error', message: OPERATOR_DISPLAY })
+      expect(p.memo).toEqual(memo)
+      expect(planHdmi(on, [laptop, projector], memo, none, 2).action).toEqual({ type: 'none' })
+    })
+
+    it('operator moved back: shown again', () => {
+      const away = planHdmi(on, [laptop, projector], memo, shown, 2)
+      expect(away.action.type).toBe('hide')
+      const back = planHdmi(on, [laptop, projector], away.memo, hidden, 1)
+      expect(back.action).toEqual({ type: 'show', bounds: projector.bounds })
+      expect(back.status).toEqual({ state: 'showing' })
+    })
+
+    it('unknown operator display (null) does not block HDMI', () => {
+      expect(planHdmi(on, [laptop, projector], memo, shown, null).action).toEqual({ type: 'none' })
+    })
   })
 
   it('no display chosen (null) and no memo: uses the first non-primary display', () => {
