@@ -26,13 +26,35 @@ if ($null -eq $app) {
   $startedByUs = $true
 }
 
+# Never open the user's file directly: work on a private temp copy so we can never collide with
+# a presentation the operator already has open (possibly with unsaved edits).
+$tmpCopy = Join-Path ([IO.Path]::GetTempPath()) ('ppt-share-' + [guid]::NewGuid().ToString('N') + [IO.Path]::GetExtension($full))
+$before = @{}
+$countBefore = 0
+try {
+  $countBefore = [int]$app.Presentations.Count
+  foreach ($p in $app.Presentations) { $before[[string]$p.FullName] = $true }
+} catch {}
+
 $pres = $null
+$weOpened = $false
 try {
   try {
-    # Open(FileName, ReadOnly, Untitled, WithWindow): msoTrue = -1, msoFalse = 0
-    $pres = $app.Presentations.Open($full, -1, 0, 0)
+    Copy-Item -LiteralPath $full -Destination $tmpCopy -Force
   } catch {
     Fail 'OPEN' $_.Exception.Message
+  }
+  try {
+    # Open(FileName, ReadOnly, Untitled, WithWindow): msoTrue = -1, msoFalse = 0
+    $pres = $app.Presentations.Open($tmpCopy, -1, 0, 0)
+  } catch {
+    Fail 'OPEN' $_.Exception.Message
+  }
+  # Only ours if it is a new presentation (not already open, and the count increased).
+  if (-not $before.ContainsKey([string]$pres.FullName) -and [int]$app.Presentations.Count -gt $countBefore) {
+    $weOpened = $true
+  } else {
+    Fail 'INUSE' $full
   }
   $sw = [double]$pres.PageSetup.SlideWidth
   $sh = [double]$pres.PageSetup.SlideHeight
@@ -63,7 +85,8 @@ try {
 }
 finally {
   # Close ONLY the presentation this script opened.
-  if ($null -ne $pres) { try { $pres.Close() } catch {} }
+  if ($weOpened -and $null -ne $pres) { try { $pres.Close() } catch {} }
+  if (Test-Path -LiteralPath $tmpCopy) { try { Remove-Item -LiteralPath $tmpCopy -Force } catch {} }
   # Quit ONLY if this script started PowerPoint and nothing else is open in it.
   if ($startedByUs -and $null -ne $app) {
     try { if ($app.Presentations.Count -eq 0) { $app.Quit() } } catch {}

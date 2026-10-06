@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -53,5 +54,75 @@ describe.runIf(process.platform === 'win32' && process.env.PPT_E2E === '1')(
     it('reports a missing file in Indonesian', async () => {
       await expect(importPptx(fx('nope.pptx'), tmp(), 1920)).rejects.toThrow(/tidak ditemukan/i)
     }, 60000)
+  }
+)
+
+describe.runIf(process.platform === 'win32' && process.env.PPT_E2E === '1')(
+  'importPptx when the same file is already open',
+  () => {
+    const ps = (script: string, ...args: string[]): string => {
+      const f = path.join(os.tmpdir(), 'ppt-share-test-helper-' + process.pid + '.ps1')
+      fs.writeFileSync(f, script)
+      try {
+        return execFileSync(
+          'powershell.exe',
+          ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', f, ...args],
+          { encoding: 'utf8' }
+        ).trim()
+      } finally {
+        fs.rmSync(f, { force: true })
+      }
+    }
+    const getApp =
+      '$a=[Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application");'
+    const tempCopies = (): string[] =>
+      fs.readdirSync(os.tmpdir()).filter((n) => /^ppt-share-[0-9a-f]{32}\.pptx$/.test(n))
+
+    it('imports and leaves the already-open presentation open, no temp leftovers', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt share own '))
+      const mine = path.join(dir, 'mine.pptx')
+      fs.copyFileSync(path.resolve(__dirname, '../../../fixtures/sample-4x3.pptx'), mine)
+      const leftoversBefore = tempCopies()
+      const countOpen = `${getApp} $a.Presentations.Count`
+      const namesOpen = `${getApp} ($a.Presentations | ForEach-Object { $_.FullName }) -join '|'`
+      let opened = false
+      try {
+        const countBefore = Number(ps(countOpen)) // may throw if PowerPoint is not running; fine
+        ps(
+          `$p=New-Object -ComObject PowerPoint.Application; $null=$p.Presentations.Open($args[0],0,0,-1)`,
+          mine
+        )
+        opened = true
+        expect(Number(ps(countOpen))).toBe(countBefore + 1)
+        const r = await importPptx(mine, path.join(dir, 'out'), 800)
+        expect(r.slides).toHaveLength(3)
+        expect(Number(ps(countOpen))).toBe(countBefore + 1)
+        expect(ps(namesOpen).toLowerCase()).toContain(mine.toLowerCase())
+        expect(tempCopies()).toEqual(leftoversBefore)
+      } finally {
+        if (opened) {
+          // close only our own copy, matched by exact FullName
+          ps(
+            `${getApp} foreach($x in @($a.Presentations)){ if($x.FullName -ieq $args[0]){ $x.Saved=-1; $x.Close() } }`,
+            mine
+          )
+        }
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    }, 360000)
+
+    it('cleans the temp copy when the script fails', async () => {
+      const before = tempCopies()
+      const bad = path.join(os.tmpdir(), 'ppt share bad.pptx')
+      fs.writeFileSync(bad, 'junk')
+      try {
+        await expect(
+          importPptx(bad, fs.mkdtempSync(path.join(os.tmpdir(), 'ppt share o ')), 800)
+        ).rejects.toThrow(/Tidak bisa membuka file/)
+      } finally {
+        fs.rmSync(bad, { force: true })
+      }
+      expect(tempCopies()).toEqual(before)
+    }, 120000)
   }
 )

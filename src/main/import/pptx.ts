@@ -31,7 +31,7 @@ function scriptPath(): string {
 }
 
 function friendlyError(stderr: string): string {
-  const code = /^(NOTFOUND|NOAPP|OPEN|EXPORT):/m.exec(stderr)?.[1]
+  const code = /^(NOTFOUND|NOAPP|OPEN|EXPORT|INUSE):/m.exec(stderr)?.[1]
   const lower = stderr.toLowerCase()
   if (code === 'NOTFOUND') return 'File tidak ditemukan. Periksa lokasi file lalu pilih ulang.'
   if (code === 'NOAPP')
@@ -41,6 +41,8 @@ function friendlyError(stderr: string): string {
       return 'File dilindungi kata sandi. Hapus kata sandinya di PowerPoint, simpan, lalu impor ulang.'
     return 'Tidak bisa membuka file. Tutup file di PowerShell/PowerPoint lalu coba lagi. Jika file rusak, buka dan simpan ulang di PowerPoint.'
   }
+  if (code === 'INUSE')
+    return 'File ini sedang terbuka di PowerPoint. Simpan dan tutup file itu, lalu coba impor lagi.'
   if (code === 'EXPORT')
     return 'PowerPoint gagal mengekspor slide. Pastikan file tidak rusak dan ruang disk cukup, lalu coba lagi.'
   return 'Impor PowerPoint gagal. Tutup file di PowerPoint lalu coba lagi.'
