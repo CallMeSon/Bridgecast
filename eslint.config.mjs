@@ -29,7 +29,7 @@ export default defineConfig(
     }
   },
   {
-    files: ['e2e/**/*.mjs'],
+    files: ['e2e/**/*.mjs', 'scripts/**/*.mjs'],
     rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
   },
   eslintConfigPrettier

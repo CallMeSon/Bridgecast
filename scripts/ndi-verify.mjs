@@ -18,7 +18,6 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const host = os.hostname().toUpperCase()
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
 
 function check(cond, msg) {
@@ -246,8 +245,16 @@ async function appPass() {
       `  NDI sends (worker thread, whole run): ${ndi.sent} sent, ${ndi.dropped} dropped, ${(ndi.sendMsTotal / ndi.sent).toFixed(1)} ms avg / ${ndi.sendMsMax.toFixed(1)} ms max`
     )
     // A change on the slide repaints at 4K: measure that path too.
+    // Slide 2 of sample.pdf has a light-blue background (232,240,255); slide 1 is white.
     await win.keyboard.press('Space')
-    await waitFrame(rx, (f) => f.xres === 3840 && lum(px(f, 20, 20)) < 250, 'slide 2 at 4K', 8000)
+    const isBlue = ([r, g, b]) => r < 245 && b > 245 && b - r > 10 && g > r
+    const s2 = await waitFrame(
+      rx,
+      (f) => f.xres === 3840 && isBlue(px(f, 20, 20)),
+      'slide 2 at 4K',
+      8000
+    )
+    check(true, `slide 2 over NDI at 4K: corner ${px(s2, 20, 20)} (light blue)`)
     const paint2 = await app.evaluate(() => globalThis.__pptOutput.paint)
     console.log(
       `  after a slide change at 4K: ${(paint2.totalMs / paint2.count).toFixed(1)} ms avg / ${paint2.maxMs.toFixed(1)} ms max over ${paint2.count} paints`
