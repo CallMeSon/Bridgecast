@@ -210,10 +210,7 @@ async function ndiChecks(win, tally, pos) {
       /sudah dipakai/.test(msg) && /ganti nama source/.test(msg),
       `name in use shows an inline error: "${msg}"`
     )
-    check(
-      (await status.getAttribute('data-tone')) === 'error',
-      'header status turns red on error'
-    )
+    check((await status.getAttribute('data-tone')) === 'error', 'header status turns red on error')
   } finally {
     other.destroy()
   }

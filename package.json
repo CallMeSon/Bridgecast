@@ -20,7 +20,8 @@
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
-    "test:e2e": "electron-vite build && node e2e/smoke.mjs"
+    "test:e2e": "electron-vite build && node e2e/smoke.mjs",
+    "verify:ndi": "electron-vite build && node scripts/ndi-verify.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
