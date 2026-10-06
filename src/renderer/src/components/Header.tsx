@@ -1,6 +1,7 @@
 import { MoonIcon, SunIcon } from '@phosphor-icons/react'
 import type { EventMeta } from '../../../shared/types'
 import { EventMenu } from './EventMenu'
+import { NdiMenu } from './NdiMenu'
 
 interface Props {
   events: EventMeta[]
@@ -22,13 +23,7 @@ export function Header(p: Props): React.JSX.Element {
         onCreate={p.onCreateEvent}
       />
       <span className="grow" />
-      {/* Static until the NDI sender and its settings popover land (Task 8). */}
-      <div className="status">
-        <span className="dot" />
-        <span>
-          NDI <b>PPT Share</b> · 1920×1080 · 30 fps
-        </span>
-      </div>
+      <NdiMenu />
       <button className="btn icon" aria-label="Ganti tema" onClick={p.onToggleTheme}>
         {p.theme === 'dark' ? <SunIcon size={18} /> : <MoonIcon size={18} />}
       </button>

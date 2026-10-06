@@ -23,7 +23,9 @@ describe('loadSettings / saveSettings', () => {
   })
 
   it('save then load returns the same values', () => {
-    const s = { ndi: { enabled: false, name: 'Panggung Utama', width: 3840, height: 2160, fps: 60 } }
+    const s = {
+      ndi: { enabled: false, name: 'Panggung Utama', width: 3840, height: 2160, fps: 60 }
+    }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
   })

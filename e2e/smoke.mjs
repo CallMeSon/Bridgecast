@@ -101,6 +101,133 @@ const INSIDE_43 = [
   [960, 20],
   [960, 1060]
 ]
+/** Header NDI status + popover, settings apply/rebuild, real sender (grandi). */
+async function ndiChecks(win, tally, pos) {
+  const status = win.getByTestId('ndi-status')
+  await win.locator('[data-testid=ndi-status][data-tone=ok]').waitFor({ timeout: 15_000 })
+  check(
+    (await status.textContent()) === 'NDI PPT Share · 1920×1080 · 30 fps',
+    `header NDI status is green while sending: "${await status.textContent()}"`
+  )
+  const ndi0 = await app.evaluate(() => globalThis.__pptNdi)
+  check(
+    ndi0.sent > 0 && /\(PPT Share\)$/.test(ndi0.source),
+    `sender is sending as "${ndi0.source}" (${ndi0.sent} frames, ${ndi0.dropped} dropped, ${(ndi0.sendMsTotal / ndi0.sent).toFixed(1)} ms avg / ${ndi0.sendMsMax.toFixed(1)} ms max per send off the main thread)`
+  )
+
+  await status.click()
+  const pop = win.getByTestId('ndi-popover')
+  await pop.waitFor()
+  check(
+    (await pop.locator('.pop-status').textContent()).startsWith('Mengirim sebagai'),
+    `popover shows the source name: "${await pop.locator('.pop-status').textContent()}"`
+  )
+  await pop.screenshot({ path: path.join(path.dirname(shot), 'task-8-popover.png') })
+
+  // Shortcuts stay ignored while focus is inside the popover.
+  const pos0 = await pos.textContent()
+  const tally0 = await tally.textContent()
+  const name = pop.getByLabel('Nama source')
+  await name.click()
+  await win.keyboard.press('End')
+  await win.keyboard.type(' bf')
+  await win.keyboard.press('Space')
+  check(
+    (await name.inputValue()) === 'PPT Share bf ' &&
+      (await tally.textContent()) === tally0 &&
+      (await pos.textContent()) === pos0,
+    'typing B/F/Space in the name field does not trigger shortcuts'
+  )
+  await name.fill('PPT Share')
+  const sw = pop.getByRole('switch')
+  await sw.focus()
+  await win.keyboard.press('Space')
+  check(
+    (await sw.getAttribute('aria-checked')) === 'false' &&
+      (await pos.textContent()) === pos0 &&
+      (await tally.textContent()) === tally0,
+    'Space on the popover switch toggles it and does not take the next slide'
+  )
+  await win.keyboard.press('Space')
+
+  // 60 fps: Terapkan rebuilds the output window and the repeater doubles its rate.
+  await pop.getByRole('radio', { name: '60 fps' }).click()
+  await pop.getByRole('button', { name: 'Terapkan' }).click()
+  await win
+    .locator('[data-testid=ndi-status][data-tone=ok]', { hasText: '60 fps' })
+    .waitFor({ timeout: 15_000 })
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline) {
+    const o = await app.evaluate(() => {
+      const d = globalThis.__pptOutput
+      return d && { fps: d.options.fps, paints: d.paints }
+    })
+    if (o && o.fps === 60 && o.paints > 0) break
+    await sleep(100)
+  }
+  const c60 = await counters()
+  const n60 = await app.evaluate(() => globalThis.__pptNdi)
+  await sleep(2000)
+  const c60b = await counters()
+  const n60b = await app.evaluate(() => globalThis.__pptNdi)
+  const rate = c60b.sent - c60.sent
+  const ndiRate = n60b.sent - n60.sent
+  check(
+    rate >= 105 && rate <= 135,
+    `after 60 fps apply the new output sends ${rate} frames in 2 s; NDI sent ${ndiRate}, dropped ${n60b.dropped - n60.dropped}`
+  )
+  check(c60b.lastLength === W * H * 4, `frames still ${W}×${H}×4 bytes after rebuild`)
+  const saved = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'))
+  check(saved.ndi.fps === 60, 'settings.json saved with fps 60')
+
+  // Disable: gray dot, no output window; enable again: green.
+  await sw.click()
+  await pop.getByRole('button', { name: 'Terapkan' }).click()
+  await win.locator('[data-testid=ndi-status][data-tone=off]', { hasText: 'nonaktif' }).waitFor()
+  const offscreen = await app.evaluate(
+    ({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().filter((w) => w.webContents.isOffscreen()).length
+  )
+  check(offscreen === 0, `disabled NDI: gray status and no output window (${offscreen})`)
+  await sw.click()
+  await pop.getByRole('radio', { name: '30 fps' }).click()
+  await pop.getByRole('button', { name: 'Terapkan' }).click()
+  await win
+    .locator('[data-testid=ndi-status][data-tone=ok]', { hasText: '30 fps' })
+    .waitFor({ timeout: 15_000 })
+  check(true, 'enabled again at 30 fps: green status')
+
+  // Name already used by another NDI sender on this PC → inline error with the fix.
+  const { default: grandi } = await import('grandi')
+  const other = await grandi.send({ name: 'Smoke Dup' })
+  try {
+    await name.fill('Smoke Dup')
+    await pop.getByRole('button', { name: 'Terapkan' }).click()
+    const err = pop.getByTestId('ndi-error')
+    await err.waitFor({ timeout: 10_000 })
+    const msg = await err.textContent()
+    check(
+      /sudah dipakai/.test(msg) && /ganti nama source/.test(msg),
+      `name in use shows an inline error: "${msg}"`
+    )
+    check(
+      (await status.getAttribute('data-tone')) === 'error',
+      'header status turns red on error'
+    )
+  } finally {
+    other.destroy()
+  }
+  await name.fill('PPT Share')
+  await pop.getByRole('button', { name: 'Terapkan' }).click()
+  await win
+    .locator('[data-testid=ndi-status][data-tone=ok]', { hasText: 'PPT Share' })
+    .waitFor({ timeout: 15_000 })
+  check(true, 'renaming back recovers (green)')
+  await win.keyboard.press('Escape')
+  await pop.waitFor({ state: 'detached' })
+  check(true, 'Escape closes the popover')
+}
+
 const errors = []
 let failed = false
 try {
@@ -384,6 +511,8 @@ try {
       BrowserWindow.getAllWindows().filter((w) => w.webContents.isOffscreen()).length
   )
   check(outputs === 1, `recreated output shows slide 2; single output window (${outputs})`)
+
+  await ndiChecks(win, tally, pos)
 
   const relevant = errors.filter((e) => !/Electron Security Warning/.test(e))
   check(

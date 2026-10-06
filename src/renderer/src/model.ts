@@ -1,6 +1,7 @@
 import type { DeckMeta } from '../../shared/types'
 import { pendingTake, type Action, type ProgramState } from '../../shared/program'
-import { slideUrl } from '../../shared/ipc'
+import { slideUrl, type NdiStatus } from '../../shared/ipc'
+import type { NdiSettings } from '../../shared/settings'
 
 export type NextView =
   | { kind: 'none' }
@@ -67,8 +68,15 @@ interface KeyLike {
 }
 
 function isTyping(target: EventTarget | null): boolean {
-  const el = target as { tagName?: string; isContentEditable?: boolean } | null
+  const el = target as {
+    tagName?: string
+    isContentEditable?: boolean
+    closest?: (sel: string) => unknown
+  } | null
   if (!el) return false
+  // Panels marked data-no-shortcuts (the NDI popover) own the keyboard: Space
+  // there toggles a switch, it must not take the next slide live.
+  if (el.closest?.('[data-no-shortcuts]')) return true
   const tag = (el.tagName ?? '').toUpperCase()
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable
 }
@@ -118,4 +126,21 @@ export function baseName(name: string): string {
 export function outputSource(s: ProgramState): string | null {
   if (s.black || !s.shown) return null
   return slideUrl(s.shown.deckId, s.shown.index)
+}
+
+export interface NdiBadge {
+  /** ok = green (sender running), off = gray, error = red. */
+  tone: 'ok' | 'off' | 'error'
+  name: string | null
+  detail: string
+}
+
+/** Header NDI status: green only when the sender actually runs. */
+export function ndiBadge(status: NdiStatus | null, ndi: NdiSettings): NdiBadge {
+  if (!ndi.enabled) return { tone: 'off', name: null, detail: 'nonaktif' }
+  if (status?.state === 'error') return { tone: 'error', name: ndi.name, detail: 'bermasalah' }
+  if (status?.state === 'running') {
+    return { tone: 'ok', name: ndi.name, detail: `${ndi.width}×${ndi.height} · ${ndi.fps} fps` }
+  }
+  return { tone: 'off', name: ndi.name, detail: 'memulai…' }
 }

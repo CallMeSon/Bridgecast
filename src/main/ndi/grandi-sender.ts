@@ -138,7 +138,11 @@ export class GrandiNdiSender implements NdiSender {
       this.onStatus({ state: 'running', source: this.native.sourceName() })
       return
     }
-    this.destroyNative()
+    if (this.native) {
+      // The old source disappears now; green again only once the new one exists.
+      this.destroyNative()
+      this.onStatus({ state: 'stopped' })
+    }
     const gen = ++this.gen
     void this.create(gen, o.name)
   }

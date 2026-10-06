@@ -65,7 +65,10 @@ describe('GrandiNdiSender', () => {
   it('creates one source with the name, clockVideo off, and reports running with its full name', async () => {
     const g = fakeGrandi()
     const send = vi.spyOn(g, 'send')
-    const s = new GrandiNdiSender((x) => statuses.push(x), async () => g)
+    const s = new GrandiNdiSender(
+      (x) => statuses.push(x),
+      async () => g
+    )
     s.start(fmt)
     await flush()
     expect(send).toHaveBeenCalledWith({ name: 'PPT Share', clockVideo: false, clockAudio: false })
@@ -74,7 +77,10 @@ describe('GrandiNdiSender', () => {
 
   it('sends BGRX progressive frames with exact integer frame rate and aspect ratio', async () => {
     const g = fakeGrandi()
-    const s = new GrandiNdiSender(() => {}, async () => g)
+    const s = new GrandiNdiSender(
+      () => {},
+      async () => g
+    )
     s.start({ ...fmt, fps: 60 })
     await flush()
     const buf = frame()
@@ -96,7 +102,10 @@ describe('GrandiNdiSender', () => {
 
   it('drops frames while a send is in flight (one buffer owned by NDI at a time)', async () => {
     const g = fakeGrandi()
-    const s = new GrandiNdiSender(() => {}, async () => g)
+    const s = new GrandiNdiSender(
+      () => {},
+      async () => g
+    )
     s.start(fmt)
     await flush()
     s.sendBgra(frame())
@@ -113,7 +122,10 @@ describe('GrandiNdiSender', () => {
 
   it('drops frames whose size does not match the format', async () => {
     const g = fakeGrandi()
-    const s = new GrandiNdiSender(() => {}, async () => g)
+    const s = new GrandiNdiSender(
+      () => {},
+      async () => g
+    )
     s.start(fmt)
     await flush()
     s.sendBgra(frame(8, 4))
@@ -123,7 +135,10 @@ describe('GrandiNdiSender', () => {
 
   it('ignores frames before the source exists and after stop', async () => {
     const g = fakeGrandi()
-    const s = new GrandiNdiSender((x) => statuses.push(x), async () => g)
+    const s = new GrandiNdiSender(
+      (x) => statuses.push(x),
+      async () => g
+    )
     s.sendBgra(frame())
     s.start(fmt)
     s.sendBgra(frame()) // still creating
@@ -137,7 +152,10 @@ describe('GrandiNdiSender', () => {
 
   it('same name: a new format reuses the source (no gap); frames of the new size go out', async () => {
     const g = fakeGrandi()
-    const s = new GrandiNdiSender(() => {}, async () => g)
+    const s = new GrandiNdiSender(
+      () => {},
+      async () => g
+    )
     s.start(fmt)
     await flush()
     s.start({ ...fmt, width: 8, height: 4, fps: 60 })
@@ -150,7 +168,10 @@ describe('GrandiNdiSender', () => {
 
   it('new name: destroys the old source and creates a new one', async () => {
     const g = fakeGrandi()
-    const s = new GrandiNdiSender((x) => statuses.push(x), async () => g)
+    const s = new GrandiNdiSender(
+      (x) => statuses.push(x),
+      async () => g
+    )
     s.start(fmt)
     await flush()
     s.start({ ...fmt, name: 'Aula' })
@@ -159,13 +180,20 @@ describe('GrandiNdiSender', () => {
       ['PPT Share', true],
       ['Aula', false]
     ])
-    expect(statuses.at(-1)).toEqual({ state: 'running', source: 'TEST-PC (Aula)' })
+    expect(statuses).toEqual([
+      { state: 'running', source: 'TEST-PC (PPT Share)' },
+      { state: 'stopped' },
+      { state: 'running', source: 'TEST-PC (Aula)' }
+    ])
   })
 
   it('retries creation (a destroyed source may still be finishing its last send)', async () => {
     vi.useFakeTimers()
     const g = fakeGrandi({ failCreates: 2 })
-    const s = new GrandiNdiSender((x) => statuses.push(x), async () => g)
+    const s = new GrandiNdiSender(
+      (x) => statuses.push(x),
+      async () => g
+    )
     s.start(fmt)
     await vi.advanceTimersByTimeAsync(1000)
     expect(g.natives).toHaveLength(1)
@@ -175,7 +203,10 @@ describe('GrandiNdiSender', () => {
   it('reports the name as in use when creation keeps failing', async () => {
     vi.useFakeTimers()
     const g = fakeGrandi({ failCreates: 100 })
-    const s = new GrandiNdiSender((x) => statuses.push(x), async () => g)
+    const s = new GrandiNdiSender(
+      (x) => statuses.push(x),
+      async () => g
+    )
     s.start(fmt)
     await vi.advanceTimersByTimeAsync(5000)
     expect(statuses.at(-1)).toEqual({ state: 'error', message: NDI_NAME_IN_USE('PPT Share') })
@@ -218,7 +249,10 @@ describe('GrandiNdiSender', () => {
 
   it('a failed send is counted and does not block later sends', async () => {
     const g = fakeGrandi()
-    const s = new GrandiNdiSender(() => {}, async () => g)
+    const s = new GrandiNdiSender(
+      () => {},
+      async () => g
+    )
     s.start(fmt)
     await flush()
     const native = g.natives[0]

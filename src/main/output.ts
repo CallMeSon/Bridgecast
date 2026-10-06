@@ -8,6 +8,8 @@ const RESTART_DELAY_MS = 1000
 
 /** Counters and frame dump, only exposed when PPT_OUTPUT_DUMP is set (dev/e2e). */
 export interface OutputDebug {
+  /** Size and fps this output renders at. */
+  options: OutputOptions
   paints: number
   sent: number
   lastLength: number
@@ -48,6 +50,7 @@ export class Output {
     }
     this.repeater = new FrameRepeater(counted, opts.fps)
     this.debug = {
+      options: { ...opts },
       paints: 0,
       sent: 0,
       lastLength: 0,

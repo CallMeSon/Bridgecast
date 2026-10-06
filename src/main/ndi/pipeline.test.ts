@@ -36,7 +36,10 @@ class FakeOutput implements OutputHandle {
 let sender: FakeNdiSender
 let outputs: FakeOutput[]
 let pipeline: NdiPipeline<FakeOutput>
-const ndi = (patch: Partial<NdiSettings> = {}): NdiSettings => ({ ...DEFAULT_SETTINGS.ndi, ...patch })
+const ndi = (patch: Partial<NdiSettings> = {}): NdiSettings => ({
+  ...DEFAULT_SETTINGS.ndi,
+  ...patch
+})
 const last = (): FakeOutput => outputs[outputs.length - 1]
 
 beforeEach(() => {
