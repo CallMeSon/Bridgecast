@@ -1,6 +1,8 @@
-import * as pdfjs from 'pdfjs-dist'
+// The legacy build carries polyfills (e.g. Map.prototype.getOrInsertComputed)
+// that Electron's Chromium does not have yet; the modern build fails at render.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
 // Vite bundles the worker locally (emitted as an asset); no CDN, works offline.
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { scaleForWidth } from './scale'
 
 export { scaleForWidth }
@@ -54,8 +56,11 @@ export async function renderPdf(data: Uint8Array, targetWidth: number): Promise<
           height = h
         }
         page.cleanup()
-      } catch {
-        throw new Error(`Halaman ${n} gagal dirender. Coba ekspor ulang PDF dari aplikasi asalnya.`)
+      } catch (err) {
+        throw new Error(
+          `Halaman ${n} gagal dirender. Coba ekspor ulang PDF dari aplikasi asalnya.`,
+          { cause: err }
+        )
       }
     }
     if (pages.length === 0) throw new Error('PDF tidak memiliki halaman. Pilih file PDF lain.')
