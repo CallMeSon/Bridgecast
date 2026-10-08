@@ -5,11 +5,19 @@ interface Props {
   state: ProgramState
   canPrev: boolean
   canNext: boolean
+  /** Freezing needs a slide on the output; unfreezing is always possible. */
+  canFreeze: boolean
   onAction(a: Action): void
 }
 
 /** The control deck under Program: Prev/Next, transition, then the two holds. */
-export function Controls({ state, canPrev, canNext, onAction }: Props): React.JSX.Element {
+export function Controls({
+  state,
+  canPrev,
+  canNext,
+  canFreeze,
+  onAction
+}: Props): React.JSX.Element {
   const transitions = [
     { t: 'cut', label: 'Cut' },
     { t: 'fade', label: 'Fade' }
@@ -53,6 +61,7 @@ export function Controls({ state, canPrev, canNext, onAction }: Props): React.JS
         <button
           className="cbtn hold"
           aria-pressed={state.frozen}
+          disabled={!canFreeze}
           onClick={() => onAction({ type: 'toggleFreeze' })}
         >
           <PauseIcon size={16} />

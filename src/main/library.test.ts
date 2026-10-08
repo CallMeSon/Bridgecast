@@ -3,6 +3,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { Library } from './library'
+import { DECK_NAME_MAX } from '../shared/types'
 
 let root: string
 let src: string
@@ -161,6 +162,22 @@ describe('Library', () => {
     expect(() => lib.renameDeck(e1.id, d.id, 'x'.repeat(121))).toThrow(/120 karakter/)
     expect(() => lib.renameDeck(e2.id, d.id, 'Baru')).toThrow(/tidak ditemukan/)
     expect(lib.getDeck(d.id).name).toBe('Asli')
+  })
+
+  it('renameDeck counts code points and rejects control or format characters', () => {
+    const lib = new Library(root)
+    const e1 = lib.createEvent('E1')
+    const d = lib.addDeck(e1.id, deckInput(1, 'Asli'))
+    // 120 astral characters are 240 UTF-16 units but 120 code points: accepted.
+    const ok = '😀'.repeat(DECK_NAME_MAX)
+    expect(lib.renameDeck(e1.id, d.id, ok).name).toBe(ok)
+    expect(() => lib.renameDeck(e1.id, d.id, '😀'.repeat(DECK_NAME_MAX + 1))).toThrow(
+      /120 karakter/
+    )
+    for (const bad of ['a\u0000b', 'a\nb', 'a\tb', 'a‮b', 'a​b', 'a\u007Fb']) {
+      expect(() => lib.renameDeck(e1.id, d.id, bad)).toThrow(/karakter yang tidak didukung/)
+    }
+    expect(lib.getDeck(d.id).name).toBe(ok)
   })
 
   it('removeDeck rejects traversal and foreign ids, deleting nothing', () => {

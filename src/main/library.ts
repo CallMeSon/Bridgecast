@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { randomUUID } from 'crypto'
-import type { DeckMeta, EventMeta } from '../shared/types'
+import { DECK_NAME_MAX, type DeckMeta, type EventMeta } from '../shared/types'
 
 type DeckInput = {
   name: string
@@ -21,8 +21,7 @@ function writeJsonAtomic(file: string, data: unknown): void {
   fs.renameSync(tmp, file)
 }
 
-/** Longest deck name accepted when renaming. */
-export const DECK_NAME_MAX = 120
+export { DECK_NAME_MAX }
 
 export class Library {
   private events: EventMeta[]
@@ -161,7 +160,10 @@ export class Library {
     }
     const trimmed = typeof name === 'string' ? name.trim() : ''
     if (!trimmed) throw new Error('Nama deck kosong. Isi nama, misalnya "Sesi 1 - Pembukaan".')
-    if (trimmed.length > DECK_NAME_MAX) {
+    if (/[\p{Cc}\p{Cf}]/u.test(trimmed)) {
+      throw new Error('Nama deck berisi karakter yang tidak didukung. Ketik ulang namanya.')
+    }
+    if ([...trimmed].length > DECK_NAME_MAX) {
       throw new Error(`Nama deck terlalu panjang. Pakai paling banyak ${DECK_NAME_MAX} karakter.`)
     }
     const deck = { ...this.readDeck(deckId), name: trimmed }

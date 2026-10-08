@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DeckMeta, EventMeta } from '../../shared/types'
-import { initialState, type Action, type ProgramState } from '../../shared/program'
+import { initialState, reduce, type Action, type ProgramState } from '../../shared/program'
 import type { ImportRequest } from '../../shared/ipc'
 import { Header } from './components/Header'
 import { Library, type ImportRow } from './components/Library'
@@ -264,7 +264,7 @@ function App(): React.JSX.Element {
   const renameDeck = useCallback(
     async (deckId: string, name: string) => {
       const target = eventRef.current
-      if (!target) return
+      if (!target) throw new Error('Pilih event dulu, lalu ganti nama deck.')
       await api.renameDeck(target, deckId, name)
       await reloadDecks(target)
     },
@@ -341,6 +341,7 @@ function App(): React.JSX.Element {
             state={program}
             canPrev={canPrev(decks, program)}
             canNext={canNext(decks, program)}
+            canFreeze={reduce(program, { type: 'toggleFreeze' }, decks) !== program}
             onAction={dispatch}
           />
         </section>

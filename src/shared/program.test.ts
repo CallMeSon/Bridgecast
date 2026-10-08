@@ -121,7 +121,7 @@ describe('reduce navigation', () => {
     expect(reduce(initialState, { type: 'prev' }, [])).toEqual(initialState)
     expect(reduce(initialState, { type: 'goto', index: 0 }, [])).toEqual(initialState)
     expect(reduce(initialState, { type: 'selectDeck', deckId: 'A' }, [])).toEqual(initialState)
-    expect(reduce(initialState, { type: 'toggleFreeze' }, []).frozen).toBe(true)
+    expect(reduce(initialState, { type: 'toggleFreeze' }, [])).toBe(initialState)
     expect(reduce(initialState, { type: 'toggleBlack' }, []).black).toBe(true)
   })
   it('skips decks without slides and does not mutate', () => {
@@ -159,6 +159,17 @@ describe('reconcile', () => {
   it('keeps valid state unchanged', () => {
     const st = at('A', 1)
     expect(reconcile(st, decks)).toBe(st)
+  })
+  it('clears frozen when shown is gone or the operator deck is gone', () => {
+    expect(reconcile(at('A', 1, { frozen: true }), [decks[1]]).frozen).toBe(false)
+    expect(reconcile(at('A', 2, { frozen: true }), [{ id: 'A', slides: s(2) }]).frozen).toBe(false)
+    const other = at('B', 0, { shown: sh('A', 1), frozen: true })
+    expect(reconcile(other, [decks[0]]).frozen).toBe(false)
+  })
+  it('keeps frozen while shown and the operator deck still exist', () => {
+    const st = at('A', 1, { frozen: true })
+    expect(reconcile(st, decks)).toBe(st)
+    expect(reconcile(at('A', 2, { frozen: true }), [{ id: 'A', slides: s(3) }]).frozen).toBe(true)
   })
   it('shown follows its slide (by file) when the slides of its deck moved', () => {
     // Slide 2.png moved to the front: [2.png, 0.png, 1.png].
@@ -244,12 +255,9 @@ describe('take on first Next/Prev when nothing of this event is shown', () => {
     expect(r.black).toBe(true)
   })
 
-  it('frozen + STANDBY steps normally and does not take', () => {
-    const st = standby('A', 0, { frozen: true })
-    expect(pendingTake(st, decks)).toBe(false)
-    const r = reduce(st, { type: 'next' }, decks)
-    expect([r.deckId, r.index]).toEqual(['A', 1])
-    expect(r.shown).toBeNull()
+  it('freeze while STANDBY is a no-op', () => {
+    const st = standby('A', 0)
+    expect(reduce(st, { type: 'toggleFreeze' }, decks)).toBe(st)
   })
 
   it('freeze, next, next, unfreeze: shown becomes the position', () => {
@@ -265,7 +273,7 @@ describe('take on first Next/Prev when nothing of this event is shown', () => {
     expect(st.index).toBe(2)
   })
 
-  it('unfreeze with nothing on the output only clears the freeze', () => {
+  it('unfreeze with nothing on the output (stale frozen state) only clears the freeze', () => {
     const st = standby('A', 1, { frozen: true })
     const r = reduce(st, { type: 'toggleFreeze' }, decks)
     expect(r.frozen).toBe(false)

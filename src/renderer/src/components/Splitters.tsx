@@ -138,6 +138,8 @@ export function Splitters({
     resolveLayout(initial, innerWidth, innerHeight)
   )
   const live = useRef(layout)
+  // A drag in progress owns the live sizes; a resize meanwhile must not reset them.
+  const dragging = useRef(false)
 
   // On <html>, not .app: a child's layout effect runs before the parent's ref
   // is attached, and the sizes must be in place before the first paint.
@@ -153,6 +155,7 @@ export function Splitters({
   useEffect(() => {
     const onResize = (): void => {
       setDims({ w: innerWidth, h: innerHeight })
+      if (dragging.current) return
       setLayout(resolveLayout(stored.current, innerWidth, innerHeight))
     }
     addEventListener('resize', onResize)
@@ -180,6 +183,9 @@ export function Splitters({
 
   const onDragging = useCallback(
     (on: boolean): void => {
+      dragging.current = on
+      // Drag over: re-clamp to the window as it is now (a resize may have happened).
+      if (!on) setLayout(resolveLayout(stored.current, innerWidth, innerHeight))
       const el = appRef.current
       if (!el) return
       if (on) el.dataset.resizing = ''

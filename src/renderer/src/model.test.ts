@@ -73,9 +73,6 @@ describe('nextView', () => {
     expect(nextView(decks, leftover)).toMatchObject({ kind: 'slide', deckId: 'b', index: 0 })
     expect(nextIndex(decks, leftover)).toBe(0)
   })
-  it('frozen STANDBY still previews the following slide', () => {
-    expect(nextView(decks, at('a', 0, { shown: null, frozen: true }))).toMatchObject({ index: 1 })
-  })
   it('frozen shows the operator position as a held preview', () => {
     expect(
       nextView(decks, at('a', 1, { shown: { deckId: 'a', index: 0, file: '0.png' }, frozen: true }))
@@ -121,8 +118,6 @@ describe('canNext', () => {
     expect(canNext(decks, at('a', 0, { frozen: true }))).toBe(true)
     expect(canNext(decks, at('a', 1, { frozen: true }))).toBe(false)
     expect(canNext(decks, at('a', 1, { frozen: true, autoAdvance: true }))).toBe(true)
-    // Frozen STANDBY does not take, so the last slide has no Next.
-    expect(canNext(decks, at('a', 1, { shown: null, frozen: true }))).toBe(false)
   })
 })
 

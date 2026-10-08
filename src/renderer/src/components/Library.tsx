@@ -7,7 +7,7 @@ import {
   TrashIcon,
   WarningCircleIcon
 } from '@phosphor-icons/react'
-import type { DeckMeta } from '../../../shared/types'
+import { DECK_NAME_MAX, type DeckMeta } from '../../../shared/types'
 import type { ShownSlide } from '../../../shared/program'
 import type { ImportProgress } from '../../../shared/ipc'
 import { errorMessage, fileKind, importMeta } from '../model'
@@ -103,7 +103,8 @@ function RenameRow({
 }: {
   deck: DeckMeta
   onSave(name: string): Promise<void>
-  onDone(): void
+  /** `restoreFocus`: the input had focus, so the deck's row button should take it. */
+  onDone(restoreFocus: boolean): void
 }): React.JSX.Element {
   const [value, setValue] = useState(deck.name)
   const [error, setError] = useState<string | null>(null)
@@ -111,24 +112,30 @@ function RenameRow({
   // Set once the row is closing, so the blur that follows never saves again.
   const done = useRef(false)
   const input = useRef<HTMLInputElement>(null)
-  const finish = (): void => {
+  const errorId = `rename-error-${deck.id}`
+  const finish = (restoreFocus: boolean): void => {
     done.current = true
-    onDone()
+    onDone(restoreFocus)
   }
   useEffect(() => {
     input.current?.focus()
     input.current?.select()
   }, [])
-  const save = async (): Promise<void> => {
+  // Enter shows a failure under the field and keeps the row open. Leaving the
+  // field (blur) never traps focus: on failure the row closes, old name kept.
+  const save = async (by: 'enter' | 'blur', focused: boolean): Promise<void> => {
     if (busy.current || done.current) return
-    if (value.trim() === deck.name) return finish()
+    if (value.trim() === deck.name) return finish(focused)
     busy.current = true
     try {
       await onSave(value)
-      finish()
+      finish(focused)
     } catch (e) {
-      setError(errorMessage(e))
-      input.current?.focus()
+      if (by === 'blur') finish(focused)
+      else {
+        setError(errorMessage(e))
+        input.current?.focus()
+      }
     } finally {
       busy.current = false
     }
@@ -145,23 +152,25 @@ function RenameRow({
         className="text-input"
         aria-label={`Nama baru untuk ${deck.name}`}
         value={value}
-        maxLength={120}
+        maxLength={DECK_NAME_MAX}
+        aria-invalid={!!error}
+        aria-describedby={error ? errorId : undefined}
         spellCheck={false}
         onChange={(e) => {
           setValue(e.target.value)
           setError(null)
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') void save()
+          if (e.key === 'Enter') void save('enter', true)
           if (e.key === 'Escape') {
             e.stopPropagation()
-            finish()
+            finish(true)
           }
         }}
-        onBlur={() => void save()}
+        onBlur={(e) => void save('blur', e.relatedTarget === null)}
       />
       {error && (
-        <span className="msg" role="alert">
+        <span id={errorId} className="msg" role="alert">
           {error}
         </span>
       )}
@@ -223,6 +232,18 @@ export function Library(p: Props): React.JSX.Element {
   const [over, setOver] = useState<number | null>(null)
   const count = p.decks.length
   const closeMenu = useCallback(() => setMenu(null), [])
+  // Deck whose row button takes focus once its rename row has closed.
+  const refocus = useRef<string | null>(null)
+  useEffect(() => {
+    const id = refocus.current
+    if (renaming !== null || id === null) return
+    refocus.current = null
+    const active = document.activeElement
+    if (active && active !== document.body) return
+    ;[...document.querySelectorAll<HTMLElement>('.decks [data-deck-id]')]
+      .find((el) => el.dataset.deckId === id)
+      ?.focus()
+  }, [renaming])
 
   const openMenu = (e: React.MouseEvent<HTMLElement>, deckId: string): void => {
     e.preventDefault()
@@ -253,7 +274,10 @@ export function Library(p: Props): React.JSX.Element {
               key={d.id}
               deck={d}
               onSave={(name) => p.onRenameDeck(d.id, name)}
-              onDone={() => setRenaming(null)}
+              onDone={(restoreFocus) => {
+                if (restoreFocus) refocus.current = d.id
+                setRenaming((r) => (r === d.id ? null : r))
+              }}
             />
           ) : confirm === d.id ? (
             <ConfirmRemove

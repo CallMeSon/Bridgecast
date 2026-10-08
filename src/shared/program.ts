@@ -163,7 +163,8 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
       return moveTo(state, deck, 0)
     }
     case 'toggleFreeze': {
-      if (!state.frozen) return { ...state, frozen: true }
+      // Freezing only means something while a slide is on air.
+      if (!state.frozen) return state.shown === null ? state : { ...state, frozen: true }
       // Unfreeze: the operator position (the preview while frozen) goes live at
       // once. Nothing on the output (STANDBY) or an invalid position: only the
       // freeze is cleared. Black stays as it is, the new slide is behind it.
@@ -211,6 +212,14 @@ export function reconcile(state: ProgramState, decks: DeckLike[]): ProgramState 
     index = 0
   }
 
-  if (deckId === state.deckId && index === state.index && shown === state.shown) return state
-  return { ...state, deckId, index, shown }
+  // A freeze with nothing on air or no operator deck has nothing to preview.
+  const frozen = state.frozen && shown !== null && cur !== undefined
+  if (
+    deckId === state.deckId &&
+    index === state.index &&
+    shown === state.shown &&
+    frozen === state.frozen
+  )
+    return state
+  return { ...state, deckId, index, shown, frozen }
 }
