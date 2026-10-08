@@ -18,7 +18,11 @@
   height: 100%;
   object-fit: contain;
 }
-.output-layer.fade {
+/* Not on screen until its image is decoded (see SlideLayers). */
+.output-layer[data-state='pending'] {
+  opacity: 0;
+}
+.output-layer[data-state='fade'] {
   animation: output-fade 250ms linear both;
 }
 @keyframes output-fade {

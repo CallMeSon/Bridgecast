@@ -671,8 +671,16 @@ main {
 .program:is([data-state='live'], [data-state='frozen'], [data-state='black']) .screen::after {
   border: 2px solid var(--tally);
 }
-.screen .slide.fade-in {
-  animation: fade-in 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+.screen .pgm-layer {
+  position: absolute;
+  inset: 0;
+}
+/* Not on screen until its image is decoded (see SlideLayers). */
+.screen .pgm-layer[data-state='pending'] {
+  opacity: 0;
+}
+.screen .pgm-layer[data-state='fade'] {
+  animation: fade-in 0.25s linear both;
 }
 @keyframes fade-in {
   from {

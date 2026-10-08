@@ -1,13 +1,12 @@
 interface ImageProps {
   src: string
   alt: string
-  fade?: boolean
   lazy?: boolean
 }
 
-export function SlideImage({ src, alt, fade, lazy }: ImageProps): React.JSX.Element {
+export function SlideImage({ src, alt, lazy }: ImageProps): React.JSX.Element {
   return (
-    <div className={fade ? 'slide fade-in' : 'slide'}>
+    <div className="slide">
       <img
         src={src}
         alt={alt}

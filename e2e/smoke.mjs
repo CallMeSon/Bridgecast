@@ -6,6 +6,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { PDFDocument } from 'pdf-lib'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const shot = path.join(root, '.superpowers/sdd/2026-10-06-ppt-share/task-6-smoke.png')
@@ -97,6 +98,77 @@ async function waitFrame(points, pred, what, timeout = 5000) {
     await sleep(150)
   }
   throw new Error(`ASSERT: ${what} (last frame: ${JSON.stringify(f?.px)})`)
+}
+
+/**
+ * Runs in a renderer for `ms`: on every animation frame, records 1 if the
+ * topmost visible slide layer has a decoded image, else 0. A 0 on any frame
+ * is a black flash between two slides.
+ */
+function layerRecorder(sel, ms) {
+  return new Promise((resolve) => {
+    const frames = []
+    const end = performance.now() + ms
+    const tick = () => {
+      // The topmost visible layer covers the rest (it has a black background).
+      const top = [...document.querySelectorAll(sel)]
+        .filter((l) => Number(getComputedStyle(l).opacity) > 0)
+        .pop()
+      const img = top?.querySelector('img')
+      frames.push(img && img.complete && img.naturalWidth > 0 ? 1 : 0)
+      if (performance.now() < end) requestAnimationFrame(tick)
+      else resolve(frames)
+    }
+    requestAnimationFrame(tick)
+  })
+}
+const recorderSrc = (sel, ms) => `(${layerRecorder.toString()})(${JSON.stringify(sel)}, ${ms})`
+
+/** Runs `action` (one slide change) and checks Program and HDMI never show a black frame. */
+async function noBlackGap(win, action, what) {
+  const ms = 900
+  const operator = win.evaluate(recorderSrc('.screen .pgm-layer', ms))
+  const hdmi = app.evaluate(
+    ({ BrowserWindow }, [title, src]) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.getTitle() === title)
+        .webContents.executeJavaScript(src),
+    [HDMI_TITLE, recorderSrc('.output-layer', ms)]
+  )
+  await sleep(100)
+  await action()
+  const [op, out] = await Promise.all([operator, hdmi])
+  check(
+    op.length > 10 && op.every((n) => n >= 1) && out.length > 10 && out.every((n) => n >= 1),
+    `${what}: no black frame between slides (Program ${op.length} frames, min ${Math.min(...op)}; HDMI ${out.length} frames, min ${Math.min(...out)})`
+  )
+}
+
+/**
+ * A PDF of full-page noise images: slow to decode, so a slide change that does
+ * not wait for decoding shows a black frame (plain test pages decode in time).
+ */
+async function noisePdf(file, pages) {
+  const pngs = await app.evaluate(({ nativeImage }, n) => {
+    const w = 1920
+    const h = 1080
+    return Array.from({ length: n }, (_, k) => {
+      const buf = Buffer.alloc(w * h * 4)
+      for (let i = 0; i < buf.length; i += 4) {
+        buf[i] = (Math.random() * 255) | 0
+        buf[i + 1] = (Math.random() * 255) | 0
+        buf[i + 2] = 120 + k * 40
+        buf[i + 3] = 255
+      }
+      return nativeImage.createFromBitmap(buf, { width: w, height: h }).toPNG().toString('base64')
+    })
+  }, pages)
+  const doc = await PDFDocument.create()
+  for (const b64 of pngs) {
+    const img = await doc.embedPng(Buffer.from(b64, 'base64'))
+    doc.addPage([960, 540]).drawImage(img, { x: 0, y: 0, width: 960, height: 540 })
+  }
+  fs.writeFileSync(file, await doc.save())
 }
 
 // Centre column above the "Halaman n" text (the exact centre is dark text).
@@ -986,7 +1058,7 @@ try {
     `16:9 slide fills the HDMI window (${f1.width}×${f1.height} px), centre ${JSON.stringify(f1.px[0])}`
   )
 
-  await win.keyboard.press('Space')
+  await noBlackGap(win, () => win.keyboard.press('Space'), 'Next with Cut')
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
   )
@@ -1094,6 +1166,7 @@ try {
   )
   const saved43 = await dumpFrame([CENTRE], true)
   fs.copyFileSync(saved43.file, path.join(path.dirname(shot), 'task-7-output-4x3.png'))
+  await noBlackGap(win, () => win.keyboard.press('Space'), 'Next with Fade')
   await win.getByRole('radio', { name: 'Cut' }).click()
   // Back to the 16:9 deck at slide 2 for the remaining steps.
   await win.locator('.deck', { has: win.locator('.name', { hasText: /^sample$/ }) }).click()
@@ -1171,6 +1244,24 @@ try {
   check(outputs === 1, `rebuilt output shows slide 2; single HDMI window (${outputs})`)
 
   await dragAndDropChecks(win, tally, pos, cap)
+
+  // Heavy slides: Next never shows a black frame on Program or HDMI, Cut or Fade.
+  const noise = path.join(frameDir, 'noise.pdf')
+  await noisePdf(noise, 4)
+  await win.setInputFiles('[data-testid=file-input]', noise)
+  const noiseDeck = win.locator('.deck', { has: win.locator('.name', { hasText: /^noise$/ }) })
+  await noiseDeck.locator('.meta', { hasText: '4 slide' }).waitFor({ timeout: 120_000 })
+  await noiseDeck.click()
+  // From STANDBY the first Next takes slide 1 live.
+  if ((await tally.textContent()) !== 'LIVE') await win.keyboard.press('Space')
+  await win.waitForFunction(() =>
+    document.querySelector('[data-testid=tally]')?.textContent?.includes('LIVE')
+  )
+  await sleep(800)
+  await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Cut')
+  await win.getByRole('radio', { name: 'Fade' }).click()
+  await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Fade')
+  await win.getByRole('radio', { name: 'Cut' }).click()
 
   await stopProbe(win)
 

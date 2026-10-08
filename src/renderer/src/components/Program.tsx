@@ -3,7 +3,8 @@ import type { DeckMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
 import { TALLY_TEXT, tally, type Tally } from '../model'
-import { EndCard, SlideImage } from './Slide'
+import { EndCard } from './Slide'
+import { SlideLayers } from './SlideLayers'
 
 const TALLY_ICON: Partial<Record<Tally, React.JSX.Element>> = {
   frozen: <SnowflakeIcon size={14} />,
@@ -38,11 +39,11 @@ export function Program({
         <div className="pgm-stack">
           <div className="screen" data-black={state.black}>
             {shown ? (
-              <SlideImage
-                key={`${shown.deckId}/${shown.file}`}
+              <SlideLayers
                 src={slideUrl(shown.deckId, shown.file)}
                 fade={state.transition === 'fade'}
-                alt={`Slide ${shown.index + 1} di Program`}
+                layerClass="slide pgm-layer"
+                imgAttrs={() => ({ alt: `Slide ${shown.index + 1} di Program` })}
               />
             ) : (
               <EndCard title="Belum ada slide" sub="Seret file .pptx, .ppt, .pdf ke jendela ini." />
