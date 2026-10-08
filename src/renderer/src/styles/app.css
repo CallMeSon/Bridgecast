@@ -122,6 +122,9 @@ header > .event {
   border-top: 1px solid var(--line);
   margin: 4px 0;
 }
+.menu button kbd {
+  margin-left: auto;
+}
 .menu.ctx-menu {
   position: fixed;
   min-width: 180px;
@@ -526,6 +529,19 @@ main {
 .th.over {
   outline: 2px dashed var(--text-2);
   outline-offset: 2px;
+}
+.deck.rename {
+  grid-template-columns: 20px 1fr;
+  background: var(--raised);
+  cursor: default;
+}
+.deck.rename .text-input {
+  width: 100%;
+  min-width: 0;
+}
+.deck.rename .msg {
+  grid-column: 2;
+  grid-row: 2;
 }
 .deck.confirm {
   grid-template-columns: 20px 1fr;

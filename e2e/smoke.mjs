@@ -1305,6 +1305,43 @@ try {
   await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Fade')
   await win.getByRole('radio', { name: 'Cut' }).click()
 
+  // Rename a deck: right-click > Ganti nama, F2, Escape cancels, empty is refused.
+  const noiseId = await noiseDeck.getAttribute('data-deck-id')
+  await noiseDeck.click({ button: 'right' })
+  await win
+    .getByTestId('deck-menu')
+    .getByRole('menuitem', { name: /Ganti nama/ })
+    .click()
+  const renameInput = win.getByTestId('rename-deck').locator('input')
+  await renameInput.fill('Sesi 1 - Pengenalan materi')
+  await renameInput.press('Enter')
+  const renamed = win.locator('.deck', {
+    has: win.locator('.name', { hasText: /^Sesi 1 - Pengenalan materi$/ })
+  })
+  await renamed.waitFor()
+  const savedDeck = JSON.parse(
+    fs.readFileSync(path.join(userData, 'decks', noiseId, 'deck.json'), 'utf8')
+  )
+  check(
+    savedDeck.name === 'Sesi 1 - Pengenalan materi' && savedDeck.slides.length === 4,
+    'rename from the deck menu saves the new name, slides untouched'
+  )
+  await renamed.focus()
+  await win.keyboard.press('F2')
+  await renameInput.fill('Tidak jadi')
+  await renameInput.press('Escape')
+  await renamed.waitFor()
+  check((await win.getByTestId('rename-deck').count()) === 0, 'F2 opens rename, Escape cancels it')
+  await renamed.focus()
+  await win.keyboard.press('F2')
+  await renameInput.fill('   ')
+  await renameInput.press('Enter')
+  const renameErr = win.getByTestId('rename-deck').getByRole('alert')
+  await renameErr.waitFor()
+  check(/kosong/.test(await renameErr.textContent()), 'an empty name is refused with a message')
+  await renameInput.press('Escape')
+  await renamed.waitFor()
+
   await stopProbe(win)
 
   await hdmiChecks(win)

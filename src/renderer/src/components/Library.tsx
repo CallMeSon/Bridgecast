@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   FilePdfIcon,
   FilePptIcon,
+  PencilSimpleIcon,
   PlusIcon,
   TrashIcon,
   WarningCircleIcon
@@ -9,7 +10,7 @@ import {
 import type { DeckMeta } from '../../../shared/types'
 import type { ShownSlide } from '../../../shared/program'
 import type { ImportProgress } from '../../../shared/ipc'
-import { fileKind, importMeta } from '../model'
+import { errorMessage, fileKind, importMeta } from '../model'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
 export type ImportRow = ImportProgress & { meta?: string }
@@ -28,6 +29,8 @@ interface Props {
   onFiles(files: File[]): void
   onMoveDeck(from: number, to: number): void
   onRemoveDeck(deckId: string): void
+  /** Rejects with an Indonesian message when main refuses the name. */
+  onRenameDeck(deckId: string, name: string): Promise<void>
 }
 
 interface MenuAt {
@@ -36,13 +39,15 @@ interface MenuAt {
   y: number
 }
 
-/** Right-click menu of a deck: one item, closes on Escape, outside click, scroll or blur. */
+/** Right-click menu of a deck; closes on Escape, outside click, scroll or blur. */
 function DeckMenu({
   at,
+  onRename,
   onRemove,
   onClose
 }: {
   at: MenuAt
+  onRename(): void
   onRemove(): void
   onClose(): void
 }): React.JSX.Element {
@@ -74,10 +79,92 @@ function DeckMenu({
       style={{ left: at.x, top: at.y }}
       data-testid="deck-menu"
     >
+      <button role="menuitem" onClick={onRename}>
+        <PencilSimpleIcon className="chk" size={16} />
+        Ganti nama…
+        <kbd className="opt">F2</kbd>
+      </button>
       <button role="menuitem" className="danger" onClick={onRemove}>
         <TrashIcon className="chk" size={16} />
         Hapus deck…
       </button>
+    </div>
+  )
+}
+
+/**
+ * Inline rename in place of the deck row: Enter or leaving the field saves,
+ * Escape cancels. Main validates the name; its message stays under the field.
+ */
+function RenameRow({
+  deck,
+  onSave,
+  onDone
+}: {
+  deck: DeckMeta
+  onSave(name: string): Promise<void>
+  onDone(): void
+}): React.JSX.Element {
+  const [value, setValue] = useState(deck.name)
+  const [error, setError] = useState<string | null>(null)
+  const busy = useRef(false)
+  // Set once the row is closing, so the blur that follows never saves again.
+  const done = useRef(false)
+  const input = useRef<HTMLInputElement>(null)
+  const finish = (): void => {
+    done.current = true
+    onDone()
+  }
+  useEffect(() => {
+    input.current?.focus()
+    input.current?.select()
+  }, [])
+  const save = async (): Promise<void> => {
+    if (busy.current || done.current) return
+    if (value.trim() === deck.name) return finish()
+    busy.current = true
+    try {
+      await onSave(value)
+      finish()
+    } catch (e) {
+      setError(errorMessage(e))
+      input.current?.focus()
+    } finally {
+      busy.current = false
+    }
+  }
+  return (
+    <div className="deck rename" data-no-shortcuts data-testid="rename-deck">
+      {deck.source === 'pdf' ? (
+        <FilePdfIcon className="ph" size={20} />
+      ) : (
+        <FilePptIcon className="ph" size={20} />
+      )}
+      <input
+        ref={input}
+        className="text-input"
+        aria-label={`Nama baru untuk ${deck.name}`}
+        value={value}
+        maxLength={120}
+        spellCheck={false}
+        onChange={(e) => {
+          setValue(e.target.value)
+          setError(null)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save()
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            finish()
+          }
+        }}
+        onBlur={() => void save()}
+      />
+      {error && (
+        <span className="msg" role="alert">
+          {error}
+        </span>
+      )}
     </div>
   )
 }
@@ -131,6 +218,7 @@ export function Library(p: Props): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null)
   const [menu, setMenu] = useState<MenuAt | null>(null)
   const [confirm, setConfirm] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
   const count = p.decks.length
@@ -160,7 +248,14 @@ export function Library(p: Props): React.JSX.Element {
           <div className="empty-lib">Belum ada deck di event ini.</div>
         )}
         {p.decks.map((d, i) =>
-          confirm === d.id ? (
+          renaming === d.id ? (
+            <RenameRow
+              key={d.id}
+              deck={d}
+              onSave={(name) => p.onRenameDeck(d.id, name)}
+              onDone={() => setRenaming(null)}
+            />
+          ) : confirm === d.id ? (
             <ConfirmRemove
               key={d.id}
               deck={d}
@@ -182,8 +277,14 @@ export function Library(p: Props): React.JSX.Element {
               data-deck-id={d.id}
               draggable
               aria-current={d.id === p.currentDeckId ? 'true' : undefined}
-              title="Klik untuk memilih · seret untuk mengurutkan · klik kanan untuk menghapus"
+              title="Klik untuk menayangkan, seret untuk mengurutkan, F2 atau klik kanan untuk ganti nama atau hapus"
               onClick={() => p.onSelectDeck(d.id)}
+              onKeyDown={(e) => {
+                if (e.key !== 'F2') return
+                e.preventDefault()
+                setConfirm(null)
+                setRenaming(d.id)
+              }}
               onContextMenu={(e) => openMenu(e, d.id)}
               onDragStart={(e) => {
                 e.dataTransfer.setData(DECK_TYPE, String(i))
@@ -266,6 +367,10 @@ export function Library(p: Props): React.JSX.Element {
         <DeckMenu
           at={menu}
           onClose={closeMenu}
+          onRename={() => {
+            setRenaming(menu.deckId)
+            setMenu(null)
+          }}
           onRemove={() => {
             setConfirm(menu.deckId)
             setMenu(null)

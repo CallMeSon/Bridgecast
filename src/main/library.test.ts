@@ -139,6 +139,30 @@ describe('Library', () => {
     expect(fs.readFileSync(lib.slidePath(d.id, 2), 'utf8')).toBe('png-0')
   })
 
+  it('renameDeck trims, saves, and keeps slides and order', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const a = lib.addDeck(ev.id, deckInput(2, 'Sesi 2 Paradigma'))
+    const b = lib.addDeck(ev.id, deckInput(1, 'B'))
+    const r = lib.renameDeck(ev.id, a.id, '  Sesi 1 - Pengenalan materi  ')
+    expect(r.name).toBe('Sesi 1 - Pengenalan materi')
+    expect(r.slides).toEqual(a.slides)
+    const again = new Library(root)
+    expect(again.getDecks(ev.id).map((d) => d.name)).toEqual(['Sesi 1 - Pengenalan materi', 'B'])
+    expect(again.getDeck(b.id).name).toBe('B')
+  })
+
+  it('renameDeck rejects an empty or too long name and a deck of another event', () => {
+    const lib = new Library(root)
+    const e1 = lib.createEvent('E1')
+    const e2 = lib.createEvent('E2')
+    const d = lib.addDeck(e1.id, deckInput(1, 'Asli'))
+    expect(() => lib.renameDeck(e1.id, d.id, '   ')).toThrow(/kosong/)
+    expect(() => lib.renameDeck(e1.id, d.id, 'x'.repeat(121))).toThrow(/120 karakter/)
+    expect(() => lib.renameDeck(e2.id, d.id, 'Baru')).toThrow(/tidak ditemukan/)
+    expect(lib.getDeck(d.id).name).toBe('Asli')
+  })
+
   it('removeDeck rejects traversal and foreign ids, deleting nothing', () => {
     const lib = new Library(root)
     const e1 = lib.createEvent('E1')

@@ -208,6 +208,13 @@ function registerIpc(
     }
     state.reorderSlides(deckId, order)
   })
+  handle(Invoke.decksRename, (eventId, deckId, name) => {
+    assertString(eventId, 'Id event')
+    assertString(deckId, 'Id deck')
+    if (typeof name !== 'string')
+      throw new Error('Nama deck tidak valid. Ketik nama lalu coba lagi.')
+    return lib.renameDeck(eventId, deckId, name)
+  })
   handle(Invoke.decksRemove, (eventId, deckId) => {
     assertString(eventId, 'Id event')
     assertString(deckId, 'Id deck')

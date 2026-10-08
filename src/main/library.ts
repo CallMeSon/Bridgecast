@@ -21,6 +21,9 @@ function writeJsonAtomic(file: string, data: unknown): void {
   fs.renameSync(tmp, file)
 }
 
+/** Longest deck name accepted when renaming. */
+export const DECK_NAME_MAX = 120
+
 export class Library {
   private events: EventMeta[]
 
@@ -146,6 +149,24 @@ export class Library {
     // File PNG tetap; hanya urutan di deck.json yang berubah (satu rename atomik).
     const slides = order.map((from) => deck.slides[from])
     this.writeDeck({ ...deck, slides })
+  }
+
+  /** Display name only (e.g. "Sesi 1 - Pengenalan materi"); slides and files stay. */
+  renameDeck(eventId: string, deckId: string, name: string): DeckMeta {
+    const ev = this.findEvent(eventId)
+    if (!ev.deckIds.includes(deckId)) {
+      throw new Error(
+        'Deck tidak ditemukan di event ini. Muat ulang daftar deck lalu pilih deck dari daftar.'
+      )
+    }
+    const trimmed = typeof name === 'string' ? name.trim() : ''
+    if (!trimmed) throw new Error('Nama deck kosong. Isi nama, misalnya "Sesi 1 - Pembukaan".')
+    if (trimmed.length > DECK_NAME_MAX) {
+      throw new Error(`Nama deck terlalu panjang. Pakai paling banyak ${DECK_NAME_MAX} karakter.`)
+    }
+    const deck = { ...this.readDeck(deckId), name: trimmed }
+    this.writeDeck(deck)
+    return deck
   }
 
   removeDeck(eventId: string, deckId: string): void {

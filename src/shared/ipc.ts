@@ -14,6 +14,7 @@ export const Invoke = {
   decksReorder: 'decks:reorder',
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
+  decksRename: 'decks:rename',
   programDispatch: 'program:dispatch',
   programGet: 'program:get',
   settingsGet: 'settings:get',
@@ -91,6 +92,7 @@ export interface InvokeMap {
   'decks:reorder': { args: [eventId: string, deckIds: string[]]; result: void }
   'slides:reorder': { args: [deckId: string, order: number[]]; result: void }
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
+  'decks:rename': { args: [eventId: string, deckId: string, name: string]; result: DeckMeta }
   'program:dispatch': { args: [action: Action]; result: ProgramState }
   'program:get': { args: []; result: Session }
   'settings:get': { args: []; result: Settings }
@@ -128,6 +130,8 @@ export interface Api {
   reorderDecks(eventId: string, deckIds: string[]): Promise<void>
   reorderSlides(deckId: string, order: number[]): Promise<void>
   removeDeck(eventId: string, deckId: string): Promise<void>
+  /** Display name only; validated in main (not empty, at most 120 characters). */
+  renameDeck(eventId: string, deckId: string, name: string): Promise<DeckMeta>
   dispatch(action: Action): Promise<ProgramState>
   getSession(): Promise<Session>
   onProgramState(cb: (s: ProgramState) => void): () => void

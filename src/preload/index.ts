@@ -37,6 +37,7 @@ const api: Api = {
   reorderDecks: (eventId, deckIds) => invoke(Invoke.decksReorder, eventId, deckIds),
   reorderSlides: (deckId, order) => invoke(Invoke.slidesReorder, deckId, order),
   removeDeck: (eventId, deckId) => invoke(Invoke.decksRemove, eventId, deckId),
+  renameDeck: (eventId, deckId, name) => invoke(Invoke.decksRename, eventId, deckId, name),
   dispatch: (action) => invoke(Invoke.programDispatch, action),
   getSession: () => invoke(Invoke.programGet),
   onProgramState: (cb) => subscribe(Broadcast.programState, cb),

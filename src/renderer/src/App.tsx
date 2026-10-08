@@ -258,6 +258,17 @@ function App(): React.JSX.Element {
     [api, decks, reloadDecks, reportError]
   )
 
+  // Rename: main validates and saves; errors are shown in the row by Library.
+  const renameDeck = useCallback(
+    async (deckId: string, name: string) => {
+      const target = eventRef.current
+      if (!target) return
+      await api.renameDeck(target, deckId, name)
+      await reloadDecks(target)
+    },
+    [api, reloadDecks]
+  )
+
   const moveSlide = useCallback(
     (deckId: string, from: number, to: number) => {
       const target = eventRef.current
@@ -320,6 +331,7 @@ function App(): React.JSX.Element {
           onFiles={importFiles}
           onMoveDeck={moveDeck}
           onRemoveDeck={removeDeck}
+          onRenameDeck={renameDeck}
         />
         <section className="stage-col" aria-label="Program">
           <Program state={program} deck={deck} />
