@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  DotsThreeVerticalIcon,
   ArrowDownIcon,
   ArrowUpIcon,
   FilePdfIcon,
@@ -432,78 +433,95 @@ export function Library(p: Props): React.JSX.Element {
               onCancel={() => setConfirm(null)}
             />
           ) : (
-            <button
-              key={d.id}
-              className={
-                'deck' +
-                (p.live?.deckId === d.id ? ' live' : '') +
-                (p.frozen?.deckId === d.id ? ' frozen' : '') +
-                (dragging === i ? ' dragging' : '') +
-                (over === i ? ' over' : '')
-              }
-              data-deck-id={d.id}
-              draggable
-              aria-current={d.id === p.currentDeckId ? 'true' : undefined}
-              title="Click to take this deck live. Drag, or press Alt+↑/↓, to reorder. F2 or right-click to rename or remove."
-              onClick={() => p.onSelectDeck(d.id)}
-              onKeyDown={(e) => {
-                if (e.altKey) {
-                  // Keyboard reorder (Alt+Up/Down); never reaches the Prev/Next shortcuts.
-                  const to = reorderTarget(e.key, 'vertical', i, count)
-                  if (to === null) return
-                  e.preventDefault()
-                  if (!e.repeat) moveDeck(i, to)
-                  return
+            <div key={d.id} className="deck-row">
+              <button
+                className={
+                  'deck' +
+                  (p.live?.deckId === d.id ? ' live' : '') +
+                  (p.frozen?.deckId === d.id ? ' frozen' : '') +
+                  (dragging === i ? ' dragging' : '') +
+                  (over === i ? ' over' : '')
                 }
-                if (e.key !== 'F2') return
-                e.preventDefault()
-                setConfirm(null)
-                setRenaming(d.id)
-              }}
-              onContextMenu={(e) => openMenu(e, d.id)}
-              onDragStart={(e) => {
-                e.dataTransfer.setData(DECK_TYPE, String(i))
-                e.dataTransfer.effectAllowed = 'move'
-                setDragging(i)
-              }}
-              onDragEnd={() => {
-                setDragging(null)
-                setOver(null)
-              }}
-              onDragOver={(e) => {
-                if (!e.dataTransfer.types.includes(DECK_TYPE)) return
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-                if (over !== i) setOver(i)
-              }}
-              onDragLeave={() => setOver((o) => (o === i ? null : o))}
-              onDrop={(e) => {
-                const from = e.dataTransfer.getData(DECK_TYPE)
-                if (from === '') return
-                e.preventDefault()
-                e.stopPropagation()
-                setDragging(null)
-                setOver(null)
-                p.onMoveDeck(Number(from), i)
-              }}
-            >
-              {d.source === 'pdf' ? (
-                <FilePdfIcon className="ph" size={20} />
-              ) : (
-                <FilePptIcon className="ph" size={20} />
-              )}
-              <span className="name" title={d.name}>
-                {d.name}
-              </span>
-              <span className="meta">{countOf(d.slides.length, 'slide')}</span>
-              <span className="sub">
-                {p.live?.deckId === d.id
-                  ? `LIVE, slide ${p.live.index + 1}`
-                  : p.frozen?.deckId === d.id
-                    ? `FROZEN, slide ${p.frozen.index + 1}`
-                    : `.${d.source}`}
-              </span>
-            </button>
+                data-deck-id={d.id}
+                draggable
+                aria-current={d.id === p.currentDeckId ? 'true' : undefined}
+                title="Click to take this deck live. Drag, or press Alt+↑/↓, to reorder. F2 or right-click to rename or remove."
+                onClick={() => p.onSelectDeck(d.id)}
+                onKeyDown={(e) => {
+                  if (e.altKey) {
+                    // Keyboard reorder (Alt+Up/Down); never reaches the Prev/Next shortcuts.
+                    const to = reorderTarget(e.key, 'vertical', i, count)
+                    if (to === null) return
+                    e.preventDefault()
+                    if (!e.repeat) moveDeck(i, to)
+                    return
+                  }
+                  if (e.key !== 'F2') return
+                  e.preventDefault()
+                  setConfirm(null)
+                  setRenaming(d.id)
+                }}
+                onContextMenu={(e) => openMenu(e, d.id)}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(DECK_TYPE, String(i))
+                  e.dataTransfer.effectAllowed = 'move'
+                  setDragging(i)
+                }}
+                onDragEnd={() => {
+                  setDragging(null)
+                  setOver(null)
+                }}
+                onDragOver={(e) => {
+                  if (!e.dataTransfer.types.includes(DECK_TYPE)) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  if (over !== i) setOver(i)
+                }}
+                onDragLeave={() => setOver((o) => (o === i ? null : o))}
+                onDrop={(e) => {
+                  const from = e.dataTransfer.getData(DECK_TYPE)
+                  if (from === '') return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setDragging(null)
+                  setOver(null)
+                  p.onMoveDeck(Number(from), i)
+                }}
+              >
+                {d.source === 'pdf' ? (
+                  <FilePdfIcon className="ph" size={20} />
+                ) : (
+                  <FilePptIcon className="ph" size={20} />
+                )}
+                <span className="name" title={d.name}>
+                  {d.name}
+                </span>
+                <span className="meta">{countOf(d.slides.length, 'slide')}</span>
+                <span className="sub">
+                  {p.live?.deckId === d.id
+                    ? `LIVE, slide ${p.live.index + 1}`
+                    : p.frozen?.deckId === d.id
+                      ? `FROZEN, slide ${p.frozen.index + 1}`
+                      : `.${d.source}`}
+                </span>
+              </button>
+              {/* Visible way to the deck menu (also: right-click, F2). */}
+              <button
+                className="deck-more"
+                aria-label={`Options for ${d.name}`}
+                aria-haspopup="menu"
+                aria-expanded={menu?.deckId === d.id}
+                title="Rename or remove"
+                data-testid="deck-more"
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  setConfirm(null)
+                  setMenu({ deckId: d.id, x: Math.max(8, r.right - 200), y: r.bottom + 4 })
+                }}
+              >
+                <DotsThreeVerticalIcon size={18} weight="bold" />
+              </button>
+            </div>
           )
         )}
         {p.imports.map((x) =>

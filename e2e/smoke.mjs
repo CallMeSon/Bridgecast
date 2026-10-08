@@ -470,8 +470,8 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     const fromIdx = before.indexOf('dropped') + 1
     await dragOnto(
       win,
-      `[data-testid=decks] > .deck:nth-child(${fromIdx})`,
-      '[data-testid=decks] > .deck:nth-child(1)'
+      `[data-testid=decks] > .deck-row:nth-child(${fromIdx}) > .deck`,
+      '[data-testid=decks] > .deck-row:nth-child(1) > .deck'
     )
     await win.waitForFunction(
       () => document.querySelector('[data-testid=decks] .deck .name')?.textContent === 'dropped'
@@ -1799,6 +1799,19 @@ try {
 
   // Rename a deck: right-click > Rename, F2, Escape cancels, empty is refused.
   const noiseId = await noiseDeck.getAttribute('data-deck-id')
+  // The options button (three dots) opens the same deck menu as right-click.
+  await win
+    .locator('.deck-row', { has: win.locator('.name', { hasText: /^noise$/ }) })
+    .getByTestId('deck-more')
+    .click()
+  const viaDots = win.getByTestId('deck-menu')
+  await viaDots.waitFor()
+  check(
+    (await viaDots.getByRole('menuitem').allTextContents()).some((t) => /Rename/.test(t)),
+    'the three-dots button opens the deck menu (rename, remove)'
+  )
+  await win.keyboard.press('Escape')
+  await viaDots.waitFor({ state: 'detached' })
   await noiseDeck.click({ button: 'right' })
   await win
     .getByTestId('deck-menu')
