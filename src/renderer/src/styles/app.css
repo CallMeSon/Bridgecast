@@ -27,8 +27,12 @@ h2 {
 
 .app {
   height: 100%;
+  position: relative;
   display: grid;
-  grid-template-rows: 44px minmax(0, 1fr) 128px;
+  grid-template-rows: 44px minmax(0, 1fr) var(--strip-h, 128px);
+}
+.app[data-resizing] {
+  user-select: none;
 }
 
 /* top bar */
@@ -315,7 +319,7 @@ header > .theme {
 /* columns */
 main {
   display: grid;
-  grid-template-columns: 256px minmax(0, 1fr) 320px;
+  grid-template-columns: var(--left-w, 256px) minmax(0, 1fr) var(--right-w, 320px);
   min-height: 0;
 }
 .left,
@@ -909,7 +913,7 @@ kbd {
 /* strip */
 footer {
   display: grid;
-  grid-template-columns: 256px minmax(0, 1fr);
+  grid-template-columns: var(--left-w, 256px) minmax(0, 1fr);
   min-height: 0;
   border-top: 1px solid var(--line-hi);
   background: var(--panel);
@@ -1023,6 +1027,64 @@ footer .empty {
   color: var(--on-cue);
 }
 
+/* splitters: a thin hit area over the existing 1px panel rule */
+.splitter {
+  position: absolute;
+  z-index: 4;
+  touch-action: none;
+  outline: none;
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+  background: transparent;
+}
+.splitter:hover::after,
+.splitter:focus-visible::after {
+  background: var(--text-3);
+}
+.splitter[data-dragging]::after {
+  background: var(--text-2);
+}
+.splitter[data-axis='left'],
+.splitter[data-axis='right'] {
+  top: 44px;
+  bottom: var(--strip-h, 128px);
+  width: 6px;
+  cursor: col-resize;
+}
+.splitter[data-axis='left']::after,
+.splitter[data-axis='right']::after {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+}
+.splitter[data-axis='left'] {
+  left: calc(var(--left-w, 256px) - 3px);
+}
+.splitter[data-axis='left']::after {
+  left: 1px;
+}
+.splitter[data-axis='right'] {
+  right: calc(var(--right-w, 320px) - 3px);
+}
+.splitter[data-axis='right']::after {
+  left: 3px;
+}
+.splitter[data-axis='strip'] {
+  left: 0;
+  right: 0;
+  bottom: calc(var(--strip-h, 128px) - 3px);
+  height: 6px;
+  cursor: row-resize;
+}
+.splitter[data-axis='strip']::after {
+  left: 0;
+  right: 0;
+  top: 1px;
+  height: 2px;
+}
+
 /* drop overlay (files dragged in from Explorer) */
 .overlay {
   position: fixed;
@@ -1051,10 +1113,10 @@ footer .empty {
 /* Narrower windows: tighter side columns, and the secondary key hints go. */
 @media (max-width: 1400px) {
   main {
-    grid-template-columns: 232px minmax(0, 1fr) 288px;
+    grid-template-columns: var(--left-w, 232px) minmax(0, 1fr) var(--right-w, 288px);
   }
   footer {
-    grid-template-columns: 232px minmax(0, 1fr);
+    grid-template-columns: var(--left-w, 232px) minmax(0, 1fr);
   }
   .controls kbd.opt {
     display: none;

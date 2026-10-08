@@ -1129,6 +1129,43 @@ try {
   const stage = await win.locator('.stage-col').evaluate((e) => e.scrollHeight <= e.clientHeight)
   check(stage, 'stage column does not scroll at 1280×720')
 
+  // Resizable panels: drag, double-click reset, persistence, keyboard.
+  const widths = () =>
+    win.evaluate(() => ({
+      left: document.querySelector('.left').getBoundingClientRect().width,
+      stage: document.querySelector('.stage-col').getBoundingClientRect().width
+    }))
+  const w0 = await widths()
+  const grip = await win.getByTestId('splitter-left').boundingBox()
+  const gx = grip.x + grip.width / 2
+  const gy = grip.y + grip.height / 2
+  await win.mouse.move(gx, gy)
+  await win.mouse.down()
+  await win.mouse.move(gx + 80, gy, { steps: 5 })
+  await win.mouse.up()
+  const w1 = await widths()
+  check(
+    Math.abs(w1.left - (w0.left + 80)) <= 2 && w1.stage < w0.stage,
+    'dragging the deck splitter widens Library and narrows Program'
+  )
+  await win.reload()
+  await win.waitForSelector('.app')
+  check(Math.abs((await widths()).left - w1.left) <= 1, 'panel width is restored after reload')
+  await win.getByTestId('splitter-left').dblclick()
+  check(Math.abs((await widths()).left - w0.left) <= 1, 'double-click resets the splitter')
+  const posBefore = await pos.textContent()
+  await win.getByTestId('splitter-strip').focus()
+  await win.keyboard.press('ArrowUp')
+  const sh = await win.evaluate(
+    () => document.querySelector('footer').getBoundingClientRect().height
+  )
+  check(
+    Math.abs(sh - 144) <= 1 && (await pos.textContent()) === posBefore,
+    `ArrowUp on the strip splitter resizes it without changing slides (strip ${sh}px)`
+  )
+  await win.getByTestId('splitter-strip').dblclick()
+  await win.locator('.stage-col').click({ position: { x: 5, y: 5 } })
+
   await win.screenshot({ path: shot })
   console.log(`screenshot: ${shot}`)
 
