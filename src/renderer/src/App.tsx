@@ -9,6 +9,7 @@ import { Program } from './components/Program'
 import { Controls } from './components/Controls'
 import { NextPanel } from './components/NextPanel'
 import { Strip } from './components/Strip'
+import { Splitters } from './components/Splitters'
 import {
   baseName,
   canNext,
@@ -38,6 +39,7 @@ function App(): React.JSX.Element {
   const [imports, setImports] = useState<ImportRow[]>([])
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const eventRef = useRef<string | null>(null)
+  const appRef = useRef<HTMLDivElement>(null)
 
   const upsertImport = useCallback((p: ImportRow) => {
     setImports((xs) => {
@@ -310,7 +312,7 @@ function App(): React.JSX.Element {
   const ready = deck !== null
 
   return (
-    <div className="app">
+    <div className="app" ref={appRef}>
       <Header
         events={events}
         eventId={eventId}
@@ -350,6 +352,7 @@ function App(): React.JSX.Element {
         onGoto={(index) => dispatch({ type: 'goto', index })}
         onMoveSlide={moveSlide}
       />
+      <Splitters appRef={appRef} />
       <DropOverlay onDrop={({ files, folders }) => importFiles(files, folders)} />
     </div>
   )
