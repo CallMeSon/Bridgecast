@@ -28,6 +28,7 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] Deck 4:3 tampil utuh dengan bar hitam di kiri dan kanan.
 - [ ] Next 50 kali berturut-turut (Space/→). Tidak ada slide yang terlewat atau tertinggal.
 - [ ] Prev (←), Freeze (F), Black (B), dan transisi Fade. Layar kedua mengikuti semuanya.
+- [ ] Freeze, lalu Next beberapa kali: layar kedua tetap, panel kanan "Tayang saat Unfreeze" menampilkan slide yang dipilih. Unfreeze: slide itu langsung tayang.
 - [ ] Dengan clicker presentasi (jendela operator aktif): tombol maju/mundur menggeser slide, tombol layar hitam memicu Black.
 - [ ] "Lanjut otomatis ke deck berikutnya" mati: clicker di slide terakhir tidak pindah ke deck berikutnya. Hidupkan: clicker lanjut ke deck berikutnya. Tutup dan buka aplikasi: pilihannya tetap.
 - [ ] Cabut kabel HDMI saat live. Layar operator tidak tertutup; status menjadi "HDMI tersembunyi".
@@ -37,6 +38,8 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 ## Library dan event
 
 - [ ] Urutkan deck dan slide dengan drag. Output tidak berubah saat mengurutkan.
+- [ ] Ganti nama deck (klik kanan, Ganti nama, atau F2) menjadi misalnya "Sesi 1 - Pengenalan materi". Nama tetap setelah aplikasi dibuka ulang.
+- [ ] Ubah lebar panel Deck dan Slide berikutnya serta tinggi strip. Semua tombol kontrol tetap terlihat. Tutup dan buka ulang: ukuran tetap.
 - [ ] Hapus deck yang sedang tampil (klik kanan, Hapus deck…, Hapus). Output menjadi hitam tanpa gambar rusak.
 - [ ] Ganti ke event lain saat live. Output tetap sampai operator memilih slide baru.
 - [ ] Tutup aplikasi lalu buka lagi. Event, deck, urutan, tema, dan pilihan layar HDMI masih ada.
