@@ -2,14 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { DeckMeta, SlideMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { thumbUrl } from '../../../shared/ipc'
-import {
-  countOf,
-  currentDeck,
-  reorderTarget,
-  slideLabel,
-  slideRole,
-  type SlideRole
-} from '../model'
+import { currentDeck, reorderTarget, slideLabel, slideRole, type SlideRole } from '../model'
 import { SlideImage } from './Slide'
 
 const SLIDE_TYPE = 'application/x-ppt-share-slide'
@@ -154,12 +147,6 @@ export function Strip({ decks, state, onGoto, onMoveSlide }: Props): React.JSX.E
   return (
     // role=region: a <footer> inside the app shell must not announce as page contentinfo.
     <footer ref={ref} role="region" aria-label="Slide strip" data-testid="strip">
-      <div className="lab">
-        <span className="nm" title={deck.name}>
-          {deck.name}
-        </span>
-        <span className="m">{countOf(deck.slides.length, 'slide')}</span>
-      </div>
       <div className="strip-main">
         <div className="thumbs" role="group" aria-label={`Slides in ${deck.name}`}>
           {deck.slides.map((s, i) => (

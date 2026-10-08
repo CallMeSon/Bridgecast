@@ -1101,7 +1101,7 @@ kbd {
 /* strip */
 footer {
   display: grid;
-  grid-template-columns: var(--left-w, 256px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   border-top: 1px solid var(--line-hi);
   background: var(--panel);
@@ -1110,24 +1110,6 @@ footer .empty {
   grid-column: 1 / -1;
   align-self: center;
   padding: 0 16px;
-  color: var(--text-3);
-}
-.lab {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border-right: 1px solid var(--line);
-  min-width: 0;
-}
-.lab .nm {
-  font-weight: 600;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.lab .m {
-  font: 400 13px var(--font-mono);
   color: var(--text-3);
 }
 .strip-main {
@@ -1332,9 +1314,6 @@ footer .empty {
 @media (max-width: 1400px) {
   main {
     grid-template-columns: var(--left-w, 232px) minmax(0, 1fr) var(--right-w, 288px);
-  }
-  footer {
-    grid-template-columns: var(--left-w, 232px) minmax(0, 1fr);
   }
   .controls kbd.opt {
     display: none;
