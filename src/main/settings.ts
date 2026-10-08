@@ -5,9 +5,10 @@ import { DEFAULT_HDMI, sanitizeSettings, type Settings } from '../shared/setting
 
 export type { Settings } from '../shared/settings'
 
-/** Spec default: HDMI off. */
+/** Spec defaults: HDMI off, no auto advance to the next deck. */
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
-  hdmi: DEFAULT_HDMI
+  hdmi: DEFAULT_HDMI,
+  autoAdvance: false
 })
 
 /**

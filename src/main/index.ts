@@ -248,7 +248,15 @@ class SettingsStore {
 
   /** Saves HDMI settings (validated by the caller). */
   saveHdmi(hdmi: HdmiSettings): Settings {
-    const next = sanitizeSettings({ ...this.settings, hdmi })
+    return this.save({ ...this.settings, hdmi })
+  }
+
+  saveAutoAdvance(autoAdvance: boolean): Settings {
+    return this.save({ ...this.settings, autoAdvance })
+  }
+
+  private save(input: Settings): Settings {
+    const next = sanitizeSettings(input)
     try {
       saveSettings(this.file, next)
     } catch (err) {
@@ -364,8 +372,17 @@ Lokasi: ${root}`
     app.quit()
     return
   }
-  const state = new AppState(lib)
   const settings = new SettingsStore(join(root, 'settings.json'))
+  const state = new AppState(lib, settings.get().autoAdvance)
+  // The auto advance toggle is part of the program state; keep it saved.
+  state.onChange((s) => {
+    if (s.autoAdvance === settings.get().autoAdvance) return
+    try {
+      settings.saveAutoAdvance(s.autoAdvance)
+    } catch (err) {
+      console.error('[settings] lanjut otomatis tidak bisa disimpan:', err)
+    }
+  })
   const hdmi = createHdmiOutput(settings)
   app.on('before-quit', () => hdmi.shutdown())
   registerSlideProtocol(root, lib)

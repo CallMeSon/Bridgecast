@@ -3,6 +3,7 @@ import type { DeckMeta } from '../../shared/types'
 import { initialState, type ProgramState } from '../../shared/program'
 import {
   baseName,
+  canNext,
   canPrev,
   errorMessage,
   fileKind,
@@ -51,9 +52,14 @@ describe('nextView', () => {
       notes: 'n1'
     })
   })
-  it('shows end of deck with the next ready deck name', () => {
-    expect(nextView(decks, at('a', 1))).toEqual({ kind: 'end', nextDeck: 'B' })
-    expect(nextView(decks, at('b', 0))).toEqual({ kind: 'end', nextDeck: null })
+  it('shows end of deck with the next ready deck name and whether Next goes there', () => {
+    expect(nextView(decks, at('a', 1, { autoAdvance: true }))).toEqual({
+      kind: 'end',
+      nextDeck: 'B',
+      auto: true
+    })
+    expect(nextView(decks, at('a', 1))).toEqual({ kind: 'end', nextDeck: 'B', auto: false })
+    expect(nextView(decks, at('b', 0))).toEqual({ kind: 'end', nextDeck: null, auto: false })
   })
   it('shows the current slide while nothing of this event is shown (Next takes it)', () => {
     expect(nextView(decks, at('a', 0, { shown: null }))).toEqual({
@@ -80,10 +86,25 @@ describe('canPrev', () => {
   it('is false on the first slide of the first deck, true otherwise', () => {
     expect(canPrev(decks, at('a', 0))).toBe(false)
     expect(canPrev(decks, at('a', 1))).toBe(true)
-    expect(canPrev(decks, at('b', 0))).toBe(true)
+    expect(canPrev(decks, at('b', 0, { autoAdvance: true }))).toBe(true)
+    // Auto advance off: Prev never leaves the live deck.
+    expect(canPrev(decks, at('b', 0))).toBe(false)
     expect(canPrev([], at(null, 0))).toBe(false)
     // Prev takes the position live while STANDBY, so it is enabled.
     expect(canPrev(decks, at('a', 0, { shown: null }))).toBe(true)
+  })
+})
+
+describe('canNext', () => {
+  const decks = [deck('a', 2, 'A'), deck('b', 1, 'B')]
+  it('is false at the end of the live deck unless auto advance goes on', () => {
+    expect(canNext(decks, at('a', 0))).toBe(true)
+    expect(canNext(decks, at('a', 1))).toBe(false)
+    expect(canNext(decks, at('a', 1, { autoAdvance: true }))).toBe(true)
+    expect(canNext(decks, at('b', 0, { autoAdvance: true }))).toBe(false)
+    expect(canNext([], at(null, 0))).toBe(false)
+    // STANDBY on the last slide: Next takes it live.
+    expect(canNext(decks, at('a', 1, { shown: null }))).toBe(true)
   })
 })
 
@@ -106,6 +127,11 @@ describe('keyToAction', () => {
     expect(keyToAction({ key: 'F', target: body })).toEqual({ type: 'toggleFreeze' })
     expect(keyToAction({ key: 'b', target: body })).toEqual({ type: 'toggleBlack' })
     expect(keyToAction({ key: 'x', target: body })).toBeNull()
+  })
+  it('maps presentation clicker keys', () => {
+    expect(keyToAction({ key: 'PageDown', target: body })).toEqual({ type: 'next' })
+    expect(keyToAction({ key: 'PageUp', target: body })).toEqual({ type: 'prev' })
+    expect(keyToAction({ key: '.', target: body })).toEqual({ type: 'toggleBlack' })
   })
   it('ignores typing targets, modifiers and repeated toggles', () => {
     for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) {

@@ -6,7 +6,7 @@ import type { HdmiSettings } from '../../shared/settings'
 export type NextView =
   | { kind: 'none' }
   | { kind: 'slide'; deckId: string; index: number; file: string; notes: string }
-  | { kind: 'end'; nextDeck: string | null }
+  | { kind: 'end'; nextDeck: string | null; auto: boolean }
 
 export function currentDeck(decks: DeckMeta[], s: ProgramState): DeckMeta | null {
   const d = decks.find((x) => x.id === s.deckId)
@@ -35,13 +35,20 @@ export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
   }
   const pos = decks.indexOf(deck)
   const nd = decks.slice(pos + 1).find((d) => d.slides.length > 0)
-  return { kind: 'end', nextDeck: nd ? nd.name : null }
+  return { kind: 'end', nextDeck: nd ? nd.name : null, auto: s.autoAdvance }
+}
+
+/** Next has somewhere to go (it is a no-op at the end of the live deck while auto advance is off). */
+export function canNext(decks: DeckMeta[], s: ProgramState): boolean {
+  const nx = nextView(decks, s)
+  return nx.kind === 'slide' || (nx.kind === 'end' && nx.auto && nx.nextDeck !== null)
 }
 
 export function canPrev(decks: DeckMeta[], s: ProgramState): boolean {
   const deck = currentDeck(decks, s)
   if (!deck) return false
   if (pendingTake(s, decks) || s.index > 0) return true
+  if (!s.autoAdvance) return false
   return decks.slice(0, decks.indexOf(deck)).some((d) => d.slides.length > 0)
 }
 
@@ -90,14 +97,17 @@ export function keyToAction(e: KeyLike): Action | null {
   switch (e.key) {
     case ' ':
     case 'ArrowRight':
+    case 'PageDown': // presentation clickers
       return { type: 'next' }
     case 'ArrowLeft':
+    case 'PageUp':
       return { type: 'prev' }
     case 'f':
     case 'F':
       return e.repeat ? null : { type: 'toggleFreeze' }
     case 'b':
     case 'B':
+    case '.': // the "blank screen" button of many clickers
       return e.repeat ? null : { type: 'toggleBlack' }
     default:
       return null

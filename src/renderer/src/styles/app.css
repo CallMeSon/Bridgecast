@@ -864,6 +864,14 @@ kbd {
   font: 400 12px var(--font-mono);
   color: var(--text-2);
 }
+.auto-adv {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+}
 .notes {
   border-top: 1px solid var(--line);
   padding-top: 12px;

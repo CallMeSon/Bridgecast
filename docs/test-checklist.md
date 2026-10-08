@@ -28,6 +28,8 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] Deck 4:3 tampil utuh dengan bar hitam di kiri dan kanan.
 - [ ] Next 50 kali berturut-turut (Space/→). Tidak ada slide yang terlewat atau tertinggal.
 - [ ] Prev (←), Freeze (F), Black (B), dan transisi Fade. Layar kedua mengikuti semuanya.
+- [ ] Dengan clicker presentasi (jendela operator aktif): tombol maju/mundur menggeser slide, tombol layar hitam memicu Black.
+- [ ] "Lanjut otomatis ke deck berikutnya" mati: clicker di slide terakhir tidak pindah ke deck berikutnya. Hidupkan: clicker lanjut ke deck berikutnya. Tutup dan buka aplikasi: pilihannya tetap.
 - [ ] Cabut kabel HDMI saat live. Layar operator tidak tertutup; status menjadi "HDMI tersembunyi".
 - [ ] Colok lagi. Output kembali fullscreen di layar yang sama dengan slide yang sedang live.
 - [ ] Biarkan output tampil 30 menit sambil sesekali Next. Tidak ada kedip, hitam mendadak, atau jendela yang pindah.

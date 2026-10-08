@@ -16,12 +16,15 @@ afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
 
 describe('loadSettings / saveSettings', () => {
   it('returns the defaults when the file does not exist', () => {
-    expect(loadSettings(file)).toEqual({ hdmi: { enabled: false, displayId: null } })
+    expect(loadSettings(file)).toEqual({
+      hdmi: { enabled: false, displayId: null },
+      autoAdvance: false
+    })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
   })
 
   it('save then load returns the same values', () => {
-    const s = { hdmi: { enabled: true, displayId: 2528732444 } }
+    const s = { hdmi: { enabled: true, displayId: 2528732444 }, autoAdvance: true }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
   })
@@ -58,13 +61,19 @@ describe('hdmi settings', () => {
   it('an old settings file with ndi and without hdmi loads with the hdmi defaults', () => {
     const ndi = { enabled: false, name: 'Aula', width: 1920, height: 1080, fps: 60 }
     fs.writeFileSync(file, JSON.stringify({ ndi }))
-    expect(loadSettings(file)).toEqual({ hdmi: { enabled: false, displayId: null } })
+    expect(loadSettings(file)).toEqual({
+      hdmi: { enabled: false, displayId: null },
+      autoAdvance: false
+    })
   })
 
   it('an old settings file keeps its hdmi values and drops ndi', () => {
     const ndi = { enabled: true, name: 'PPT Share', width: 1920, height: 1080, fps: 30 }
     fs.writeFileSync(file, JSON.stringify({ ndi, hdmi: { enabled: true, displayId: 7 } }))
-    expect(loadSettings(file)).toEqual({ hdmi: { enabled: true, displayId: 7 } })
+    expect(loadSettings(file)).toEqual({
+      hdmi: { enabled: true, displayId: 7 },
+      autoAdvance: false
+    })
   })
 
   it('a displayId that is not an integer becomes null', () => {
@@ -80,6 +89,12 @@ describe('hdmi settings', () => {
       displayId: 5
     })
     expect(sanitizeSettings({ hdmi: 'on' }).hdmi).toEqual({ enabled: false, displayId: null })
+  })
+
+  it('autoAdvance is a boolean, off when missing or invalid', () => {
+    expect(sanitizeSettings({ autoAdvance: true }).autoAdvance).toBe(true)
+    expect(sanitizeSettings({ autoAdvance: 'ya' }).autoAdvance).toBe(false)
+    expect(sanitizeSettings({}).autoAdvance).toBe(false)
   })
 
   it('drops unknown fields', () => {

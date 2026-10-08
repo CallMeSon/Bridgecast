@@ -1178,6 +1178,48 @@ try {
     () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
   )
 
+  // Auto advance (default off): a clicker cannot run into the next deck.
+  const waitPos = (p) =>
+    win.waitForFunction((x) => document.querySelector('[data-testid=pos]')?.textContent === x, p)
+  const autoSw = win.getByTestId('auto-advance')
+  const nextBtn = win.locator('.cbtn.next')
+  const savedAuto = () =>
+    JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).autoAdvance
+  check((await autoSw.getAttribute('aria-checked')) === 'false', 'auto advance is off by default')
+  await win.keyboard.press('PageDown') // clicker Next
+  await waitPos('3 / 3')
+  check(
+    (await cap.textContent()) === 'Next berhenti di sini. Pilih sample-4x3 untuk lanjut.' &&
+      (await nextBtn.isDisabled()),
+    `off: end of deck says Next stops, Next disabled ("${await cap.textContent()}")`
+  )
+  await win.keyboard.press('PageDown')
+  await win.keyboard.press('Space')
+  await sleep(300)
+  check(
+    (await pos.textContent()) === '3 / 3' &&
+      (await win.locator('.deck.live .name').textContent()) === 'sample',
+    'off: PageDown and Space on the last slide stay in the live deck'
+  )
+  await autoSw.click()
+  await win.locator('[data-testid=auto-advance][aria-checked=true]').waitFor()
+  check(
+    (await cap.textContent()) === 'Berikutnya: sample-4x3' && !(await nextBtn.isDisabled()),
+    'on: Next panel names the next deck, Next enabled'
+  )
+  await win.keyboard.press('PageDown')
+  await waitPos('1 / 2')
+  check(true, 'on: PageDown on the last slide goes on to the next deck')
+  await win.keyboard.press('PageUp')
+  await waitPos('3 / 3')
+  check(true, 'on: PageUp on the first slide goes back to the previous deck')
+  check(savedAuto() === true, 'auto advance saved in settings.json')
+  await autoSw.click()
+  await win.locator('[data-testid=auto-advance][aria-checked=false]').waitFor()
+  check(savedAuto() === false, 'turning it off is saved too')
+  await win.keyboard.press('PageUp')
+  await waitPos('2 / 3')
+
   // Optional: PPTX through PowerPoint COM (needs PowerPoint installed).
   if (process.env.PPT_E2E === '1') {
     await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample-4x3.pptx'))

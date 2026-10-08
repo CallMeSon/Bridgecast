@@ -19,6 +19,12 @@ export interface ProgramState {
   frozen: boolean
   black: boolean
   transition: 'cut' | 'fade'
+  /**
+   * Next on the last slide goes on to the next deck (and Prev on the first
+   * slide back to the previous one). Off: navigation stays inside the live
+   * deck, so a speaker's clicker cannot run into the next presentation.
+   */
+  autoAdvance: boolean
 }
 
 export type Action =
@@ -29,6 +35,7 @@ export type Action =
   | { type: 'toggleFreeze' }
   | { type: 'toggleBlack' }
   | { type: 'setTransition'; transition: 'cut' | 'fade' }
+  | { type: 'setAutoAdvance'; on: boolean }
 
 type DeckLike = Pick<DeckMeta, 'id' | 'slides'>
 
@@ -38,7 +45,8 @@ export const initialState: ProgramState = {
   shown: null,
   frozen: false,
   black: false,
-  transition: 'cut'
+  transition: 'cut',
+  autoAdvance: false
 }
 
 /** Move the operator position (index must exist in deck); `shown` follows unless frozen. */
@@ -53,7 +61,7 @@ function moveTo(state: ProgramState, deck: DeckLike, index: number): ProgramStat
 
 function step(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramState {
   const flat: { deck: DeckLike; index: number }[] = []
-  for (const d of decks) {
+  for (const d of state.autoAdvance ? decks : decks.filter((x) => x.id === state.deckId)) {
     for (let i = 0; i < d.slides.length; i++) flat.push({ deck: d, index: i })
   }
   const pos = flat.findIndex((p) => p.deck.id === state.deckId && p.index === state.index)
@@ -160,6 +168,8 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
       return { ...state, black: !state.black }
     case 'setTransition':
       return { ...state, transition: action.transition }
+    case 'setAutoAdvance':
+      return typeof action.on === 'boolean' ? { ...state, autoAdvance: action.on } : state
   }
 }
 

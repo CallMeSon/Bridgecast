@@ -19,6 +19,7 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.frozen === b.frozen &&
     a.black === b.black &&
     a.transition === b.transition &&
+    a.autoAdvance === b.autoAdvance &&
     a.shown?.deckId === b.shown?.deckId &&
     a.shown?.index === b.shown?.index &&
     a.shown?.file === b.shown?.file
@@ -36,9 +37,13 @@ export class AppState {
   private listeners: ((s: ProgramState) => void)[] = []
   private positions = new Map<string, Position>()
 
-  constructor(private lib: Library) {
+  /** @param autoAdvance saved setting (settings.json) restored at start. */
+  constructor(
+    private lib: Library,
+    autoAdvance = false
+  ) {
     this.activeEvent = lib.listEvents()[0]?.id ?? null
-    this.current = this.normalize(initialState)
+    this.current = this.normalize({ ...initialState, autoAdvance })
   }
 
   get state(): ProgramState {

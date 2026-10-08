@@ -11,6 +11,7 @@ import { NextPanel } from './components/NextPanel'
 import { Strip } from './components/Strip'
 import {
   baseName,
+  canNext,
   canPrev,
   currentDeck,
   errorMessage,
@@ -325,11 +326,11 @@ function App(): React.JSX.Element {
           <Controls
             state={program}
             canPrev={canPrev(decks, program)}
-            canNext={ready}
+            canNext={canNext(decks, program)}
             onAction={dispatch}
           />
         </section>
-        <NextPanel decks={decks} state={program} />
+        <NextPanel decks={decks} state={program} onAction={dispatch} />
       </main>
       <Strip
         decks={decks}

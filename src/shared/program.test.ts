@@ -37,7 +37,8 @@ describe('initialState', () => {
       shown: null,
       frozen: false,
       black: false,
-      transition: 'cut'
+      transition: 'cut',
+      autoAdvance: false
     })
   })
 })
@@ -49,17 +50,37 @@ describe('reduce navigation', () => {
     expect(r.index).toBe(1)
     expect(r.shown).toEqual(sh('A', 1))
   })
-  it('next at A/2 goes to B/0; at B/1 no change', () => {
-    const r = reduce(at('A', 2), { type: 'next' }, decks)
+  it('auto advance on: next at A/2 goes to B/0; at B/1 no change', () => {
+    const r = reduce(at('A', 2, { autoAdvance: true }), { type: 'next' }, decks)
     expect([r.deckId, r.index]).toEqual(['B', 0])
-    const end = at('B', 1)
+    expect(r.shown).toEqual(sh('B', 0))
+    const end = at('B', 1, { autoAdvance: true })
     expect(reduce(end, { type: 'next' }, decks)).toEqual(end)
   })
-  it('prev at B/0 goes to A/2; at A/0 no change', () => {
-    const r = reduce(at('B', 0), { type: 'prev' }, decks)
+  it('auto advance on: prev at B/0 goes to A/2; at A/0 no change', () => {
+    const r = reduce(at('B', 0, { autoAdvance: true }), { type: 'prev' }, decks)
     expect([r.deckId, r.index]).toEqual(['A', 2])
-    const start = at('A', 0)
+    const start = at('A', 0, { autoAdvance: true })
     expect(reduce(start, { type: 'prev' }, decks)).toEqual(start)
+  })
+  it('auto advance off (default): next and prev stay inside the live deck', () => {
+    const last = at('A', 2)
+    expect(reduce(last, { type: 'next' }, decks)).toEqual(last)
+    const first = at('B', 0)
+    expect(reduce(first, { type: 'prev' }, decks)).toEqual(first)
+    // Inside the deck they still move.
+    expect(reduce(at('A', 1), { type: 'next' }, decks).index).toBe(2)
+    expect(reduce(at('B', 1), { type: 'prev' }, decks).index).toBe(0)
+  })
+  it('setAutoAdvance changes only the flag', () => {
+    const st = at('A', 1)
+    expect(reduce(st, { type: 'setAutoAdvance', on: true }, decks)).toEqual({
+      ...st,
+      autoAdvance: true
+    })
+    expect(reduce(st, { type: 'setAutoAdvance', on: 'ya' as unknown as boolean }, decks)).toEqual(
+      st
+    )
   })
   it('frozen keeps shown; unfreezing then next makes shown follow', () => {
     const f = at('A', 0, { frozen: true })
@@ -111,7 +132,7 @@ describe('reduce navigation', () => {
       { id: 'B', slides: s(1) }
     ]
     const frozen = JSON.stringify(ds)
-    const r = reduce(at('A', 0), { type: 'next' }, ds)
+    const r = reduce(at('A', 0, { autoAdvance: true }), { type: 'next' }, ds)
     expect([r.deckId, r.index]).toEqual(['B', 0])
     expect(JSON.stringify(ds)).toBe(frozen)
   })

@@ -1,15 +1,17 @@
 import type { DeckMeta } from '../../../shared/types'
-import type { ProgramState } from '../../../shared/program'
+import type { Action, ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
 import { currentDeck, nextView } from '../model'
 import { EndCard, SlideImage } from './Slide'
 
 export function NextPanel({
   decks,
-  state
+  state,
+  onAction
 }: {
   decks: DeckMeta[]
   state: ProgramState
+  onAction(a: Action): void
 }): React.JSX.Element {
   const deck = currentDeck(decks, state)
   const nx = nextView(decks, state)
@@ -25,7 +27,10 @@ export function NextPanel({
     nextPos = deck ? `${nx.index + 1} / ${deck.slides.length}` : ''
   } else if (nx.kind === 'end') {
     card = <EndCard title="Akhir deck" />
-    cap = nx.nextDeck ? `Berikutnya: ${nx.nextDeck}` : 'Tidak ada deck berikutnya'
+    if (!nx.nextDeck) cap = 'Tidak ada deck berikutnya'
+    else if (nx.auto) cap = `Berikutnya: ${nx.nextDeck}`
+    // Auto advance off: Next stops here; the operator picks the next deck.
+    else cap = `Next berhenti di sini. Pilih ${nx.nextDeck} untuk lanjut.`
   } else {
     card = <EndCard title="Belum ada slide" />
   }
@@ -45,6 +50,18 @@ export function NextPanel({
             <span>{cap}</span>
           </div>
         </div>
+        <label className="auto-adv">
+          <button
+            className="switch"
+            role="switch"
+            aria-checked={state.autoAdvance}
+            data-testid="auto-advance"
+            onClick={() => onAction({ type: 'setAutoAdvance', on: !state.autoAdvance })}
+          >
+            <span className="knob" />
+          </button>
+          <span>Lanjut otomatis ke deck berikutnya</span>
+        </label>
         <div className="notes">
           <h2>Catatan</h2>
           <p>{deck ? notes : ''}</p>

@@ -9,6 +9,8 @@ export interface HdmiSettings {
 
 export interface Settings {
   hdmi: HdmiSettings
+  /** Next/Prev may leave the live deck (see ProgramState.autoAdvance). Default off. */
+  autoAdvance: boolean
 }
 
 export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
@@ -33,5 +35,9 @@ export function sanitizeHdmi(raw: unknown): HdmiSettings {
  * default. Unknown keys (e.g. `ndi` from older versions) are dropped.
  */
 export function sanitizeSettings(raw: unknown): Settings {
-  return { hdmi: sanitizeHdmi(isObject(raw) ? raw.hdmi : null) }
+  const r = isObject(raw) ? raw : {}
+  return {
+    hdmi: sanitizeHdmi(r.hdmi),
+    autoAdvance: typeof r.autoAdvance === 'boolean' ? r.autoAdvance : false
+  }
 }
