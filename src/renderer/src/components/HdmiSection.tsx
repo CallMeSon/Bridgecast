@@ -3,6 +3,7 @@ import type { HdmiStatus } from '../../../shared/ipc'
 import type { HdmiSettings, Settings } from '../../../shared/settings'
 import { NO_SECOND_DISPLAY, displayText, type DisplayInfo } from '../../../shared/displays'
 import { errorMessage, hdmiBadge, hdmiStatusText } from '../model'
+import { Switch } from './Switch'
 
 interface Props {
   hdmi: HdmiSettings
@@ -44,25 +45,18 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
   return (
     <section className="pop-section" aria-labelledby="hdmi-title" data-testid="hdmi-section">
       <div className="pop-head">
-        <span className="pop-title" id="hdmi-title">
+        <label className="pop-title" id="hdmi-title" htmlFor="hdmi-switch">
           Output HDMI
-        </span>
-        <button
-          className="switch"
-          role="switch"
-          aria-checked={hdmi.enabled}
-          aria-label="Output HDMI aktif"
-          aria-disabled={blocked || busy}
-          aria-describedby="hdmi-message"
-          data-testid="hdmi-switch"
-          onClick={() => {
-            if (blocked || busy) return
-            void save({ enabled: !hdmi.enabled, displayId: selected })
-          }}
-        >
-          <span className="knob" />
-        </button>
-        <span className="switch-label">{hdmi.enabled ? 'Aktif' : 'Nonaktif'}</span>
+        </label>
+        <Switch
+          id="hdmi-switch"
+          labelledBy="hdmi-title"
+          checked={hdmi.enabled}
+          disabled={blocked || busy}
+          describedBy="hdmi-message"
+          testId="hdmi-switch"
+          onChange={() => void save({ enabled: !hdmi.enabled, displayId: selected })}
+        />
       </div>
 
       <p

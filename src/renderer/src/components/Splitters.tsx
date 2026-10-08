@@ -112,10 +112,12 @@ function Splitter(p: SplitterProps): React.JSX.Element {
       onLostPointerCapture={(e) => end(e.currentTarget)}
       onDoubleClick={() => onCommit(axis, null)}
       onKeyDown={(e) => {
+        // Home / End jump to the smallest / largest size the window allows.
+        const to = e.key === 'Home' ? p.min : e.key === 'End' ? p.max : undefined
         const step = KEYS[axis][e.key]
-        if (step === undefined) return
+        if (to === undefined && step === undefined) return
         e.preventDefault()
-        onCommit(axis, onMove(axis, current(axis) + step))
+        onCommit(axis, onMove(axis, to ?? current(axis) + (step ?? 0)))
       }}
     />
   )

@@ -85,7 +85,7 @@ export function OutputMenu(): React.JSX.Element {
           <span>{badge.text}</span>
         </span>
         {target && (
-          <span className="res">
+          <span className="res" title={`${target.label}, ${target.width}x${target.height}`}>
             {target.label}, {target.width}x{target.height}
           </span>
         )}

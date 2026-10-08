@@ -18,10 +18,13 @@ const TALLY_ICON: Partial<Record<Tally, React.JSX.Element>> = {
  */
 export function Program({
   state,
-  deck
+  deck,
+  emptyHint = 'Seret file .pptx, .ppt, .pdf ke jendela ini.'
 }: {
   state: ProgramState
   deck: DeckMeta | null
+  /** Second line of the empty monitor (e.g. a different hint while no event exists). */
+  emptyHint?: string
 }): React.JSX.Element {
   const t = tally(state)
   const shown = state.shown
@@ -39,7 +42,7 @@ export function Program({
       </div>
       <div className="pgm-view">
         <div className="pgm-stack">
-          <div className="screen" data-black={state.black}>
+          <div className="screen" data-black={state.black} data-transition={state.transition}>
             {shown || src ? (
               <SlideLayers
                 src={src}
@@ -53,13 +56,19 @@ export function Program({
                 })}
               />
             ) : (
-              <EndCard title="Belum ada slide" sub="Seret file .pptx, .ppt, .pdf ke jendela ini." />
+              <EndCard title="Belum ada slide" sub={emptyHint} />
             )}
             <div className="shade" />
           </div>
           <div className="pgm-meta">
-            <span className="pos" data-testid="pos">
-              {deck ? `${state.index + 1} / ${deck.slides.length}` : ''}
+            <span
+              className="posg"
+              title="Posisi operator; saat Freeze bisa berbeda dari yang tayang"
+            >
+              {deck && <span className="pos-lbl">Posisi</span>}
+              <span className="pos" data-testid="pos">
+                {deck ? `${state.index + 1} / ${deck.slides.length}` : ''}
+              </span>
             </span>
             <span className="ttl" title={deck?.name}>
               {deck?.name}

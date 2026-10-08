@@ -3,6 +3,7 @@ import type { Action, ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
 import { currentDeck, nextView } from '../model'
 import { EndCard, SlideImage } from './Slide'
+import { Switch } from './Switch'
 
 export function NextPanel({
   decks,
@@ -20,7 +21,7 @@ export function NextPanel({
 
   const held = nx.kind === 'slide' && nx.held === true
   let card: React.JSX.Element
-  let cap = ''
+  let cap: React.ReactNode = ''
   // Position of the slide Next takes, e.g. "3 / 9"; empty at the end of a deck.
   let nextPos = ''
   if (nx.kind === 'slide') {
@@ -32,7 +33,12 @@ export function NextPanel({
     if (!nx.nextDeck) cap = 'Tidak ada deck berikutnya'
     else if (nx.auto) cap = `Berikutnya: ${nx.nextDeck}`
     // Auto advance off: Next stops here; the operator picks the next deck.
-    else cap = `Next berhenti di sini. Pilih ${nx.nextDeck} untuk lanjut.`
+    else
+      cap = (
+        <>
+          Next berhenti di sini. Pilih <strong>{nx.nextDeck}</strong> untuk lanjut.
+        </>
+      )
   } else {
     card = <EndCard title="Belum ada slide" />
   }
@@ -57,18 +63,18 @@ export function NextPanel({
             <span>{cap}</span>
           </div>
         </div>
-        <label className="auto-adv">
-          <button
-            className="switch"
-            role="switch"
-            aria-checked={state.autoAdvance}
-            data-testid="auto-advance"
-            onClick={() => onAction({ type: 'setAutoAdvance', on: !state.autoAdvance })}
-          >
-            <span className="knob" />
-          </button>
-          <span>Lanjut otomatis ke deck berikutnya</span>
-        </label>
+        <div className="auto-adv">
+          <label id="auto-advance-label" htmlFor="auto-advance">
+            Lanjut otomatis ke deck berikutnya
+          </label>
+          <Switch
+            id="auto-advance"
+            labelledBy="auto-advance-label"
+            checked={state.autoAdvance}
+            testId="auto-advance"
+            onChange={(on) => onAction({ type: 'setAutoAdvance', on })}
+          />
+        </div>
         <div className="notes">
           <h2>Catatan</h2>
           <p>{deck ? notes : ''}</p>
