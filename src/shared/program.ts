@@ -162,8 +162,20 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
       if (!deck || deck.slides.length === 0) return state
       return moveTo(state, deck, 0)
     }
-    case 'toggleFreeze':
-      return { ...state, frozen: !state.frozen }
+    case 'toggleFreeze': {
+      if (!state.frozen) return { ...state, frozen: true }
+      // Unfreeze: the operator position (the preview while frozen) goes live at
+      // once. Nothing on the output (STANDBY) or an invalid position: only the
+      // freeze is cleared. Black stays as it is, the new slide is behind it.
+      const deck = decks.find((d) => d.id === state.deckId)
+      const valid =
+        !!deck &&
+        Number.isInteger(state.index) &&
+        state.index >= 0 &&
+        state.index < deck.slides.length
+      if (!state.shown || !deck || !valid) return { ...state, frozen: false }
+      return moveTo({ ...state, frozen: false }, deck, state.index)
+    }
     case 'toggleBlack':
       return { ...state, black: !state.black }
     case 'setTransition':

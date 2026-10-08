@@ -1,11 +1,19 @@
 import type { DeckMeta } from '../../shared/types'
-import { pendingTake, type Action, type ProgramState } from '../../shared/program'
+import { pendingTake, reduce, type Action, type ProgramState } from '../../shared/program'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import type { HdmiSettings } from '../../shared/settings'
 
 export type NextView =
   | { kind: 'none' }
-  | { kind: 'slide'; deckId: string; index: number; file: string; notes: string }
+  | {
+      kind: 'slide'
+      deckId: string
+      index: number
+      file: string
+      notes: string
+      /** Frozen: this is the operator position, what goes live on unfreeze (a preview). */
+      held?: true
+    }
   | { kind: 'end'; nextDeck: string | null; auto: boolean }
 
 export function currentDeck(decks: DeckMeta[], s: ProgramState): DeckMeta | null {
@@ -25,6 +33,17 @@ export function nextIndex(decks: DeckMeta[], s: ProgramState): number {
 export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
   const deck = currentDeck(decks, s)
   if (!deck) return { kind: 'none' }
+  const here = deck.slides[s.index]
+  if (s.frozen && s.shown && here) {
+    return {
+      kind: 'slide',
+      deckId: deck.id,
+      index: s.index,
+      file: here.file,
+      notes: here.notes,
+      held: true
+    }
+  }
   if (pendingTake(s, decks)) {
     const cur = deck.slides[s.index]
     return { kind: 'slide', deckId: deck.id, index: s.index, file: cur.file, notes: cur.notes }
@@ -38,18 +57,13 @@ export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
   return { kind: 'end', nextDeck: nd ? nd.name : null, auto: s.autoAdvance }
 }
 
-/** Next has somewhere to go (it is a no-op at the end of the live deck while auto advance is off). */
+/** An action is possible when the reducer changes the state (it returns the same object for a no-op). */
 export function canNext(decks: DeckMeta[], s: ProgramState): boolean {
-  const nx = nextView(decks, s)
-  return nx.kind === 'slide' || (nx.kind === 'end' && nx.auto && nx.nextDeck !== null)
+  return reduce(s, { type: 'next' }, decks) !== s
 }
 
 export function canPrev(decks: DeckMeta[], s: ProgramState): boolean {
-  const deck = currentDeck(decks, s)
-  if (!deck) return false
-  if (pendingTake(s, decks) || s.index > 0) return true
-  if (!s.autoAdvance) return false
-  return decks.slice(0, decks.indexOf(deck)).some((d) => d.slides.length > 0)
+  return reduce(s, { type: 'prev' }, decks) !== s
 }
 
 export type Tally = 'live' | 'frozen' | 'black' | 'idle'

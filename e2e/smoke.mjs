@@ -1102,6 +1102,31 @@ try {
   await sleep(800)
   const fz = await dumpFrame([[10, 10]])
   check(blue(fz.px[0]), `F then Space keeps the old frame (corner ${JSON.stringify(fz.px[0])})`)
+  // Frozen, the right panel previews the position slide (what Unfreeze takes live).
+  check((await cap.textContent()) === 'Slide 3', 'frozen: Next panel previews the position slide')
+  check(
+    (await win.getByTestId('next-pos').textContent()) === '3 / 3',
+    'frozen: Next panel shows the position'
+  )
+  check(
+    (await win.locator('aside.right .colhead h2').textContent()) === 'Tayang saat Unfreeze',
+    'frozen: Next panel titled Tayang saat Unfreeze'
+  )
+  // Unfreeze puts the position slide (3, white) live at once.
+  await win.keyboard.press('f')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
+  )
+  await waitFrame([[10, 10]], (px) => !blue(px[0]), 'unfreeze puts slide 3 on the output')
+  check(true, 'unfreeze takes the position slide live (output left slide 2, tally LIVE)')
+  check(
+    (await win.locator('aside.right .colhead h2').textContent()) === 'Slide berikutnya',
+    'unfrozen: Next panel title is back'
+  )
+  await win.keyboard.press('f')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=tally]')?.textContent === 'FROZEN'
+  )
   await win.keyboard.press('ArrowLeft')
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'

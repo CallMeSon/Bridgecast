@@ -76,6 +76,18 @@ describe('nextView', () => {
   it('frozen STANDBY still previews the following slide', () => {
     expect(nextView(decks, at('a', 0, { shown: null, frozen: true }))).toMatchObject({ index: 1 })
   })
+  it('frozen shows the operator position as a held preview', () => {
+    expect(
+      nextView(decks, at('a', 1, { shown: { deckId: 'a', index: 0, file: '0.png' }, frozen: true }))
+    ).toEqual({
+      kind: 'slide',
+      deckId: 'a',
+      index: 1,
+      file: '1.png',
+      notes: 'n1',
+      held: true
+    })
+  })
   it('is none without a position', () => {
     expect(nextView([], at(null, 0))).toEqual({ kind: 'none' })
   })
@@ -105,6 +117,12 @@ describe('canNext', () => {
     expect(canNext([], at(null, 0))).toBe(false)
     // STANDBY on the last slide: Next takes it live.
     expect(canNext(decks, at('a', 1, { shown: null }))).toBe(true)
+    // Frozen follows the position: stepping stays possible until the end.
+    expect(canNext(decks, at('a', 0, { frozen: true }))).toBe(true)
+    expect(canNext(decks, at('a', 1, { frozen: true }))).toBe(false)
+    expect(canNext(decks, at('a', 1, { frozen: true, autoAdvance: true }))).toBe(true)
+    // Frozen STANDBY does not take, so the last slide has no Next.
+    expect(canNext(decks, at('a', 1, { shown: null, frozen: true }))).toBe(false)
   })
 })
 

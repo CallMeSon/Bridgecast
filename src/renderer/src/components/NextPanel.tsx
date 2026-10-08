@@ -15,8 +15,10 @@ export function NextPanel({
 }): React.JSX.Element {
   const deck = currentDeck(decks, state)
   const nx = nextView(decks, state)
-  const notes = deck?.slides[state.index]?.notes ?? ''
+  // Notes of the slide on the panel: the preview while frozen, else the operator position.
+  const notes = nx.kind === 'slide' && nx.held ? nx.notes : (deck?.slides[state.index]?.notes ?? '')
 
+  const held = nx.kind === 'slide' && nx.held === true
   let card: React.JSX.Element
   let cap = ''
   // Position of the slide Next takes, e.g. "3 / 9"; empty at the end of a deck.
@@ -38,13 +40,18 @@ export function NextPanel({
   return (
     <aside className="right" aria-label="Slide berikutnya">
       <div className="colhead">
-        <h2>Slide berikutnya</h2>
+        <h2>{held ? 'Tayang saat Unfreeze' : 'Slide berikutnya'}</h2>
         <span className="next-pos" data-testid="next-pos">
           {nextPos}
         </span>
       </div>
       <div className="next-body">
-        <div className="next-card" data-testid="next-card" data-kind={nx.kind}>
+        <div
+          className="next-card"
+          data-testid="next-card"
+          data-kind={nx.kind}
+          data-held={held || undefined}
+        >
           {card}
           <div className="cap">
             <span>{cap}</span>
