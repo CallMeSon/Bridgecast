@@ -22,7 +22,7 @@ export function loadSettings(path: string): Settings {
     raw = JSON.parse(fs.readFileSync(path, 'utf8'))
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.warn(`[settings] ${path} tidak bisa dibaca; memakai pengaturan bawaan`)
+      console.warn(`[settings] ${path} could not be read; using default settings`)
     }
   }
   return sanitizeSettings(raw)

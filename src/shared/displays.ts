@@ -19,11 +19,11 @@ export interface DisplayInfo {
 
 /** Shown when HDMI cannot be enabled because Windows reports a single screen. */
 export const NO_SECOND_DISPLAY =
-  'Layar kedua tidak terdeteksi. Sambungkan HDMI lalu atur Windows ke mode Extend (Win+P → Extend).'
+  'No second display detected. Connect HDMI, then set Windows to Extend mode (Win+P, then Extend).'
 
 /** Shown when the chosen display holds the operator window. */
 export const OPERATOR_DISPLAY =
-  'Layar ini dipakai jendela operator. Pindahkan jendela operator ke layar lain atau pilih layar HDMI yang lain.'
+  'This display holds the operator window. Move the operator window to another display, or choose a different HDMI display.'
 
 /** May carry the HDMI output: neither the primary nor the operator window's display. */
 export const isHdmiCandidate = (d: DisplayInfo, operatorId: number | null): boolean =>
@@ -67,7 +67,7 @@ export function toDisplayInfo(d: DisplayLike, primaryId: number, index: number):
   const sf = Number.isFinite(d.scaleFactor) && d.scaleFactor > 0 ? d.scaleFactor : 1
   return {
     id: d.id,
-    label: d.label?.trim() || `Layar ${index + 1}`,
+    label: d.label?.trim() || `Display ${index + 1}`,
     width: nativeLength(d.size.width, sf),
     height: nativeLength(d.size.height, sf),
     primary: d.id === primaryId
@@ -77,15 +77,15 @@ export function toDisplayInfo(d: DisplayLike, primaryId: number, index: number):
 /** "EPSON PJ · 1920×1080"; the primary and the operator window's display are marked. */
 export function displayText(d: DisplayInfo): string {
   const text = `${d.label} · ${d.width}×${d.height}`
-  if (d.primary) return `${text} (layar utama, operator)`
-  return d.operator ? `${text} (layar operator)` : text
+  if (d.primary) return `${text} (main display, operator)`
+  return d.operator ? `${text} (operator display)` : text
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
 
 /**
- * Indonesian error (with the fix) for HDMI settings coming from the renderer,
+ * Error message (with the fix) for HDMI settings coming from the renderer,
  * checked against the displays connected right now and the display holding
  * the operator window (`operatorId`); null when valid. Turning HDMI off is
  * always accepted (whatever became of its display), so the operator can
@@ -101,17 +101,17 @@ export function hdmiSettingsError(
     typeof v.enabled !== 'boolean' ||
     !(v.displayId === null || Number.isSafeInteger(v.displayId))
   ) {
-    return 'Pengaturan HDMI tidak valid. Tutup panel output lalu buka lagi.'
+    return 'The HDMI settings are not valid. Close the output panel, then open it again.'
   }
   if (!v.enabled) return null
   const id = v.displayId as number | null
   if (id !== null) {
     const d = displays.find((x) => x.id === id)
     if (d?.primary) {
-      return 'Layar utama (operator) tidak bisa dipakai untuk output HDMI. Pilih layar kedua.'
+      return 'The main display (operator) cannot be used for HDMI output. Choose the second display.'
     }
     if (!d) {
-      return 'Layar yang dipilih tidak tersambung. Sambungkan layarnya lagi, atau pilih layar lain.'
+      return 'The selected display is not connected. Reconnect it, or choose another display.'
     }
     return id === operatorId ? OPERATOR_DISPLAY : null
   }

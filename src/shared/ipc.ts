@@ -57,7 +57,7 @@ export interface ImportProgress {
 /**
  * HDMI output window state: `showing` (fullscreen on its display), `hidden`
  * (its display is not connected, or it is still being prepared: `message`),
- * `off`, or `error` with an Indonesian `message` that says how to fix it.
+ * `off`, or `error` with a user-facing `message` that says how to fix it.
  */
 export interface HdmiStatus {
   state: 'showing' | 'hidden' | 'off' | 'error'

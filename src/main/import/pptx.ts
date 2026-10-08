@@ -33,19 +33,19 @@ function scriptPath(): string {
 function friendlyError(stderr: string): string {
   const code = /^(NOTFOUND|NOAPP|OPEN|EXPORT|INUSE):/m.exec(stderr)?.[1]
   const lower = stderr.toLowerCase()
-  if (code === 'NOTFOUND') return 'File tidak ditemukan. Periksa lokasi file lalu pilih ulang.'
+  if (code === 'NOTFOUND') return 'File not found. Check the file location, then choose it again.'
   if (code === 'NOAPP')
-    return 'PowerPoint tidak ditemukan di komputer ini. Pasang Microsoft PowerPoint, atau ekspor file ke PDF lalu impor PDF-nya.'
+    return 'PowerPoint was not found on this computer. Install Microsoft PowerPoint, or export the file to PDF and import the PDF.'
   if (code === 'OPEN') {
     if (/password|kata sandi|protected|dilindungi/.test(lower))
-      return 'File dilindungi kata sandi. Hapus kata sandinya di PowerPoint, simpan, lalu impor ulang.'
-    return 'Tidak bisa membuka file. Tutup file di PowerShell/PowerPoint lalu coba lagi. Jika file rusak, buka dan simpan ulang di PowerPoint.'
+      return 'This file is password protected. Remove the password in PowerPoint, save, then import again.'
+    return 'Could not open the file. Close it in PowerPoint, then try again. If the file is damaged, open and save it again in PowerPoint.'
   }
   if (code === 'INUSE')
-    return 'File ini sedang terbuka di PowerPoint. Simpan dan tutup file itu, lalu coba impor lagi.'
+    return 'This file is open in PowerPoint. Save and close it there, then import again.'
   if (code === 'EXPORT')
-    return 'PowerPoint gagal mengekspor slide. Pastikan file tidak rusak dan ruang disk cukup, lalu coba lagi.'
-  return 'Impor PowerPoint gagal. Tutup file di PowerPoint lalu coba lagi.'
+    return 'PowerPoint could not export the slides. Make sure the file is not damaged and there is enough disk space, then try again.'
+  return 'PowerPoint import failed. Close the file in PowerPoint, then try again.'
 }
 
 function runScript(file: string, outDir: string, width: number): Promise<string> {
@@ -73,12 +73,12 @@ function runScript(file: string, outDir: string, width: number): Promise<string>
           if (e.killed)
             return reject(
               new Error(
-                'Impor terlalu lama (lebih dari 5 menit). Tutup dialog di PowerPoint jika ada, lalu coba lagi.'
+                'The import took too long (over 5 minutes). Close any dialog open in PowerPoint, then try again.'
               )
             )
           if (e.code === 'ENOENT')
             return reject(
-              new Error('PowerShell tidak ditemukan. Impor PowerPoint hanya didukung di Windows.')
+              new Error('PowerShell was not found. PowerPoint import is supported on Windows only.')
             )
           return reject(new Error(friendlyError(String(stderr))))
         }
@@ -107,12 +107,12 @@ export async function importPptx(
     try {
       parsed = JSON.parse(line ?? '')
     } catch {
-      throw new Error('Hasil impor dari PowerPoint tidak terbaca. Coba lagi.')
+      throw new Error('The PowerPoint import result could not be read. Try again.')
     }
     const names = orderExportedFiles(fs.readdirSync(work))
     if (names.length === 0)
       throw new Error(
-        'Tidak ada slide yang berhasil diekspor. Pastikan file berisi slide, lalu coba lagi.'
+        'No slides were exported. Make sure the file contains slides, then try again.'
       )
     const notes = Array.isArray(parsed.notes) ? parsed.notes : [parsed.notes]
     const slides = names.map((n, i) => {

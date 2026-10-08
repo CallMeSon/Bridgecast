@@ -295,9 +295,9 @@ async function dragAndDropChecks(win, tally, pos, cap) {
   const overlay = win.getByTestId('drop-overlay')
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-drop-'))
   const pdf = path.join(tmp, 'dropped.pdf')
-  const txt = path.join(tmp, 'catatan.txt')
+  const txt = path.join(tmp, 'notes.txt')
   fs.copyFileSync(path.join(root, 'fixtures/sample.pdf'), pdf)
-  fs.writeFileSync(txt, 'bukan slide')
+  fs.writeFileSync(txt, 'not a slide')
   const dropList = [pdf, txt]
   const pptE2E = process.env.PPT_E2E === '1'
   if (pptE2E) {
@@ -335,20 +335,20 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     )
     check(!(await overlay.isVisible()), 'reordering drags (no files) never show the overlay')
 
-    // Drop: PDF imported into the active event, .txt becomes a "Tidak didukung" row.
+    // Drop: PDF imported into the active event, .txt becomes an "Unsupported" row.
     await fireDrag(win, 'main', 'dragenter', dt)
     await fireDrag(win, 'main', 'dragover', dt)
     await fireDrag(win, 'main', 'drop', dt)
     await overlay.waitFor({ state: 'hidden' })
-    const errRow = win.getByTestId('import-error').filter({ hasText: 'catatan.txt' })
+    const errRow = win.getByTestId('import-error').filter({ hasText: 'notes.txt' })
     await errRow.waitFor({ timeout: 2000 })
     check(
-      (await errRow.locator('.meta').textContent()) === 'Tidak didukung' &&
-        /PPTX, PPT, atau PDF/.test(await errRow.locator('.msg').textContent()),
+      (await errRow.locator('.meta').textContent()) === 'Unsupported' &&
+        /PPTX, PPT, or PDF/.test(await errRow.locator('.msg').textContent()),
       `unsupported file shows an error row: "${await errRow.textContent()}"`
     )
     const dropped = win.locator('.deck', { has: win.locator('.name', { hasText: /^dropped$/ }) })
-    await dropped.locator('.meta', { hasText: '3 slide' }).waitFor({ timeout: 60_000 })
+    await dropped.locator('.meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })
     check(true, 'dropped PDF imported as a 3-slide deck into the active event')
     if (pptE2E) {
       const pptDeck = win.locator('.deck:not(.busy) .name', { hasText: /^dropped-pptx$/ })
@@ -491,29 +491,29 @@ async function dragAndDropChecks(win, tally, pos, cap) {
       'reordering decks does not change the output or position'
     )
 
-    // Delete the live deck: right-click → "Hapus deck…" → inline confirmation.
+    // Delete the live deck: right-click → "Remove deck…" → inline confirmation.
     await sample.click({ button: 'right' })
-    await win.getByTestId('deck-menu').getByRole('menuitem', { name: 'Hapus deck…' }).click()
+    await win.getByTestId('deck-menu').getByRole('menuitem', { name: 'Remove deck…' }).click()
     const confirm = win.getByTestId('confirm-remove')
     await confirm.waitFor()
     check(
-      (await confirm.textContent()).includes('Hapus deck ini?'),
-      'inline confirmation "Hapus deck ini?" (no modal)'
+      (await confirm.textContent()).includes('Remove this deck?'),
+      'inline confirmation "Remove this deck?" (no modal)'
     )
     await confirm.screenshot({ path: path.join(path.dirname(shot), 'task-9-confirm.png') })
-    await confirm.getByRole('button', { name: 'Batal' }).click()
+    await confirm.getByRole('button', { name: 'Cancel' }).click()
     await sample.waitFor()
-    check((await tally.textContent()) === 'LIVE', 'Batal keeps the deck and the output')
+    check((await tally.textContent()) === 'LIVE', 'Cancel keeps the deck and the output')
     await sample.click({ button: 'right' })
-    await win.getByRole('menuitem', { name: 'Hapus deck…' }).click()
-    await confirm.getByRole('button', { name: 'Hapus' }).click()
+    await win.getByRole('menuitem', { name: 'Remove deck…' }).click()
+    await confirm.getByRole('button', { name: 'Remove' }).click()
     await win.waitForFunction(
       () => document.querySelector('[data-testid=tally]')?.textContent === 'STANDBY'
     )
     await sample.waitFor({ state: 'detached' })
     check(
       (await win.locator('.screen img').count()) === 0 &&
-        (await win.locator('.screen').textContent()).includes('Belum ada slide'),
+        (await win.locator('.screen').textContent()).includes('No slides yet'),
       'Program shows the empty card, no image'
     )
     await waitFrame(GRID, (px) => px.every(isBlack), 'deleting the live deck blacks out the output')
@@ -529,7 +529,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
 
 // --- HDMI output (Task 11) ---
 const NO_SECOND =
-  'Layar kedua tidak terdeteksi. Sambungkan HDMI lalu atur Windows ke mode Extend (Win+P → Extend).'
+  'No second display detected. Connect HDMI, then set Windows to Extend mode (Win+P, then Extend).'
 const HDMI_TITLE = 'PPT Share HDMI'
 const hdmiDebug = () => app.evaluate(() => globalThis.__pptHdmi)
 const hdmiWindows = () =>
@@ -603,7 +603,7 @@ async function startProbe(win) {
   await fakeDisplays([
     {
       id: p.id,
-      label: p.label || 'Layar 1',
+      label: p.label || 'Display 1',
       width: b.width,
       height: b.height,
       primary: true,
@@ -620,7 +620,7 @@ async function startProbe(win) {
   ])
   // Through the popover, like the operator: select the display, switch on.
   const pop = await openOutputPopover(win)
-  const select = pop.getByLabel('Layar tujuan')
+  const select = pop.getByLabel('Target display')
   await select.locator(`option[value="${PROBE_ID}"]`).waitFor({ state: 'attached' })
   await select.selectOption(String(PROBE_ID))
   await pop.getByTestId('hdmi-switch').click()
@@ -674,7 +674,7 @@ async function behaviourChecks(win, tally, pos) {
 
   // 1. The event menu owns the keyboard: Space/arrows never move the on-air slide.
   await win.click('.event-btn')
-  const menu = win.getByRole('menu', { name: 'Pilih acara' })
+  const menu = win.getByRole('menu', { name: 'Choose event' })
   await menu.waitFor()
   const firstItem = menu.getByRole('menuitem').first()
   check(
@@ -683,7 +683,7 @@ async function behaviourChecks(win, tally, pos) {
   )
   await win.keyboard.press('End')
   check(
-    (await win.evaluate(() => document.activeElement?.textContent)) === 'Event baru',
+    (await win.evaluate(() => document.activeElement?.textContent)) === 'New event',
     'End moves focus to the last event menu item'
   )
   await win.keyboard.press('ArrowDown')
@@ -714,8 +714,8 @@ async function behaviourChecks(win, tally, pos) {
   // Creating an event: leaving the field without Enter cancels.
   const eventLabel = await win.locator('.event-btn').textContent()
   await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'Event baru' }).click()
-  await win.fill('.event-input', 'Tidak dibuat')
+  await win.getByRole('menuitem', { name: 'New event' }).click()
+  await win.fill('.event-input', 'Not created')
   await win.click('header .brand')
   await win.locator('.event-input').waitFor({ state: 'detached' })
   check(
@@ -768,8 +768,8 @@ async function behaviourChecks(win, tally, pos) {
     (await posText()) === nextPos && (await tally.textContent()) === tallyBefore,
     'Alt+arrows on a deck never act as Prev/Next'
   )
-  await win.getByText('Urutan disimpan').waitFor()
-  check(true, 'a saved reorder shows the "Urutan disimpan" confirmation')
+  await win.getByText('Order saved').waitFor()
+  check(true, 'a saved reorder shows the "Order saved" confirmation')
   await win.keyboard.press('Alt+ArrowUp')
   await win.waitForFunction((id) => {
     const first = document.querySelector('[data-testid=decks] .deck[data-deck-id]')
@@ -783,23 +783,23 @@ async function behaviourChecks(win, tally, pos) {
   )
   check(true, 'the confirmation clears by itself')
 
-  // Deck context menu: arrows between items, Pindah ke bawah, disabled at the ends.
+  // Deck context menu: arrows between items, Move down, disabled at the ends.
   await win.locator(`[data-deck-id="${idsBefore[0]}"]`).click({ button: 'right' })
   const dmenu = win.getByTestId('deck-menu')
   check(
-    (await dmenu.getAttribute('aria-label')) === 'Menu deck',
+    (await dmenu.getAttribute('aria-label')) === 'Deck menu',
     'deck menu has an accessible name'
   )
   check(
-    await dmenu.getByRole('menuitem', { name: /Pindah ke atas/ }).isDisabled(),
-    'Pindah ke atas is disabled on the first deck'
+    await dmenu.getByRole('menuitem', { name: /Move up/ }).isDisabled(),
+    'Move up is disabled on the first deck'
   )
   await win.keyboard.press('ArrowDown')
   check(
-    /Pindah ke bawah/.test(await win.evaluate(() => document.activeElement?.textContent)),
-    'ArrowDown goes from Ganti nama to Pindah ke bawah'
+    /Move down/.test(await win.evaluate(() => document.activeElement?.textContent)),
+    'ArrowDown goes from Rename to Move down'
   )
-  await dmenu.getByRole('menuitem', { name: /Pindah ke bawah/ }).click()
+  await dmenu.getByRole('menuitem', { name: /Move down/ }).click()
   await win.waitForFunction((id) => {
     const first = document.querySelector('[data-testid=decks] .deck[data-deck-id]')
     return first?.dataset.deckId !== id
@@ -818,11 +818,11 @@ async function behaviourChecks(win, tally, pos) {
     els.map((e) => e.getAttribute('aria-label'))
   )
   check(
-    labels.includes(`Slide ${cur + 1}, tayang`),
+    labels.includes(`Slide ${cur + 1}, live`),
     `thumbnail labels carry the role (${labels.join(' | ')})`
   )
   check(
-    (await win.locator('footer[role=region]').getAttribute('aria-label')) === 'Strip slide',
+    (await win.locator('footer[role=region]').getAttribute('aria-label')) === 'Slide strip',
     'the strip is a labelled region, not page contentinfo'
   )
   await win.locator('[data-testid=strip] .th').first().focus()
@@ -855,7 +855,7 @@ async function behaviourChecks(win, tally, pos) {
     const h = ipcMain._invokeHandlers
     globalThis.__realDispatch = h.get('program:dispatch')
     h.set('program:dispatch', () => {
-      throw new Error('Tidak bisa membaca slide. Pilih ulang deck, lalu coba lagi.')
+      throw new Error('Could not read the slide. Choose the deck again, then try again.')
     })
   })
   await win.keyboard.press('Space')
@@ -863,7 +863,7 @@ async function behaviourChecks(win, tally, pos) {
   await alert.waitFor()
   check(
     (await alert.getAttribute('role')) === 'alert' &&
-      /Tidak bisa membaca slide/.test(await alert.textContent()),
+      /Could not read the slide/.test(await alert.textContent()),
     "a failed Next shows a persistent role=alert notice with main's message"
   )
   check((await posText()) === nextPos, 'Program is unchanged after the failed action')
@@ -885,7 +885,7 @@ async function behaviourChecks(win, tally, pos) {
 async function hdmiChecks(win) {
   const hStatus = win.getByTestId('hdmi-status')
   check(
-    (await hStatus.textContent()) === 'HDMI mati' &&
+    (await hStatus.textContent()) === 'HDMI off' &&
       (await hStatus.getAttribute('data-tone')) === 'off',
     `header shows the HDMI indicator: "${await win.getByTestId('output-status').textContent()}"`
   )
@@ -914,19 +914,19 @@ async function hdmiChecks(win) {
     )
   const primaryErr = await reject({ enabled: true, displayId: real.primary })
   check(
-    /Layar utama \(operator\) tidak bisa dipakai/.test(primaryErr),
+    /main display \(operator\) cannot be used/.test(primaryErr),
     `main refuses the primary display: "${primaryErr}"`
   )
   const badErr = await reject({ enabled: true, displayId: 1.5 })
-  check(/tidak valid/.test(badErr), `main refuses a non-integer display id: "${badErr}"`)
+  check(/not valid/.test(badErr), `main refuses a non-integer display id: "${badErr}"`)
   const goneErr = await reject({ enabled: true, displayId: 987654321 })
-  check(/tidak tersambung/.test(goneErr), `main refuses an unknown display: "${goneErr}"`)
+  check(/not connected/.test(goneErr), `main refuses an unknown display: "${goneErr}"`)
 
   const pop = await openOutputPopover(win)
   const section = pop.getByTestId('hdmi-section')
   const sw = section.getByTestId('hdmi-switch')
   const msg = section.getByTestId('hdmi-message')
-  const select = section.getByLabel('Layar tujuan')
+  const select = section.getByLabel('Target display')
 
   if (real.all.length === 1) {
     console.log('  HDMI branch: single display (no second screen connected)')
@@ -947,9 +947,9 @@ async function hdmiChecks(win) {
     check(
       (await select.isDisabled()) &&
         (await select.locator('option').allTextContents()).some((t) =>
-          t.endsWith('(layar utama, operator)')
+          t.endsWith('(main display, operator)')
         ),
-      'display select is disabled and marks the primary as "(layar utama, operator)"'
+      'display select is disabled and marks the primary as "(main display, operator)"'
     )
     await pop.screenshot({ path: path.join(path.dirname(shot), 'task-11-popover-single.png') })
   } else {
@@ -1007,7 +1007,7 @@ Add-Type -AssemblyName System.Windows.Forms
 async function realHdmiChecks(win, pop, real) {
   const section = pop.getByTestId('hdmi-section')
   const target = real.all.find((d) => d.id !== real.primary)
-  await section.getByLabel('Layar tujuan').selectOption(String(target.id))
+  await section.getByLabel('Target display').selectOption(String(target.id))
   if ((await section.getByTestId('hdmi-switch').getAttribute('aria-checked')) !== 'true') {
     await section.getByTestId('hdmi-switch').click()
   }
@@ -1018,10 +1018,10 @@ async function realHdmiChecks(win, pop, real) {
     `HDMI window covers real display ${target.id} exactly: ${JSON.stringify(w?.bounds)} vs ${JSON.stringify(target.bounds)}`
   )
   check(!w.focusable && !w.focused, 'HDMI window is not focusable and not focused')
-  const shown = await section.getByLabel('Layar tujuan').locator('option:checked').textContent()
+  const shown = await section.getByLabel('Target display').locator('option:checked').textContent()
   check(
-    (await section.getByTestId('hdmi-message').textContent()) === 'Tampil',
-    `popover: Tampil on "${shown}"`
+    (await section.getByTestId('hdmi-message').textContent()) === 'Live',
+    `popover: Live on "${shown}"`
   )
   await pop.screenshot({ path: path.join(path.dirname(shot), 'task-11-popover-real.png') })
   // Program is STANDBY here (the live deck was deleted): black.
@@ -1047,7 +1047,7 @@ async function simulatedHdmiChecks(win, real) {
   const primary = real.all.find((d) => d.id === real.primary)
   const fakePrimary = {
     id: primary.id,
-    label: primary.label || 'Layar 1',
+    label: primary.label || 'Display 1',
     width: primary.bounds.width,
     height: primary.bounds.height,
     primary: true,
@@ -1088,21 +1088,21 @@ async function simulatedHdmiChecks(win, real) {
     await fake([fakePrimary, proj])
     const pop = await openOutputPopover(win)
     const section = pop.getByTestId('hdmi-section')
-    const select = section.getByLabel('Layar tujuan')
+    const select = section.getByLabel('Target display')
     await select
       .locator('option', { hasText: 'E2E PROYEKTOR · 1280×720' })
       .waitFor({ state: 'attached' })
     const options = await select.locator('option').allTextContents()
     check(
-      (await section.getByTestId('hdmi-message').textContent()) === 'Mati',
+      (await section.getByTestId('hdmi-message').textContent()) === 'Off',
       `a second display appears in the select (displays:changed): ${JSON.stringify(options)}`
     )
     if (savedHdmi()?.displayId != null) {
       // A display chosen earlier (the real one) is not connected in this simulation.
       check(
-        options.includes('Layar tersimpan (tidak tersambung)') &&
+        options.includes('Saved display (not connected)') &&
           (await select.inputValue()) === String(savedHdmi().displayId),
-        'the saved but missing display stays selected as "Layar tersimpan (tidak tersambung)"'
+        'the saved but missing display stays selected as "Saved display (not connected)"'
       )
       await select.selectOption(String(proj.id))
       await win.waitForFunction(() => document.querySelector('#hdmi-display')?.value)
@@ -1126,9 +1126,9 @@ async function simulatedHdmiChecks(win, real) {
     )
     check(!w1.focusable && !w1.focused, 'HDMI window is not focusable and never focused')
     check(
-      (await section.getByTestId('hdmi-message').textContent()) === 'Tampil' &&
-        (await win.getByTestId('hdmi-status').textContent()) === 'HDMI tampil',
-      'popover says "Tampil", header "HDMI tampil"'
+      (await section.getByTestId('hdmi-message').textContent()) === 'Live' &&
+        (await win.getByTestId('hdmi-status').textContent()) === 'HDMI live',
+      'popover says "Live", header "HDMI live"'
     )
     check(savedHdmi().enabled && savedHdmi().displayId === proj.id, 'settings.json hdmi saved')
     await pop.screenshot({ path: path.join(path.dirname(shot), 'task-11-popover-showing.png') })
@@ -1175,9 +1175,8 @@ async function simulatedHdmiChecks(win, real) {
     )
     const pop2 = await openOutputPopover(win)
     check(
-      (await pop2.getByTestId('hdmi-message').textContent()) ===
-        'Tersembunyi, layar tidak tersambung',
-      'popover says "Tersembunyi, layar tidak tersambung"'
+      (await pop2.getByTestId('hdmi-message').textContent()) === 'Hidden, display not connected',
+      'popover says "Hidden, display not connected"'
     )
     await win.keyboard.press('Escape')
 
@@ -1231,7 +1230,7 @@ async function simulatedHdmiChecks(win, real) {
     await fake(null)
   }
   check(
-    (await win.getByTestId('hdmi-status').textContent()) === 'HDMI mati',
+    (await win.getByTestId('hdmi-status').textContent()) === 'HDMI off',
     'back to the real displays: HDMI off'
   )
 }
@@ -1269,18 +1268,18 @@ try {
   const pos = win.getByTestId('pos')
   const cap = win.locator('.next-card .cap')
   check((await tally.textContent()) === 'STANDBY', 'empty app shows STANDBY')
-  check((await win.locator('footer').textContent()).includes('Belum ada slide'), 'empty strip')
+  check((await win.locator('footer').textContent()).includes('No slides yet'), 'empty strip')
   await startProbe(win)
 
   // Create an event through the event menu.
   await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'Event baru' }).click()
+  await win.getByRole('menuitem', { name: 'New event' }).click()
   await win.fill('.event-input', 'Smoke Event')
   await win.press('.event-input', 'Enter')
   await win.locator('.event-btn', { hasText: 'Smoke Event' }).waitFor()
   check(true, 'event created and selected')
   check(
-    (await win.locator('.left').textContent()).includes('Belum ada deck di event ini'),
+    (await win.locator('.left').textContent()).includes('No decks in this event yet'),
     'empty library message'
   )
 
@@ -1307,11 +1306,11 @@ try {
     check(true, what)
     return win.locator(ON_AIR).last().getAttribute('src')
   }
-  const kvHapus = () => win.getByTestId('kv-block').getByRole('button', { name: 'Hapus' })
+  const kvRemove = () => win.getByTestId('kv-block').getByRole('button', { name: 'Remove' })
   check(await kvBtn.isDisabled(), 'no KV: the KV button is disabled')
   check(
-    (await win.getByTestId('kv-block').textContent()).includes('Belum ada KV'),
-    'no KV: the library shows "Belum ada KV"'
+    (await win.getByTestId('kv-block').textContent()).includes('No KV yet'),
+    'no KV: the library shows "No KV yet"'
   )
   await win.setInputFiles('[data-testid=kv-input]', kvPath)
   await win.locator('[data-testid=kv-thumb] img').waitFor({ timeout: 10_000 })
@@ -1321,9 +1320,9 @@ try {
   check(!(await kvBtn.isDisabled()), 'with a KV: the KV button is enabled')
   await waitOnAirSrc('slide://kv/', 'Program monitor shows the KV at STANDBY too')
   // The automatic KV is on air: it cannot be removed, and the hint says why.
-  check(await kvHapus().isDisabled(), 'KV on air at STANDBY: Hapus is disabled')
+  check(await kvRemove().isDisabled(), 'KV on air at STANDBY: Remove is disabled')
   check(
-    (await win.getByTestId('kv-hint').textContent()).includes('Matikan KV dulu'),
+    (await win.getByTestId('kv-hint').textContent()).includes('Turn KV off first'),
     'KV on air: the hint says to turn KV off first'
   )
   // K at STANDBY with a KV: the output really leaves the KV (black, tally BLACK); K again brings it back.
@@ -1342,9 +1341,9 @@ try {
   check((await kvBtn.getAttribute('aria-pressed')) === 'true', 'KV back: KV button pressed')
   await win.keyboard.press('k')
   await tallyNow('BLACK')
-  check(!(await kvHapus().isDisabled()), 'KV off: Hapus is enabled again')
+  check(!(await kvRemove().isDisabled()), 'KV off: Remove is enabled again')
   check((await win.getByTestId('kv-hint').count()) === 0, 'KV off: no hint')
-  await kvHapus().click()
+  await kvRemove().click()
   await kvBtn.waitFor()
   await win.waitForFunction(
     () =>
@@ -1364,14 +1363,14 @@ try {
   await win.setInputFiles('[data-testid=kv-input]', path.join(root, 'fixtures/sample.pdf'))
   await win.getByTestId('kv-error').waitFor()
   check(
-    (await win.getByTestId('kv-error').textContent()).includes('Format KV tidak didukung'),
+    (await win.getByTestId('kv-error').textContent()).includes('KV format is not supported'),
     'a non-image KV is refused with an inline error'
   )
 
-  // Import the PDF through the Library footer's file input (pdf.js in the renderer).
+  // Import the PDF through the Decks panel footer's file input (pdf.js in the renderer).
   await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
   await win
-    .locator('.deck .meta', { hasText: '3 slide' })
+    .locator('.deck .meta', { hasText: '3 slides' })
     .waitFor({ timeout: 60_000 })
     .catch(async (e) => {
       console.error('library:', await win.locator('.left').textContent())
@@ -1428,7 +1427,7 @@ try {
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '3 / 3'
   )
-  check((await cap.textContent()) === 'Tidak ada deck berikutnya', 'end of deck in Next panel')
+  check((await cap.textContent()) === 'No next deck', 'end of deck in Next panel')
   await win.keyboard.press('ArrowLeft')
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
@@ -1455,8 +1454,8 @@ try {
     'frozen: Next panel shows the position'
   )
   check(
-    (await win.locator('aside.right .colhead h2').textContent()) === 'Tayang saat Unfreeze',
-    'frozen: Next panel titled Tayang saat Unfreeze'
+    (await win.locator('aside.right .colhead h2').textContent()) === 'Goes live on unfreeze',
+    'frozen: Next panel titled Goes live on unfreeze'
   )
   // Unfreeze puts the position slide (3, white) live at once.
   await win.keyboard.press('f')
@@ -1466,7 +1465,7 @@ try {
   await waitFrame([[10, 10]], (px) => !blue(px[0]), 'unfreeze puts slide 3 on the output')
   check(true, 'unfreeze takes the position slide live (output left slide 2, tally LIVE)')
   check(
-    (await win.locator('aside.right .colhead h2').textContent()) === 'Slide berikutnya',
+    (await win.locator('aside.right .colhead h2').textContent()) === 'Up next',
     'unfrozen: Next panel title is back'
   )
   await win.keyboard.press('f')
@@ -1528,7 +1527,7 @@ try {
   await tallyIs('KV')
   const kvSrc = await waitOnAirSrc('slide://kv/', 'forced KV on air before the event switch')
   await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'Event baru' }).click()
+  await win.getByRole('menuitem', { name: 'New event' }).click()
   await win.fill('.event-input', 'Event KV')
   await win.press('.event-input', 'Enter')
   await win.locator('.event-btn', { hasText: 'Event KV' }).waitFor()
@@ -1542,12 +1541,12 @@ try {
   await win.getByRole('menuitem', { name: 'Smoke Event' }).click()
   await win.locator('.event-btn', { hasText: 'Smoke Event' }).waitFor()
   await tallyIs('KV')
-  // A KV on air cannot be removed: Hapus is disabled with a hint; turn KV off first.
-  check(await kvHapus().isDisabled(), 'KV on air while LIVE: Hapus is disabled')
+  // A KV on air cannot be removed: Remove is disabled with a hint; turn KV off first.
+  check(await kvRemove().isDisabled(), 'KV on air while LIVE: Remove is disabled')
   check((await win.getByTestId('kv-hint').count()) === 1, 'KV on air while LIVE: hint shown')
   await win.keyboard.press('k')
   await tallyIs('LIVE')
-  await kvHapus().click()
+  await kvRemove().click()
   await tallyIs('LIVE')
   await waitFrame([[10, 10]], (px) => blue(px[0]), 'removing the KV on air returns to slide 2')
   check(await kvBtn.isDisabled(), 'KV removed on air: KV button disabled, slide back on the output')
@@ -1576,7 +1575,7 @@ try {
   const w1 = await widths()
   check(
     Math.abs(w1.left - (w0.left + 80)) <= 2 && w1.stage < w0.stage,
-    'dragging the deck splitter widens Library and narrows Program'
+    'dragging the deck splitter widens Decks and narrows Program'
   )
   check(
     await win.evaluate(() => !document.activeElement?.matches('.splitter')),
@@ -1628,7 +1627,7 @@ try {
   // 4:3 deck (PDF, no PowerPoint needed): letterboxed with black bars, taken with a Fade.
   await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample-4x3.pdf'))
   const deck43 = win.locator('.deck', { has: win.locator('.name', { hasText: 'sample-4x3' }) })
-  await deck43.locator('.meta', { hasText: '2 slide' }).waitFor({ timeout: 60_000 })
+  await deck43.locator('.meta', { hasText: '2 slides' }).waitFor({ timeout: 60_000 })
   check(true, '4:3 PDF imported')
   await win.getByRole('radio', { name: 'Fade' }).click()
   await win.waitForFunction(
@@ -1682,7 +1681,7 @@ try {
   await win.keyboard.press('PageDown') // clicker Next
   await waitPos('3 / 3')
   check(
-    (await cap.textContent()) === 'Next berhenti di sini. Pilih sample-4x3 untuk lanjut.' &&
+    (await cap.textContent()) === 'Next stops here. Choose sample-4x3 to continue.' &&
       (await nextBtn.isDisabled()),
     `off: end of deck says Next stops, Next disabled ("${await cap.textContent()}")`
   )
@@ -1697,7 +1696,7 @@ try {
   await autoSw.click()
   await win.locator('[data-testid=auto-advance][aria-checked=true]').waitFor()
   check(
-    (await cap.textContent()) === 'Berikutnya: sample-4x3' && !(await nextBtn.isDisabled()),
+    (await cap.textContent()) === 'Next deck: sample-4x3' && !(await nextBtn.isDisabled()),
     'on: Next panel names the next deck, Next enabled'
   )
   await win.keyboard.press('PageDown')
@@ -1716,8 +1715,8 @@ try {
   // Optional: PPTX through PowerPoint COM (needs PowerPoint installed).
   if (process.env.PPT_E2E === '1') {
     await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample-4x3.pptx'))
-    await win.locator('.deck.busy .meta', { hasText: 'Mengonversi' }).waitFor()
-    check(true, 'PPTX row shows Mengonversi')
+    await win.locator('.deck.busy .meta', { hasText: 'Converting' }).waitFor()
+    check(true, 'PPTX row shows Converting')
     await win
       .locator('.deck .name', { hasText: 'sample-4x3' })
       .and(win.locator('.deck:not(.busy) .name'))
@@ -1728,7 +1727,7 @@ try {
 
   // Switching to a new (empty) event keeps the output as it is.
   await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'Event baru' }).click()
+  await win.getByRole('menuitem', { name: 'New event' }).click()
   await win.fill('.event-input', 'Event Kedua')
   await win.press('.event-input', 'Enter')
   await win.locator('.event-btn', { hasText: 'Event Kedua' }).waitFor()
@@ -1742,7 +1741,7 @@ try {
   check(true, 'switching back restores the position')
 
   // Theme toggle persists across reloads.
-  await win.getByRole('button', { name: 'Tema terang' }).click()
+  await win.getByRole('button', { name: 'Light theme' }).click()
   check(
     (await win.evaluate(() => document.documentElement.dataset.theme)) === 'light',
     'theme toggles to light'
@@ -1785,7 +1784,7 @@ try {
   await noisePdf(noise, 4)
   await win.setInputFiles('[data-testid=file-input]', noise)
   const noiseDeck = win.locator('.deck', { has: win.locator('.name', { hasText: /^noise$/ }) })
-  await noiseDeck.locator('.meta', { hasText: '4 slide' }).waitFor({ timeout: 120_000 })
+  await noiseDeck.locator('.meta', { hasText: '4 slides' }).waitFor({ timeout: 120_000 })
   await noiseDeck.click()
   // From STANDBY the first Next takes slide 1 live.
   if ((await tally.textContent()) !== 'LIVE') await win.keyboard.press('Space')
@@ -1798,30 +1797,30 @@ try {
   await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Fade')
   await win.getByRole('radio', { name: 'Cut' }).click()
 
-  // Rename a deck: right-click > Ganti nama, F2, Escape cancels, empty is refused.
+  // Rename a deck: right-click > Rename, F2, Escape cancels, empty is refused.
   const noiseId = await noiseDeck.getAttribute('data-deck-id')
   await noiseDeck.click({ button: 'right' })
   await win
     .getByTestId('deck-menu')
-    .getByRole('menuitem', { name: /Ganti nama/ })
+    .getByRole('menuitem', { name: /Rename/ })
     .click()
   const renameInput = win.getByTestId('rename-deck').locator('input')
-  await renameInput.fill('Sesi 1 - Pengenalan materi')
+  await renameInput.fill('Session 1: Introduction')
   await renameInput.press('Enter')
   const renamed = win.locator('.deck', {
-    has: win.locator('.name', { hasText: /^Sesi 1 - Pengenalan materi$/ })
+    has: win.locator('.name', { hasText: /^Session 1: Introduction$/ })
   })
   await renamed.waitFor()
   const savedDeck = JSON.parse(
     fs.readFileSync(path.join(userData, 'decks', noiseId, 'deck.json'), 'utf8')
   )
   check(
-    savedDeck.name === 'Sesi 1 - Pengenalan materi' && savedDeck.slides.length === 4,
+    savedDeck.name === 'Session 1: Introduction' && savedDeck.slides.length === 4,
     'rename from the deck menu saves the new name, slides untouched'
   )
   await renamed.focus()
   await win.keyboard.press('F2')
-  await renameInput.fill('Tidak jadi')
+  await renameInput.fill('Never mind')
   await renameInput.press('Escape')
   await renamed.waitFor()
   check((await win.getByTestId('rename-deck').count()) === 0, 'F2 opens rename, Escape cancels it')
@@ -1831,7 +1830,7 @@ try {
   await renameInput.press('Enter')
   const renameErr = win.getByTestId('rename-deck').getByRole('alert')
   await renameErr.waitFor()
-  check(/kosong/.test(await renameErr.textContent()), 'an empty name is refused with a message')
+  check(/empty/.test(await renameErr.textContent()), 'an empty name is refused with a message')
   await renameInput.press('Escape')
   await renamed.waitFor()
 

@@ -74,7 +74,7 @@ export class AppState {
 
   /** Switch the active event. `shown` is never changed here (spec: output stays until the operator picks a slide). */
   setEvent(eventId: string): ProgramState {
-    this.lib.getDecks(eventId) // throws (Indonesian message) if the event does not exist
+    this.lib.getDecks(eventId) // throws (user-facing message) if the event does not exist
     if (this.activeEvent) {
       this.positions.set(this.activeEvent, {
         deckId: this.current.deckId,

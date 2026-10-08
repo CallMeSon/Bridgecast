@@ -41,7 +41,7 @@ export function Switch({
         <span className="knob" />
       </button>
       <span className="switch-label" aria-hidden="true">
-        {checked ? 'Aktif' : 'Nonaktif'}
+        {checked ? 'On' : 'Off'}
       </span>
     </span>
   )

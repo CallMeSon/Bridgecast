@@ -72,12 +72,12 @@ export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React
     <div className="event" ref={wrap}>
       {creating ? (
         <div className="event-new">
-          <span className="lbl">Acara</span>
+          <span className="lbl">Event</span>
           <input
             className="event-input"
-            placeholder="Nama event baru"
+            placeholder="New event name"
             maxLength={60}
-            aria-label="Nama event baru"
+            aria-label="New event name"
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -97,11 +97,11 @@ export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
-          <span className="lbl">Acara</span>
+          <span className="lbl">Event</span>
           {current ? (
             <strong>{current.name}</strong>
           ) : (
-            <span className="placeholder">Pilih event</span>
+            <span className="placeholder">Choose event</span>
           )}
           <CaretDownIcon className="ph" size={16} />
         </button>
@@ -111,7 +111,7 @@ export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React
           ref={menu}
           className="menu"
           role="menu"
-          aria-label="Pilih acara"
+          aria-label="Choose event"
           data-no-shortcuts
           onKeyDown={onMenuKeyDown}
         >
@@ -135,7 +135,7 @@ export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React
           {events.length > 0 && <hr />}
           <button role="menuitem" onClick={startNew}>
             <PlusIcon className="chk muted" size={16} />
-            Event baru
+            New event
           </button>
         </div>
       )}

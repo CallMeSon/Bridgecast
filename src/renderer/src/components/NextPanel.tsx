@@ -29,24 +29,24 @@ export function NextPanel({
     cap = `Slide ${nx.index + 1}`
     nextPos = deck ? `${nx.index + 1} / ${deck.slides.length}` : ''
   } else if (nx.kind === 'end') {
-    card = <EndCard title="Akhir deck" />
-    if (!nx.nextDeck) cap = 'Tidak ada deck berikutnya'
-    else if (nx.auto) cap = `Berikutnya: ${nx.nextDeck}`
+    card = <EndCard title="End of deck" />
+    if (!nx.nextDeck) cap = 'No next deck'
+    else if (nx.auto) cap = `Next deck: ${nx.nextDeck}`
     // Auto advance off: Next stops here; the operator picks the next deck.
     else
       cap = (
         <>
-          Next berhenti di sini. Pilih <strong>{nx.nextDeck}</strong> untuk lanjut.
+          Next stops here. Choose <strong>{nx.nextDeck}</strong> to continue.
         </>
       )
   } else {
-    card = <EndCard title="Belum ada slide" />
+    card = <EndCard title="No slides yet" />
   }
 
   return (
-    <aside className="right" aria-label="Slide berikutnya">
+    <aside className="right" aria-label="Up next">
       <div className="colhead">
-        <h2>{held ? 'Tayang saat Unfreeze' : 'Slide berikutnya'}</h2>
+        <h2>{held ? 'Goes live on unfreeze' : 'Up next'}</h2>
         <span className="next-pos" data-testid="next-pos">
           {nextPos}
         </span>
@@ -65,7 +65,7 @@ export function NextPanel({
         </div>
         <div className="auto-adv">
           <label id="auto-advance-label" htmlFor="auto-advance">
-            Lanjut otomatis ke deck berikutnya
+            Continue to next deck
           </label>
           <Switch
             id="auto-advance"
@@ -76,7 +76,7 @@ export function NextPanel({
           />
         </div>
         <div className="notes">
-          <h2>Catatan</h2>
+          <h2>Notes</h2>
           <p>{deck ? notes : ''}</p>
         </div>
       </div>

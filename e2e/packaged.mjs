@@ -32,7 +32,7 @@ try {
   )
 
   await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'Event baru' }).click()
+  await win.getByRole('menuitem', { name: 'New event' }).click()
   await win.fill('.event-input', 'Packaged')
   await win.press('.event-input', 'Enter')
   await win.locator('.event-btn', { hasText: 'Packaged' }).waitFor()

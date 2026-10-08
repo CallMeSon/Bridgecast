@@ -1094,7 +1094,7 @@ kbd {
   white-space: pre-wrap;
 }
 .notes p:empty::before {
-  content: 'Tidak ada catatan untuk slide ini.';
+  content: 'No notes for this slide.';
   color: var(--text-3);
 }
 

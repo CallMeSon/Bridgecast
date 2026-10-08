@@ -12,9 +12,9 @@ export const THUMB_QUALITY = 80
  * full-size slide.
  */
 export function writeThumbnail(src: string, dest: string): void {
-  if (!nativeImage) throw new Error('nativeImage tidak tersedia')
+  if (!nativeImage) throw new Error('nativeImage is not available')
   const img = nativeImage.createFromPath(src)
-  if (img.isEmpty()) throw new Error('Gambar slide tidak bisa dibaca')
+  if (img.isEmpty()) throw new Error('The slide image cannot be read.')
   const small =
     img.getSize().width > THUMB_WIDTH ? img.resize({ width: THUMB_WIDTH, quality: 'good' }) : img
   const tmp = `${dest}.${randomUUID()}.tmp`

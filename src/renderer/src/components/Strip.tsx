@@ -2,7 +2,14 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { DeckMeta, SlideMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { thumbUrl } from '../../../shared/ipc'
-import { currentDeck, reorderTarget, slideLabel, slideRole, type SlideRole } from '../model'
+import {
+  countOf,
+  currentDeck,
+  reorderTarget,
+  slideLabel,
+  slideRole,
+  type SlideRole
+} from '../model'
 import { SlideImage } from './Slide'
 
 const SLIDE_TYPE = 'application/x-ppt-share-slide'
@@ -61,7 +68,7 @@ const Thumb = memo(function Thumb({
       draggable
       aria-current={current ? 'true' : undefined}
       aria-label={slideLabel(i, role)}
-      title="Klik untuk menampilkan · seret atau Alt+panah kiri/kanan untuk mengurutkan"
+      title="Click to go to this slide. Drag, or press Alt+←/→, to reorder."
       onClick={() => onGoto(i)}
       onKeyDown={(e) => {
         if (!e.altKey) return
@@ -138,34 +145,32 @@ export function Strip({ decks, state, onGoto, onMoveSlide }: Props): React.JSX.E
 
   if (!deck) {
     return (
-      <footer ref={ref} role="region" aria-label="Strip slide">
-        <span className="empty">
-          {decks.length ? 'Pilih deck di Library.' : 'Belum ada slide.'}
-        </span>
+      <footer ref={ref} role="region" aria-label="Slide strip">
+        <span className="empty">{decks.length ? 'Choose a deck in Decks.' : 'No slides yet.'}</span>
       </footer>
     )
   }
 
   return (
     // role=region: a <footer> inside the app shell must not announce as page contentinfo.
-    <footer ref={ref} role="region" aria-label="Strip slide" data-testid="strip">
+    <footer ref={ref} role="region" aria-label="Slide strip" data-testid="strip">
       <div className="lab">
         <span className="nm" title={deck.name}>
           {deck.name}
         </span>
-        <span className="m">{deck.slides.length} slide</span>
+        <span className="m">{countOf(deck.slides.length, 'slide')}</span>
         <div className="lg">
           <span>
             <i className="sk live" />
-            Tayang di Program
+            Live on Program
           </span>
           <span>
             <i className="sk next" />
-            Berikutnya
+            Next
           </span>
         </div>
       </div>
-      <div className="thumbs" role="group" aria-label={`Slide ${deck.name}`}>
+      <div className="thumbs" role="group" aria-label={`Slides in ${deck.name}`}>
         {deck.slides.map((s, i) => (
           <Thumb
             key={s.file}

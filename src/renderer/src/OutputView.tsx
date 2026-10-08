@@ -55,7 +55,7 @@ export function OutputView(): React.JSX.Element {
       .then((session) => {
         if (fresh) setProgram(session.state)
       })
-      .catch((e) => console.error('[output] status awal gagal dimuat:', e))
+      .catch((e) => console.error('[output] initial state failed to load:', e))
     return off
   }, [])
 

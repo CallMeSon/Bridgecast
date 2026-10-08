@@ -66,7 +66,7 @@ describe('ImportQueue', () => {
     const events: [string, JobStatus, string?][] = []
     const q = new ImportQueue(
       async (j) => {
-        if (j.id === 'j2') throw new Error('PowerPoint gagal')
+        if (j.id === 'j2') throw new Error('PowerPoint failed')
       },
       1,
       (j, status, error) => events.push(error ? [j.id, status, error.message] : [j.id, status])
@@ -79,7 +79,7 @@ describe('ImportQueue', () => {
       ['j1', 'busy'],
       ['j1', 'done'],
       ['j2', 'busy'],
-      ['j2', 'error', 'PowerPoint gagal'],
+      ['j2', 'error', 'PowerPoint failed'],
       ['j3', 'busy'],
       ['j3', 'done']
     ])

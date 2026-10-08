@@ -13,8 +13,8 @@ interface Props {
 }
 
 /**
- * "Output HDMI" part of the output popover: on/off and the target display.
- * Every change is applied at once — like Win+P.
+ * "HDMI output" part of the output popover: on/off and the target display.
+ * Every change is applied at once, like Win+P.
  * Main validates the display again against the screens connected right now.
  */
 export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.JSX.Element {
@@ -24,7 +24,7 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
   const hasSecond = displays.some((d) => !d.primary)
   // Turning on is impossible with one screen; turning off always works.
   const blocked = !hdmi.enabled && !hasSecond
-  // Never the primary nor the display holding the operator window (marked "(layar operator)").
+  // Never the primary nor the display holding the operator window (marked "(operator display)").
   const unusable = (d: DisplayInfo): boolean => d.primary || !!d.operator
   const selected = hdmi.displayId ?? displays.find((d) => !unusable(d))?.id ?? null
   const savedMissing = hdmi.displayId !== null && !displays.some((d) => d.id === hdmi.displayId)
@@ -46,7 +46,7 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
     <section className="pop-section" aria-labelledby="hdmi-title" data-testid="hdmi-section">
       <div className="pop-head">
         <label className="pop-title" id="hdmi-title" htmlFor="hdmi-switch">
-          Output HDMI
+          HDMI output
         </label>
         <Switch
           id="hdmi-switch"
@@ -69,7 +69,7 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
       </p>
 
       <div className="field">
-        <label htmlFor="hdmi-display">Layar tujuan</label>
+        <label htmlFor="hdmi-display">Target display</label>
         <select
           id="hdmi-display"
           className="text-input"
@@ -78,9 +78,7 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
           onChange={(e) => void save({ enabled: hdmi.enabled, displayId: Number(e.target.value) })}
         >
           {selected === null && (
-            <option value="">
-              {hasSecond ? 'Tidak ada layar yang bisa dipakai' : 'Tidak ada layar kedua'}
-            </option>
+            <option value="">{hasSecond ? 'No usable display' : 'No second display'}</option>
           )}
           {displays.map((d) => (
             <option key={d.id} value={String(d.id)} disabled={unusable(d)}>
@@ -89,12 +87,12 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
           ))}
           {savedMissing && (
             <option value={String(hdmi.displayId)} disabled>
-              Layar tersimpan (tidak tersambung)
+              Saved display (not connected)
             </option>
           )}
         </select>
         <span className="hint">
-          Program tampil layar penuh di layar ini. Perubahan HDMI langsung diterapkan.
+          Program shows fullscreen on this display. HDMI changes apply immediately.
         </span>
       </div>
 

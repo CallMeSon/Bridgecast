@@ -32,9 +32,9 @@ function save(s: Stored): void {
 const VARS: Record<Axis, string> = { left: '--left-w', right: '--right-w', strip: '--strip-h' }
 
 const LABEL: Record<Axis, string> = {
-  left: 'Ubah lebar panel deck',
-  right: 'Ubah lebar panel slide berikutnya',
-  strip: 'Ubah tinggi strip slide'
+  left: 'Resize decks panel width',
+  right: 'Resize up next panel width',
+  strip: 'Resize slide strip height'
 }
 
 /** Which way a pointer delta grows each panel. */

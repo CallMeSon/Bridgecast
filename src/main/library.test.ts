@@ -51,7 +51,7 @@ describe('Library', () => {
   it('createEvent trims name and rejects empty', () => {
     const lib = new Library(root)
     expect(lib.createEvent('  Gala  ').name).toBe('Gala')
-    expect(() => lib.createEvent('   ')).toThrow('Nama event kosong')
+    expect(() => lib.createEvent('   ')).toThrow('Event name is empty')
   })
 
   it('addDeck copies PNGs and getDecks returns in event order', () => {
@@ -104,25 +104,25 @@ describe('Library', () => {
     lib.reorderSlides(d.id, [1, 2, 0])
     expect(lib.slideFilePath(d.id, '002.png')).toBe(p)
     expect(fs.readFileSync(p, 'utf8')).toBe('png-1')
-    expect(() => lib.slideFilePath(d.id, '004.png')).toThrow(/tidak ditemukan/)
-    expect(() => lib.slideFilePath(d.id, 'deck.json')).toThrow(/tidak ditemukan/)
-    expect(() => lib.slideFilePath('..', '001.png')).toThrow(/tidak valid/)
+    expect(() => lib.slideFilePath(d.id, '004.png')).toThrow(/not found/)
+    expect(() => lib.slideFilePath(d.id, 'deck.json')).toThrow(/not found/)
+    expect(() => lib.slideFilePath('..', '001.png')).toThrow(/not valid/)
   })
 
   it('getDeck returns one deck by id', () => {
     const lib = new Library(root)
     const ev = lib.createEvent('E')
-    const d = lib.addDeck(ev.id, deckInput(2, 'Satu'))
-    expect(lib.getDeck(d.id)).toMatchObject({ id: d.id, name: 'Satu' })
-    expect(() => lib.getDeck('3f2504e0-4f89-41d3-9a0c-0305e82c3301')).toThrow(/tidak ditemukan/)
+    const d = lib.addDeck(ev.id, deckInput(2, 'One'))
+    expect(lib.getDeck(d.id)).toMatchObject({ id: d.id, name: 'One' })
+    expect(() => lib.getDeck('3f2504e0-4f89-41d3-9a0c-0305e82c3301')).toThrow(/not found/)
   })
 
   it('reorderSlides rejects an invalid permutation and keeps state', () => {
     const lib = new Library(root)
     const ev = lib.createEvent('E')
     const d = lib.addDeck(ev.id, deckInput(3))
-    expect(() => lib.reorderSlides(d.id, [0, 0, 1])).toThrow(/urutan/i)
-    expect(() => lib.reorderSlides(d.id, [0, 1])).toThrow(/urutan/i)
+    expect(() => lib.reorderSlides(d.id, [0, 0, 1])).toThrow(/slide order/i)
+    expect(() => lib.reorderSlides(d.id, [0, 1])).toThrow(/slide order/i)
     expect(lib.getDecks(ev.id)[0].slides.map((s) => s.notes)).toEqual([
       'note-0',
       'note-1',
@@ -156,11 +156,11 @@ describe('Library', () => {
     const ev = lib.createEvent('E')
     const a = lib.addDeck(ev.id, deckInput(2, 'Sesi 2 Paradigma'))
     const b = lib.addDeck(ev.id, deckInput(1, 'B'))
-    const r = lib.renameDeck(ev.id, a.id, '  Sesi 1 - Pengenalan materi  ')
-    expect(r.name).toBe('Sesi 1 - Pengenalan materi')
+    const r = lib.renameDeck(ev.id, a.id, '  Session 1: Introduction  ')
+    expect(r.name).toBe('Session 1: Introduction')
     expect(r.slides).toEqual(a.slides)
     const again = new Library(root)
-    expect(again.getDecks(ev.id).map((d) => d.name)).toEqual(['Sesi 1 - Pengenalan materi', 'B'])
+    expect(again.getDecks(ev.id).map((d) => d.name)).toEqual(['Session 1: Introduction', 'B'])
     expect(again.getDeck(b.id).name).toBe('B')
   })
 
@@ -168,25 +168,25 @@ describe('Library', () => {
     const lib = new Library(root)
     const e1 = lib.createEvent('E1')
     const e2 = lib.createEvent('E2')
-    const d = lib.addDeck(e1.id, deckInput(1, 'Asli'))
-    expect(() => lib.renameDeck(e1.id, d.id, '   ')).toThrow(/kosong/)
-    expect(() => lib.renameDeck(e1.id, d.id, 'x'.repeat(121))).toThrow(/120 karakter/)
-    expect(() => lib.renameDeck(e2.id, d.id, 'Baru')).toThrow(/tidak ditemukan/)
-    expect(lib.getDeck(d.id).name).toBe('Asli')
+    const d = lib.addDeck(e1.id, deckInput(1, 'Original'))
+    expect(() => lib.renameDeck(e1.id, d.id, '   ')).toThrow(/empty/)
+    expect(() => lib.renameDeck(e1.id, d.id, 'x'.repeat(121))).toThrow(/120 characters/)
+    expect(() => lib.renameDeck(e2.id, d.id, 'New')).toThrow(/not found/)
+    expect(lib.getDeck(d.id).name).toBe('Original')
   })
 
   it('renameDeck counts code points and rejects control or format characters', () => {
     const lib = new Library(root)
     const e1 = lib.createEvent('E1')
-    const d = lib.addDeck(e1.id, deckInput(1, 'Asli'))
+    const d = lib.addDeck(e1.id, deckInput(1, 'Original'))
     // 120 astral characters are 240 UTF-16 units but 120 code points: accepted.
     const ok = '😀'.repeat(DECK_NAME_MAX)
     expect(lib.renameDeck(e1.id, d.id, ok).name).toBe(ok)
     expect(() => lib.renameDeck(e1.id, d.id, '😀'.repeat(DECK_NAME_MAX + 1))).toThrow(
-      /120 karakter/
+      /120 characters/
     )
     for (const bad of ['a\u0000b', 'a\nb', 'a\tb', 'a‮b', 'a​b', 'a\u007Fb']) {
-      expect(() => lib.renameDeck(e1.id, d.id, bad)).toThrow(/karakter yang tidak didukung/)
+      expect(() => lib.renameDeck(e1.id, d.id, bad)).toThrow(/unsupported characters/)
     }
     expect(lib.getDeck(d.id).name).toBe(ok)
   })
@@ -196,28 +196,28 @@ describe('Library', () => {
     const e1 = lib.createEvent('E1')
     const e2 = lib.createEvent('E2')
     const d1 = lib.addDeck(e1.id, deckInput(1))
-    expect(() => lib.removeDeck(e1.id, '..')).toThrow(/tidak valid|tidak ditemukan/)
-    expect(() => lib.removeDeck(e2.id, d1.id)).toThrow(/tidak ditemukan/)
+    expect(() => lib.removeDeck(e1.id, '..')).toThrow(/not valid|not found/)
+    expect(() => lib.removeDeck(e2.id, d1.id)).toThrow(/not found/)
     expect(fs.existsSync(path.join(root, 'events.json'))).toBe(true)
     expect(fs.existsSync(path.join(root, 'decks', d1.id, 'deck.json'))).toBe(true)
     expect(lib.getDecks(e1.id)).toHaveLength(1)
   })
 
-  it('slidePath and lookups throw Indonesian errors', () => {
+  it('slidePath and lookups throw user-facing errors', () => {
     const lib = new Library(root)
     const ev = lib.createEvent('E')
     const d = lib.addDeck(ev.id, deckInput(1))
-    expect(() => lib.slidePath(d.id, 5)).toThrow(/Slide tidak ditemukan\. /)
-    expect(() => lib.slidePath('..', 0)).toThrow(/Id deck tidak valid/)
+    expect(() => lib.slidePath(d.id, 5)).toThrow(/Slide not found\. /)
+    expect(() => lib.slidePath('..', 0)).toThrow(/deck ID is not valid/)
     expect(() => lib.slidePath('00000000-0000-4000-8000-000000000000', 0)).toThrow(
-      /Deck tidak ditemukan\. /
+      /Deck not found\. /
     )
-    expect(() => lib.getDecks('nope')).toThrow(/Event tidak ditemukan\. /)
+    expect(() => lib.getDecks('nope')).toThrow(/Event not found\. /)
   })
 
-  it('corrupt events.json gives an Indonesian error', () => {
+  it('corrupt events.json gives a clear error', () => {
     fs.writeFileSync(path.join(root, 'events.json'), '{not json')
-    expect(() => new Library(root)).toThrow(/events\.json rusak/)
+    expect(() => new Library(root)).toThrow(/events\.json is damaged/)
   })
 
   it('removeDeck deletes folder and id', () => {
@@ -267,20 +267,20 @@ describe('Library', () => {
         expect(lib.setKv(ev.id, img(n)).kv).toBeTruthy()
       }
       expect(() => lib.setKv(ev.id, img('x.gif'))).toThrow(
-        'Format KV tidak didukung. Pilih gambar PNG, JPG, atau WebP.'
+        'This KV format is not supported. Choose a PNG, JPG, or WebP image.'
       )
-      expect(() => lib.setKv(ev.id, img('x.pdf'))).toThrow(/Format KV tidak didukung/)
-      expect(() => lib.setKv(ev.id, img('noext'))).toThrow(/Format KV tidak didukung/)
+      expect(() => lib.setKv(ev.id, img('x.pdf'))).toThrow(/KV format is not supported/)
+      expect(() => lib.setKv(ev.id, img('noext'))).toThrow(/KV format is not supported/)
     })
 
     it('refuses a missing file, a folder and a file over 50 MB; keeps the old KV', () => {
       const lib = new Library(root)
       const ev = lib.createEvent('E')
       const old = lib.setKv(ev.id, img('ok.png')).kv
-      expect(() => lib.setKv(ev.id, path.join(src, 'hilang.png'))).toThrow(/tidak ditemukan/)
+      expect(() => lib.setKv(ev.id, path.join(src, 'missing.png'))).toThrow(/not found/)
       const dir = path.join(src, 'folder.png')
       fs.mkdirSync(dir)
-      expect(() => lib.setKv(ev.id, dir)).toThrow(/bukan file/)
+      expect(() => lib.setKv(ev.id, dir)).toThrow(/not a file/)
       const big = path.join(src, 'big.png')
       fs.closeSync(fs.openSync(big, 'w'))
       fs.truncateSync(big, 50 * 1024 * 1024 + 1)
@@ -291,8 +291,8 @@ describe('Library', () => {
 
     it('refuses an unknown event', () => {
       const lib = new Library(root)
-      expect(() => lib.setKv('nope', img('a.png'))).toThrow(/Event tidak ditemukan/)
-      expect(() => lib.clearKv('nope')).toThrow(/Event tidak ditemukan/)
+      expect(() => lib.setKv('nope', img('a.png'))).toThrow(/Event not found/)
+      expect(() => lib.clearKv('nope')).toThrow(/Event not found/)
     })
 
     it('every event has its own KV', () => {
@@ -345,7 +345,7 @@ describe('Library', () => {
       const lib = new Library(root)
       const ev = lib.createEvent('E')
       for (const p of [String.raw`\\server\share\a.png`, '//server/share/a.png']) {
-        expect(() => lib.setKv(ev.id, p)).toThrow('Pilih gambar KV dari disk komputer ini')
+        expect(() => lib.setKv(ev.id, p)).toThrow('Choose a KV image from a disk on this computer')
       }
       expect(fs.existsSync(kvDir(ev.id))).toBe(false)
     })
@@ -360,7 +360,7 @@ describe('Library', () => {
       } catch {
         return // no symlink privilege on this machine
       }
-      expect(() => lib.setKv(ev.id, link)).toThrow(/pintasan|tautan/i)
+      expect(() => lib.setKv(ev.id, link)).toThrow(/shortcut or link/i)
       expect(fs.existsSync(kvDir(ev.id))).toBe(false)
     })
 
@@ -425,7 +425,7 @@ describe('Library', () => {
       ]) {
         expect(() => lib.kvFilePath(ev.id, bad)).toThrow(/KV/)
       }
-      expect(() => lib.kvFilePath('nope', kv)).toThrow(/Event tidak ditemukan/)
+      expect(() => lib.kvFilePath('nope', kv)).toThrow(/Event not found/)
     })
   })
   describe('thumbnails', () => {
@@ -478,7 +478,7 @@ describe('Library', () => {
     it('rejects files that are not slides of the deck', async () => {
       const lib = new Library(root, fakeThumb)
       const d = lib.addDeck(lib.createEvent('E').id, deckInput(1))
-      await expect(lib.thumbFilePath(d.id, '009.png')).rejects.toThrow(/tidak ditemukan/)
+      await expect(lib.thumbFilePath(d.id, '009.png')).rejects.toThrow(/not found/)
     })
 
     it('thumbnails follow the slide file through a reorder and go with the deck', async () => {

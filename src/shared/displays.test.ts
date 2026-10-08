@@ -13,7 +13,7 @@ import {
 
 const laptop: DisplayInfo = {
   id: 1,
-  label: 'Layar laptop',
+  label: 'Laptop display',
   width: 2880,
   height: 1800,
   primary: true
@@ -73,18 +73,18 @@ describe('toDisplayInfo / displayText', () => {
 
   it('names a display without a label by its position', () => {
     const d = { id: 9, label: '', size: { width: 1920, height: 1080 }, scaleFactor: 1 }
-    expect(toDisplayInfo(d, 1, 1).label).toBe('Layar 2')
+    expect(toDisplayInfo(d, 1, 1).label).toBe('Display 2')
   })
 
   it('shows label and resolution, and marks the operator screen', () => {
     expect(displayText(projector)).toBe('EPSON PJ · 1920×1080')
     expect(displayText({ ...projector, operator: true })).toBe(
-      'EPSON PJ · 1920×1080 (layar operator)'
+      'EPSON PJ · 1920×1080 (operator display)'
     )
     expect(displayText({ ...laptop, operator: true })).toBe(
-      'Layar laptop · 2880×1800 (layar utama, operator)'
+      'Laptop display · 2880×1800 (main display, operator)'
     )
-    expect(displayText(laptop)).toBe('Layar laptop · 2880×1800 (layar utama, operator)')
+    expect(displayText(laptop)).toBe('Laptop display · 2880×1800 (main display, operator)')
   })
 })
 
@@ -140,7 +140,7 @@ describe('hdmiSettingsError', () => {
 
   it('rejects the display holding the operator window, with the fix', () => {
     expect(hdmiSettingsError({ enabled: true, displayId: 2 }, all, 2)).toBe(OPERATOR_DISPLAY)
-    expect(OPERATOR_DISPLAY).toMatch(/jendela operator.*Pindahkan.*pilih layar HDMI yang lain/)
+    expect(OPERATOR_DISPLAY).toMatch(/operator window.*Move.*choose a different HDMI display/)
   })
 
   it('primary swap: the old laptop panel (now non-primary) holds the operator and is refused', () => {
@@ -160,22 +160,20 @@ describe('hdmiSettingsError', () => {
   })
 
   it('rejects malformed input', () => {
-    expect(hdmiSettingsError(null, all, null)).toMatch(/tidak valid/)
-    expect(hdmiSettingsError({ enabled: 'ya', displayId: 2 }, all, null)).toMatch(/tidak valid/)
-    expect(hdmiSettingsError({ enabled: true, displayId: 2.5 }, all, null)).toMatch(/tidak valid/)
-    expect(hdmiSettingsError({ enabled: true, displayId: '2' }, all, null)).toMatch(/tidak valid/)
+    expect(hdmiSettingsError(null, all, null)).toMatch(/not valid/)
+    expect(hdmiSettingsError({ enabled: 'yes', displayId: 2 }, all, null)).toMatch(/not valid/)
+    expect(hdmiSettingsError({ enabled: true, displayId: 2.5 }, all, null)).toMatch(/not valid/)
+    expect(hdmiSettingsError({ enabled: true, displayId: '2' }, all, null)).toMatch(/not valid/)
   })
 
-  it('rejects the primary display with an Indonesian error and the fix', () => {
+  it('rejects the primary display with an error and the fix', () => {
     expect(hdmiSettingsError({ enabled: true, displayId: 1 }, all, null)).toMatch(
-      /Layar utama \(operator\).*Pilih layar/
+      /main display \(operator\).*Choose the second display/
     )
   })
 
   it('rejects a display that is not connected', () => {
-    expect(hdmiSettingsError({ enabled: true, displayId: 42 }, all, null)).toMatch(
-      /tidak tersambung/
-    )
+    expect(hdmiSettingsError({ enabled: true, displayId: 42 }, all, null)).toMatch(/not connected/)
   })
 
   it('cannot be enabled with only one display', () => {
@@ -183,7 +181,7 @@ describe('hdmiSettingsError', () => {
       NO_SECOND_DISPLAY
     )
     expect(NO_SECOND_DISPLAY).toBe(
-      'Layar kedua tidak terdeteksi. Sambungkan HDMI lalu atur Windows ke mode Extend (Win+P → Extend).'
+      'No second display detected. Connect HDMI, then set Windows to Extend mode (Win+P, then Extend).'
     )
   })
 })

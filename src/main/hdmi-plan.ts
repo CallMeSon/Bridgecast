@@ -63,7 +63,7 @@ export interface HdmiPlan {
 }
 
 export const PRIMARY_TARGET_MESSAGE =
-  'Layar HDMI yang dipilih sekarang menjadi layar utama Windows, jadi output disembunyikan. Pilih layar lain untuk output HDMI.'
+  'The selected HDMI display is now the Windows main display, so the output is hidden. Choose another display for HDMI output.'
 
 const sameBounds = (a: Bounds | null, b: Bounds): boolean =>
   !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
@@ -137,7 +137,7 @@ export function planHdmi(
     }
   }
   const { bounds } = target
-  const preparing: HdmiStatus = { state: 'hidden', message: 'Menyiapkan output HDMI…' }
+  const preparing: HdmiStatus = { state: 'hidden', message: 'Preparing HDMI output…' }
   let action: HdmiAction
   let status: HdmiStatus = { state: 'showing' }
   if (!win.exists) {

@@ -11,7 +11,7 @@ import { OPERATOR_DISPLAY } from '../shared/displays'
 
 const laptop: ScreenDisplay = {
   id: 1,
-  label: 'Layar laptop',
+  label: 'Laptop display',
   width: 2880,
   height: 1800,
   primary: true,
@@ -47,7 +47,7 @@ describe('planHdmi', () => {
     const p = planHdmi(on, [laptop, projector], null, none)
     expect(p.action).toEqual({ type: 'create', bounds: projector.bounds })
     expect(p.status.state).toBe('hidden')
-    expect(p.status.message).toMatch(/Menyiapkan/)
+    expect(p.status.message).toMatch(/Preparing HDMI output/)
     expect(p.memo).toEqual(memo)
     expect(p.targetId).toBe(2)
   })
@@ -145,7 +145,7 @@ describe('planHdmi', () => {
     )
     expect(p.action).toEqual({ type: 'hide' })
     expect(p.status.state).toBe('error')
-    expect(p.status.message).toMatch(/layar utama.*Pilih layar lain/)
+    expect(p.status.message).toMatch(/main display.*Choose another display/)
   })
 
   describe('operator display (the screen holding the operator window)', () => {

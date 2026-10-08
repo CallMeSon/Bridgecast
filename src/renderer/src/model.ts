@@ -22,7 +22,7 @@ export function currentDeck(decks: DeckMeta[], s: ProgramState): DeckMeta | null
 }
 
 /**
- * What the "Slide berikutnya" panel shows: the slide Next will put live. That is
+ * What the "Up next" panel shows: the slide Next will put live. That is
  * the slide after the operator position, or the position itself while nothing
  * from this event is on the output (see `pendingTake`).
  */
@@ -149,9 +149,10 @@ export function fileKind(name: string): FileKind {
 
 /** Copy for a dropped or picked item that cannot be imported (an error row). */
 export const UNSUPPORTED = {
-  meta: 'Tidak didukung',
-  file: 'Hanya file PPTX, PPT, atau PDF yang bisa diimpor.',
-  folder: 'Folder tidak diimpor. Buka foldernya, lalu seret file PPTX, PPT, atau PDF di dalamnya.'
+  meta: 'Unsupported',
+  file: 'Only PPTX, PPT, or PDF files can be imported.',
+  folder:
+    'Folders cannot be imported. Open the folder, then drag the PPTX, PPT, or PDF files inside it.'
 } as const
 
 /** True when a drag carries files from outside (Explorer), not a deck or slide being reordered. */
@@ -182,13 +183,18 @@ export function moveOrder(n: number, from: number, to: number): number[] {
 
 /** Status text of a busy import row: queued (0 %) or converting. */
 export function importMeta(percent: number): string {
-  return percent <= 0 ? 'Menunggu' : 'Mengonversi'
+  return percent <= 0 ? 'Queued' : 'Converting'
 }
 
 /** Strip Electron's "Error invoking remote method 'x': Error: " prefix so the user sees our message. */
 export function errorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
   return msg.replace(/^Error invoking remote method '[^']*':\s*(?:\w*Error:\s*)?/, '')
+}
+
+/** "3 slides", "1 deck": a count with its noun, pluralised. */
+export function countOf(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`
 }
 
 export function baseName(name: string): string {
@@ -216,32 +222,32 @@ export interface HdmiBadge {
 
 /** Header HDMI status: green only when the window is actually on the second display. */
 export function hdmiBadge(status: HdmiStatus | null, hdmi: HdmiSettings): HdmiBadge {
-  if (!hdmi.enabled || status?.state === 'off') return { tone: 'off', text: 'HDMI mati' }
-  if (status?.state === 'error') return { tone: 'error', text: 'HDMI bermasalah' }
-  if (status?.state === 'showing') return { tone: 'ok', text: 'HDMI tampil' }
+  if (!hdmi.enabled || status?.state === 'off') return { tone: 'off', text: 'HDMI off' }
+  if (status?.state === 'error') return { tone: 'error', text: 'HDMI error' }
+  if (status?.state === 'showing') return { tone: 'ok', text: 'HDMI live' }
   if (status?.state === 'hidden' && !status.message) {
-    return { tone: 'warn', text: 'HDMI tersembunyi' }
+    return { tone: 'warn', text: 'HDMI hidden' }
   }
-  return { tone: 'off', text: 'HDMI memulai…' }
+  return { tone: 'off', text: 'HDMI starting…' }
 }
 
 /** Status line of the HDMI section in the output popover. */
 export function hdmiStatusText(status: HdmiStatus | null, hdmi: HdmiSettings): string {
-  if (!hdmi.enabled || status?.state === 'off') return 'Mati'
-  if (!status) return 'Memulai output HDMI…'
+  if (!hdmi.enabled || status?.state === 'off') return 'Off'
+  if (!status) return 'Starting HDMI output…'
   if (status.message) return status.message
-  if (status.state === 'showing') return 'Tampil'
-  return 'Tersembunyi, layar tidak tersambung'
+  if (status.state === 'showing') return 'Live'
+  return 'Hidden, display not connected'
 }
 
 /** Role of a thumbnail in the strip (frozen: the slide still on air while Freeze holds the output). */
 export type SlideRole = 'live' | 'frozen' | 'next' | 'pos'
 
 const ROLE_TEXT: Record<SlideRole, string> = {
-  live: 'tayang',
-  frozen: 'tertahan (Freeze)',
-  next: 'berikutnya',
-  pos: 'posisi operator'
+  live: 'live',
+  frozen: 'frozen',
+  next: 'next',
+  pos: 'operator position'
 }
 
 /** Accessible name of a thumbnail: number plus role, so a screen reader hears what is on air. */
@@ -304,4 +310,4 @@ export function menuFocusTarget(key: string, current: number, count: number): nu
 }
 
 /** Short confirmations shown in a polite live region. */
-export const SAVED = { kv: 'KV disimpan', order: 'Urutan disimpan' } as const
+export const SAVED = { kv: 'KV saved', order: 'Order saved' } as const

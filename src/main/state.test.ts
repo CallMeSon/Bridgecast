@@ -423,7 +423,7 @@ describe('AppState', () => {
       const lib = new Library(root)
       const a = lib.createEvent('A')
       const app = new AppState(lib)
-      expect(() => app.setKv(a.id, img('a.gif'))).toThrow(/Format KV/)
+      expect(() => app.setKv(a.id, img('a.gif'))).toThrow(/KV format/)
       expect(app.state.kvUrl).toBeNull()
     })
   })

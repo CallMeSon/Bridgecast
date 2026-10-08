@@ -99,7 +99,7 @@ function App(): React.JSX.Element {
       setEventId(session.eventId)
       setProgram(session.state)
       await reloadDecks(session.eventId)
-    })().catch((e) => reportError('Library', e))
+    })().catch((e) => reportError('Decks', e))
     return () => {
       offState()
       offProgress()
@@ -192,7 +192,7 @@ function App(): React.JSX.Element {
   )
 
   /**
-   * One path for the "Tambah file" dialog and drag and drop: imports into the
+   * One path for the "Add files" dialog and drag and drop: imports into the
    * active event. Unsupported files and folders become error rows at once.
    */
   const importFiles = useCallback(
@@ -212,7 +212,7 @@ function App(): React.JSX.Element {
         for (const f of files) {
           reportError(
             f.name,
-            new Error('Belum ada event. Buat event lewat menu event, lalu impor lagi.')
+            new Error('No event yet. Create one from the Event menu, then import again.')
           )
         }
         return
@@ -238,7 +238,8 @@ function App(): React.JSX.Element {
             name: f.name,
             percent: 100,
             status: 'error',
-            message: 'Lokasi file tidak diketahui. Simpan file ke disk, lalu seret dari Explorer.'
+            message:
+              'Could not find the file location. Save the file to disk, then drag it in from File Explorer.'
           })
           continue
         }
@@ -276,9 +277,9 @@ function App(): React.JSX.Element {
         )
         .then(
           () => announce(SAVED.order),
-          (e) => reportError('Urutan deck', e)
+          (e) => reportError('Deck order', e)
         )
-        .finally(() => reloadDecks(target).catch((e) => reportError('Library', e)))
+        .finally(() => reloadDecks(target).catch((e) => reportError('Decks', e)))
     },
     [api, decks, announce, reloadDecks, reportError]
   )
@@ -287,7 +288,7 @@ function App(): React.JSX.Element {
   const renameDeck = useCallback(
     async (deckId: string, name: string) => {
       const target = eventRef.current
-      if (!target) throw new Error('Pilih event dulu, lalu ganti nama deck.')
+      if (!target) throw new Error('Choose an event first, then rename the deck.')
       await api.renameDeck(target, deckId, name)
       await reloadDecks(target)
     },
@@ -307,9 +308,9 @@ function App(): React.JSX.Element {
         .reorderSlides(deckId, order)
         .then(
           () => announce(SAVED.order),
-          (e) => reportError('Urutan slide', e)
+          (e) => reportError('Slide order', e)
         )
-        .finally(() => reloadDecks(target).catch((e) => reportError('Library', e)))
+        .finally(() => reloadDecks(target).catch((e) => reportError('Decks', e)))
     },
     [api, decks, announce, reloadDecks, reportError]
   )
@@ -324,7 +325,7 @@ function App(): React.JSX.Element {
       api
         .removeDeck(target, deckId)
         .catch((e) => reportError(name, e))
-        .finally(() => reloadDecks(target).catch((e) => reportError('Library', e)))
+        .finally(() => reloadDecks(target).catch((e) => reportError('Decks', e)))
     },
     [api, decks, reloadDecks, reportError]
   )
@@ -334,10 +335,10 @@ function App(): React.JSX.Element {
   const setKv = useCallback(
     async (file: File) => {
       const target = eventRef.current
-      if (!target) throw new Error('Pilih event dulu, lalu pilih gambar KV.')
+      if (!target) throw new Error('Choose an event first, then choose the KV image.')
       const p = api.pathForFile(file)
       if (!p) {
-        throw new Error('Lokasi file tidak diketahui. Pilih gambar KV dari disk.')
+        throw new Error('Could not find the file location. Choose a KV image from disk.')
       }
       const ev = await api.setKv(target, p)
       setEvents((xs) => xs.map((x) => (x.id === ev.id ? ev : x)))
@@ -395,7 +396,9 @@ function App(): React.JSX.Element {
           <Program
             state={program}
             deck={deck}
-            emptyHint={eventId ? undefined : 'Buat event dulu lewat menu Acara di kiri atas.'}
+            emptyHint={
+              eventId ? undefined : 'Create an event first from the Event menu at the top left.'
+            }
           />
           <Controls
             state={program}

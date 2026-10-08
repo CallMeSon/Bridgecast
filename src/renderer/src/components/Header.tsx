@@ -22,15 +22,15 @@ function ThemeToggle({
   onSet(theme: Theme): void
 }): React.JSX.Element {
   return (
-    <div className="theme" role="group" aria-label="Tema">
+    <div className="theme" role="group" aria-label="Theme">
       <button
-        aria-label="Tema terang"
+        aria-label="Light theme"
         aria-pressed={theme === 'light'}
         onClick={() => onSet('light')}
       >
         <SunIcon size={16} />
       </button>
-      <button aria-label="Tema gelap" aria-pressed={theme === 'dark'} onClick={() => onSet('dark')}>
+      <button aria-label="Dark theme" aria-pressed={theme === 'dark'} onClick={() => onSet('dark')}>
         <MoonIcon size={16} />
       </button>
     </div>

@@ -13,7 +13,7 @@ import {
 import { DECK_NAME_MAX, type DeckMeta } from '../../../shared/types'
 import type { ShownSlide } from '../../../shared/program'
 import type { ImportProgress } from '../../../shared/ipc'
-import { errorMessage, fileKind, importMeta, reorderTarget } from '../model'
+import { countOf, errorMessage, fileKind, importMeta, reorderTarget } from '../model'
 import { menuItems, onMenuKeyDown } from './menuNav'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
@@ -34,7 +34,7 @@ interface Props {
   kvUrl: string | null
   /** The KV image is on the output now; it cannot be removed meanwhile. */
   kvOnAir: boolean
-  /** Rejects with an Indonesian message when main refuses the image. */
+  /** Rejects with a user-facing message when main refuses the image. */
   onSetKv(file: File): Promise<void>
   onClearKv(): Promise<void>
   onSelectDeck(deckId: string): void
@@ -42,7 +42,7 @@ interface Props {
   onFiles(files: File[]): void
   onMoveDeck(from: number, to: number): void
   onRemoveDeck(deckId: string): void
-  /** Rejects with an Indonesian message when main refuses the name. */
+  /** Rejects with a user-facing message when main refuses the name. */
   onRenameDeck(deckId: string, name: string): Promise<void>
 }
 
@@ -100,7 +100,7 @@ function DeckMenu({
       ref={ref}
       className="menu ctx-menu"
       role="menu"
-      aria-label="Menu deck"
+      aria-label="Deck menu"
       data-no-shortcuts
       onKeyDown={onMenuKeyDown}
       style={{ left: at.x, top: at.y }}
@@ -108,22 +108,22 @@ function DeckMenu({
     >
       <button role="menuitem" onClick={onRename}>
         <PencilSimpleIcon className="chk" size={16} />
-        Ganti nama…
+        Rename…
         <kbd className="opt">F2</kbd>
       </button>
       <button role="menuitem" disabled={!canUp} onClick={() => onMove(-1)}>
         <ArrowUpIcon className="chk" size={16} />
-        Pindah ke atas
+        Move up
         <kbd className="opt">Alt+↑</kbd>
       </button>
       <button role="menuitem" disabled={!canDown} onClick={() => onMove(1)}>
         <ArrowDownIcon className="chk" size={16} />
-        Pindah ke bawah
+        Move down
         <kbd className="opt">Alt+↓</kbd>
       </button>
       <button role="menuitem" className="danger" onClick={onRemove}>
         <TrashIcon className="chk" size={16} />
-        Hapus deck…
+        Remove deck…
       </button>
     </div>
   )
@@ -187,7 +187,7 @@ function RenameRow({
       <input
         ref={input}
         className="text-input"
-        aria-label={`Nama baru untuk ${deck.name}`}
+        aria-label={`New name for ${deck.name}`}
         value={value}
         maxLength={DECK_NAME_MAX}
         aria-invalid={!!error}
@@ -231,7 +231,7 @@ function ConfirmRemove({
     <div
       className="deck confirm"
       role="group"
-      aria-label={`Hapus ${deck.name}`}
+      aria-label={`Remove ${deck.name}`}
       data-no-shortcuts
       data-testid="confirm-remove"
       onKeyDown={(e) => {
@@ -243,24 +243,24 @@ function ConfirmRemove({
     >
       <TrashIcon className="ph" size={20} />
       <span className="name" title={deck.name}>
-        Hapus deck ini?
+        Remove this deck?
       </span>
       <span className="msg">
-        {deck.name} · {deck.slides.length} slide. Tidak bisa dibatalkan.
+        {deck.name} · {countOf(deck.slides.length, 'slide')}. This cannot be undone.
       </span>
       <span className="actions">
         <button className="btn sm danger" onClick={onConfirm}>
-          Hapus
+          Remove
         </button>
         <button ref={cancel} className="btn sm" onClick={onCancel}>
-          Batal
+          Cancel
         </button>
       </span>
     </div>
   )
 }
 
-/** "KV acara": the event's hold image (shown on the output on demand and while STANDBY). */
+/** "Key visual (KV)": the event's hold image (shown on the output on demand and while STANDBY). */
 function KvBlock({
   kvUrl,
   onAir,
@@ -289,16 +289,16 @@ function KvBlock({
     }
   }
   return (
-    <div className="kv-block" role="group" aria-label="KV acara" data-testid="kv-block">
-      <div className="kv-head">KV acara</div>
+    <div className="kv-block" role="group" aria-label="Key visual (KV)" data-testid="kv-block">
+      <div className="kv-head">Key visual (KV)</div>
       <div className="kv-body">
         <div className="kv-thumb" data-testid="kv-thumb" data-empty={kvUrl === null}>
           {kvUrl ? (
-            <img src={kvUrl} alt="KV acara" draggable={false} />
+            <img src={kvUrl} alt="Event key visual" draggable={false} />
           ) : (
             <span>
               <ImageIcon size={16} />
-              Belum ada KV
+              No KV yet
             </span>
           )}
         </div>
@@ -308,18 +308,18 @@ function KvBlock({
             disabled={!canEdit || busy}
             onClick={() => input.current?.click()}
           >
-            {kvUrl ? 'Ganti gambar' : 'Pilih gambar'}
+            {kvUrl ? 'Replace image' : 'Choose image'}
           </button>
           {kvUrl && (
             <button className="btn sm" disabled={busy || onAir} onClick={() => void run(onClear)}>
-              Hapus
+              Remove
             </button>
           )}
         </div>
       </div>
       {kvUrl && onAir && (
         <p className="kv-hint" data-testid="kv-hint">
-          Matikan KV dulu untuk menghapus.
+          Turn KV off first to remove it.
         </p>
       )}
       {error && (
@@ -397,17 +397,17 @@ export function Library(p: Props): React.JSX.Element {
   }
 
   return (
-    <aside className="left" aria-label="Deck acara">
+    <aside className="left" aria-label="Decks">
       <div className="colhead">
-        <h2>Deck acara</h2>
-        <span className="meta">{count} file</span>
+        <h2>Decks</h2>
+        <span className="meta">{countOf(count, 'deck')}</span>
       </div>
       <div className="decks" data-testid="decks">
         {count === 0 && p.imports.length === 0 && (
           <div className="empty-lib">
             {p.canImport
-              ? 'Belum ada deck di event ini.'
-              : 'Belum ada event. Buat event dulu lewat menu Acara di atas, lalu impor file.'}
+              ? 'No decks in this event yet.'
+              : 'No event yet. Create one from the Event menu above, then add files.'}
           </div>
         )}
         {p.decks.map((d, i) =>
@@ -444,7 +444,7 @@ export function Library(p: Props): React.JSX.Element {
               data-deck-id={d.id}
               draggable
               aria-current={d.id === p.currentDeckId ? 'true' : undefined}
-              title="Klik untuk menayangkan, seret atau Alt+panah atas/bawah untuk mengurutkan, F2 atau klik kanan untuk ganti nama atau hapus"
+              title="Click to take this deck live. Drag, or press Alt+↑/↓, to reorder. F2 or right-click to rename or remove."
               onClick={() => p.onSelectDeck(d.id)}
               onKeyDown={(e) => {
                 if (e.altKey) {
@@ -495,12 +495,12 @@ export function Library(p: Props): React.JSX.Element {
               <span className="name" title={d.name}>
                 {d.name}
               </span>
-              <span className="meta">{d.slides.length} slide</span>
+              <span className="meta">{countOf(d.slides.length, 'slide')}</span>
               <span className="sub">
                 {p.live?.deckId === d.id
                   ? `LIVE, slide ${p.live.index + 1}`
                   : p.frozen?.deckId === d.id
-                    ? `TERTAHAN, slide ${p.frozen.index + 1}`
+                    ? `FROZEN, slide ${p.frozen.index + 1}`
                     : `.${d.source}`}
               </span>
             </button>
@@ -511,7 +511,7 @@ export function Library(p: Props): React.JSX.Element {
             <button
               key={x.id}
               className="deck err"
-              title="Klik untuk menutup"
+              title="Click to dismiss"
               data-testid="import-error"
               onClick={() => p.onDismissImport(x.id)}
             >
@@ -519,7 +519,7 @@ export function Library(p: Props): React.JSX.Element {
               <span className="name" title={x.name}>
                 {x.name}
               </span>
-              <span className="meta">{x.meta ?? 'Gagal'}</span>
+              <span className="meta">{x.meta ?? 'Failed'}</span>
               {x.message && <span className="msg">{x.message}</span>}
             </button>
           ) : (
@@ -538,7 +538,7 @@ export function Library(p: Props): React.JSX.Element {
               <span
                 className="bar"
                 role="progressbar"
-                aria-label={`Impor ${x.name}`}
+                aria-label={`Importing ${x.name}`}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={x.percent}
@@ -579,12 +579,12 @@ export function Library(p: Props): React.JSX.Element {
       <div className="add">
         <button className="btn" disabled={!p.canImport} onClick={() => input.current?.click()}>
           <PlusIcon size={16} />
-          Tambah file
+          Add files
         </button>
         <p>
           {p.canImport
-            ? 'Atau seret file .pptx, .ppt, .pdf ke jendela ini.'
-            : 'Impor aktif setelah event dibuat lewat menu Acara.'}
+            ? 'Or drag .pptx, .ppt, or .pdf files into this window.'
+            : 'Create an event in the Event menu to enable importing.'}
         </p>
       </div>
       <input

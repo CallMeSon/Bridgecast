@@ -63,8 +63,14 @@ export function Controls({
         </button>
       </div>
       <div className="trans">
-        <span className="cl">Transisi</span>
-        <div ref={seg} className="seg" role="radiogroup" aria-label="Transisi" onKeyDown={onSegKey}>
+        <span className="cl">Transition</span>
+        <div
+          ref={seg}
+          className="seg"
+          role="radiogroup"
+          aria-label="Transition"
+          onKeyDown={onSegKey}
+        >
           {transitions.map((x) => (
             <button
               key={x.t}
@@ -96,7 +102,7 @@ export function Controls({
           aria-pressed={kvOnAir(state)}
           disabled={state.kvUrl === null}
           title={
-            state.kvUrl === null ? 'Belum ada KV. Tambahkan KV acara di kolom Deck.' : undefined
+            state.kvUrl === null ? 'No key visual yet. Add one in the Decks panel.' : undefined
           }
           onClick={() => onAction({ type: 'toggleKv' })}
         >

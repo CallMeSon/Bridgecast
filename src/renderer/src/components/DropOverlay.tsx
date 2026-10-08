@@ -86,7 +86,7 @@ export function DropOverlay({ onDrop }: { onDrop(items: DroppedItems): void }): 
     <div className={on ? 'overlay on' : 'overlay'} data-testid="drop-overlay" aria-hidden={!on}>
       <span>
         <UploadSimpleIcon className="ph" size={22} />
-        Lepas file untuk menambah ke Library
+        Drop files to add them as decks
       </span>
     </div>
   )

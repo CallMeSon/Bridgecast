@@ -94,7 +94,7 @@ export function OutputMenu(): React.JSX.Element {
         <div
           className="popover"
           role="dialog"
-          aria-label="Pengaturan output"
+          aria-label="Output settings"
           data-no-shortcuts
           data-testid="output-popover"
         >

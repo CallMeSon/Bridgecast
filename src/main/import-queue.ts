@@ -25,7 +25,7 @@ export class ImportQueue {
     private readonly onStatus?: StatusListener
   ) {
     if (!Number.isInteger(concurrency) || concurrency < 1) {
-      throw new Error('Jumlah impor bersamaan harus bilangan bulat minimal 1.')
+      throw new Error('Concurrent imports must be a whole number of at least 1.')
     }
   }
 

@@ -54,7 +54,7 @@ export class Library {
 
   private deckDir(deckId: string): string {
     if (!UUID_RE.test(deckId)) {
-      throw new Error('Id deck tidak valid. Muat ulang daftar deck lalu pilih deck dari daftar.')
+      throw new Error('The deck ID is not valid. Reload the deck list, then choose a deck from it.')
     }
     return path.join(this.root, 'decks', deckId)
   }
@@ -65,7 +65,7 @@ export class Library {
       return JSON.parse(fs.readFileSync(this.eventsFile, 'utf8')) as EventMeta[]
     } catch {
       throw new Error(
-        'File events.json rusak dan tidak bisa dibaca. Pulihkan dari cadangan atau hapus file tersebut untuk memulai dari awal.'
+        'events.json is damaged and cannot be read. Restore it from a backup, or delete the file to start over.'
       )
     }
   }
@@ -77,14 +77,14 @@ export class Library {
   private findEvent(eventId: string): EventMeta {
     const ev = this.events.find((e) => e.id === eventId)
     if (!ev)
-      throw new Error('Event tidak ditemukan. Pilih event lain dari menu atau buat event baru.')
+      throw new Error('Event not found. Choose another event from the menu, or create a new one.')
     return ev
   }
 
   private readDeck(deckId: string): DeckMeta {
     const file = path.join(this.deckDir(deckId), 'deck.json')
     if (!fs.existsSync(file))
-      throw new Error('Deck tidak ditemukan. Muat ulang daftar deck atau impor deck kembali.')
+      throw new Error('Deck not found. Reload the deck list, or import the deck again.')
     return JSON.parse(fs.readFileSync(file, 'utf8')) as DeckMeta
   }
 
@@ -94,7 +94,7 @@ export class Library {
 
   createEvent(name: string): EventMeta {
     const trimmed = name.trim()
-    if (!trimmed) throw new Error('Nama event kosong')
+    if (!trimmed) throw new Error('Event name is empty. Type a name for the event.')
     const ev: EventMeta = { id: randomUUID(), name: trimmed, deckIds: [] }
     this.events.push(ev)
     this.saveEvents()
@@ -147,7 +147,9 @@ export class Library {
       new Set(deckIds).size === deckIds.length &&
       deckIds.every((id) => ev.deckIds.includes(id))
     if (!valid) {
-      throw new Error('Daftar deck tidak valid: harus memuat semua deck event tepat satu kali')
+      throw new Error(
+        'The deck list is not valid: it must include every deck in the event exactly once. Reload the app, then try again.'
+      )
     }
     ev.deckIds = [...deckIds]
     this.saveEvents()
@@ -161,7 +163,9 @@ export class Library {
       new Set(order).size === n &&
       order.every((i) => Number.isInteger(i) && i >= 0 && i < n)
     if (!valid) {
-      throw new Error('Urutan slide tidak valid: harus permutasi dari semua indeks slide')
+      throw new Error(
+        'The slide order is not valid: it must list every slide exactly once. Reload the app, then try again.'
+      )
     }
     // File PNG tetap; hanya urutan di deck.json yang berubah (satu rename atomik).
     const slides = order.map((from) => deck.slides[from])
@@ -173,16 +177,17 @@ export class Library {
     const ev = this.findEvent(eventId)
     if (!ev.deckIds.includes(deckId)) {
       throw new Error(
-        'Deck tidak ditemukan di event ini. Muat ulang daftar deck lalu pilih deck dari daftar.'
+        'Deck not found in this event. Reload the deck list, then choose a deck from it.'
       )
     }
     const trimmed = typeof name === 'string' ? name.trim() : ''
-    if (!trimmed) throw new Error('Nama deck kosong. Isi nama, misalnya "Sesi 1 - Pembukaan".')
+    if (!trimmed)
+      throw new Error('Deck name is empty. Type a name, for example "Session 1: Opening".')
     if (/[\p{Cc}\p{Cf}]/u.test(trimmed)) {
-      throw new Error('Nama deck berisi karakter yang tidak didukung. Ketik ulang namanya.')
+      throw new Error('Deck name contains unsupported characters. Retype the name.')
     }
     if ([...trimmed].length > DECK_NAME_MAX) {
-      throw new Error(`Nama deck terlalu panjang. Pakai paling banyak ${DECK_NAME_MAX} karakter.`)
+      throw new Error(`Deck name is too long. Use ${DECK_NAME_MAX} characters or fewer.`)
     }
     const deck = { ...this.readDeck(deckId), name: trimmed }
     this.writeDeck(deck)
@@ -193,7 +198,7 @@ export class Library {
     const ev = this.findEvent(eventId)
     if (!ev.deckIds.includes(deckId)) {
       throw new Error(
-        'Deck tidak ditemukan di event ini. Muat ulang daftar deck lalu pilih deck dari daftar.'
+        'Deck not found in this event. Reload the deck list, then choose a deck from it.'
       )
     }
     ev.deckIds = ev.deckIds.filter((id) => id !== deckId)
@@ -204,7 +209,9 @@ export class Library {
   private kvDir(eventId: string): string {
     // Event ids are uuids we generated; refuse anything else before using it as a folder name.
     if (!UUID_RE.test(eventId)) {
-      throw new Error('Id event tidak valid. Muat ulang aplikasi lalu pilih event dari menu.')
+      throw new Error(
+        'The event ID is not valid. Reload the app, then choose an event from the menu.'
+      )
     }
     return path.join(this.root, 'kv', eventId)
   }
@@ -219,27 +226,25 @@ export class Library {
     const ev = this.findEvent(eventId)
     const src = String(srcPath)
     if (src.startsWith('\\\\') || src.startsWith('//')) {
-      throw new Error('Pilih gambar KV dari disk komputer ini, bukan dari jaringan.')
+      throw new Error('Choose a KV image from a disk on this computer, not from the network.')
     }
     const ext = path.extname(src).slice(1).toLowerCase()
     if (!Object.prototype.hasOwnProperty.call(KV_MIME, ext)) {
-      throw new Error('Format KV tidak didukung. Pilih gambar PNG, JPG, atau WebP.')
+      throw new Error('This KV format is not supported. Choose a PNG, JPG, or WebP image.')
     }
     let stat: fs.Stats
     try {
       stat = fs.lstatSync(src)
     } catch {
-      throw new Error('File KV tidak ditemukan. Pilih gambar KV lagi.')
+      throw new Error('KV file not found. Choose the KV image again.')
     }
     if (stat.isSymbolicLink()) {
-      throw new Error(
-        'Gambar KV tidak boleh berupa pintasan atau tautan. Pilih file gambar aslinya langsung.'
-      )
+      throw new Error('A KV image cannot be a shortcut or link. Choose the image file itself.')
     }
     if (!stat.isFile())
-      throw new Error('Yang dipilih bukan file. Pilih file gambar KV (PNG, JPG, atau WebP).')
+      throw new Error('The selection is not a file. Choose a KV image file (PNG, JPG, or WebP).')
     if (stat.size > KV_MAX_BYTES) {
-      throw new Error('File KV terlalu besar. Pakai gambar yang ukurannya paling banyak 50 MB.')
+      throw new Error('The KV file is too large. Use an image of 50 MB or less.')
     }
     const dir = this.kvDir(eventId)
     const file = `${randomUUID()}.${ext}`
@@ -249,7 +254,7 @@ export class Library {
       fs.mkdirSync(dir, { recursive: true })
       fs.copyFileSync(src, target)
       if (fs.statSync(target).size > KV_MAX_BYTES) {
-        throw new Error('File KV terlalu besar. Pakai gambar yang ukurannya paling banyak 50 MB.')
+        throw new Error('The KV file is too large. Use an image of 50 MB or less.')
       }
       ev.kv = file
       this.saveEvents()
@@ -290,7 +295,7 @@ export class Library {
   kvFilePath(eventId: string, file: string): string {
     const ev = this.findEvent(eventId)
     if (typeof file !== 'string' || !ev.kv || file !== ev.kv || !KV_FILE_RE.test(file)) {
-      throw new Error('KV tidak ditemukan. Pilih gambar KV untuk event ini.')
+      throw new Error('KV not found. Choose a KV image for this event.')
     }
     return path.join(this.kvDir(eventId), file)
   }
@@ -307,7 +312,7 @@ export class Library {
   slideFilePath(deckId: string, file: string): string {
     const deck = this.readDeck(deckId)
     if (!deck.slides.some((s) => s.file === file)) {
-      throw new Error('Slide tidak ditemukan. Pilih slide yang ada di deck ini.')
+      throw new Error('Slide not found. Choose a slide that exists in this deck.')
     }
     return path.join(this.deckDir(deckId), file)
   }
@@ -361,7 +366,7 @@ export class Library {
   slidePath(deckId: string, index: number): string {
     const deck = this.readDeck(deckId)
     const slide = deck.slides[index]
-    if (!slide) throw new Error('Slide tidak ditemukan. Pilih nomor slide yang ada di deck ini.')
+    if (!slide) throw new Error('Slide not found. Choose a slide number that exists in this deck.')
     return path.join(this.deckDir(deckId), slide.file)
   }
 }

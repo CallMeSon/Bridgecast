@@ -8,6 +8,7 @@ import {
   errorMessage,
   fileKind,
   hasFiles,
+  countOf,
   importMeta,
   keyToAction,
   menuFocusTarget,
@@ -202,9 +203,9 @@ describe('keyToAction', () => {
 describe('slide roles and labels', () => {
   const decks = [deck('a', 5, 'A')]
   it('names the role in the label', () => {
-    expect(slideLabel(2, 'live')).toBe('Slide 3, tayang')
-    expect(slideLabel(3, 'next')).toBe('Slide 4, berikutnya')
-    expect(slideLabel(1, 'frozen')).toBe('Slide 2, tertahan (Freeze)')
+    expect(slideLabel(2, 'live')).toBe('Slide 3, live')
+    expect(slideLabel(3, 'next')).toBe('Slide 4, next')
+    expect(slideLabel(1, 'frozen')).toBe('Slide 2, frozen')
     expect(slideLabel(0, undefined)).toBe('Slide 1')
   })
   it('marks the slide on air LIVE, and FROZEN while Freeze holds it', () => {
@@ -257,8 +258,8 @@ describe('files', () => {
 
 describe('errorMessage', () => {
   it('strips the Electron IPC prefix', () => {
-    const e = new Error("Error invoking remote method 'events:create': Error: Nama event kosong")
-    expect(errorMessage(e)).toBe('Nama event kosong')
+    const e = new Error("Error invoking remote method 'events:create': Error: Event name is empty")
+    expect(errorMessage(e)).toBe('Event name is empty')
     expect(errorMessage(new Error('Biasa'))).toBe('Biasa')
   })
 })
@@ -352,31 +353,37 @@ describe('drag and drop helpers', () => {
     expect(fileKind('notes.txt')).toBe('unsupported')
     expect(fileKind('pptx')).toBe('unsupported')
   })
+  it('countOf pluralises the noun', () => {
+    expect(countOf(0, 'deck')).toBe('0 decks')
+    expect(countOf(1, 'slide')).toBe('1 slide')
+    expect(countOf(3, 'slide')).toBe('3 slides')
+  })
+
   it('importMeta: queued at 0 %, converting after', () => {
-    expect(importMeta(0)).toBe('Menunggu')
-    expect(importMeta(10)).toBe('Mengonversi')
+    expect(importMeta(0)).toBe('Queued')
+    expect(importMeta(10)).toBe('Converting')
   })
 })
 
 describe('hdmiBadge', () => {
   const on = { enabled: true, displayId: 2 }
   it('green only while the window is actually showing', () => {
-    expect(hdmiBadge({ state: 'showing' }, on)).toEqual({ tone: 'ok', text: 'HDMI tampil' })
+    expect(hdmiBadge({ state: 'showing' }, on)).toEqual({ tone: 'ok', text: 'HDMI live' })
   })
   it('gray when off or still preparing, amber when the display is unplugged, red on error', () => {
     expect(hdmiBadge({ state: 'off' }, { enabled: false, displayId: 2 })).toEqual({
       tone: 'off',
-      text: 'HDMI mati'
+      text: 'HDMI off'
     })
-    expect(hdmiBadge(null, on)).toEqual({ tone: 'off', text: 'HDMI memulai…' })
+    expect(hdmiBadge(null, on)).toEqual({ tone: 'off', text: 'HDMI starting…' })
     expect(hdmiBadge({ state: 'hidden', message: 'Menyiapkan output HDMI…' }, on)).toEqual({
       tone: 'off',
-      text: 'HDMI memulai…'
+      text: 'HDMI starting…'
     })
-    expect(hdmiBadge({ state: 'hidden' }, on)).toEqual({ tone: 'warn', text: 'HDMI tersembunyi' })
+    expect(hdmiBadge({ state: 'hidden' }, on)).toEqual({ tone: 'warn', text: 'HDMI hidden' })
     expect(hdmiBadge({ state: 'error', message: 'x' }, on)).toEqual({
       tone: 'error',
-      text: 'HDMI bermasalah'
+      text: 'HDMI error'
     })
   })
   it('settings say off: gray even before the status arrives', () => {
@@ -387,11 +394,11 @@ describe('hdmiBadge', () => {
 describe('hdmiStatusText', () => {
   const on = { enabled: true, displayId: 2 }
   it('uses the agreed copy', () => {
-    expect(hdmiStatusText({ state: 'showing' }, on)).toBe('Tampil')
-    expect(hdmiStatusText({ state: 'hidden' }, on)).toBe('Tersembunyi, layar tidak tersambung')
-    expect(hdmiStatusText({ state: 'off' }, { enabled: false, displayId: null })).toBe('Mati')
-    expect(hdmiStatusText({ state: 'error', message: 'Pilih layar lain.' }, on)).toBe(
-      'Pilih layar lain.'
+    expect(hdmiStatusText({ state: 'showing' }, on)).toBe('Live')
+    expect(hdmiStatusText({ state: 'hidden' }, on)).toBe('Hidden, display not connected')
+    expect(hdmiStatusText({ state: 'off' }, { enabled: false, displayId: null })).toBe('Off')
+    expect(hdmiStatusText({ state: 'error', message: 'Choose another display.' }, on)).toBe(
+      'Choose another display.'
     )
     expect(hdmiStatusText({ state: 'hidden', message: 'Menyiapkan output HDMI…' }, on)).toBe(
       'Menyiapkan output HDMI…'

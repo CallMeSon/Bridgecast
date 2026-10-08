@@ -29,10 +29,10 @@ export async function renderPdf(
   } catch (e) {
     const name = (e as { name?: string }).name
     if (name === 'PasswordException') {
-      throw new Error('PDF dilindungi kata sandi. Hapus proteksi lalu impor ulang.')
+      throw new Error('This PDF is password protected. Remove the protection, then import again.')
     }
     throw new Error(
-      'File PDF rusak atau tidak bisa dibuka. Coba ekspor ulang PDF dari aplikasi asalnya.'
+      'The PDF is damaged or cannot be opened. Try exporting it again from the app that made it.'
     )
   }
   try {
@@ -67,12 +67,12 @@ export async function renderPdf(
         await yieldToUi()
       } catch (err) {
         throw new Error(
-          `Halaman ${n} gagal dirender. Coba ekspor ulang PDF dari aplikasi asalnya.`,
+          `Page ${n} could not be rendered. Try exporting the PDF again from the app that made it.`,
           { cause: err }
         )
       }
     }
-    if (pages.length === 0) throw new Error('PDF tidak memiliki halaman. Pilih file PDF lain.')
+    if (pages.length === 0) throw new Error('The PDF has no pages. Choose another PDF file.')
     return { width, height, pages }
   } finally {
     await doc.loadingTask.destroy()

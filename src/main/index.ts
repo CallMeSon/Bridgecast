@@ -53,7 +53,7 @@ function handle<C extends InvokeChannel>(
 
 function assertString(v: unknown, what: string): asserts v is string {
   if (typeof v !== 'string' || !v)
-    throw new Error(`${what} tidak valid. Muat ulang aplikasi lalu coba lagi.`)
+    throw new Error(`${what} is not valid. Reload the app, then try again.`)
 }
 
 function tempDir(): string {
@@ -97,15 +97,15 @@ function registerIpc(
 
   handle(Invoke.eventsList, () => lib.listEvents())
   handle(Invoke.eventsCreate, (name) => {
-    assertString(name, 'Nama event')
+    assertString(name, 'Event name')
     return lib.createEvent(name)
   })
   handle(Invoke.eventsSelect, (eventId) => {
-    assertString(eventId, 'Id event')
+    assertString(eventId, 'Event ID')
     return state.setEvent(eventId)
   })
   handle(Invoke.decksList, (eventId) => {
-    assertString(eventId, 'Id event')
+    assertString(eventId, 'Event ID')
     return lib.getDecks(eventId)
   })
   handle(Invoke.programDispatch, (action: Action) => state.dispatch(action))
@@ -113,14 +113,14 @@ function registerIpc(
 
   // PPT/PPTX via PowerPoint COM through the import queue: one file at a time
   // (COM must never run in parallel); a failed file never blocks the next.
-  // Both the "Tambah file…" dialog and drag and drop end up here.
+  // Both the "Add files" dialog and drag and drop end up here.
   const jobEvent = new Map<string, string>()
   const queue = new ImportQueue(
     async (job) => {
       const eventId = jobEvent.get(job.id)
-      if (!eventId) throw new Error('Event tujuan tidak ditemukan. Pilih event lalu impor lagi.')
+      if (!eventId) throw new Error('Target event not found. Choose an event, then import again.')
       if (!PPTX_RE.test(job.path)) {
-        throw new Error('Format file tidak didukung. Pilih file PPTX, PPT, atau PDF.')
+        throw new Error('This file type is not supported. Choose a PPTX, PPT, or PDF file.')
       }
       const out = tempDir()
       try {
@@ -149,18 +149,19 @@ function registerIpc(
   }
 
   handle(Invoke.decksImport, (eventId, files: ImportRequest[]) => {
-    assertString(eventId, 'Id event')
-    lib.getDecks(eventId) // throws (Indonesian message) if the event does not exist
+    assertString(eventId, 'Event ID')
+    lib.getDecks(eventId) // throws (user-facing message) if the event does not exist
     if (!Array.isArray(files) || files.length > MAX_FILES) {
-      throw new Error('Daftar file tidak valid. Pilih file lagi.')
+      throw new Error('The file list is not valid. Choose the files again.')
     }
     const jobs = files.map((f) => {
-      if (!f || typeof f !== 'object') throw new Error('Daftar file tidak valid. Pilih file lagi.')
-      assertString(f.id, 'Id impor')
-      assertString(f.path, 'Lokasi file')
+      if (!f || typeof f !== 'object')
+        throw new Error('The file list is not valid. Choose the files again.')
+      assertString(f.id, 'Import ID')
+      assertString(f.path, 'File location')
       if (!path.isAbsolute(f.path)) {
         throw new Error(
-          'Lokasi file tidak valid. Seret file dari Explorer atau pilih lewat Tambah file.'
+          'The file location is not valid. Drag the file in from File Explorer, or use Add files.'
         )
       }
       return { id: f.id, name: path.basename(f.path), path: f.path }
@@ -173,12 +174,12 @@ function registerIpc(
   })
 
   handle(Invoke.decksAddRendered, async (eventId, payload: RenderedDeck) => {
-    assertString(eventId, 'Id event')
+    assertString(eventId, 'Event ID')
     if (!payload || !Array.isArray(payload.pages) || payload.pages.length === 0) {
-      throw new Error('Hasil render PDF kosong. Coba impor ulang file PDF-nya.')
+      throw new Error('The PDF render result is empty. Try importing the PDF again.')
     }
     if (!payload.pages.every((p) => p instanceof Uint8Array)) {
-      throw new Error('Hasil render PDF tidak valid. Coba impor ulang file PDF-nya.')
+      throw new Error('The PDF render result is not valid. Try importing the PDF again.')
     }
     const out = tempDir()
     try {
@@ -205,43 +206,43 @@ function registerIpc(
   })
 
   handle(Invoke.decksReorder, (eventId, deckIds) => {
-    assertString(eventId, 'Id event')
+    assertString(eventId, 'Event ID')
     if (!Array.isArray(deckIds) || !deckIds.every((id) => typeof id === 'string')) {
-      throw new Error('Urutan deck tidak valid. Muat ulang aplikasi lalu coba lagi.')
+      throw new Error('The deck order is not valid. Reload the app, then try again.')
     }
     state.reorderDecks(eventId, deckIds)
   })
   handle(Invoke.slidesReorder, (deckId, order) => {
-    assertString(deckId, 'Id deck')
+    assertString(deckId, 'Deck ID')
     if (!Array.isArray(order)) {
-      throw new Error('Urutan slide tidak valid. Muat ulang aplikasi lalu coba lagi.')
+      throw new Error('The slide order is not valid. Reload the app, then try again.')
     }
     state.reorderSlides(deckId, order)
   })
   handle(Invoke.decksRename, (eventId, deckId, name) => {
-    assertString(eventId, 'Id event')
-    assertString(deckId, 'Id deck')
+    assertString(eventId, 'Event ID')
+    assertString(deckId, 'Deck ID')
     if (typeof name !== 'string')
-      throw new Error('Nama deck tidak valid. Ketik nama lalu coba lagi.')
+      throw new Error('The deck name is not valid. Type a name, then try again.')
     return lib.renameDeck(eventId, deckId, name)
   })
   handle(Invoke.kvSet, (eventId, file) => {
-    assertString(eventId, 'Id event')
-    assertString(file, 'Lokasi file')
+    assertString(eventId, 'Event ID')
+    assertString(file, 'File location')
     if (!path.isAbsolute(file)) {
       throw new Error(
-        'Lokasi file tidak valid. Pilih gambar KV lewat tombol Pilih gambar atau Ganti gambar.'
+        'The file location is not valid. Choose the KV image with Choose image or Replace image.'
       )
     }
     return state.setKv(eventId, file)
   })
   handle(Invoke.kvClear, (eventId) => {
-    assertString(eventId, 'Id event')
+    assertString(eventId, 'Event ID')
     return state.clearKv(eventId)
   })
   handle(Invoke.decksRemove, (eventId, deckId) => {
-    assertString(eventId, 'Id event')
-    assertString(deckId, 'Id deck')
+    assertString(eventId, 'Event ID')
+    assertString(deckId, 'Deck ID')
     state.removeDeck(eventId, deckId)
   })
 
@@ -291,8 +292,8 @@ class SettingsStore {
     try {
       saveSettings(this.file, next)
     } catch (err) {
-      console.error('[settings] gagal disimpan:', err)
-      throw new Error('Pengaturan tidak bisa disimpan. Periksa ruang disk lalu coba lagi.')
+      console.error('[settings] could not be saved:', err)
+      throw new Error('Could not save settings. Check free disk space, then try again.')
     }
     this.settings = next
     return next
@@ -313,7 +314,7 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
       try {
         settings.saveHdmi({ ...settings.get().hdmi, displayId })
       } catch (err) {
-        console.error('[hdmi] layar baru tidak bisa disimpan:', err)
+        console.error('[hdmi] new display could not be saved:', err)
       }
     },
     () => fakeDisplays ?? screenDisplays()
@@ -398,7 +399,7 @@ app.whenReady().then(() => {
       'PPT Share',
       `${(err as Error).message}
 
-Lokasi: ${root}`
+Location: ${root}`
     )
     app.quit()
     return
@@ -411,7 +412,7 @@ Lokasi: ${root}`
     try {
       settings.saveAutoAdvance(s.autoAdvance)
     } catch (err) {
-      console.error('[settings] lanjut otomatis tidak bisa disimpan:', err)
+      console.error('[settings] auto advance could not be saved:', err)
     }
   })
   const hdmi = createHdmiOutput(settings)

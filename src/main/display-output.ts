@@ -308,7 +308,7 @@ export class HdmiOutput {
     // Keep "PPT Share HDMI" (the page's <title> would rename it "PPT Share").
     win.on('page-title-updated', (e) => e.preventDefault())
     wc.on('render-process-gone', (_e, details) => {
-      console.error(`[hdmi] renderer berhenti (${details.reason}); dibuat ulang`)
+      console.error(`[hdmi] renderer stopped (${details.reason}); recreating it`)
       this.scheduleRestart(win)
     })
     // Output only: no keyboard/mouse input, no navigation, no popups.

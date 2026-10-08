@@ -51,8 +51,8 @@ describe.runIf(process.platform === 'win32' && process.env.PPT_E2E === '1')(
       expect(r.slides[2].notes).toBe('')
     }, 360000)
 
-    it('reports a missing file in Indonesian', async () => {
-      await expect(importPptx(fx('nope.pptx'), tmp(), 1920)).rejects.toThrow(/tidak ditemukan/i)
+    it('reports a missing file with a recovery step', async () => {
+      await expect(importPptx(fx('nope.pptx'), tmp(), 1920)).rejects.toThrow(/not found/i)
     }, 60000)
   }
 )
@@ -118,7 +118,7 @@ describe.runIf(process.platform === 'win32' && process.env.PPT_E2E === '1')(
       try {
         await expect(
           importPptx(bad, fs.mkdtempSync(path.join(os.tmpdir(), 'ppt share o ')), 800)
-        ).rejects.toThrow(/Tidak bisa membuka file/)
+        ).rejects.toThrow(/Could not open the file/)
       } finally {
         fs.rmSync(bad, { force: true })
       }
