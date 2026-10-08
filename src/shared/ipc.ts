@@ -15,6 +15,8 @@ export const Invoke = {
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
   decksRename: 'decks:rename',
+  kvSet: 'kv:set',
+  kvClear: 'kv:clear',
   programDispatch: 'program:dispatch',
   programGet: 'program:get',
   settingsGet: 'settings:get',
@@ -93,6 +95,9 @@ export interface InvokeMap {
   'slides:reorder': { args: [deckId: string, order: number[]]; result: void }
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
   'decks:rename': { args: [eventId: string, deckId: string, name: string]; result: DeckMeta }
+  /** Absolute path of an image (PNG, JPG, WebP, at most 50 MB); returns the updated event. */
+  'kv:set': { args: [eventId: string, path: string]; result: EventMeta }
+  'kv:clear': { args: [eventId: string]; result: EventMeta }
   'program:dispatch': { args: [action: Action]; result: ProgramState }
   'program:get': { args: []; result: Session }
   'settings:get': { args: []; result: Settings }
@@ -120,6 +125,14 @@ export function slideUrl(deckId: string, file: string): string {
   return `slide://${deckId}/${file}`
 }
 
+/**
+ * `slide://kv/<eventId>/<file>`: the event's KV image (file = EventMeta.kv, a
+ * new name for every upload, so a URL never shows an older image).
+ */
+export function kvImageUrl(eventId: string, file: string): string {
+  return `slide://kv/${eventId}/${file}`
+}
+
 export interface Api {
   listEvents(): Promise<EventMeta[]>
   createEvent(name: string): Promise<EventMeta>
@@ -132,6 +145,9 @@ export interface Api {
   removeDeck(eventId: string, deckId: string): Promise<void>
   /** Display name only; validated in main (not empty, at most 120 characters). */
   renameDeck(eventId: string, deckId: string, name: string): Promise<DeckMeta>
+  /** Set the event's KV image from an absolute path (`pathForFile`); validated in main. */
+  setKv(eventId: string, path: string): Promise<EventMeta>
+  clearKv(eventId: string): Promise<EventMeta>
   dispatch(action: Action): Promise<ProgramState>
   getSession(): Promise<Session>
   onProgramState(cb: (s: ProgramState) => void): () => void

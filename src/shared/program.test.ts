@@ -37,6 +37,8 @@ describe('initialState', () => {
       shown: null,
       frozen: false,
       black: false,
+      kv: false,
+      kvUrl: null,
       transition: 'cut',
       autoAdvance: false
     })
@@ -306,5 +308,60 @@ describe('take on first Next/Prev when nothing of this event is shown', () => {
     expect(pendingTake(initialState, decks)).toBe(false)
     expect(pendingTake(standby('A', 9), decks)).toBe(false)
     expect(reduce(initialState, { type: 'next' }, decks)).toEqual(initialState)
+  })
+})
+
+describe('KV', () => {
+  const KV_URL = 'slide://kv/e/k.png'
+  it('toggleKv without a KV is a no-op returning the same object', () => {
+    const st = at('A', 0)
+    expect(reduce(st, { type: 'toggleKv' }, decks)).toBe(st)
+    expect(reduce(initialState, { type: 'toggleKv' }, [])).toBe(initialState)
+  })
+  it('toggleKv turns KV on and Black off, and off again', () => {
+    const st = at('A', 1, { kvUrl: KV_URL, black: true })
+    const on = reduce(st, { type: 'toggleKv' }, decks)
+    expect(on).toEqual({ ...st, kv: true, black: false })
+    expect(on.shown).toEqual(st.shown)
+    const off = reduce(on, { type: 'toggleKv' }, decks)
+    expect(off).toEqual({ ...st, kv: false, black: false })
+  })
+  it('toggleKv works in STANDBY and while frozen, keeping position and shown', () => {
+    const standbyKv = reduce(
+      at('A', 0, { shown: null, kvUrl: KV_URL }),
+      { type: 'toggleKv' },
+      decks
+    )
+    expect(standbyKv.kv).toBe(true)
+    expect(standbyKv.shown).toBeNull()
+    const fz = at('A', 2, { kvUrl: KV_URL, frozen: true })
+    const r = reduce(fz, { type: 'toggleKv' }, decks)
+    expect(r).toEqual({ ...fz, kv: true })
+  })
+  it('toggleKv can turn KV off even if kvUrl went away', () => {
+    const st = at('A', 0, { kv: true, kvUrl: null })
+    expect(reduce(st, { type: 'toggleKv' }, decks).kv).toBe(false)
+  })
+  it('toggleBlack turning Black on turns KV off; turning it off leaves KV off', () => {
+    const st = at('A', 0, { kvUrl: KV_URL, kv: true })
+    const b = reduce(st, { type: 'toggleBlack' }, decks)
+    expect(b.black).toBe(true)
+    expect(b.kv).toBe(false)
+    const back = reduce(b, { type: 'toggleBlack' }, decks)
+    expect(back.black).toBe(false)
+    expect(back.kv).toBe(false)
+  })
+  it('the reducer never sets kvUrl', () => {
+    const st = at('A', 0, { kvUrl: KV_URL })
+    for (const a of [
+      { type: 'next' },
+      { type: 'toggleKv' },
+      { type: 'toggleBlack' },
+      { type: 'toggleFreeze' },
+      { type: 'selectDeck', deckId: 'B' }
+    ] as const) {
+      expect(reduce(st, a, decks).kvUrl).toBe(KV_URL)
+    }
+    expect(reduce(at('A', 0), { type: 'toggleKv' }, decks).kvUrl).toBeNull()
   })
 })

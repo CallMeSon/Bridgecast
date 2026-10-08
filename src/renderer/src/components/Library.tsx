@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   FilePdfIcon,
   FilePptIcon,
+  ImageIcon,
   PencilSimpleIcon,
   PlusIcon,
   TrashIcon,
@@ -24,6 +25,11 @@ interface Props {
   /** The slide on the output while Program is LIVE (not frozen, black or standby). */
   live: ShownSlide | null
   canImport: boolean
+  /** URL of the active event's KV image, or null. */
+  kvUrl: string | null
+  /** Rejects with an Indonesian message when main refuses the image. */
+  onSetKv(file: File): Promise<void>
+  onClearKv(): Promise<void>
   onSelectDeck(deckId: string): void
   onDismissImport(id: string): void
   onFiles(files: File[]): void
@@ -223,6 +229,84 @@ function ConfirmRemove({
   )
 }
 
+/** "KV acara": the event's hold image (shown on the output on demand and while STANDBY). */
+function KvBlock({
+  kvUrl,
+  canEdit,
+  onSet,
+  onClear
+}: {
+  kvUrl: string | null
+  canEdit: boolean
+  onSet(file: File): Promise<void>
+  onClear(): Promise<void>
+}): React.JSX.Element {
+  const input = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const run = async (job: () => Promise<void>): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      await job()
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="kv-block" role="group" aria-label="KV acara" data-testid="kv-block">
+      <div className="kv-head">KV acara</div>
+      <div className="kv-body">
+        <div className="kv-thumb" data-testid="kv-thumb" data-empty={kvUrl === null}>
+          {kvUrl ? (
+            <img src={kvUrl} alt="KV acara" draggable={false} />
+          ) : (
+            <span>
+              <ImageIcon size={16} />
+              Belum ada KV
+            </span>
+          )}
+        </div>
+        <div className="kv-actions">
+          <button
+            className="btn sm"
+            disabled={!canEdit || busy}
+            onClick={() => input.current?.click()}
+          >
+            {kvUrl ? 'Ganti gambar' : 'Pilih gambar'}
+          </button>
+          {kvUrl && (
+            <button className="btn sm" disabled={busy} onClick={() => void run(onClear)}>
+              Hapus
+            </button>
+          )}
+        </div>
+      </div>
+      {error && (
+        <p className="kv-error" role="alert" data-testid="kv-error">
+          {error}
+        </p>
+      )}
+      <input
+        ref={input}
+        type="file"
+        accept=".png,.jpg,.jpeg,.webp"
+        className="visually-hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+        data-testid="kv-input"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void run(() => onSet(file))
+        }}
+      />
+    </div>
+  )
+}
+
 export function Library(p: Props): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null)
   const [menu, setMenu] = useState<MenuAt | null>(null)
@@ -401,6 +485,7 @@ export function Library(p: Props): React.JSX.Element {
           }}
         />
       )}
+      <KvBlock kvUrl={p.kvUrl} canEdit={p.canImport} onSet={p.onSetKv} onClear={p.onClearKv} />
       <div className="add">
         <button className="btn" disabled={!p.canImport} onClick={() => input.current?.click()}>
           <PlusIcon size={16} />

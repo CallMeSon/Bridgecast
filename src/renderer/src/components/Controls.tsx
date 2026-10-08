@@ -1,4 +1,4 @@
-import { CaretLeftIcon, EyeSlashIcon, PauseIcon } from '@phosphor-icons/react'
+import { CaretLeftIcon, EyeSlashIcon, ImageIcon, PauseIcon } from '@phosphor-icons/react'
 import type { Action, ProgramState } from '../../../shared/program'
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
   onAction(a: Action): void
 }
 
-/** The control deck under Program: Prev/Next, transition, then the two holds. */
+/** The control deck under Program: Prev/Next, transition, then Freeze and the KV/Black pair. */
 export function Controls({
   state,
   canPrev,
@@ -69,6 +69,18 @@ export function Controls({
         </button>
       </div>
       <div>
+        <button
+          className="cbtn hold"
+          aria-pressed={state.kv}
+          disabled={state.kvUrl === null}
+          title={
+            state.kvUrl === null ? 'Belum ada KV. Tambahkan KV acara di kolom Deck.' : undefined
+          }
+          onClick={() => onAction({ type: 'toggleKv' })}
+        >
+          <ImageIcon size={16} />
+          KV <kbd className="opt">K</kbd>
+        </button>
         <button
           className="cbtn hold"
           aria-pressed={state.black}

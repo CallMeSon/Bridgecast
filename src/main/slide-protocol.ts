@@ -1,4 +1,5 @@
 import * as path from 'path'
+import { KV_FILE_RE, KV_MIME } from '../shared/types'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Slide files are `001.png`, `002.png`, ... (see Library). */
@@ -22,6 +23,33 @@ export function parseSlideUrl(url: string): { deckId: string; file: string } | n
   const m = FILE_RE.exec(u.pathname)
   if (!m) return null
   return { deckId: deckId.toLowerCase(), file: m[1] }
+}
+
+/**
+ * Parse `slide://kv/<eventId>/<file>` (the event's KV image, e.g.
+ * `slide://kv/<uuid>/<uuid>.png`); null for anything else. Deck URLs have a
+ * uuid host, so `kv` can never clash with them.
+ */
+export function parseKvUrl(url: string): { eventId: string; file: string } | null {
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return null
+  }
+  if (u.protocol !== 'slide:' || u.hostname !== 'kv') return null
+  if (u.search || u.hash || u.username || u.password || u.port) return null
+  const parts = u.pathname.split('/') // ['', eventId, file]
+  if (parts.length !== 3 || parts[0] !== '') return null
+  const [, eventId, file] = parts
+  if (!UUID_RE.test(eventId) || !KV_FILE_RE.test(file)) return null
+  return { eventId: eventId.toLowerCase(), file }
+}
+
+/** Content-type of a KV file by its extension; null when it is not an allowed image. */
+export function kvMimeType(file: string): string | null {
+  const ext = path.extname(file).slice(1).toLowerCase()
+  return Object.prototype.hasOwnProperty.call(KV_MIME, ext) ? KV_MIME[ext] : null
 }
 
 /** True when `file` resolves to a location strictly inside `root`. */

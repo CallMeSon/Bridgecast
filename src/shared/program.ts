@@ -18,6 +18,16 @@ export interface ProgramState {
   shown: ShownSlide | null
   frozen: boolean
   black: boolean
+  /**
+   * The event's KV image is on the output (operator pressed KV). Never on with
+   * `black`. While STANDBY the KV also shows by itself, without this flag.
+   */
+  kv: boolean
+  /**
+   * URL of the active event's KV image, or null. Set by main from the event's
+   * KV, never by the reducer.
+   */
+  kvUrl: string | null
   transition: 'cut' | 'fade'
   /**
    * Next on the last slide goes on to the next deck (and Prev on the first
@@ -34,6 +44,7 @@ export type Action =
   | { type: 'selectDeck'; deckId: string }
   | { type: 'toggleFreeze' }
   | { type: 'toggleBlack' }
+  | { type: 'toggleKv' }
   | { type: 'setTransition'; transition: 'cut' | 'fade' }
   | { type: 'setAutoAdvance'; on: boolean }
 
@@ -45,6 +56,8 @@ export const initialState: ProgramState = {
   shown: null,
   frozen: false,
   black: false,
+  kv: false,
+  kvUrl: null,
   transition: 'cut',
   autoAdvance: false
 }
@@ -178,7 +191,11 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
       return moveTo({ ...state, frozen: false }, deck, state.index)
     }
     case 'toggleBlack':
-      return { ...state, black: !state.black }
+      return { ...state, black: !state.black, kv: state.black ? state.kv : false }
+    case 'toggleKv':
+      if (state.kv) return { ...state, kv: false }
+      if (state.kvUrl === null) return state
+      return { ...state, kv: true, black: false }
     case 'setTransition':
       return { ...state, transition: action.transition }
     case 'setAutoAdvance':

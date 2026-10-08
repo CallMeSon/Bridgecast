@@ -255,4 +255,86 @@ describe('AppState', () => {
     const s = app.removeDeck(a.id, d1)
     expect(s).toMatchObject({ deckId: null, index: 0, shown: null })
   })
+
+  describe('KV', () => {
+    const img = (name: string): string => {
+      const p = path.join(src, name)
+      fs.writeFileSync(p, 'kv')
+      return p
+    }
+
+    it('kvUrl follows the active event KV: start, setKv, clearKv', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const app = new AppState(lib)
+      expect(app.state).toMatchObject({ kv: false, kvUrl: null })
+      const seen: (string | null)[] = []
+      app.onChange((s) => seen.push(s.kvUrl))
+      const ev = app.setKv(a.id, img('a.png'))
+      expect(app.state.kvUrl).toBe(`slide://kv/${a.id}/${ev.kv}`)
+      expect(seen).toEqual([app.state.kvUrl])
+      const ev2 = app.setKv(a.id, img('b.png'))
+      expect(app.state.kvUrl).toBe(`slide://kv/${a.id}/${ev2.kv}`)
+      expect(ev2.kv).not.toBe(ev.kv)
+      app.clearKv(a.id)
+      expect(app.state.kvUrl).toBeNull()
+    })
+
+    it('starts with the KV of the first event', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const kv = lib.setKv(a.id, img('a.png')).kv
+      expect(new AppState(lib).state.kvUrl).toBe(`slide://kv/${a.id}/${kv}`)
+    })
+
+    it('setEvent switches kvUrl to the new event, or null without a KV', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      lib.setKv(a.id, img('a.png'))
+      const app = new AppState(lib)
+      expect(app.state.kvUrl).not.toBeNull()
+      app.dispatch({ type: 'toggleKv' })
+      expect(app.state.kv).toBe(true)
+      app.setEvent(b.id)
+      expect(app.state).toMatchObject({ kv: false, kvUrl: null })
+      app.setEvent(a.id)
+      expect(app.state.kvUrl).not.toBeNull()
+    })
+
+    it('setKv on another event does not touch the active kvUrl', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      const app = new AppState(lib)
+      app.setKv(b.id, img('b.png'))
+      expect(app.eventId).toBe(a.id)
+      expect(app.state.kvUrl).toBeNull()
+    })
+
+    it('clearKv turns kv off; KV on and Black are exclusive', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const app = new AppState(lib)
+      app.dispatch({ type: 'toggleKv' })
+      expect(app.state.kv).toBe(false) // no KV: no-op
+      app.setKv(a.id, img('a.png'))
+      app.dispatch({ type: 'toggleKv' })
+      expect(app.state).toMatchObject({ kv: true, black: false })
+      app.dispatch({ type: 'toggleBlack' })
+      expect(app.state).toMatchObject({ kv: false, black: true })
+      app.dispatch({ type: 'toggleKv' })
+      expect(app.state).toMatchObject({ kv: true, black: false })
+      app.clearKv(a.id)
+      expect(app.state).toMatchObject({ kv: false, kvUrl: null })
+    })
+
+    it('a refused image changes nothing', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const app = new AppState(lib)
+      expect(() => app.setKv(a.id, img('a.gif'))).toThrow(/Format KV/)
+      expect(app.state.kvUrl).toBeNull()
+    })
+  })
 })

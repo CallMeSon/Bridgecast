@@ -171,6 +171,28 @@ async function noisePdf(file, pages) {
   fs.writeFileSync(file, await doc.save())
 }
 
+/** Writes a solid-colour 16:9 PNG (the KV, KV_RGB) made in the main process, like noisePdf's pages. */
+const KV_RGB = [220, 40, 160]
+const isKv = (p) =>
+  Math.abs(p[0] - KV_RGB[0]) < 25 &&
+  Math.abs(p[1] - KV_RGB[1]) < 25 &&
+  Math.abs(p[2] - KV_RGB[2]) < 25
+async function kvPng(file) {
+  const b64 = await app.evaluate(({ nativeImage }, rgb) => {
+    const w = 1280
+    const h = 720
+    const buf = Buffer.alloc(w * h * 4)
+    for (let i = 0; i < buf.length; i += 4) {
+      buf[i] = rgb[2]
+      buf[i + 1] = rgb[1]
+      buf[i + 2] = rgb[0]
+      buf[i + 3] = 255
+    }
+    return nativeImage.createFromBitmap(buf, { width: w, height: h }).toPNG().toString('base64')
+  }, KV_RGB)
+  fs.writeFileSync(file, Buffer.from(b64, 'base64'))
+}
+
 // Centre column above the "Halaman n" text (the exact centre is dark text).
 const CENTRE = [W / 2, 300]
 const GRID = []
@@ -1022,6 +1044,41 @@ try {
     'empty library message'
   )
 
+  // KV (key visual) while STANDBY: no KV, KV button disabled, output black;
+  // upload -> the output shows the KV by itself (tally stays STANDBY); remove
+  // -> button disabled and black again.
+  const kvPath = path.join(frameDir, 'kv.png')
+  await kvPng(kvPath)
+  const kvBtn = win.locator('.controls button', { hasText: 'KV' })
+  check(await kvBtn.isDisabled(), 'no KV: the KV button is disabled')
+  check(
+    (await win.getByTestId('kv-block').textContent()).includes('Belum ada KV'),
+    'no KV: the library shows "Belum ada KV"'
+  )
+  await win.setInputFiles('[data-testid=kv-input]', kvPath)
+  await win.locator('[data-testid=kv-thumb] img').waitFor({ timeout: 10_000 })
+  await waitFrame(GRID, (px) => px.every(isKv), 'STANDBY shows the KV on the output')
+  check(true, `STANDBY with a KV: the output shows the KV colour (${GRID.length} sample points)`)
+  check((await tally.textContent()) === 'STANDBY', 'automatic KV keeps the STANDBY tally')
+  check(!(await kvBtn.isDisabled()), 'with a KV: the KV button is enabled')
+  const pgmImg = await win.locator('.screen img').last().getAttribute('src')
+  check((pgmImg ?? '').startsWith('slide://kv/'), 'Program monitor shows the KV at STANDBY too')
+  await win.getByTestId('kv-block').getByRole('button', { name: 'Hapus' }).click()
+  await kvBtn.waitFor()
+  await win.waitForFunction(
+    () =>
+      [...document.querySelectorAll('.controls button')].find((b) => b.textContent.includes('KV'))
+        ?.disabled
+  )
+  await waitFrame(GRID, (px) => px.every(isBlack), 'removing the KV makes STANDBY black again')
+  check(true, 'KV removed: button disabled and STANDBY black again')
+  await win.setInputFiles('[data-testid=kv-input]', path.join(root, 'fixtures/sample.pdf'))
+  await win.getByTestId('kv-error').waitFor()
+  check(
+    (await win.getByTestId('kv-error').textContent()).includes('Format KV tidak didukung'),
+    'a non-image KV is refused with an inline error'
+  )
+
   // Import the PDF through the Library footer's file input (pdf.js in the renderer).
   await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
   await win
@@ -1146,6 +1203,45 @@ try {
   check(true, 'B and F again return to LIVE')
   await waitFrame([[10, 10]], (px) => blue(px[0]), 'output returns to slide 2 after B off')
   check(true, 'output shows slide 2 again after B off')
+
+  // KV while a slide is LIVE (slide 2): K -> KV on the output and tally KV; B ->
+  // black and KV off; K, K -> KV on and off again, back to the slide.
+  await win.setInputFiles('[data-testid=kv-input]', kvPath)
+  await win.locator('[data-testid=kv-thumb] img').waitFor({ timeout: 10_000 })
+  check((await tally.textContent()) === 'LIVE', 'uploading a KV does not disturb LIVE')
+  await waitFrame([[10, 10]], (px) => blue(px[0]), 'output still shows slide 2 after the KV upload')
+  const tallyIs = (t) =>
+    win.waitForFunction((x) => document.querySelector('[data-testid=tally]')?.textContent === x, t)
+  const kvOn = () => kvBtn.getAttribute('aria-pressed')
+  await win.keyboard.press('k')
+  await tallyIs('KV')
+  await waitFrame(GRID, (px) => px.every(isKv), 'K puts the KV on the output')
+  check((await kvOn()) === 'true', 'K: KV button pressed')
+  const onAir = await win.locator('.screen img').last().getAttribute('src')
+  check((onAir ?? '').startsWith('slide://kv/'), 'Program monitor shows exactly the KV on air')
+  await win.keyboard.press('b')
+  await tallyIs('BLACK')
+  await waitFrame(GRID, (px) => px.every(isBlack), 'B over the KV makes the output black')
+  check((await kvOn()) === 'false', 'B turns KV off')
+  await win.keyboard.press('k')
+  await tallyIs('KV')
+  await waitFrame(GRID, (px) => px.every(isKv), 'K after B shows the KV again')
+  check(
+    (await win.locator('.controls button', { hasText: 'Black' }).getAttribute('aria-pressed')) ===
+      'false',
+    'K turns Black off'
+  )
+  await win.keyboard.press('k')
+  await tallyIs('LIVE')
+  await waitFrame([[10, 10]], (px) => blue(px[0]), 'K again returns to slide 2')
+  check(true, 'K, B, K, K: KV and Black take turns and the slide comes back')
+  // Removing the KV while a slide is LIVE: the button goes disabled, LIVE stays.
+  await win.keyboard.press('k')
+  await tallyIs('KV')
+  await win.getByTestId('kv-block').getByRole('button', { name: 'Hapus' }).click()
+  await tallyIs('LIVE')
+  await waitFrame([[10, 10]], (px) => blue(px[0]), 'removing the KV on air returns to slide 2')
+  check(await kvBtn.isDisabled(), 'KV removed on air: KV button disabled, slide back on the output')
 
   // Layout at 1280×720: controls fully visible above the strip.
   const ctr = await win.locator('.controls').boundingBox()

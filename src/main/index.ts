@@ -9,7 +9,7 @@ import { Library } from './library'
 import { AppState } from './state'
 import { importPptx } from './import/pptx'
 import { ImportQueue } from './import-queue'
-import { isInside, parseSlideUrl } from './slide-protocol'
+import { isInside, kvMimeType, parseKvUrl, parseSlideUrl } from './slide-protocol'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import { HdmiOutput, screenDisplays } from './display-output'
 import type { ScreenDisplay } from './hdmi-plan'
@@ -62,14 +62,20 @@ function tempDir(): string {
 
 function registerSlideProtocol(root: string, lib: Library): void {
   protocol.handle('slide', async (req) => {
-    const parsed = parseSlideUrl(req.url)
-    if (!parsed) return new Response('Bad request', { status: 400 })
+    // Two forms: slide://<deckId>/<file> (a slide) and slide://kv/<eventId>/<file> (an event's KV).
+    const kv = parseKvUrl(req.url)
+    const parsed = kv ? null : parseSlideUrl(req.url)
+    if (!kv && !parsed) return new Response('Bad request', { status: 400 })
     try {
-      const file = lib.slideFilePath(parsed.deckId, parsed.file)
+      const file = kv
+        ? lib.kvFilePath(kv.eventId, kv.file)
+        : lib.slideFilePath(parsed!.deckId, parsed!.file)
       if (!isInside(root, file)) return new Response('Forbidden', { status: 403 })
+      const type = kv ? kvMimeType(kv.file) : 'image/png'
+      if (!type) return new Response('Bad request', { status: 400 })
       const data = await fs.promises.readFile(file)
       return new Response(data, {
-        headers: { 'content-type': 'image/png', 'cache-control': 'no-store' }
+        headers: { 'content-type': type, 'cache-control': 'no-store' }
       })
     } catch {
       return new Response('Not found', { status: 404 })
@@ -214,6 +220,20 @@ function registerIpc(
     if (typeof name !== 'string')
       throw new Error('Nama deck tidak valid. Ketik nama lalu coba lagi.')
     return lib.renameDeck(eventId, deckId, name)
+  })
+  handle(Invoke.kvSet, (eventId, file) => {
+    assertString(eventId, 'Id event')
+    assertString(file, 'Lokasi file')
+    if (!path.isAbsolute(file)) {
+      throw new Error(
+        'Lokasi file tidak valid. Pilih gambar KV lewat tombol Pilih gambar atau seret dari Explorer.'
+      )
+    }
+    return state.setKv(eventId, file)
+  })
+  handle(Invoke.kvClear, (eventId) => {
+    assertString(eventId, 'Id event')
+    return state.clearKv(eventId)
   })
   handle(Invoke.decksRemove, (eventId, deckId) => {
     assertString(eventId, 'Id event')

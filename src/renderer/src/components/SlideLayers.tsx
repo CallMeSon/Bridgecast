@@ -19,7 +19,7 @@ interface Props {
   /** Class of each layer element (absolutely stacked by the caller's CSS). */
   layerClass: string
   /** Extra attributes for a layer's <img> (e.g. elementtiming). */
-  imgAttrs?: (key: number) => Record<string, string>
+  imgAttrs?: (key: number, src: string) => Record<string, string>
   /** A layer is now on screen (cut) or fading in. */
   onShown?: (key: number, src: string | null) => void
 }
@@ -114,7 +114,13 @@ export function SlideLayers({
           data-state={!l.ready ? 'pending' : l.fade ? 'fade' : 'shown'}
         >
           {l.src && (
-            <img src={l.src} alt="" draggable={false} ref={decode(l.key)} {...imgAttrs?.(l.key)} />
+            <img
+              src={l.src}
+              alt=""
+              draggable={false}
+              ref={decode(l.key)}
+              {...imgAttrs?.(l.key, l.src)}
+            />
           )}
         </div>
       ))}

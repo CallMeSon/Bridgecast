@@ -1,5 +1,6 @@
 import type { Library } from './library'
-import type { DeckMeta } from '../shared/types'
+import type { DeckMeta, EventMeta } from '../shared/types'
+import { kvImageUrl } from '../shared/ipc'
 import {
   followSlideOrder,
   initialState,
@@ -18,6 +19,8 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.index === b.index &&
     a.frozen === b.frozen &&
     a.black === b.black &&
+    a.kv === b.kv &&
+    a.kvUrl === b.kvUrl &&
     a.transition === b.transition &&
     a.autoAdvance === b.autoAdvance &&
     a.shown?.deckId === b.shown?.deckId &&
@@ -108,6 +111,19 @@ export class AppState {
     return this.commit(this.normalize(followSlideOrder(this.current, deckId, order)))
   }
 
+  /** Set the active or any event's KV image; the output follows if it is the active event. */
+  setKv(eventId: string, srcPath: string): EventMeta {
+    const ev = this.lib.setKv(eventId, srcPath)
+    this.refresh()
+    return ev
+  }
+
+  clearKv(eventId: string): EventMeta {
+    const ev = this.lib.clearKv(eventId)
+    this.refresh()
+    return ev
+  }
+
   /** Remove a deck; if it is on the output, the output goes black. */
   removeDeck(eventId: string, deckId: string): ProgramState {
     this.lib.removeDeck(eventId, deckId)
@@ -124,12 +140,20 @@ export class AppState {
     }
   }
 
+  /** URL of the active event's KV, or null (no event, no KV). */
+  private activeKvUrl(): string | null {
+    const ev = this.lib.listEvents().find((e) => e.id === this.activeEvent)
+    return ev?.kv ? kvImageUrl(ev.id, ev.kv) : null
+  }
+
   private normalize(s: ProgramState): ProgramState {
     // Position is reconciled against the active event only; if no valid deck,
     // reconcile moves it to the first ready deck at index 0 (no selectDeck, so
     // `shown` stays untouched).
     const pos = reconcile({ ...s, shown: null }, this.decks())
-    return { ...pos, shown: this.locate(s) }
+    // The KV belongs to the active event; KV on needs one (a removed KV turns it off).
+    const kvUrl = this.activeKvUrl()
+    return { ...pos, shown: this.locate(s), kvUrl, kv: s.kv && kvUrl !== null }
   }
 
   private commit(next: ProgramState): ProgramState {

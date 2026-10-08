@@ -218,4 +218,112 @@ describe('Library', () => {
     expect(lib.listEvents()[0].deckIds).toEqual([])
     expect(lib.getDecks(ev.id)).toEqual([])
   })
+
+  describe('KV', () => {
+    const img = (name: string, content = 'kv-1'): string => {
+      const p = path.join(src, name)
+      fs.writeFileSync(p, content)
+      return p
+    }
+    const kvDir = (id: string): string => path.join(root, 'kv', id)
+
+    it('setKv copies the image under a fresh name and saves it', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const r = lib.setKv(ev.id, img('Logo.PNG'))
+      expect(r.kv).toMatch(/^[0-9a-f-]{36}\.png$/)
+      expect(fs.readFileSync(lib.kvFilePath(ev.id, r.kv!), 'utf8')).toBe('kv-1')
+      expect(fs.readdirSync(kvDir(ev.id))).toEqual([r.kv])
+      expect(new Library(root).listEvents()[0].kv).toBe(r.kv)
+      expect(lib.listEvents()[0].kv).toBe(r.kv)
+    })
+
+    it('a new KV gets a new file name and removes the previous file', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const a = lib.setKv(ev.id, img('a.jpg', 'A')).kv!
+      const b = lib.setKv(ev.id, img('b.webp', 'B')).kv!
+      expect(b).not.toBe(a)
+      expect(b.endsWith('.webp')).toBe(true)
+      expect(fs.readdirSync(kvDir(ev.id))).toEqual([b])
+      expect(() => lib.kvFilePath(ev.id, a)).toThrow(/KV/)
+    })
+
+    it('accepts png, jpg, jpeg and webp in any case; refuses other formats', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      for (const n of ['a.png', 'b.JPG', 'c.jpeg', 'd.WebP']) {
+        expect(lib.setKv(ev.id, img(n)).kv).toBeTruthy()
+      }
+      expect(() => lib.setKv(ev.id, img('x.gif'))).toThrow(
+        'Format KV tidak didukung. Pilih gambar PNG, JPG, atau WebP.'
+      )
+      expect(() => lib.setKv(ev.id, img('x.pdf'))).toThrow(/Format KV tidak didukung/)
+      expect(() => lib.setKv(ev.id, img('noext'))).toThrow(/Format KV tidak didukung/)
+    })
+
+    it('refuses a missing file, a folder and a file over 50 MB; keeps the old KV', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const old = lib.setKv(ev.id, img('ok.png')).kv
+      expect(() => lib.setKv(ev.id, path.join(src, 'hilang.png'))).toThrow(/tidak ditemukan/)
+      const dir = path.join(src, 'folder.png')
+      fs.mkdirSync(dir)
+      expect(() => lib.setKv(ev.id, dir)).toThrow(/bukan file/)
+      const big = path.join(src, 'big.png')
+      fs.closeSync(fs.openSync(big, 'w'))
+      fs.truncateSync(big, 50 * 1024 * 1024 + 1)
+      expect(() => lib.setKv(ev.id, big)).toThrow(/50 MB/)
+      expect(lib.listEvents()[0].kv).toBe(old)
+      expect(fs.readdirSync(kvDir(ev.id))).toEqual([old])
+    })
+
+    it('refuses an unknown event', () => {
+      const lib = new Library(root)
+      expect(() => lib.setKv('nope', img('a.png'))).toThrow(/Event tidak ditemukan/)
+      expect(() => lib.clearKv('nope')).toThrow(/Event tidak ditemukan/)
+    })
+
+    it('every event has its own KV', () => {
+      const lib = new Library(root)
+      const e1 = lib.createEvent('E1')
+      const e2 = lib.createEvent('E2')
+      lib.setKv(e1.id, img('a.png'))
+      expect(lib.listEvents().map((e) => e.kv !== undefined)).toEqual([true, false])
+      lib.clearKv(e1.id)
+      lib.setKv(e2.id, img('b.png'))
+      expect(lib.listEvents().map((e) => e.kv !== undefined)).toEqual([false, true])
+    })
+
+    it('clearKv removes the file and the field, and is harmless without a KV', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      expect(lib.clearKv(ev.id).kv).toBeUndefined()
+      const kv = lib.setKv(ev.id, img('a.png')).kv!
+      const r = lib.clearKv(ev.id)
+      expect('kv' in r).toBe(false)
+      expect(fs.existsSync(path.join(kvDir(ev.id), kv))).toBe(false)
+      expect('kv' in new Library(root).listEvents()[0]).toBe(false)
+    })
+
+    it('kvFilePath only resolves the stored file name', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const kv = lib.setKv(ev.id, img('a.png')).kv!
+      expect(lib.kvFilePath(ev.id, kv)).toBe(path.join(root, 'kv', ev.id, kv))
+      for (const bad of [
+        '../events.json',
+        '..\\events.json',
+        '../../kv/' + ev.id + '/' + kv,
+        kv.toUpperCase().replace('.PNG', '.png'),
+        kv + '/',
+        '',
+        'events.json',
+        '3f2504e0-4f89-41d3-9a0c-0305e82c3301.png'
+      ]) {
+        expect(() => lib.kvFilePath(ev.id, bad)).toThrow(/KV/)
+      }
+      expect(() => lib.kvFilePath('nope', kv)).toThrow(/Event tidak ditemukan/)
+    })
+  })
 })

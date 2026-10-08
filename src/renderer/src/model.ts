@@ -66,9 +66,12 @@ export function canPrev(decks: DeckMeta[], s: ProgramState): boolean {
   return reduce(s, { type: 'prev' }, decks) !== s
 }
 
-export type Tally = 'live' | 'frozen' | 'black' | 'idle'
+export type Tally = 'live' | 'frozen' | 'black' | 'kv' | 'idle'
 
 export function tally(s: ProgramState): Tally {
+  // KV on (pressed by the operator) is on air whatever else is going on. The
+  // automatic KV while STANDBY keeps the STANDBY tally (nothing was taken yet).
+  if (s.kv && s.kvUrl) return 'kv'
   if (!s.shown) return 'idle'
   if (s.black) return 'black'
   if (s.frozen) return 'frozen'
@@ -79,6 +82,7 @@ export const TALLY_TEXT: Record<Tally, string> = {
   live: 'LIVE',
   frozen: 'FROZEN',
   black: 'BLACK',
+  kv: 'KV',
   idle: 'STANDBY'
 }
 
@@ -105,7 +109,7 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable
 }
 
-/** Keyboard shortcuts: Space/→ Next, ← Prev, F Freeze, B Black. Ignored while typing. */
+/** Keyboard shortcuts: Space/→ Next, ← Prev, F Freeze, B Black, K KV. Ignored while typing. */
 export function keyToAction(e: KeyLike): Action | null {
   if (e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return null
   switch (e.key) {
@@ -123,6 +127,9 @@ export function keyToAction(e: KeyLike): Action | null {
     case 'B':
     case '.': // the "blank screen" button of many clickers
       return e.repeat ? null : { type: 'toggleBlack' }
+    case 'k':
+    case 'K':
+      return e.repeat ? null : { type: 'toggleKv' }
     default:
       return null
   }
@@ -185,12 +192,16 @@ export function baseName(name: string): string {
 }
 
 /**
- * What the Program output shows: the `shown` slide (never the operator
- * position), or null for black (Black on, or nothing shown yet).
+ * What the Program output shows, for the HDMI window and the operator monitor:
+ * null = black, otherwise an image URL. Black on is black. KV on (with a KV) is
+ * the KV. Else the `shown` slide (never the operator position), also while
+ * frozen. Else (STANDBY) the event's KV, or black without one.
  */
 export function outputSource(s: ProgramState): string | null {
-  if (s.black || !s.shown) return null
-  return slideUrl(s.shown.deckId, s.shown.file)
+  if (s.black) return null
+  if (s.kv && s.kvUrl) return s.kvUrl
+  if (s.shown) return slideUrl(s.shown.deckId, s.shown.file)
+  return s.kvUrl
 }
 
 export interface HdmiBadge {

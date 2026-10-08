@@ -303,6 +303,29 @@ function App(): React.JSX.Element {
     [api, decks, reloadDecks, reportError]
   )
 
+  // KV image of the active event. Main validates the path and the image; the
+  // program state (kvUrl) follows via program:state, the event list is kept in step.
+  const setKv = useCallback(
+    async (file: File) => {
+      const target = eventRef.current
+      if (!target) throw new Error('Pilih event dulu, lalu pilih gambar KV.')
+      const p = api.pathForFile(file)
+      if (!p) {
+        throw new Error('Lokasi file tidak diketahui. Pilih gambar KV dari disk.')
+      }
+      const ev = await api.setKv(target, p)
+      setEvents((xs) => xs.map((x) => (x.id === ev.id ? ev : x)))
+    },
+    [api]
+  )
+
+  const clearKv = useCallback(async () => {
+    const target = eventRef.current
+    if (!target) return
+    const ev = await api.clearKv(target)
+    setEvents((xs) => xs.map((x) => (x.id === ev.id ? ev : x)))
+  }, [api])
+
   const chooseTheme = (t: Theme): void => {
     applyTheme(t)
     setTheme(t)
@@ -328,6 +351,9 @@ function App(): React.JSX.Element {
           currentDeckId={ready ? program.deckId : null}
           live={tally(program) === 'live' ? program.shown : null}
           canImport={eventId !== null}
+          kvUrl={program.kvUrl}
+          onSetKv={setKv}
+          onClearKv={clearKv}
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}
           onDismissImport={(id) => setImports((xs) => xs.filter((x) => x.id !== id))}
           onFiles={importFiles}

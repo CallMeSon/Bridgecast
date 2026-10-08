@@ -17,6 +17,7 @@ import {
   hdmiStatusText,
   nextView,
   outputSource,
+  TALLY_TEXT,
   tally
 } from './model'
 
@@ -129,6 +130,15 @@ describe('tally', () => {
     expect(tally(at('a', 0, { shown, frozen: true }))).toBe('frozen')
     expect(tally(at('a', 0, { shown, frozen: true, black: true }))).toBe('black')
   })
+  it('is kv while KV is on (with or without a slide, even frozen), standby for an automatic KV', () => {
+    const kvUrl = 'slide://kv/e/k.png'
+    expect(tally(at('a', 0, { shown, kv: true, kvUrl }))).toBe('kv')
+    expect(tally(at('a', 0, { shown, frozen: true, kv: true, kvUrl }))).toBe('kv')
+    expect(tally(at('a', 0, { shown: null, kv: true, kvUrl }))).toBe('kv')
+    expect(tally(at('a', 0, { shown: null, kvUrl }))).toBe('idle')
+    expect(tally(at('a', 0, { shown, kvUrl }))).toBe('live')
+    expect(TALLY_TEXT.kv).toBe('KV')
+  })
 })
 
 describe('keyToAction', () => {
@@ -139,6 +149,10 @@ describe('keyToAction', () => {
     expect(keyToAction({ key: 'ArrowLeft', target: body })).toEqual({ type: 'prev' })
     expect(keyToAction({ key: 'F', target: body })).toEqual({ type: 'toggleFreeze' })
     expect(keyToAction({ key: 'b', target: body })).toEqual({ type: 'toggleBlack' })
+    expect(keyToAction({ key: 'k', target: body })).toEqual({ type: 'toggleKv' })
+    expect(keyToAction({ key: 'K', target: body })).toEqual({ type: 'toggleKv' })
+    expect(keyToAction({ key: 'k', repeat: true, target: body })).toBeNull()
+    expect(keyToAction({ key: 'k', ctrlKey: true, target: body })).toBeNull()
     expect(keyToAction({ key: 'x', target: body })).toBeNull()
   })
   it('maps presentation clicker keys', () => {
@@ -200,6 +214,35 @@ describe('outputSource', () => {
   it('keeps the shown slide while frozen', () => {
     const s: ProgramState = { ...initialState, deckId: shown.deckId, index: 3, shown, frozen: true }
     expect(outputSource(s)).toBe(`slide://${shown.deckId}/005.png`)
+  })
+})
+
+describe('outputSource with KV', () => {
+  const shown = { deckId: '11111111-1111-1111-1111-111111111111', index: 0, file: '001.png' }
+  const kvUrl =
+    'slide://kv/22222222-2222-2222-2222-222222222222/33333333-3333-3333-3333-333333333333.png'
+  const slide = `slide://${shown.deckId}/001.png`
+  const base: ProgramState = { ...initialState, kvUrl }
+  it('STANDBY shows the KV automatically, or black without one', () => {
+    expect(outputSource(base)).toBe(kvUrl)
+    expect(outputSource({ ...initialState })).toBeNull()
+  })
+  it('a shown slide wins over the automatic KV', () => {
+    expect(outputSource({ ...base, shown })).toBe(slide)
+    expect(outputSource({ ...base, shown, frozen: true })).toBe(slide)
+  })
+  it('KV on shows the KV over a slide, also when frozen', () => {
+    expect(outputSource({ ...base, shown, kv: true })).toBe(kvUrl)
+    expect(outputSource({ ...base, shown, kv: true, frozen: true })).toBe(kvUrl)
+    expect(outputSource({ ...base, kv: true })).toBe(kvUrl)
+  })
+  it('KV on without a kvUrl falls back to the slide', () => {
+    expect(outputSource({ ...initialState, shown, kv: true })).toBe(slide)
+  })
+  it('Black wins over everything', () => {
+    expect(outputSource({ ...base, shown, black: true })).toBeNull()
+    expect(outputSource({ ...base, black: true })).toBeNull()
+    expect(outputSource({ ...base, shown, black: true, kv: true })).toBeNull()
   })
 })
 

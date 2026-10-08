@@ -1,7 +1,14 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { randomUUID } from 'crypto'
-import { DECK_NAME_MAX, type DeckMeta, type EventMeta } from '../shared/types'
+import {
+  DECK_NAME_MAX,
+  KV_FILE_RE,
+  KV_MAX_BYTES,
+  KV_MIME,
+  type DeckMeta,
+  type EventMeta
+} from '../shared/types'
 
 type DeckInput = {
   name: string
@@ -181,6 +188,76 @@ export class Library {
     ev.deckIds = ev.deckIds.filter((id) => id !== deckId)
     this.saveEvents()
     fs.rmSync(this.deckDir(deckId), { recursive: true, force: true })
+  }
+
+  private kvDir(eventId: string): string {
+    // Event ids are uuids we generated; refuse anything else before using it as a folder name.
+    if (!UUID_RE.test(eventId)) {
+      throw new Error('Id event tidak valid. Muat ulang aplikasi lalu pilih event dari menu.')
+    }
+    return path.join(this.root, 'kv', eventId)
+  }
+
+  /**
+   * Set the event's KV (key visual, shown on the output while STANDBY or on
+   * demand). The image is copied under a new random name every time, so a
+   * cached copy of the previous KV can never show up; the previous file is
+   * removed. Returns the updated event.
+   */
+  setKv(eventId: string, srcPath: string): EventMeta {
+    const ev = this.findEvent(eventId)
+    const ext = path.extname(String(srcPath)).slice(1).toLowerCase()
+    if (!Object.prototype.hasOwnProperty.call(KV_MIME, ext)) {
+      throw new Error('Format KV tidak didukung. Pilih gambar PNG, JPG, atau WebP.')
+    }
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(srcPath)
+    } catch {
+      throw new Error('File KV tidak ditemukan. Pilih gambar KV lagi.')
+    }
+    if (!stat.isFile())
+      throw new Error('Yang dipilih bukan file. Pilih file gambar KV (PNG, JPG, atau WebP).')
+    if (stat.size > KV_MAX_BYTES) {
+      throw new Error('File KV terlalu besar. Pakai gambar yang ukurannya paling banyak 50 MB.')
+    }
+    const dir = this.kvDir(eventId)
+    const file = `${randomUUID()}.${ext}`
+    const previous = ev.kv
+    fs.mkdirSync(dir, { recursive: true })
+    fs.copyFileSync(srcPath, path.join(dir, file))
+    ev.kv = file
+    try {
+      this.saveEvents()
+    } catch (err) {
+      ev.kv = previous
+      if (previous === undefined) delete ev.kv
+      fs.rmSync(path.join(dir, file), { force: true })
+      throw err
+    }
+    if (previous) fs.rmSync(path.join(dir, previous), { force: true })
+    return { ...ev, deckIds: [...ev.deckIds] }
+  }
+
+  /** Remove the event's KV (file and field). No-op without a KV. Returns the updated event. */
+  clearKv(eventId: string): EventMeta {
+    const ev = this.findEvent(eventId)
+    const previous = ev.kv
+    if (previous !== undefined) {
+      delete ev.kv
+      this.saveEvents()
+      fs.rmSync(path.join(this.kvDir(eventId), previous), { force: true })
+    }
+    return { ...ev, deckIds: [...ev.deckIds] }
+  }
+
+  /** Path of the event's KV image; only the stored file name resolves (no traversal). */
+  kvFilePath(eventId: string, file: string): string {
+    const ev = this.findEvent(eventId)
+    if (typeof file !== 'string' || !ev.kv || file !== ev.kv || !KV_FILE_RE.test(file)) {
+      throw new Error('KV tidak ditemukan. Pilih gambar KV untuk event ini.')
+    }
+    return path.join(this.kvDir(eventId), file)
   }
 
   getDeck(deckId: string): DeckMeta {

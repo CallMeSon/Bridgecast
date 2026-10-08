@@ -572,10 +572,73 @@ main {
   gap: 6px;
   margin-top: 4px;
 }
+.kv-block {
+  flex: none;
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--line-hi);
+  background: var(--bg);
+}
+.kv-head {
+  color: var(--text-3);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.kv-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.kv-thumb {
+  position: relative;
+  flex: none;
+  width: 96px;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+  background: var(--letterbox);
+}
+.kv-thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.kv-thumb[data-empty='true'] {
+  background: var(--standby);
+  color: var(--standby-ink);
+}
+.kv-thumb span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 11px;
+  text-align: center;
+}
+.kv-actions {
+  flex: 1 1 80px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kv-error {
+  margin-top: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .add {
   flex: none;
   padding: 12px 16px 14px;
-  border-top: 1px solid var(--line-hi);
+  border-top: 1px solid var(--line);
   background: var(--bg);
 }
 .add .btn {
@@ -650,7 +713,8 @@ main {
   border: 1.5px solid var(--tally);
   color: var(--tally-ink);
 }
-.t-black {
+.t-black,
+.t-kv {
   border: 1.5px solid var(--tally);
   color: var(--black-tally-ink);
   background: var(--letterbox);
@@ -689,7 +753,8 @@ main {
   border-radius: inherit;
   pointer-events: none;
 }
-.program:is([data-state='live'], [data-state='frozen'], [data-state='black']) .screen::after {
+.program:is([data-state='live'], [data-state='frozen'], [data-state='black'], [data-state='kv'])
+  .screen::after {
   border: 2px solid var(--tally);
 }
 .screen .pgm-layer {
@@ -751,8 +816,8 @@ main {
 .controls > * {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 12px;
+  gap: 8px;
+  padding: 0 8px;
   border-right: 1px solid var(--line);
 }
 .controls > :last-child {
@@ -785,7 +850,7 @@ kbd {
 }
 .cbtn {
   height: 52px;
-  padding: 0 14px;
+  padding: 0 12px;
   border: 1px solid var(--line-hi);
   background: var(--raised);
   display: inline-flex;
@@ -1119,6 +1184,12 @@ footer .empty {
   footer {
     grid-template-columns: var(--left-w, 232px) minmax(0, 1fr);
   }
+  .controls kbd.opt {
+    display: none;
+  }
+}
+/* Key hints only where they fit: a Program column under 880px drops them. */
+@container stage (max-width: 880px) {
   .controls kbd.opt {
     display: none;
   }

@@ -1,9 +1,11 @@
 # PPT Share – Spec
 
 ## Masalah
+
 Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar proyektor/LED menampilkan slide yang benar. Aplikasi ini menyimpan semua deck event di satu tempat dan menampilkan Program di layar kedua (HDMI, mode Extend), lalu operator mengontrolnya dari aplikasi.
 
 ## Keputusan
+
 - **Platform:** aplikasi desktop Windows (Electron + TypeScript + React). Berjalan offline.
 - **Input:** `.pptx`, `.ppt`, `.pdf`. Semua dikonversi ke gambar PNG saat import, lalu aplikasi merender slide sendiri.
   - PPT/PPTX: diekspor lewat PowerPoint yang terinstal (COM). Notes slide ikut diambil.
@@ -13,8 +15,9 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 - **NDI dihapus (keputusan pengguna 2026-10-08):** kode, dependency (`grandi`), UI, dan tes NDI dihapus dari repo. Alasan awal penundaan: lisensi NDI SDK (redistribusi runtime dan merek "NDI") belum ditinjau. Riwayatnya ada di git (commit sebelum penghapusan).
 - **Tanpa Preview/Program ala vMix.** Next/Prev langsung mengganti slide di Program. Panel Next menampilkan slide berikutnya beserta notes.
 - **Library:** per event. Event baru mulai kosong. Deck bisa diurutkan, dihapus, dan slide dalam deck bisa diurutkan. Nama deck bisa diganti (klik kanan "Ganti nama…" atau F2); hanya nama tampilan, file slide tetap.
-- **Kontrol:** Prev, Next, transisi Cut/Fade, Freeze, Black. Pintasan: Space/→ Next, ← Prev, F Freeze, B Black.
+- **Kontrol:** Prev, Next, transisi Cut/Fade, Freeze, Black. Pintasan: Space/→ Next, ← Prev, F Freeze, B Black, K KV.
 - **Lanjut otomatis ke deck berikutnya (ditambahkan 2026-10-08):** toggle di panel "Slide berikutnya", default mati, tersimpan di `settings.json`. Saat mati, Next di slide terakhir dan Prev di slide pertama tidak keluar dari deck yang sedang tayang, sehingga clicker pembicara tidak bisa masuk ke presentasi berikutnya. Operator berpindah deck dengan memilih deck di library.
+- **KV (gambar tahan) per event (ditambahkan 2026-10-08):** satu gambar KV per event (PNG, JPG, WebP, maks 50 MB), diunggah dari blok "KV acara" di kolom Deck. KV tampil di output HDMI saat operator menekan tombol KV atau tombol K, dan otomatis saat STANDBY (belum ada slide yang ditayangkan) sebagai pengganti hitam. Tanpa KV, STANDBY tetap hitam dan tombol KV nonaktif. KV dan Black saling menggantikan. Gambar non 16:9 tampil utuh dengan bar hitam. Tally "KV" menyala saat KV dipilih operator; KV otomatis saat STANDBY tetap bertally STANDBY. Monitor Program menampilkan persis yang sedang tayang. File disimpan di `kv/<eventId>/` dengan nama baru setiap unggah.
 - **Clicker presentasi:** PageDown = Next, PageUp = Prev, titik (.) = Black. Clicker hanya bekerja saat jendela operator aktif (fokus).
 - **Freeze sebagai preview (2026-10-08):** selama Freeze, output tetap, Next/Prev menggeser posisi operator, dan panel kanan berjudul "Tayang saat Unfreeze" menampilkan slide itu beserta catatannya. Unfreeze langsung menayangkan slide tersebut dengan transisi aktif. Freeze hanya bisa dinyalakan saat ada slide di output.
 - **Panel bisa diubah ukurannya:** splitter di antara Deck, Program, Slide berikutnya, dan strip; klik dua kali untuk ukuran bawaan; tersimpan per komputer. Program punya lebar minimum, dan deck kontrol pindah ke dua baris saat Program sempit.
@@ -23,4 +26,5 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 - **Perilaku saat ganti event:** output Program tidak berubah sampai operator memilih slide baru.
 
 ## Di luar cakupan
+
 NDI, output kedua dengan isi berbeda, transcript/speech-to-text, mode Live PowerPoint (animasi), timer, playlist bertingkat, remote control dari perangkat lain.
