@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/renderer/src/styles/app.css"
+        ],
+        "createdAt": "2026-10-08T04:47:09.627Z",
+        "reason": "claude: red left tally bar on the live deck row is part of prototype A (proto-a-console), which the user chose to implement as is"
+      }
+    ]
+  }
+}

@@ -79,12 +79,12 @@ describe('toDisplayInfo / displayText', () => {
   it('shows label and resolution, and marks the operator screen', () => {
     expect(displayText(projector)).toBe('EPSON PJ · 1920×1080')
     expect(displayText({ ...projector, operator: true })).toBe(
-      'EPSON PJ · 1920×1080 — Layar operator'
+      'EPSON PJ · 1920×1080 (layar operator)'
     )
     expect(displayText({ ...laptop, operator: true })).toBe(
-      'Layar laptop · 2880×1800 — Layar utama (operator)'
+      'Layar laptop · 2880×1800 (layar utama, operator)'
     )
-    expect(displayText(laptop)).toBe('Layar laptop · 2880×1800 — Layar utama (operator)')
+    expect(displayText(laptop)).toBe('Layar laptop · 2880×1800 (layar utama, operator)')
   })
 })
 

@@ -613,9 +613,9 @@ async function hdmiChecks(win) {
     check(
       (await select.isDisabled()) &&
         (await select.locator('option').allTextContents()).some((t) =>
-          t.endsWith('— Layar utama (operator)')
+          t.endsWith('(layar utama, operator)')
         ),
-      'display select is disabled and marks the primary as "Layar utama (operator)"'
+      'display select is disabled and marks the primary as "(layar utama, operator)"'
     )
     await pop.screenshot({ path: path.join(path.dirname(shot), 'task-11-popover-single.png') })
   } else {
@@ -842,8 +842,8 @@ async function simulatedHdmiChecks(win, real) {
     const pop2 = await openOutputPopover(win)
     check(
       (await pop2.getByTestId('hdmi-message').textContent()) ===
-        'Tersembunyi — layar tidak tersambung',
-      'popover says "Tersembunyi — layar tidak tersambung"'
+        'Tersembunyi, layar tidak tersambung',
+      'popover says "Tersembunyi, layar tidak tersambung"'
     )
     await win.keyboard.press('Escape')
 
@@ -1134,7 +1134,7 @@ try {
   check(true, 'switching back restores the position')
 
   // Theme toggle persists across reloads.
-  await win.getByRole('button', { name: 'Ganti tema' }).click()
+  await win.getByRole('button', { name: 'Tema terang' }).click()
   check(
     (await win.evaluate(() => document.documentElement.dataset.theme)) === 'light',
     'theme toggles to light'

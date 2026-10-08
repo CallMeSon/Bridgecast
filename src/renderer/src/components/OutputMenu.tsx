@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { MonitorIcon, WarningIcon } from '@phosphor-icons/react'
 import type { HdmiStatus } from '../../../shared/ipc'
 import type { DisplayInfo } from '../../../shared/displays'
 import type { HdmiSettings } from '../../../shared/settings'
@@ -55,29 +56,39 @@ export function OutputMenu(): React.JSX.Element {
 
   if (!hdmi) {
     return (
-      <div className="status">
-        <span className="dot off" />
-        <span>HDMI</span>
+      <div className="output-menu">
+        <span className="output-btn" data-tone="off">
+          <MonitorIcon size={16} />
+          <span>HDMI</span>
+        </span>
       </div>
     )
   }
 
   const badge = hdmiBadge(status, hdmi)
+  // The screen the output window is on: shown only while it really is showing.
+  const target = badge.tone === 'ok' ? displays.find((d) => d.id === hdmi.displayId) : undefined
+  const StatusIcon = badge.tone === 'warn' || badge.tone === 'error' ? WarningIcon : MonitorIcon
 
   return (
     <div className="output-menu" ref={wrap}>
       <button
         ref={trigger}
-        className="status output-btn"
+        className="output-btn"
         data-testid="output-status"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
         <span className="ind" data-testid="hdmi-status" data-tone={badge.tone}>
-          <span className={`dot ${badge.tone}`} />
+          <StatusIcon size={16} />
           <span>{badge.text}</span>
         </span>
+        {target && (
+          <span className="res">
+            {target.label}, {target.width}x{target.height}
+          </span>
+        )}
       </button>
       {open && (
         <div

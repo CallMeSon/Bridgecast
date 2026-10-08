@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FileIcon, TrashIcon, UploadSimpleIcon, WarningCircleIcon } from '@phosphor-icons/react'
+import {
+  FilePdfIcon,
+  FilePptIcon,
+  PlusIcon,
+  TrashIcon,
+  WarningCircleIcon
+} from '@phosphor-icons/react'
 import type { DeckMeta } from '../../../shared/types'
+import type { ShownSlide } from '../../../shared/program'
 import type { ImportProgress } from '../../../shared/ipc'
-import { importMeta } from '../model'
+import { fileKind, importMeta } from '../model'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
 export type ImportRow = ImportProgress & { meta?: string }
@@ -13,6 +20,8 @@ interface Props {
   decks: DeckMeta[]
   imports: ImportRow[]
   currentDeckId: string | null
+  /** The slide on the output while Program is LIVE (not frozen, black or standby). */
+  live: ShownSlide | null
   canImport: boolean
   onSelectDeck(deckId: string): void
   onDismissImport(id: string): void
@@ -99,7 +108,7 @@ function ConfirmRemove({
         }
       }}
     >
-      <TrashIcon className="ph" size={18} />
+      <TrashIcon className="ph" size={20} />
       <span className="name" title={deck.name}>
         Hapus deck ini?
       </span>
@@ -141,10 +150,10 @@ export function Library(p: Props): React.JSX.Element {
   }
 
   return (
-    <aside className="left">
-      <div className="panel-h">
-        Library <span className="grow" />
-        <span className="count">{count} deck</span>
+    <aside className="left" aria-label="Deck acara">
+      <div className="colhead">
+        <h2>Deck acara</h2>
+        <span className="meta">{count} file</span>
       </div>
       <div className="decks" data-testid="decks">
         {count === 0 && p.imports.length === 0 && (
@@ -164,7 +173,12 @@ export function Library(p: Props): React.JSX.Element {
           ) : (
             <button
               key={d.id}
-              className={'deck' + (dragging === i ? ' dragging' : '') + (over === i ? ' over' : '')}
+              className={
+                'deck' +
+                (p.live?.deckId === d.id ? ' live' : '') +
+                (dragging === i ? ' dragging' : '') +
+                (over === i ? ' over' : '')
+              }
               data-deck-id={d.id}
               draggable
               aria-current={d.id === p.currentDeckId ? 'true' : undefined}
@@ -197,11 +211,18 @@ export function Library(p: Props): React.JSX.Element {
                 p.onMoveDeck(Number(from), i)
               }}
             >
-              <FileIcon className="ph" size={18} />
+              {d.source === 'pdf' ? (
+                <FilePdfIcon className="ph" size={20} />
+              ) : (
+                <FilePptIcon className="ph" size={20} />
+              )}
               <span className="name" title={d.name}>
                 {d.name}
               </span>
               <span className="meta">{d.slides.length} slide</span>
+              <span className="sub">
+                {p.live?.deckId === d.id ? `LIVE, slide ${p.live.index + 1}` : `.${d.source}`}
+              </span>
             </button>
           )
         )}
@@ -214,7 +235,7 @@ export function Library(p: Props): React.JSX.Element {
               data-testid="import-error"
               onClick={() => p.onDismissImport(x.id)}
             >
-              <WarningCircleIcon className="ph" size={18} />
+              <WarningCircleIcon className="ph" size={20} />
               <span className="name" title={x.name}>
                 {x.name}
               </span>
@@ -224,10 +245,15 @@ export function Library(p: Props): React.JSX.Element {
           ) : (
             // Importing rows are not decks yet: no drag, no delete (v1 cannot cancel).
             <div key={x.id} className="deck busy" aria-busy="true" data-testid="import-busy">
-              <FileIcon className="ph" size={18} />
+              {fileKind(x.name) === 'pdf' ? (
+                <FilePdfIcon className="ph" size={20} />
+              ) : (
+                <FilePptIcon className="ph" size={20} />
+              )}
               <span className="name" title={x.name}>
                 {x.name}
               </span>
+              <span className="n">{x.percent}%</span>
               <span className="meta">{importMeta(x.percent)}</span>
               <span className="bar">
                 <i style={{ width: `${x.percent}%` }} />
@@ -246,12 +272,13 @@ export function Library(p: Props): React.JSX.Element {
           }}
         />
       )}
-      <button className="drop" disabled={!p.canImport} onClick={() => input.current?.click()}>
-        <UploadSimpleIcon className="ph" size={18} />
-        <div>
-          <b>Tambah file</b>Seret PPTX atau PDF ke mana saja di jendela ini.
-        </div>
-      </button>
+      <div className="add">
+        <button className="btn" disabled={!p.canImport} onClick={() => input.current?.click()}>
+          <PlusIcon size={16} />
+          Tambah file
+        </button>
+        <p>Atau seret file .pptx, .ppt, .pdf ke jendela ini.</p>
+      </div>
       <input
         ref={input}
         type="file"

@@ -77,8 +77,8 @@ export function toDisplayInfo(d: DisplayLike, primaryId: number, index: number):
 /** "EPSON PJ · 1920×1080"; the primary and the operator window's display are marked. */
 export function displayText(d: DisplayInfo): string {
   const text = `${d.label} · ${d.width}×${d.height}`
-  if (d.primary) return `${text} — Layar utama (operator)`
-  return d.operator ? `${text} — Layar operator` : text
+  if (d.primary) return `${text} (layar utama, operator)`
+  return d.operator ? `${text} (layar operator)` : text
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> =>

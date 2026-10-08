@@ -15,7 +15,7 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 - **Library:** per event. Event baru mulai kosong. Deck bisa diurutkan, dihapus, dan slide dalam deck bisa diurutkan.
 - **Kontrol:** Prev, Next, transisi Cut/Fade, Freeze, Black. Pintasan: Space/→ Next, ← Prev, F Freeze, B Black.
 - **Drag and drop:** file dari Explorer ke jendela mengimpor ke event aktif. Konversi berjalan di background dengan progress per file.
-- **Desain:** `design/mockup.html` adalah acuan UI (light dan dark, dark default). Satu aksen, font Geist, ikon Phosphor, dibundel lokal. Skala radius 8 (kontrol) dan 12 (panel).
+- **Desain (diperbarui 2026-10-08):** gaya "broadcast console". Abu-abu grafit tanpa rona biru, satu radius 3px, struktur dengan garis 1px (bukan kartu). Merah hanya untuk tally Program (LIVE, FROZEN, BLACK); amber satu-satunya aksen dan hanya berarti "berikutnya". Angka memakai font mono, teks memakai Geist, ikon Phosphor, semua dibundel lokal. Light dan dark, dark default. Token ada di `src/renderer/src/styles/tokens.css`. `design/mockup.html` tidak lagi menjadi acuan visual.
 - **Perilaku saat ganti event:** output Program tidak berubah sampai operator memilih slide baru.
 
 ## Di luar cakupan

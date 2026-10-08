@@ -23,7 +23,7 @@ export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.J
   const hasSecond = displays.some((d) => !d.primary)
   // Turning on is impossible with one screen; turning off always works.
   const blocked = !hdmi.enabled && !hasSecond
-  // Never the primary nor the display holding the operator window (marked "— Layar operator").
+  // Never the primary nor the display holding the operator window (marked "(layar operator)").
   const unusable = (d: DisplayInfo): boolean => d.primary || !!d.operator
   const selected = hdmi.displayId ?? displays.find((d) => !unusable(d))?.id ?? null
   const savedMissing = hdmi.displayId !== null && !displays.some((d) => d.id === hdmi.displayId)

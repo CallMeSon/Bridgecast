@@ -47,20 +47,23 @@ export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React
   return (
     <div className="event" ref={wrap}>
       {creating ? (
-        <input
-          className="event-input"
-          placeholder="Nama event baru"
-          maxLength={60}
-          aria-label="Nama event baru"
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') endNew(true)
-            else if (e.key === 'Escape') endNew(false)
-          }}
-          onBlur={() => endNew(true)}
-        />
+        <div className="event-new">
+          <span className="lbl">Acara</span>
+          <input
+            className="event-input"
+            placeholder="Nama event baru"
+            maxLength={60}
+            aria-label="Nama event baru"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') endNew(true)
+              else if (e.key === 'Escape') endNew(false)
+            }}
+            onBlur={() => endNew(true)}
+          />
+        </div>
       ) : (
         <button
           className="event-btn"
@@ -68,8 +71,13 @@ export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
-          {current ? <span>{current.name}</span> : <span className="placeholder">Pilih event</span>}
-          <CaretDownIcon className="ph" size={14} />
+          <span className="lbl">Acara</span>
+          {current ? (
+            <strong>{current.name}</strong>
+          ) : (
+            <span className="placeholder">Pilih event</span>
+          )}
+          <CaretDownIcon className="ph" size={16} />
         </button>
       )}
       {open && (

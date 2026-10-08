@@ -17,9 +17,12 @@ export function NextPanel({
 
   let card: React.JSX.Element
   let cap = ''
+  // Position of the slide Next takes, e.g. "3 / 9"; empty at the end of a deck.
+  let nextPos = ''
   if (nx.kind === 'slide') {
     card = <SlideImage src={slideUrl(nx.deckId, nx.file)} alt={`Slide ${nx.index + 1}`} />
     cap = `Slide ${nx.index + 1}`
+    nextPos = deck ? `${nx.index + 1} / ${deck.slides.length}` : ''
   } else if (nx.kind === 'end') {
     card = <EndCard title="Akhir deck" />
     cap = nx.nextDeck ? `Berikutnya: ${nx.nextDeck}` : 'Tidak ada deck berikutnya'
@@ -28,22 +31,24 @@ export function NextPanel({
   }
 
   return (
-    <aside className="right">
-      <div className="panel-h">
-        Slide berikutnya <span className="grow" />
-        <span className="count" data-testid="pos">
-          {deck ? `${state.index + 1} / ${deck.slides.length}` : ''}
+    <aside className="right" aria-label="Slide berikutnya">
+      <div className="colhead">
+        <h2>Slide berikutnya</h2>
+        <span className="next-pos" data-testid="next-pos">
+          {nextPos}
         </span>
       </div>
-      <div className="next-card" data-testid="next-card">
-        {card}
-        <div className="cap">
-          <span>{cap}</span>
+      <div className="next-body">
+        <div className="next-card" data-testid="next-card" data-kind={nx.kind}>
+          {card}
+          <div className="cap">
+            <span>{cap}</span>
+          </div>
         </div>
-      </div>
-      <div className="notes">
-        <div className="panel-h">Catatan</div>
-        <p>{deck ? notes : ''}</p>
+        <div className="notes">
+          <h2>Catatan</h2>
+          <p>{deck ? notes : ''}</p>
+        </div>
       </div>
     </aside>
   )

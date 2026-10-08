@@ -4,9 +4,10 @@
   font-display: swap;
   font-weight: 100 900;
   src: url('../assets/fonts/geist-latin-ext-wght-normal.woff2') format('woff2-variations');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
-    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
-    U+2C60-2C7F, U+A720-A7FF;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
 }
 @font-face {
   font-family: 'Geist';
@@ -14,75 +15,71 @@
   font-display: swap;
   font-weight: 100 900;
   src: url('../assets/fonts/geist-latin-wght-normal.woff2') format('woff2-variations');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
-    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
   --font-sans: 'Geist', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --radius-control: 8px;
-  --radius-panel: 12px;
-  --radius-sm: 4px;
-  --fs-base: 14px;
-  --lh-base: 1.45;
-  --fs-small: 13px;
-  --fs-xs: 12px;
-  --fs-kbd: 11px;
-  --fs-brand: 15px;
-  --fs-notes: 15px;
-  --fs-primary: 15px;
+  --font-mono: 'Cascadia Mono', Consolas, monospace;
+  /* One radius everywhere. */
+  --r: 3px;
+}
+
+/* Graphite neutrals. Red is the Program tally only; amber only means "next". */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #141414;
+  --panel: #1b1b1b;
+  --raised: #252525;
+  --raised-hi: #2e2e2e;
+  --line: #2f2f2f;
+  --line-hi: #454545;
+  --text: #e8e8e6;
+  --text-2: #b0b0ae;
+  --text-3: #8c8c8a;
+  --tally: #d32f29;
+  --tally-ink: #ff6e66;
+  --on-tally: #fafafa;
+  --cue: #d4a24a;
+  --cue-ink: #d4a24a;
+  --on-cue: #17130a;
+  --letterbox: #000000;
+  --standby: #0d0d0d;
+  /* Text on the standby/black cards, which stay dark in both themes. */
+  --standby-ink: #9a9a98;
+  --black-tally-ink: #ff7a72;
+  --focus: #e8e8e6;
+  --sel: #3d3d3a;
+  --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --bg: #eceef2;
-  --panel: #ffffff;
-  --side: #f5f6f8;
-  --line: #d8dce3;
-  --line-soft: #e6e9ee;
-  --text: #141821;
-  --muted: #5a6272;
-  --faint: #8a92a1;
-  --accent: #1f5fe0;
-  --accent-ink: #ffffff;
-  --accent-soft: #e3ebfd;
-  --live: #d92d20;
-  --live-soft: #fde8e6;
-  --ok: #12804a;
-  --warn: #a15c00;
-  --warn-soft: #fdf0d9;
-  --btn: #f0f2f6;
-  --btn-h: #e5e8ee;
-  --btn-a: #d9dde5;
-  --stage: #d5d9e0;
-  --shadow: 0 1px 2px rgba(31, 60, 120, 0.1), 0 4px 14px rgba(31, 60, 120, 0.08);
-  --sel: #c9dafc;
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #0c0e12;
-  --panel: #14171d;
-  --side: #101319;
-  --line: #262b34;
-  --line-soft: #1d2129;
-  --text: #e7e9ee;
-  --muted: #9097a5;
-  --faint: #6a7180;
-  --accent: #6e9cff;
-  --accent-ink: #0b1220;
-  --accent-soft: #1a2641;
-  --live: #ff5a4f;
-  --live-soft: #3a1816;
-  --ok: #3ccf86;
-  --warn: #f0b04a;
-  --warn-soft: #33260f;
-  --btn: #1d2129;
-  --btn-h: #262b35;
-  --btn-a: #2f3541;
-  --stage: #07080b;
-  --shadow: 0 1px 2px rgba(2, 8, 24, 0.5), 0 6px 18px rgba(2, 8, 24, 0.35);
-  --sel: #2a3c66;
+  --bg: #dcdcda;
+  --panel: #ecece9;
+  --raised: #e0e0dd;
+  --raised-hi: #d3d3d0;
+  --line: #c4c4c0;
+  --line-hi: #9c9c98;
+  --text: #1a1a19;
+  --text-2: #444442;
+  --text-3: #5c5c59;
+  --tally: #c3231d;
+  --tally-ink: #b01d17;
+  --on-tally: #fafafa;
+  --cue: #c8922c;
+  --cue-ink: #6f4b08;
+  --on-cue: #17130a;
+  --letterbox: #000000;
+  --standby: #0d0d0d;
+  /* Text on the standby/black cards, which stay dark in both themes. */
+  --standby-ink: #9a9a98;
+  --black-tally-ink: #ff7a72;
+  --focus: #1a1a19;
+  --sel: #bcbcb8;
+  --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 * {
@@ -95,7 +92,7 @@ body,
   height: 100%;
 }
 body {
-  font: var(--fs-base) / var(--lh-base) var(--font-sans);
+  font: 13px / 1.4 var(--font-sans);
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
@@ -107,13 +104,13 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border-radius: 6px;
+  background: var(--line-hi);
+  border-radius: var(--r);
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--faint);
+  background: var(--text-3);
   background-clip: content-box;
   border: 2px solid transparent;
 }
@@ -124,6 +121,6 @@ body {
   background: var(--sel);
 }
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }

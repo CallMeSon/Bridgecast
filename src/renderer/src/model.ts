@@ -192,5 +192,5 @@ export function hdmiStatusText(status: HdmiStatus | null, hdmi: HdmiSettings): s
   if (!status) return 'Memulai output HDMI…'
   if (status.message) return status.message
   if (status.state === 'showing') return 'Tampil'
-  return 'Tersembunyi — layar tidak tersambung'
+  return 'Tersembunyi, layar tidak tersambung'
 }

@@ -230,7 +230,7 @@ describe('hdmiStatusText', () => {
   const on = { enabled: true, displayId: 2 }
   it('uses the agreed copy', () => {
     expect(hdmiStatusText({ state: 'showing' }, on)).toBe('Tampil')
-    expect(hdmiStatusText({ state: 'hidden' }, on)).toBe('Tersembunyi — layar tidak tersambung')
+    expect(hdmiStatusText({ state: 'hidden' }, on)).toBe('Tersembunyi, layar tidak tersambung')
     expect(hdmiStatusText({ state: 'off' }, { enabled: false, displayId: null })).toBe('Mati')
     expect(hdmiStatusText({ state: 'error', message: 'Pilih layar lain.' }, on)).toBe(
       'Pilih layar lain.'

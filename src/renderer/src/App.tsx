@@ -18,6 +18,7 @@ import {
   keyToAction,
   moveItem,
   moveOrder,
+  tally,
   UNSUPPORTED
 } from './model'
 import { applyTheme, loadTheme, type Theme } from './theme'
@@ -288,13 +289,13 @@ function App(): React.JSX.Element {
     [api, decks, reloadDecks, reportError]
   )
 
-  const toggleTheme = (): void => {
-    const t = theme === 'dark' ? 'light' : 'dark'
+  const chooseTheme = (t: Theme): void => {
     applyTheme(t)
     setTheme(t)
   }
 
-  const ready = currentDeck(decks, program) !== null
+  const deck = currentDeck(decks, program)
+  const ready = deck !== null
 
   return (
     <div className="app">
@@ -304,13 +305,14 @@ function App(): React.JSX.Element {
         onSelectEvent={selectEvent}
         onCreateEvent={createEvent}
         theme={theme}
-        onToggleTheme={toggleTheme}
+        onSetTheme={chooseTheme}
       />
       <main>
         <Library
           decks={decks}
           imports={imports}
           currentDeckId={ready ? program.deckId : null}
+          live={tally(program) === 'live' ? program.shown : null}
           canImport={eventId !== null}
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}
           onDismissImport={(id) => setImports((xs) => xs.filter((x) => x.id !== id))}
@@ -318,8 +320,8 @@ function App(): React.JSX.Element {
           onMoveDeck={moveDeck}
           onRemoveDeck={removeDeck}
         />
-        <section className="stage-col">
-          <Program state={program} />
+        <section className="stage-col" aria-label="Program">
+          <Program state={program} deck={deck} />
           <Controls
             state={program}
             canPrev={canPrev(decks, program)}
