@@ -20,15 +20,13 @@
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
-    "test:e2e": "electron-vite build && node e2e/smoke.mjs",
-    "verify:ndi": "electron-vite build && node scripts/ndi-verify.mjs"
+    "test:e2e": "electron-vite build && node e2e/smoke.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@fontsource-variable/geist": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
-    "grandi": "2.0.2",
     "pdfjs-dist": "^6.4.299"
   },
   "devDependencies": {

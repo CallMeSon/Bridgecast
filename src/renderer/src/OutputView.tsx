@@ -48,8 +48,8 @@ function imagePainted(id: string, timeoutMs = 1500): Promise<void> {
 }
 
 /**
- * Program output (route `#/output`), rendered in the hidden offscreen window
- * and captured as frames. No chrome, no input: only black or the `shown` slide,
+ * Program output (route `#/output`), shown fullscreen by the HDMI window on
+ * the second display. No chrome, no input: only black or the `shown` slide,
  * letterboxed with `object-fit: contain`.
  */
 export function OutputView(): React.JSX.Element {
@@ -120,8 +120,7 @@ export function OutputView(): React.JSX.Element {
   }, [target, fade])
 
   // Tell main once the first real layer is committed and painted, so
-  // NdiPipeline can switch to this window without ever putting the black
-  // placeholder on Program. The <img> in the DOM is decoded itself (the
+  // the HDMI window is shown without ever flashing the black placeholder. The <img> in the DOM is decoded itself (the
   // preload decoded another Image object; Chromium may otherwise paint a large
   // image a frame late), then two animation frames let that frame be drawn.
   useEffect(() => {

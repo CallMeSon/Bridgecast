@@ -31,39 +31,55 @@ const app = await electron.launch({
   }
 })
 
-// --- Output frame helpers (main-process debug hook, only with PPT_OUTPUT_DUMP) ---
-const counters = () =>
-  app.evaluate(() => {
-    const d = globalThis.__pptOutput
-    return { paints: d.paints, sent: d.sent, lastLength: d.lastLength, restarts: d.restarts }
-  })
+// --- Program output helpers ---
+// Program is read back from the HDMI output window (capturePage: its own
+// compositor). The main flow shows that window on a simulated second display
+// (see startProbe), so one real screen is enough. Points are given in
+// 1920×1080 frame coordinates and scaled to the captured size.
+let dumpSeq = 0
 
-/** Dumps the latest output frame as PNG, decodes it with nativeImage, samples [r,g,b] at points. */
-async function dumpFrame(points) {
+/** Samples [r,g,b] at points of the HDMI window; `save` also writes it as PNG. */
+async function dumpFrame(points, save = false) {
   // Playwright occasionally reports "Resulting promise was garbage collected"
-  // when a main-process GC (8 MB frames) hits during evaluate; retry that.
+  // when a main-process GC hits during evaluate; retry that.
   for (let attempt = 1; ; attempt++) {
     try {
-      return await dumpFrameOnce(points)
+      return await dumpFrameOnce(points, save)
     } catch (e) {
       if (attempt >= 3 || !/garbage collected/.test(String(e))) throw e
     }
   }
 }
 
-const dumpFrameOnce = (points) =>
-  app.evaluate(({ nativeImage }, pts) => {
-    const file = globalThis.__pptOutput.dump()
-    if (!file) return null
-    const img = nativeImage.createFromPath(file)
-    const { width, height } = img.getSize()
-    const bmp = img.toBitmap() // BGRA
-    const px = pts.map(([x, y]) => {
-      const i = (y * width + x) * 4
-      return [bmp[i + 2], bmp[i + 1], bmp[i]]
-    })
-    return { file, width, height, bytes: bmp.length, px }
-  }, points)
+async function dumpFrameOnce(points, save) {
+  const f = await app.evaluate(
+    async ({ BrowserWindow }, [title, pts, fw, fh, png]) => {
+      const w = BrowserWindow.getAllWindows().find(
+        (x) => !x.isDestroyed() && x.getTitle() === title
+      )
+      if (!w) return null
+      const img = await w.webContents.capturePage()
+      const { width, height } = img.getSize()
+      if (!width || !height) return null
+      const bmp = img.toBitmap() // BGRA
+      const px = pts.map(([x, y]) => {
+        const sx = Math.min(width - 1, Math.floor((x * width) / fw))
+        const sy = Math.min(height - 1, Math.floor((y * height) / fh))
+        const i = (sy * width + sx) * 4
+        return [bmp[i + 2], bmp[i + 1], bmp[i]]
+      })
+      return { width, height, px, png: png ? img.toPNG().toString('base64') : null }
+    },
+    [HDMI_TITLE, points, W, H, save]
+  )
+  if (!f) return null
+  let file = null
+  if (f.png) {
+    file = path.join(frameDir, `output-${++dumpSeq}.png`)
+    fs.writeFileSync(file, Buffer.from(f.png, 'base64'))
+  }
+  return { file, width: f.width, height: f.height, px: f.px }
+}
 
 const lum = ([r, g, b]) => Math.max(r, g, b)
 const isBlack = (p) => lum(p) <= 8
@@ -80,7 +96,7 @@ async function waitFrame(points, pred, what, timeout = 5000) {
     if (f && pred(f.px)) return f
     await sleep(150)
   }
-  throw new Error(`ASSERT: ${what} (last frame ${f?.file}: ${JSON.stringify(f?.px)})`)
+  throw new Error(`ASSERT: ${what} (last frame: ${JSON.stringify(f?.px)})`)
 }
 
 // Centre column above the "Halaman n" text (the exact centre is dark text).
@@ -89,7 +105,7 @@ const GRID = []
 for (let gx = 0; gx < 12; gx++) {
   for (let gy = 0; gy < 7; gy++) GRID.push([5 + gx * 173, 5 + gy * 178])
 }
-// A 4:3 slide at 1920×1080 is 1440 wide: x 240..1679.
+// A 4:3 slide in a 16:9 frame (1920×1080 coordinates) is 1440 wide: x 240..1679.
 const BARS = [
   [10, 540],
   [230, 540],
@@ -102,132 +118,6 @@ const INSIDE_43 = [
   [960, 20],
   [960, 1060]
 ]
-/** Header NDI status + popover, settings apply/rebuild, real sender (grandi). */
-async function ndiChecks(win, tally, pos) {
-  const status = win.getByTestId('ndi-status')
-  await win.locator('[data-testid=ndi-status][data-tone=ok]').waitFor({ timeout: 15_000 })
-  check(
-    (await status.textContent()) === 'NDI PPT Share · 1920×1080 · 30 fps',
-    `header NDI status is green while sending: "${await status.textContent()}"`
-  )
-  const ndi0 = await app.evaluate(() => globalThis.__pptNdi)
-  check(
-    ndi0.sent > 0 && /\(PPT Share\)$/.test(ndi0.source),
-    `sender is sending as "${ndi0.source}" (${ndi0.sent} frames, ${ndi0.dropped} dropped, ${(ndi0.sendMsTotal / ndi0.sent).toFixed(1)} ms avg / ${ndi0.sendMsMax.toFixed(1)} ms max per send round trip incl. main-thread latency)`
-  )
-
-  if (ndi0.slow.length)
-    console.log(`  slow NDI sends (at ms since start: ms): ${JSON.stringify(ndi0.slow)}`)
-  await status.click()
-  const pop = win.getByTestId('ndi-popover')
-  await pop.waitFor()
-  check(
-    (await pop.locator('.pop-status').first().textContent()).startsWith('Mengirim sebagai'),
-    `popover shows the source name: "${await pop.locator('.pop-status').first().textContent()}"`
-  )
-  await pop.screenshot({ path: path.join(path.dirname(shot), 'task-8-popover.png') })
-
-  // Shortcuts stay ignored while focus is inside the popover.
-  const pos0 = await pos.textContent()
-  const tally0 = await tally.textContent()
-  const name = pop.getByLabel('Nama source')
-  await name.click()
-  await win.keyboard.press('End')
-  await win.keyboard.type(' bf')
-  await win.keyboard.press('Space')
-  check(
-    (await name.inputValue()) === 'PPT Share bf ' &&
-      (await tally.textContent()) === tally0 &&
-      (await pos.textContent()) === pos0,
-    'typing B/F/Space in the name field does not trigger shortcuts'
-  )
-  await name.fill('PPT Share')
-  const sw = pop.getByRole('switch', { name: 'Output NDI aktif' })
-  await sw.focus()
-  await win.keyboard.press('Space')
-  check(
-    (await sw.getAttribute('aria-checked')) === 'false' &&
-      (await pos.textContent()) === pos0 &&
-      (await tally.textContent()) === tally0,
-    'Space on the popover switch toggles it and does not take the next slide'
-  )
-  await win.keyboard.press('Space')
-
-  // 60 fps: Terapkan rebuilds the output window and the repeater doubles its rate.
-  await pop.getByRole('radio', { name: '60 fps' }).click()
-  await pop.getByRole('button', { name: 'Terapkan' }).click()
-  await win
-    .locator('[data-testid=ndi-status][data-tone=ok]', { hasText: '60 fps' })
-    .waitFor({ timeout: 15_000 })
-  const deadline = Date.now() + 10_000
-  while (Date.now() < deadline) {
-    const o = await app.evaluate(() => {
-      const d = globalThis.__pptOutput
-      return d && { fps: d.options.fps, paints: d.paints }
-    })
-    if (o && o.fps === 60 && o.paints > 0) break
-    await sleep(100)
-  }
-  const c60 = await counters()
-  const n60 = await app.evaluate(() => globalThis.__pptNdi)
-  await sleep(2000)
-  const c60b = await counters()
-  const n60b = await app.evaluate(() => globalThis.__pptNdi)
-  const rate = c60b.sent - c60.sent
-  const ndiRate = n60b.sent - n60.sent
-  check(
-    rate >= 105 && rate <= 135,
-    `after 60 fps apply the new output sends ${rate} frames in 2 s; NDI sent ${ndiRate}, dropped ${n60b.dropped - n60.dropped}`
-  )
-  check(c60b.lastLength === W * H * 4, `frames still ${W}×${H}×4 bytes after rebuild`)
-  const saved = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'))
-  check(saved.ndi.fps === 60, 'settings.json saved with fps 60')
-
-  // Disable: gray dot, no output window; enable again: green.
-  await sw.click()
-  await pop.getByRole('button', { name: 'Terapkan' }).click()
-  await win.locator('[data-testid=ndi-status][data-tone=off]', { hasText: 'nonaktif' }).waitFor()
-  const offscreen = await app.evaluate(
-    ({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().filter((w) => w.webContents.isOffscreen()).length
-  )
-  check(offscreen === 0, `disabled NDI: gray status and no output window (${offscreen})`)
-  await sw.click()
-  await pop.getByRole('radio', { name: '30 fps' }).click()
-  await pop.getByRole('button', { name: 'Terapkan' }).click()
-  await win
-    .locator('[data-testid=ndi-status][data-tone=ok]', { hasText: '30 fps' })
-    .waitFor({ timeout: 15_000 })
-  check(true, 'enabled again at 30 fps: green status')
-
-  // Name already used by another NDI sender on this PC → inline error with the fix.
-  const { default: grandi } = await import('grandi')
-  const other = await grandi.send({ name: 'Smoke Dup' })
-  try {
-    await name.fill('Smoke Dup')
-    await pop.getByRole('button', { name: 'Terapkan' }).click()
-    const err = pop.getByTestId('ndi-error')
-    await err.waitFor({ timeout: 10_000 })
-    const msg = await err.textContent()
-    check(
-      /sudah dipakai/.test(msg) && /ganti nama source/.test(msg),
-      `name in use shows an inline error: "${msg}"`
-    )
-    check((await status.getAttribute('data-tone')) === 'error', 'header status turns red on error')
-  } finally {
-    other.destroy()
-  }
-  await name.fill('PPT Share')
-  await pop.getByRole('button', { name: 'Terapkan' }).click()
-  await win
-    .locator('[data-testid=ndi-status][data-tone=ok]', { hasText: 'PPT Share' })
-    .waitFor({ timeout: 15_000 })
-  check(true, 'renaming back recovers (green)')
-  await win.keyboard.press('Escape')
-  await pop.waitFor({ state: 'detached' })
-  check(true, 'Escape closes the popover')
-}
-
 // --- Drag and drop (Task 9) ---
 // Playwright cannot start an OS-level drag from Explorer into Electron. The
 // closest real path: real files are attached to a scratch <input type=file>
@@ -573,7 +463,7 @@ const hdmiCentre = () =>
     const { width, height } = img.getSize()
     if (!width || !height) return null
     const bmp = img.toBitmap()
-    // Same spot as CENTRE on the NDI frame: above the slide's dark "Halaman n" text.
+    // Same spot as CENTRE: above the slide's dark "Halaman n" text.
     const i = (Math.floor((height * 300) / 1080) * width + Math.floor(width / 2)) * 4
     return [bmp[i + 2], bmp[i + 1], bmp[i]]
   }, HDMI_TITLE)
@@ -589,11 +479,64 @@ async function waitHdmiCentre(pred, what, timeout = 5000) {
   throw new Error(`ASSERT: ${what} (last ${JSON.stringify(px)})`)
 }
 
+const fakeDisplays = (list) => app.evaluate((_e, l) => globalThis.__pptHdmiFakeDisplays(l), list)
+
+/**
+ * Program probe for the main flow: a simulated 1920×1080 second display (a
+ * 960×540 DIP corner of the real primary screen) with HDMI on it.
+ */
+const PROBE_ID = 515151
+async function startProbe(win) {
+  const p = await app.evaluate(({ screen }) => {
+    const d = screen.getPrimaryDisplay()
+    return { id: d.id, label: d.label, bounds: d.bounds }
+  })
+  const b = p.bounds
+  await fakeDisplays([
+    {
+      id: p.id,
+      label: p.label || 'Layar 1',
+      width: b.width,
+      height: b.height,
+      primary: true,
+      bounds: b
+    },
+    {
+      id: PROBE_ID,
+      label: 'E2E OUTPUT',
+      width: 1920,
+      height: 1080,
+      primary: false,
+      bounds: { x: b.x + b.width - 960, y: b.y + b.height - 540, width: 960, height: 540 }
+    }
+  ])
+  // Through the popover, like the operator: select the display, switch on.
+  const pop = await openOutputPopover(win)
+  const select = pop.getByLabel('Layar tujuan')
+  await select.locator(`option[value="${PROBE_ID}"]`).waitFor({ state: 'attached' })
+  await select.selectOption(String(PROBE_ID))
+  await pop.getByTestId('hdmi-switch').click()
+  await win.locator('[data-testid=hdmi-status][data-tone=ok]').waitFor({ timeout: 15_000 })
+  await win.keyboard.press('Escape')
+  await pop.waitFor({ state: 'detached' })
+  check(true, 'HDMI output on a simulated second display for the Program checks')
+}
+
+/** Turns the probe off in the popover (its display id stays saved), back to the real displays. */
+async function stopProbe(win) {
+  const pop = await openOutputPopover(win)
+  await pop.getByTestId('hdmi-switch').click()
+  await win.locator('[data-testid=hdmi-status][data-tone=off]').waitFor({ timeout: 5000 })
+  await win.keyboard.press('Escape')
+  await fakeDisplays(null)
+  check((await hdmiWindows()).length === 0, 'probe off: no HDMI window left')
+}
+
 const savedHdmi = () =>
   JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).hdmi
 
 async function openOutputPopover(win) {
-  const pop = win.getByTestId('ndi-popover')
+  const pop = win.getByTestId('output-popover')
   if (!(await pop.isVisible())) await win.getByTestId('output-status').click()
   await pop.waitFor()
   return pop
@@ -610,7 +553,7 @@ async function hdmiChecks(win) {
   check(
     (await hStatus.textContent()) === 'HDMI mati' &&
       (await hStatus.getAttribute('data-tone')) === 'off',
-    `header shows the HDMI indicator next to NDI: "${await win.getByTestId('output-status').textContent()}"`
+    `header shows the HDMI indicator: "${await win.getByTestId('output-status').textContent()}"`
   )
   const real = await app.evaluate(({ screen }) => ({
     primary: screen.getPrimaryDisplay().id,
@@ -747,16 +690,9 @@ async function realHdmiChecks(win, pop, real) {
     `popover: Tampil on "${shown}"`
   )
   await pop.screenshot({ path: path.join(path.dirname(shot), 'task-11-popover-real.png') })
-  // Same Program as NDI (STANDBY here: black).
-  const ndiPx = (await dumpFrame([CENTRE])).px[0]
-  const hdmiPx = await waitHdmiCentre(
-    (p) => Math.abs(lum(p) - lum(ndiPx)) <= 8,
-    'real HDMI window shows the same as NDI'
-  )
-  check(
-    true,
-    `real HDMI window shows the same as NDI: ${JSON.stringify(hdmiPx)} vs ${JSON.stringify(ndiPx)}`
-  )
+  // Program is STANDBY here (the live deck was deleted): black.
+  const hdmiPx = await waitHdmiCentre(isBlack, 'real HDMI window shows Program (STANDBY: black)')
+  check(true, `real HDMI window shows Program: ${JSON.stringify(hdmiPx)}`)
   // Real pixels: the window's Win32 rect equals the monitor's rect exactly.
   const px = winRects()
   console.log(`  Win32: ${JSON.stringify(px)}`)
@@ -801,10 +737,10 @@ async function simulatedHdmiChecks(win, real) {
     primary: false,
     bounds: corner(480, 270)
   }
-  const fake = (list) => app.evaluate((_e, l) => globalThis.__pptHdmiFakeDisplays(l), list)
+  const fake = fakeDisplays
 
   // Something live on Program: deck "dropped", slide 1 (white).
-  if (await win.getByTestId('ndi-popover').isVisible()) await win.keyboard.press('Escape')
+  if (await win.getByTestId('output-popover').isVisible()) await win.keyboard.press('Escape')
   await win.locator('.deck', { has: win.locator('.name', { hasText: /^dropped$/ }) }).click()
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '1 / 3'
@@ -866,7 +802,7 @@ async function simulatedHdmiChecks(win, real) {
       path: path.join(path.dirname(shot), 'task-11-header.png')
     })
 
-    // Same Program as NDI; operator shortcuts keep working (focus never moved).
+    // Program on HDMI; operator shortcuts keep working (focus never moved).
     await win.keyboard.press('Escape')
     await waitHdmiCentre((p) => lum(p) > 200, 'HDMI window shows the live slide')
     await win.keyboard.press('b')
@@ -874,12 +810,11 @@ async function simulatedHdmiChecks(win, real) {
       () => document.querySelector('[data-testid=tally]')?.textContent === 'BLACK'
     )
     await waitHdmiCentre(isBlack, 'B makes the HDMI window black')
-    await waitFrame([CENTRE], (px) => isBlack(px[0]), 'B makes NDI black too')
     await win.keyboard.press('b')
     await win.waitForFunction(
       () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
     )
-    // To slide 1 (white), then Space to slide 2 (light blue), as on NDI.
+    // To slide 1 (white), then Space to slide 2 (light blue).
     while ((await pos.textContent()) !== '1 / 3') {
       const before = await pos.textContent()
       await win.keyboard.press('ArrowLeft')
@@ -894,7 +829,7 @@ async function simulatedHdmiChecks(win, real) {
       () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
     )
     await waitHdmiCentre((p) => blue(p), 'Space takes slide 2 (blue) live on HDMI')
-    check(true, 'B and Space in the operator window drive the HDMI window like NDI')
+    check(true, 'B and Space in the operator window drive the HDMI window')
 
     // Unplug: hidden in place (not moved onto the operator screen), amber status.
     await fake([fakePrimary])
@@ -970,7 +905,7 @@ async function simulatedHdmiChecks(win, real) {
 const errors = []
 let failed = false
 try {
-  // Output windows (NDI offscreen, HDMI) are checked for console errors too.
+  // The HDMI output window is checked for console errors too.
   app.on('window', (page) => {
     const isOutput = () => page.url().endsWith('#/output')
     page.on('console', (m) => {
@@ -989,7 +924,7 @@ try {
 
   // 1280×720 window: the Program panel and controls must stay on screen.
   await app.evaluate(({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows().find((x) => !x.webContents.isOffscreen())
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'PPT Share HDMI')
     w.setMinimumSize(800, 500)
     w.setContentSize(1280, 720)
   })
@@ -1001,6 +936,7 @@ try {
   const cap = win.locator('.next-card .cap')
   check((await tally.textContent()) === 'STANDBY', 'empty app shows STANDBY')
   check((await win.locator('footer').textContent()).includes('Belum ada slide'), 'empty strip')
+  await startProbe(win)
 
   // Create an event through the event menu.
   await win.click('.event-btn')
@@ -1039,35 +975,15 @@ try {
   check((await pos.textContent()) === '1 / 3', 'first Space takes slide 1 LIVE')
   check((await cap.textContent()) === 'Slide 2', 'Next panel then shows slide 2')
 
-  // Output: slide 1 (white 16:9 page) fills the 1920×1080 frame.
+  // Output: slide 1 (white 16:9 page) fills the 16:9 HDMI window.
   const f1 = await waitFrame(
     [CENTRE, [10, 10], [1910, 1070]],
     (px) => px.every((p) => lum(p) > 200),
     'output shows slide 1'
   )
-  const c1 = await counters()
   check(
-    c1.lastLength === W * H * 4,
-    `raw output frame is ${W}×${H}×4 BGRA bytes (${c1.lastLength})`
-  )
-  check(f1.width === W && f1.height === H, `dumped frame is ${f1.width}×${f1.height}`)
-  check(true, `16:9 slide fills the frame, centre ${JSON.stringify(f1.px[0])}`)
-
-  // Repeater: a static slide still produces ~30 frames per second.
-  await sleep(2000)
-  const c2 = await counters()
-  const sent = c2.sent - c1.sent
-  const paints = c2.paints - c1.paints
-  check(
-    sent >= 50 && sent <= 70,
-    `repeater sent ${sent} frames in 2 s on a static slide (paint events: ${paints})`
-  )
-
-  // Display scaling: the window is sized in DIP so frames are never resampled.
-  const ps = await app.evaluate(() => globalThis.__pptOutput.paint)
-  check(
-    ps.mode !== 'resize',
-    `no resampling: scale ${ps.scaleFactor}, window ${ps.windowDip.width}×${ps.windowDip.height} DIP, painted ${ps.painted.width}×${ps.painted.height}, mode ${ps.mode}, ${(ps.totalMs / ps.count).toFixed(1)} ms avg / ${ps.maxMs.toFixed(1)} ms max per paint (${ps.count} paints)`
+    true,
+    `16:9 slide fills the HDMI window (${f1.width}×${f1.height} px), centre ${JSON.stringify(f1.px[0])}`
   )
 
   await win.keyboard.press('Space')
@@ -1158,9 +1074,8 @@ try {
   await deck43.click()
   const seen = []
   while (Date.now() - t0 < 1000) {
-    const p = await app.evaluate(() => globalThis.__pptOutput.pixel(100, 540))
-    seen.push([Date.now() - t0, p[2]])
-    await sleep(10)
+    const f = await dumpFrame([[100, 540]])
+    if (f) seen.push([Date.now() - t0, f.px[0][0]])
   }
   const mid = seen.filter(([, r]) => r > 20 && r < 215)
   check(
@@ -1177,7 +1092,8 @@ try {
     true,
     `4:3 slide: black bars ${JSON.stringify(f43.px.slice(0, 4))}, content ${JSON.stringify(f43.px.slice(4))}`
   )
-  fs.copyFileSync(f43.file, path.join(path.dirname(shot), 'task-7-output-4x3.png'))
+  const saved43 = await dumpFrame([CENTRE], true)
+  fs.copyFileSync(saved43.file, path.join(path.dirname(shot), 'task-7-output-4x3.png'))
   await win.getByRole('radio', { name: 'Cut' }).click()
   // Back to the 16:9 deck at slide 2 for the remaining steps.
   await win.locator('.deck', { has: win.locator('.name', { hasText: /^sample$/ }) }).click()
@@ -1230,40 +1146,33 @@ try {
     'theme persists after reload'
   )
 
-  // The hidden output window refuses to close (only app quit destroys it).
-  await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()
-      .find((w) => w.webContents.isOffscreen())
-      .close()
+  // HDMI renderer crash: the window is rebuilt and shows the slide again.
+  const before = (await hdmiDebug()).creates
+  await app.evaluate(
+    ({ BrowserWindow }, t) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.getTitle() === t)
+        .webContents.forcefullyCrashRenderer(),
+    HDMI_TITLE
   )
-  await sleep(300)
-  const alive = await app.evaluate(
-    ({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().filter((w) => w.webContents.isOffscreen()).length
-  )
-  check(alive === 1, 'output window cannot be closed')
-
-  // Output renderer crash: the window is recreated and shows the slide again.
-  const before = await counters()
-  await app.evaluate(() => globalThis.__pptOutput.crash())
   const end = Date.now() + 10_000
-  let after = before
+  let after = await hdmiDebug()
   while (Date.now() < end) {
-    after = await counters()
-    if (after.restarts === before.restarts + 1 && after.paints > before.paints) break
+    after = await hdmiDebug()
+    if (after.creates === before + 1 && after.visible && after.ready) break
     await sleep(200)
   }
-  check(after.restarts === before.restarts + 1, 'output window recreated after renderer crash')
-  await waitFrame([[10, 10]], (px) => blue(px[0]), 'recreated output shows slide 2')
-  const outputs = await app.evaluate(
-    ({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().filter((w) => w.webContents.isOffscreen()).length
+  check(
+    after.creates === before + 1 && after.visible,
+    `HDMI window rebuilt after a renderer crash (creates ${before} -> ${after.creates})`
   )
-  check(outputs === 1, `recreated output shows slide 2; single output window (${outputs})`)
+  await waitFrame([[10, 10]], (px) => blue(px[0]), 'rebuilt HDMI window shows slide 2')
+  const outputs = (await hdmiWindows()).length
+  check(outputs === 1, `rebuilt output shows slide 2; single HDMI window (${outputs})`)
 
   await dragAndDropChecks(win, tally, pos, cap)
 
-  await ndiChecks(win, tally, pos)
+  await stopProbe(win)
 
   await hdmiChecks(win)
 

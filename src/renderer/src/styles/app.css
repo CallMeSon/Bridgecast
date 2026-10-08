@@ -142,12 +142,12 @@ header {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent);
 }
 
-/* NDI status + settings popover */
-.ndi {
+/* Output (HDMI) status + settings popover */
+.output-menu {
   position: relative;
   display: inline-flex;
 }
-.ndi-btn {
+.output-btn {
   gap: 10px;
   height: 32px;
   padding: 0 10px;
@@ -158,8 +158,8 @@ header {
   background: none;
   cursor: pointer;
 }
-.ndi-btn:hover,
-.ndi-btn[aria-expanded='true'] {
+.output-btn:hover,
+.output-btn[aria-expanded='true'] {
   background: var(--btn);
 }
 .ind {
@@ -172,11 +172,6 @@ header {
 }
 .ind[data-tone='warn'] {
   color: var(--warn);
-}
-.ind-sep {
-  width: 1px;
-  height: 14px;
-  background: var(--line);
 }
 .dot.warn {
   background: var(--warn);
@@ -203,8 +198,6 @@ header {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
 }
 .pop-head {
   display: flex;
@@ -314,21 +307,6 @@ select.text-input:disabled {
   border-color: var(--accent);
   outline: none;
 }
-.seg.full {
-  display: flex;
-  height: 36px;
-}
-.seg.full button {
-  flex: 1;
-}
-.pop-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.pop-actions .btn {
-  height: 36px;
-}
 .btn.accent {
   background: var(--accent);
   border-color: var(--accent);
@@ -336,10 +314,6 @@ select.text-input:disabled {
 }
 .btn.accent:hover {
   filter: brightness(1.08);
-}
-.fine {
-  font-size: var(--fs-xs);
-  color: var(--faint);
 }
 
 /* buttons */

@@ -1,6 +1,6 @@
 import type { DeckMeta, EventMeta } from './types'
 import type { Action, ProgramState } from './program'
-import type { HdmiSettings, NdiSettings, Settings } from './settings'
+import type { HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
@@ -17,8 +17,6 @@ export const Invoke = {
   programDispatch: 'program:dispatch',
   programGet: 'program:get',
   settingsGet: 'settings:get',
-  settingsSet: 'settings:set',
-  ndiGetStatus: 'ndi:getStatus',
   displaysList: 'displays:list',
   hdmiSet: 'hdmi:set',
   hdmiGetStatus: 'hdmi:getStatus'
@@ -26,7 +24,7 @@ export const Invoke = {
 
 /**
  * Renderer → main one-way messages (ipcRenderer.send). Main only accepts them
- * from the webContents they concern (see Output), so another window cannot
+ * from the webContents they concern (see HdmiOutput), so another window cannot
  * spoof them.
  */
 export const Send = {
@@ -41,7 +39,6 @@ export const Send = {
 export const Broadcast = {
   programState: 'program:state',
   importProgress: 'import:progress',
-  ndiStatus: 'ndi:status',
   displaysChanged: 'displays:changed',
   hdmiStatus: 'hdmi:status'
 } as const
@@ -54,18 +51,6 @@ export interface ImportProgress {
   message?: string
 }
 
-/** PDF pages rendered in the renderer (pdf.js) and handed to main to store. */
-/**
- * NDI sender state. `running` only once the NDI source actually exists;
- * `message` (Indonesian, with the fix) on `error`; `source` is the full name
- * receivers show, e.g. "STUDIO-PC (PPT Share)".
- */
-export interface NdiStatus {
-  state: 'running' | 'stopped' | 'error'
-  message?: string
-  source?: string
-}
-
 /**
  * HDMI output window state: `showing` (fullscreen on its display), `hidden`
  * (its display is not connected, or it is still being prepared: `message`),
@@ -76,6 +61,7 @@ export interface HdmiStatus {
   message?: string
 }
 
+/** PDF pages rendered in the renderer (pdf.js) and handed to main to store. */
 export interface RenderedDeck {
   name: string
   width: number
@@ -108,9 +94,6 @@ export interface InvokeMap {
   'program:dispatch': { args: [action: Action]; result: ProgramState }
   'program:get': { args: []; result: Session }
   'settings:get': { args: []; result: Settings }
-  /** NDI only; the saved HDMI settings are kept (they change through hdmi:set). */
-  'settings:set': { args: [settings: { ndi: NdiSettings }]; result: Settings }
-  'ndi:getStatus': { args: []; result: NdiStatus }
   'displays:list': { args: []; result: DisplayInfo[] }
   /** Validated in main against the connected displays; saves and applies at once. */
   'hdmi:set': { args: [hdmi: HdmiSettings]; result: Settings }
@@ -120,7 +103,6 @@ export interface InvokeMap {
 export interface BroadcastMap {
   'program:state': ProgramState
   'import:progress': ImportProgress
-  'ndi:status': NdiStatus
   'displays:changed': DisplayInfo[]
   'hdmi:status': HdmiStatus
 }
@@ -151,17 +133,13 @@ export interface Api {
   onProgramState(cb: (s: ProgramState) => void): () => void
   onImportProgress(cb: (p: ImportProgress) => void): () => void
   getSettings(): Promise<Settings>
-  /** Validates, saves and applies (restarts output + sender when needed). */
-  setSettings(s: { ndi: NdiSettings }): Promise<Settings>
-  getNdiStatus(): Promise<NdiStatus>
-  onNdiStatus(cb: (s: NdiStatus) => void): () => void
   listDisplays(): Promise<DisplayInfo[]>
   onDisplaysChanged(cb: (d: DisplayInfo[]) => void): () => void
   /** Turns HDMI output on/off or moves it to another display (applied at once). */
   setHdmi(h: HdmiSettings): Promise<Settings>
   getHdmiStatus(): Promise<HdmiStatus>
   onHdmiStatus(cb: (s: HdmiStatus) => void): () => void
-  /** Output windows only (NDI, HDMI): the first frame for the current program state is rendered. */
+  /** Output window only (HDMI): the first frame for the current program state is rendered. */
   outputReady(): void
   pathForFile(file: File): string
 }

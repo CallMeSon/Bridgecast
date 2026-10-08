@@ -10,19 +10,11 @@ import { AppState } from './state'
 import { importPptx } from './import/pptx'
 import { ImportQueue } from './import-queue'
 import { isInside, parseSlideUrl } from './slide-protocol'
-import { Output } from './output'
 import { loadSettings, saveSettings, type Settings } from './settings'
-import { GrandiNdiSender } from './ndi/grandi-sender'
-import { NdiPipeline } from './ndi/pipeline'
 import { HdmiOutput, screenDisplays } from './display-output'
 import type { ScreenDisplay } from './hdmi-plan'
 import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
-import {
-  ndiSettingsError,
-  sanitizeSettings,
-  type HdmiSettings,
-  type NdiSettings
-} from '../shared/settings'
+import { sanitizeSettings, type HdmiSettings } from '../shared/settings'
 import {
   Broadcast,
   Invoke,
@@ -31,7 +23,6 @@ import {
   type ImportRequest,
   type InvokeChannel,
   type HdmiStatus,
-  type NdiStatus,
   type InvokeMap,
   type RenderedDeck
 } from '../shared/ipc'
@@ -86,7 +77,12 @@ function registerSlideProtocol(root: string, lib: Library): void {
   })
 }
 
-function registerIpc(lib: Library, state: AppState, ndi: NdiOutput, hdmi: HdmiOutput): void {
+function registerIpc(
+  lib: Library,
+  state: AppState,
+  settings: SettingsStore,
+  hdmi: HdmiOutput
+): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
   handle(Invoke.eventsList, () => lib.listEvents())
@@ -176,7 +172,7 @@ function registerIpc(lib: Library, state: AppState, ndi: NdiOutput, hdmi: HdmiOu
     }
     const out = tempDir()
     try {
-      // Async writes keep the main process (and the NDI frame repeater) responsive.
+      // Async writes keep the main process responsive.
       const slides = await Promise.all(
         payload.pages.map(async (page, i) => {
           const pngPath = join(out, `${String(i + 1).padStart(3, '0')}.png`)
@@ -218,9 +214,7 @@ function registerIpc(lib: Library, state: AppState, ndi: NdiOutput, hdmi: HdmiOu
     state.removeDeck(eventId, deckId)
   })
 
-  handle(Invoke.settingsGet, () => ndi.getSettings())
-  handle(Invoke.settingsSet, (settings) => ndi.set(settings))
-  handle(Invoke.ndiGetStatus, () => ndi.getStatus())
+  handle(Invoke.settingsGet, () => settings.get())
 
   handle(Invoke.displaysList, () => hdmi.displays())
   handle(Invoke.hdmiGetStatus, () => hdmi.getStatus())
@@ -232,7 +226,7 @@ function registerIpc(lib: Library, state: AppState, ndi: NdiOutput, hdmi: HdmiOu
     const operatorId = hdmi.operatorDisplayId()
     const error = hdmiSettingsError(input, displays, operatorId)
     if (error) throw new Error(error)
-    const saved = ndi.saveHdmi(resolveHdmi(input, displays, operatorId))
+    const saved = settings.saveHdmi(resolveHdmi(input, displays, operatorId))
     hdmi.apply(saved.hdmi)
     return saved
   })
@@ -240,81 +234,21 @@ function registerIpc(lib: Library, state: AppState, ndi: NdiOutput, hdmi: HdmiOu
   state.onChange((s) => broadcast(Broadcast.programState, s))
 }
 
-/**
- * NDI output: settings.json → NdiPipeline (offscreen output window + frame
- * repeater) → GrandiNdiSender. Status changes are pushed as `ndi:status`.
- */
-class NdiOutput {
+/** settings.json: loaded once, saved atomically on every change. */
+class SettingsStore {
   private settings: Settings
-  private status: NdiStatus = { state: 'stopped' }
-  private readonly sender: GrandiNdiSender
-  private readonly pipeline: NdiPipeline<Output>
-  private started = false
 
   constructor(private file: string) {
     this.settings = loadSettings(file)
-    this.sender = new GrandiNdiSender((s) => this.setStatus(s))
-    // PPT_OUTPUT_DUMP=<dir> (dev/e2e only): exposes counters and a PNG frame
-    // dump of the current output window on globalThis.__pptOutput, and the
-    // sender's counters on globalThis.__pptNdi.
-    const dumpDir = process.env['PPT_OUTPUT_DUMP'] || undefined
-    this.pipeline = new NdiPipeline(
-      this.sender,
-      (opts, send, ready) => new Output(opts, send, dumpDir, ready),
-      (message) => this.setStatus({ state: 'error', message })
-    )
-    if (dumpDir) {
-      Object.defineProperty(globalThis, '__pptOutput', {
-        configurable: true,
-        get: () => this.pipeline.current?.debug ?? null
-      })
-      Object.defineProperty(globalThis, '__pptNdi', {
-        configurable: true,
-        get: () => ({ ...this.sender.stats, connections: this.sender.stats.connections() })
-      })
-    }
   }
 
-  private setStatus(s: NdiStatus): void {
-    this.status = s
-    if (s.state === 'error') console.error(`[ndi] ${s.message}`)
-    broadcast(Broadcast.ndiStatus, s)
-  }
-
-  /** Starts the output once the operator window is up. */
-  start(): void {
-    if (this.started) return
-    this.started = true
-    this.pipeline.apply(this.settings.ndi)
-  }
-
-  getSettings(): Settings {
+  get(): Settings {
     return this.settings
   }
 
-  getStatus(): NdiStatus {
-    return this.status
-  }
-
-  /**
-   * Validates, saves, then restarts the output window and sender as needed.
-   * Only `ndi` is taken from the renderer; the saved HDMI settings are kept.
-   */
-  set(input: { ndi: NdiSettings }): Settings {
-    const error = ndiSettingsError(input?.ndi)
-    if (error) throw new Error(error)
-    const next = this.persist({ ndi: input.ndi, hdmi: this.settings.hdmi })
-    if (this.started) this.pipeline.apply(next.ndi)
-    return next
-  }
-
-  /** Saves HDMI settings (validated by the caller); NDI is left untouched. */
+  /** Saves HDMI settings (validated by the caller). */
   saveHdmi(hdmi: HdmiSettings): Settings {
-    return this.persist({ ...this.settings, hdmi })
-  }
-
-  private persist(input: Settings): Settings {
-    const next = sanitizeSettings(input)
+    const next = sanitizeSettings({ ...this.settings, hdmi })
     try {
       saveSettings(this.file, next)
     } catch (err) {
@@ -324,25 +258,21 @@ class NdiOutput {
     this.settings = next
     return next
   }
-
-  shutdown(): void {
-    this.pipeline.shutdown()
-  }
 }
 
 /** HDMI output on a second display; its status and the display list are pushed to the UI. */
-function createHdmiOutput(ndi: NdiOutput): HdmiOutput {
+function createHdmiOutput(settings: SettingsStore): HdmiOutput {
   // PPT_OUTPUT_DUMP (dev/e2e only): HDMI window state on globalThis.__pptHdmi,
   // and __pptHdmiFakeDisplays(list | null) to simulate plugging and unplugging
   // a second display on a machine that has only one.
   let fakeDisplays: ScreenDisplay[] | null = null
   const hdmi = new HdmiOutput(
-    ndi.getSettings().hdmi,
+    settings.get().hdmi,
     (s: HdmiStatus) => broadcast(Broadcast.hdmiStatus, s),
     (d) => broadcast(Broadcast.displaysChanged, d),
     (displayId) => {
       try {
-        ndi.saveHdmi({ ...ndi.getSettings().hdmi, displayId })
+        settings.saveHdmi({ ...settings.get().hdmi, displayId })
       } catch (err) {
         console.error('[hdmi] layar baru tidak bisa disimpan:', err)
       }
@@ -388,7 +318,7 @@ function createWindow(onReady?: () => void): BrowserWindow {
     mainWindow.show()
     onReady?.()
   })
-  // The hidden output window keeps the app alive otherwise.
+  // The HDMI output window keeps the app alive otherwise.
   mainWindow.on('closed', () => {
     if (process.platform !== 'darwin') app.quit()
   })
@@ -435,19 +365,13 @@ Lokasi: ${root}`
     return
   }
   const state = new AppState(lib)
-  const ndi = new NdiOutput(join(root, 'settings.json'))
-  const hdmi = createHdmiOutput(ndi)
-  app.on('before-quit', () => {
-    hdmi.shutdown()
-    ndi.shutdown()
-  })
+  const settings = new SettingsStore(join(root, 'settings.json'))
+  const hdmi = createHdmiOutput(settings)
+  app.on('before-quit', () => hdmi.shutdown())
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state, ndi, hdmi)
+  registerIpc(lib, state, settings, hdmi)
 
-  const startOutputs = (): void => {
-    ndi.start()
-    hdmi.start()
-  }
+  const startOutputs = (): void => hdmi.start()
   hdmi.watchOperator(createWindow(startOutputs))
 
   app.on('activate', function () {

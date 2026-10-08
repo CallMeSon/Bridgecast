@@ -59,8 +59,8 @@ export interface HdmiDebug {
 
 /**
  * The HDMI output: one visible, frameless window covering the chosen second
- * display and rendering the same `#/output` route as the NDI output (it
- * receives the same `program:state` broadcasts). It never feeds NDI.
+ * display and rendering the renderer's `#/output` route (it receives the
+ * `program:state` broadcasts).
  *
  * - Built when HDMI is enabled, destroyed when disabled or on app quit.
  * - Shown only after its renderer sent `output:ready` (first layer on screen),

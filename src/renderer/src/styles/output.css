@@ -1,4 +1,4 @@
-/* Program output (#/output): rendered offscreen and sent as video frames. */
+/* Program output (#/output): fullscreen on the HDMI display. */
 .output {
   position: fixed;
   inset: 0;

@@ -14,7 +14,6 @@ import {
   nextIndex,
   hdmiBadge,
   hdmiStatusText,
-  ndiBadge,
   nextView,
   outputSource,
   tally
@@ -115,7 +114,7 @@ describe('keyToAction', () => {
     expect(keyToAction({ key: 'f', ctrlKey: true, target: body })).toBeNull()
     expect(keyToAction({ key: 'f', repeat: true, target: body })).toBeNull()
   })
-  it('ignores every key while focus is inside the NDI popover (buttons too)', () => {
+  it('ignores every key while focus is inside the output popover (buttons too)', () => {
     const inPopover = {
       tagName: 'BUTTON',
       closest: (sel: string) => (sel === '[data-no-shortcuts]' ? {} : null)
@@ -125,40 +124,6 @@ describe('keyToAction', () => {
       expect(keyToAction({ key, target: inPopover })).toBeNull()
     }
     expect(keyToAction({ key: 'b', target: plainButton })).toEqual({ type: 'toggleBlack' })
-  })
-})
-
-describe('ndiBadge', () => {
-  const ndi = { enabled: true, name: 'PPT Share', width: 1920, height: 1080, fps: 30 }
-  it('green only while the sender is running, with name and format', () => {
-    expect(ndiBadge({ state: 'running', source: 'PC (PPT Share)' }, ndi)).toEqual({
-      tone: 'ok',
-      name: 'PPT Share',
-      detail: '1920×1080 · 30 fps'
-    })
-    expect(
-      ndiBadge({ state: 'running' }, { ...ndi, width: 3840, height: 2160, fps: 60 }).detail
-    ).toBe('3840×2160 · 60 fps')
-  })
-  it('gray when off or still starting', () => {
-    expect(ndiBadge({ state: 'stopped' }, { ...ndi, enabled: false })).toEqual({
-      tone: 'off',
-      name: null,
-      detail: 'nonaktif'
-    })
-    expect(ndiBadge({ state: 'stopped' }, ndi)).toEqual({
-      tone: 'off',
-      name: 'PPT Share',
-      detail: 'memulai…'
-    })
-    expect(ndiBadge(null, ndi).tone).toBe('off')
-  })
-  it('red with a short label on error', () => {
-    expect(ndiBadge({ state: 'error', message: 'x' }, ndi)).toEqual({
-      tone: 'error',
-      name: 'PPT Share',
-      detail: 'bermasalah'
-    })
   })
 })
 

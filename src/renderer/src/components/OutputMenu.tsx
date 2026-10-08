@@ -1,0 +1,100 @@
+import { useEffect, useRef, useState } from 'react'
+import type { HdmiStatus } from '../../../shared/ipc'
+import type { DisplayInfo } from '../../../shared/displays'
+import type { HdmiSettings } from '../../../shared/settings'
+import { hdmiBadge } from '../model'
+import { HdmiSection } from './HdmiSection'
+
+/**
+ * Header output status (HDMI: green only while its window shows on the second
+ * display) and the output settings popover.
+ */
+export function OutputMenu(): React.JSX.Element {
+  const api = window.api
+  const [hdmi, setHdmi] = useState<HdmiSettings | null>(null)
+  const [status, setStatus] = useState<HdmiStatus | null>(null)
+  const [displays, setDisplays] = useState<DisplayInfo[]>([])
+  const [open, setOpen] = useState(false)
+  const wrap = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const offs = [api.onHdmiStatus(setStatus), api.onDisplaysChanged(setDisplays)]
+    api.getSettings().then((s) => setHdmi(s.hdmi))
+    // A status pushed before this resolves is newer; keep it.
+    api.getHdmiStatus().then((s) => setStatus((cur) => cur ?? s))
+    api.listDisplays().then(setDisplays)
+    return () => offs.forEach((off) => off())
+  }, [api])
+
+  // Main may re-save the HDMI display id (a re-plugged screen got a new id).
+  useEffect(() => {
+    if (!open) return
+    api.getSettings().then((s) => setHdmi(s.hdmi))
+    api.listDisplays().then(setDisplays)
+  }, [api, open])
+
+  useEffect(() => {
+    if (!open) return
+    wrap.current?.querySelector<HTMLElement>('[role=switch]')?.focus()
+    const onClick = (e: MouseEvent): void => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      setOpen(false)
+      trigger.current?.focus()
+    }
+    addEventListener('click', onClick)
+    addEventListener('keydown', onKey)
+    return () => {
+      removeEventListener('click', onClick)
+      removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  if (!hdmi) {
+    return (
+      <div className="status">
+        <span className="dot off" />
+        <span>HDMI</span>
+      </div>
+    )
+  }
+
+  const badge = hdmiBadge(status, hdmi)
+
+  return (
+    <div className="output-menu" ref={wrap}>
+      <button
+        ref={trigger}
+        className="status output-btn"
+        data-testid="output-status"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="ind" data-testid="hdmi-status" data-tone={badge.tone}>
+          <span className={`dot ${badge.tone}`} />
+          <span>{badge.text}</span>
+        </span>
+      </button>
+      {open && (
+        <div
+          className="popover"
+          role="dialog"
+          aria-label="Pengaturan output"
+          data-no-shortcuts
+          data-testid="output-popover"
+        >
+          <HdmiSection
+            hdmi={hdmi}
+            displays={displays}
+            status={status}
+            onSaved={(s) => setHdmi(s.hdmi)}
+          />
+        </div>
+      )}
+    </div>
+  )
+}

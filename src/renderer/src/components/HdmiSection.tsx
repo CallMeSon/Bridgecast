@@ -13,7 +13,7 @@ interface Props {
 
 /**
  * "Output HDMI" part of the output popover: on/off and the target display.
- * Unlike NDI (Terapkan), every change is applied at once — like Win+P.
+ * Every change is applied at once — like Win+P.
  * Main validates the display again against the screens connected right now.
  */
 export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.JSX.Element {

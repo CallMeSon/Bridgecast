@@ -8,7 +8,7 @@ import App from './App'
 import { OutputView } from './OutputView'
 import { applyTheme, loadTheme } from './theme'
 
-// `#/output` is the hidden offscreen Program window (see main/output-window.ts).
+// `#/output` is the HDMI Program window (see main/display-output.ts).
 const isOutput = window.location.hash === '#/output'
 
 // Apply the saved theme before the first paint (dark is the default).
