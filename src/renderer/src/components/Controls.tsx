@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { CaretLeftIcon, EyeSlashIcon, ImageIcon, PauseIcon } from '@phosphor-icons/react'
 import { kvOnAir, type Action, type ProgramState } from '../../../shared/program'
 
@@ -22,6 +23,26 @@ export function Controls({
     { t: 'cut', label: 'Cut' },
     { t: 'fade', label: 'Fade' }
   ] as const
+  const seg = useRef<HTMLDivElement>(null)
+  // Radio group: one tab stop (the checked one); the arrows move and choose inside it.
+  const onSegKey = (e: React.KeyboardEvent): void => {
+    const dir =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        ? 1
+        : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+          ? -1
+          : 0
+    if (!dir) return
+    // Handled here: stopping it keeps the window-level Prev/Next shortcut from also firing.
+    // (No data-no-shortcuts on the group: after a mouse click on Fade, Space, F, B and K
+    // must keep working for the clicker.)
+    e.preventDefault()
+    e.stopPropagation()
+    const at = transitions.findIndex((x) => x.t === state.transition)
+    const to = (at + dir + transitions.length) % transitions.length
+    onAction({ type: 'setTransition', transition: transitions[to].t })
+    seg.current?.querySelectorAll<HTMLElement>('[role=radio]')[to]?.focus()
+  }
   return (
     <div className="controls">
       <div>
@@ -43,12 +64,13 @@ export function Controls({
       </div>
       <div className="trans">
         <span className="cl">Transisi</span>
-        <div className="seg" role="radiogroup" aria-label="Transisi">
+        <div ref={seg} className="seg" role="radiogroup" aria-label="Transisi" onKeyDown={onSegKey}>
           {transitions.map((x) => (
             <button
               key={x.t}
               role="radio"
               aria-checked={state.transition === x.t}
+              tabIndex={state.transition === x.t ? 0 : -1}
               onClick={() => onAction({ type: 'setTransition', transition: x.t })}
             >
               {x.label}

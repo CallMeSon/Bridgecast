@@ -36,6 +36,8 @@
   --raised-hi: #2e2e2e;
   --line: #2f2f2f;
   --line-hi: #454545;
+  /* Boundary of controls and inputs (WCAG 1.4.11): >= 3:1 on bg, panel, raised and raised-hi. */
+  --edge: #777777;
   --text: #e8e8e6;
   --text-2: #b0b0ae;
   --text-3: #8c8c8a;
@@ -44,12 +46,17 @@
   --on-tally: #fafafa;
   --cue: #d4a24a;
   --cue-ink: #d4a24a;
+  /* Ring and outline of "next" (>= 3:1 on every surface); the fill stays --cue. */
+  --cue-edge: #d4a24a;
   --on-cue: #17130a;
   --letterbox: #000000;
   --standby: #0d0d0d;
   /* Text on the standby/black cards, which stay dark in both themes. */
   --standby-ink: #9a9a98;
   --black-tally-ink: #ff7a72;
+  /* Empty-state cards in the side panels follow the theme (the Program monitor stays dark). */
+  --placeholder: #0d0d0d;
+  --placeholder-ink: #9a9a98;
   --focus: #e8e8e6;
   --sel: #3d3d3a;
   --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
@@ -63,6 +70,7 @@
   --raised-hi: #d3d3d0;
   --line: #c4c4c0;
   --line-hi: #9c9c98;
+  --edge: #727270;
   --text: #1a1a19;
   --text-2: #444442;
   --text-3: #5c5c59;
@@ -71,12 +79,15 @@
   --on-tally: #fafafa;
   --cue: #c8922c;
   --cue-ink: #6f4b08;
+  --cue-edge: #946512;
   --on-cue: #17130a;
   --letterbox: #000000;
   --standby: #0d0d0d;
   /* Text on the standby/black cards, which stay dark in both themes. */
   --standby-ink: #9a9a98;
   --black-tally-ink: #ff7a72;
+  --placeholder: #e0e0dd;
+  --placeholder-ink: #444442;
   --focus: #1a1a19;
   --sel: #bcbcb8;
   --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);

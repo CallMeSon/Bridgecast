@@ -1376,7 +1376,7 @@ try {
     `ArrowUp on the strip splitter resizes it without changing slides (strip ${sh}px)`
   )
   await win.getByTestId('splitter-strip').dblclick()
-  await win.locator('.stage-col').click({ position: { x: 5, y: 5 } })
+  await win.locator('.stage-col').click({ position: { x: 40, y: 5 } })
 
   await win.screenshot({ path: shot })
   console.log(`screenshot: ${shot}`)
