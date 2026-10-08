@@ -10,6 +10,7 @@ import { Controls } from './components/Controls'
 import { NextPanel } from './components/NextPanel'
 import { Strip } from './components/Strip'
 import { Splitters } from './components/Splitters'
+import { ActionError, SaveNote } from './components/ActionError'
 import {
   baseName,
   canNext,
@@ -20,6 +21,7 @@ import {
   keyToAction,
   moveItem,
   moveOrder,
+  SAVED,
   tally,
   UNSUPPORTED
 } from './model'
@@ -40,6 +42,17 @@ function App(): React.JSX.Element {
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const eventRef = useRef<string | null>(null)
   const appRef = useRef<HTMLDivElement>(null)
+  // A failed Program action (shown next to the tally) and a short "saved" note.
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const announce = useCallback((text: string) => {
+    clearTimeout(noteTimer.current)
+    setNote(text)
+    noteTimer.current = setTimeout(() => setNote(''), 3000)
+  }, [])
+  useEffect(() => () => clearTimeout(noteTimer.current), [])
 
   const upsertImport = useCallback((p: ImportRow) => {
     setImports((xs) => {
@@ -95,10 +108,17 @@ function App(): React.JSX.Element {
 
   const dispatch = useCallback(
     (a: Action) => {
-      api.dispatch(a).then(setProgram, (e) => reportError('Program', e))
+      api.dispatch(a).then(
+        (s) => {
+          setProgram(s)
+          setActionError(null)
+        },
+        (e) => setActionError(errorMessage(e))
+      )
     },
-    [api, reportError]
+    [api]
   )
+  const goto = useCallback((index: number) => dispatch({ type: 'goto', index }), [dispatch])
 
   // Keyboard shortcuts (ignored while typing in an input).
   useEffect(() => {
@@ -254,10 +274,13 @@ function App(): React.JSX.Element {
           target,
           next.map((d) => d.id)
         )
-        .catch((e) => reportError('Urutan deck', e))
+        .then(
+          () => announce(SAVED.order),
+          (e) => reportError('Urutan deck', e)
+        )
         .finally(() => reloadDecks(target).catch((e) => reportError('Library', e)))
     },
-    [api, decks, reloadDecks, reportError]
+    [api, decks, announce, reloadDecks, reportError]
   )
 
   // Rename: main validates and saves; errors are shown in the row by Library.
@@ -282,10 +305,13 @@ function App(): React.JSX.Element {
       )
       api
         .reorderSlides(deckId, order)
-        .catch((e) => reportError('Urutan slide', e))
+        .then(
+          () => announce(SAVED.order),
+          (e) => reportError('Urutan slide', e)
+        )
         .finally(() => reloadDecks(target).catch((e) => reportError('Library', e)))
     },
-    [api, decks, reloadDecks, reportError]
+    [api, decks, announce, reloadDecks, reportError]
   )
 
   const removeDeck = useCallback(
@@ -315,8 +341,9 @@ function App(): React.JSX.Element {
       }
       const ev = await api.setKv(target, p)
       setEvents((xs) => xs.map((x) => (x.id === ev.id ? ev : x)))
+      announce(SAVED.kv)
     },
-    [api]
+    [api, announce]
   )
 
   const clearKv = useCallback(async () => {
@@ -350,6 +377,7 @@ function App(): React.JSX.Element {
           imports={imports}
           currentDeckId={ready ? program.deckId : null}
           live={tally(program) === 'live' ? program.shown : null}
+          frozen={tally(program) === 'frozen' ? program.shown : null}
           canImport={eventId !== null}
           kvUrl={program.kvUrl}
           kvOnAir={kvOnAir(program)}
@@ -363,6 +391,7 @@ function App(): React.JSX.Element {
           onRenameDeck={renameDeck}
         />
         <section className="stage-col" aria-label="Program">
+          <ActionError message={actionError} onDismiss={() => setActionError(null)} />
           <Program state={program} deck={deck} />
           <Controls
             state={program}
@@ -374,12 +403,8 @@ function App(): React.JSX.Element {
         </section>
         <NextPanel decks={decks} state={program} onAction={dispatch} />
       </main>
-      <Strip
-        decks={decks}
-        state={program}
-        onGoto={(index) => dispatch({ type: 'goto', index })}
-        onMoveSlide={moveSlide}
-      />
+      <Strip decks={decks} state={program} onGoto={goto} onMoveSlide={moveSlide} />
+      <SaveNote text={note} />
       <Splitters appRef={appRef} />
       <DropOverlay onDrop={({ files, folders }) => importFiles(files, folders)} />
     </div>

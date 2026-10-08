@@ -10,6 +10,10 @@ import {
   hasFiles,
   importMeta,
   keyToAction,
+  menuFocusTarget,
+  reorderTarget,
+  slideLabel,
+  slideRole,
   moveItem,
   moveOrder,
   nextIndex,
@@ -171,6 +175,17 @@ describe('keyToAction', () => {
     expect(keyToAction({ key: 'f', ctrlKey: true, target: body })).toBeNull()
     expect(keyToAction({ key: 'f', repeat: true, target: body })).toBeNull()
   })
+  it('ignores held next/prev keys (repeat) so a held key or clicker never skips slides', () => {
+    for (const key of [' ', 'ArrowRight', 'PageDown', 'ArrowLeft', 'PageUp']) {
+      expect(keyToAction({ key, repeat: true, target: body })).toBeNull()
+      expect(keyToAction({ key, repeat: false, target: body })).not.toBeNull()
+    }
+  })
+  it('leaves Alt+arrows alone (keyboard reorder, never Prev/Next)', () => {
+    for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown']) {
+      expect(keyToAction({ key, altKey: true, target: body })).toBeNull()
+    }
+  })
   it('ignores every key while focus is inside the output popover (buttons too)', () => {
     const inPopover = {
       tagName: 'BUTTON',
@@ -181,6 +196,52 @@ describe('keyToAction', () => {
       expect(keyToAction({ key, target: inPopover })).toBeNull()
     }
     expect(keyToAction({ key: 'b', target: plainButton })).toEqual({ type: 'toggleBlack' })
+  })
+})
+
+describe('slide roles and labels', () => {
+  const decks = [deck('a', 5, 'A')]
+  it('names the role in the label', () => {
+    expect(slideLabel(2, 'live')).toBe('Slide 3, tayang')
+    expect(slideLabel(3, 'next')).toBe('Slide 4, berikutnya')
+    expect(slideLabel(1, 'frozen')).toBe('Slide 2, tertahan (Freeze)')
+    expect(slideLabel(0, undefined)).toBe('Slide 1')
+  })
+  it('marks the slide on air LIVE, and FROZEN while Freeze holds it', () => {
+    const live = at('a', 1)
+    expect(slideRole(decks, live, 'a', 1)).toBe('live')
+    expect(slideRole(decks, live, 'a', 2)).toBe('next')
+    const frozen = {
+      ...at('a', 3),
+      frozen: true,
+      shown: { deckId: 'a', index: 1, file: '1.png' }
+    }
+    expect(slideRole(decks, frozen, 'a', 1)).toBe('frozen')
+    expect(slideRole(decks, frozen, 'a', 3)).toBe('pos')
+  })
+  it('does not mark a blacked out slide as on air', () => {
+    expect(slideRole(decks, at('a', 1, { black: true }), 'a', 1)).toBe('pos')
+  })
+})
+
+describe('keyboard reorder and menu focus', () => {
+  it('moves one step within bounds on the matching axis', () => {
+    expect(reorderTarget('ArrowDown', 'vertical', 1, 3)).toBe(2)
+    expect(reorderTarget('ArrowUp', 'vertical', 1, 3)).toBe(0)
+    expect(reorderTarget('ArrowUp', 'vertical', 0, 3)).toBeNull()
+    expect(reorderTarget('ArrowDown', 'vertical', 2, 3)).toBeNull()
+    expect(reorderTarget('ArrowRight', 'horizontal', 0, 3)).toBe(1)
+    expect(reorderTarget('ArrowLeft', 'horizontal', 2, 3)).toBe(1)
+    expect(reorderTarget('ArrowRight', 'vertical', 0, 3)).toBeNull()
+  })
+  it('roves menu focus with wrap, Home and End', () => {
+    expect(menuFocusTarget('ArrowDown', 0, 3)).toBe(1)
+    expect(menuFocusTarget('ArrowDown', 2, 3)).toBe(0)
+    expect(menuFocusTarget('ArrowUp', 0, 3)).toBe(2)
+    expect(menuFocusTarget('Home', 2, 3)).toBe(0)
+    expect(menuFocusTarget('End', 0, 3)).toBe(2)
+    expect(menuFocusTarget('x', 0, 3)).toBeNull()
+    expect(menuFocusTarget('ArrowDown', 0, 0)).toBeNull()
   })
 })
 

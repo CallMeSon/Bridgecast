@@ -642,6 +642,232 @@ async function openOutputPopover(win) {
  * message; the window path is then driven by simulated displays (a fake
  * second display in a corner of the real screen).
  */
+// --- Operator keyboard safety, visible action errors, keyboard reorder ---
+async function behaviourChecks(win, tally, pos) {
+  const posText = () => pos.textContent()
+  const deckIds = () =>
+    win.$$eval('[data-testid=decks] .deck[data-deck-id]', (els) => els.map((e) => e.dataset.deckId))
+  const focusedDeck = () => win.evaluate(() => document.activeElement?.dataset?.deckId ?? null)
+
+  // Make sure Next has somewhere to go, then park focus on the page body.
+  await win.keyboard.press('ArrowLeft')
+  await win.evaluate(() => document.activeElement?.blur())
+  const p0 = await posText()
+  const [cur, total] = p0.split(' / ').map(Number)
+  const here = `${cur} / ${total}`
+  const nextPos = `${cur + 1} / ${total}`
+  check(cur >= 1 && cur < total, `behaviour checks start mid-deck (${p0})`)
+
+  // 1. The event menu owns the keyboard: Space/arrows never move the on-air slide.
+  await win.click('.event-btn')
+  const menu = win.getByRole('menu', { name: 'Pilih acara' })
+  await menu.waitFor()
+  const firstItem = menu.getByRole('menuitem').first()
+  check(
+    await firstItem.evaluate((el) => el === document.activeElement),
+    'event menu focuses its first item on open'
+  )
+  await win.keyboard.press('End')
+  check(
+    (await win.evaluate(() => document.activeElement?.textContent)) === 'Event baru',
+    'End moves focus to the last event menu item'
+  )
+  await win.keyboard.press('ArrowDown')
+  check(
+    await firstItem.evaluate((el) => el === document.activeElement),
+    'ArrowDown wraps to the first event menu item'
+  )
+  await win.keyboard.press('ArrowRight')
+  await win.keyboard.press('PageDown')
+  await sleep(300)
+  check(
+    (await posText()) === here && (await menu.count()) === 1,
+    'arrows in the event menu keep the slide'
+  )
+  await win.keyboard.press('Escape')
+  await menu.waitFor({ state: 'detached' })
+  check(
+    await win.evaluate(() => document.activeElement?.classList.contains('event-btn')),
+    'Escape closes the event menu and returns focus to its button'
+  )
+  await win.click('.event-btn')
+  await menu.waitFor()
+  await win.keyboard.press('Space') // activates the first item (the current event): no Next
+  await sleep(300)
+  check((await posText()) === here, 'Space inside the open event menu does not change the slide')
+  await win.evaluate(() => document.activeElement?.blur())
+
+  // Creating an event: leaving the field without Enter cancels.
+  const eventLabel = await win.locator('.event-btn').textContent()
+  await win.click('.event-btn')
+  await win.getByRole('menuitem', { name: 'Event baru' }).click()
+  await win.fill('.event-input', 'Tidak dibuat')
+  await win.click('header .brand')
+  await win.locator('.event-input').waitFor({ state: 'detached' })
+  check(
+    (await win.locator('.event-btn').textContent()) === eventLabel,
+    'blur without Enter cancels the new event (no event created, selection kept)'
+  )
+
+  // 2. Held keys fire once: auto-repeat never skips slides.
+  await win.evaluate(() => document.activeElement?.blur())
+  await win.keyboard.down(' ')
+  await win.keyboard.down(' ')
+  await win.keyboard.down(' ')
+  await win.keyboard.up(' ')
+  await win.waitForFunction(
+    (t) => document.querySelector('[data-testid=pos]')?.textContent === t,
+    nextPos
+  )
+  await sleep(300)
+  check(
+    (await posText()) === nextPos,
+    `a held Space advances exactly one slide (${here} -> ${nextPos})`
+  )
+  await win.evaluate(() => {
+    for (let i = 0; i < 3; i++) {
+      dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', repeat: true, bubbles: true })
+      )
+    }
+  })
+  await sleep(300)
+  check((await posText()) === nextPos, 'synthetic repeated ArrowRight is ignored')
+
+  // 3. Keyboard reorder of decks: Alt+Down moves the focused deck, focus follows, no Next.
+  const idsBefore = await deckIds()
+  check(idsBefore.length >= 2, `at least two decks to reorder (${idsBefore.length})`)
+  const tallyBefore = await tally.textContent()
+  await win.locator(`[data-deck-id="${idsBefore[0]}"]`).focus()
+  await win.keyboard.press('Alt+ArrowDown')
+  await win.waitForFunction((id) => {
+    const first = document.querySelector('[data-testid=decks] .deck[data-deck-id]')
+    return first?.dataset.deckId !== id
+  }, idsBefore[0])
+  const idsAfter = await deckIds()
+  check(
+    idsAfter[0] === idsBefore[1] && idsAfter[1] === idsBefore[0],
+    'Alt+ArrowDown moves the focused deck one place down'
+  )
+  check((await focusedDeck()) === idsBefore[0], 'focus stays on the moved deck')
+  check(
+    (await posText()) === nextPos && (await tally.textContent()) === tallyBefore,
+    'Alt+arrows on a deck never act as Prev/Next'
+  )
+  await win.getByText('Urutan disimpan').waitFor()
+  check(true, 'a saved reorder shows the "Urutan disimpan" confirmation')
+  await win.keyboard.press('Alt+ArrowUp')
+  await win.waitForFunction((id) => {
+    const first = document.querySelector('[data-testid=decks] .deck[data-deck-id]')
+    return first?.dataset.deckId === id
+  }, idsBefore[0])
+  check((await focusedDeck()) === idsBefore[0], 'Alt+ArrowUp moves it back, focus kept')
+  await win.waitForFunction(
+    () => !document.querySelector('[data-testid=save-note]')?.textContent,
+    null,
+    { timeout: 6000 }
+  )
+  check(true, 'the confirmation clears by itself')
+
+  // Deck context menu: arrows between items, Pindah ke bawah, disabled at the ends.
+  await win.locator(`[data-deck-id="${idsBefore[0]}"]`).click({ button: 'right' })
+  const dmenu = win.getByTestId('deck-menu')
+  check(
+    (await dmenu.getAttribute('aria-label')) === 'Menu deck',
+    'deck menu has an accessible name'
+  )
+  check(
+    await dmenu.getByRole('menuitem', { name: /Pindah ke atas/ }).isDisabled(),
+    'Pindah ke atas is disabled on the first deck'
+  )
+  await win.keyboard.press('ArrowDown')
+  check(
+    /Pindah ke bawah/.test(await win.evaluate(() => document.activeElement?.textContent)),
+    'ArrowDown goes from Ganti nama to Pindah ke bawah'
+  )
+  await dmenu.getByRole('menuitem', { name: /Pindah ke bawah/ }).click()
+  await win.waitForFunction((id) => {
+    const first = document.querySelector('[data-testid=decks] .deck[data-deck-id]')
+    return first?.dataset.deckId !== id
+  }, idsBefore[0])
+  check((await focusedDeck()) === idsBefore[0], 'menu move keeps focus on the moved deck')
+  await win.keyboard.press('Alt+ArrowUp')
+  await win.waitForFunction((id) => {
+    const first = document.querySelector('[data-testid=decks] .deck[data-deck-id]')
+    return first?.dataset.deckId === id
+  }, idsBefore[0])
+
+  // Keyboard reorder of slides in the strip, labels with roles.
+  const files = () => win.$$eval('[data-testid=strip] .th', (els) => els.map((e) => e.dataset.file))
+  const filesBefore = await files()
+  const labels = await win.$$eval('[data-testid=strip] .th', (els) =>
+    els.map((e) => e.getAttribute('aria-label'))
+  )
+  check(
+    labels.includes(`Slide ${cur + 1}, tayang`),
+    `thumbnail labels carry the role (${labels.join(' | ')})`
+  )
+  check(
+    (await win.locator('footer[role=region]').getAttribute('aria-label')) === 'Strip slide',
+    'the strip is a labelled region, not page contentinfo'
+  )
+  await win.locator('[data-testid=strip] .th').first().focus()
+  await win.keyboard.press('Alt+ArrowRight')
+  await win.waitForFunction(
+    (f) => document.querySelector('[data-testid=strip] .th')?.dataset.file !== f,
+    filesBefore[0]
+  )
+  const filesAfter = await files()
+  check(
+    filesAfter[1] === filesBefore[0] && filesAfter[0] === filesBefore[1],
+    'Alt+ArrowRight moves the focused thumbnail one place right'
+  )
+  check(
+    (await win.evaluate(() => document.activeElement?.dataset?.file)) === filesBefore[0],
+    'focus stays on the moved thumbnail'
+  )
+  check((await posText()) === nextPos, 'Alt+arrows on a thumbnail never act as Prev/Next')
+  await win.keyboard.press('Alt+ArrowLeft')
+  await win.waitForFunction(
+    (f) => document.querySelector('[data-testid=strip] .th')?.dataset.file === f,
+    filesBefore[0]
+  )
+  await win.evaluate(() => document.activeElement?.blur())
+
+  // 4. A failed action is visible. Main is made to reject program:dispatch (as a
+  // disk or state error would); the notice names the problem, stays, and clears on
+  // the next successful dispatch.
+  await app.evaluate(({ ipcMain }) => {
+    const h = ipcMain._invokeHandlers
+    globalThis.__realDispatch = h.get('program:dispatch')
+    h.set('program:dispatch', () => {
+      throw new Error('Tidak bisa membaca slide. Pilih ulang deck, lalu coba lagi.')
+    })
+  })
+  await win.keyboard.press('Space')
+  const alert = win.getByTestId('action-error')
+  await alert.waitFor()
+  check(
+    (await alert.getAttribute('role')) === 'alert' &&
+      /Tidak bisa membaca slide/.test(await alert.textContent()),
+    "a failed Next shows a persistent role=alert notice with main's message"
+  )
+  check((await posText()) === nextPos, 'Program is unchanged after the failed action')
+  await sleep(1500)
+  check((await alert.count()) === 1, 'the notice stays until dismissed or the next success')
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain._invokeHandlers.set('program:dispatch', globalThis.__realDispatch)
+  })
+  await win.keyboard.press('ArrowLeft')
+  await alert.waitFor({ state: 'detached' })
+  check(true, 'the notice clears on the next successful action')
+  await win.keyboard.press('ArrowRight')
+  await win.waitForFunction(
+    (t) => document.querySelector('[data-testid=pos]')?.textContent === t,
+    nextPos
+  )
+}
+
 async function hdmiChecks(win) {
   const hStatus = win.getByTestId('hdmi-status')
   check(
@@ -1590,6 +1816,8 @@ try {
   check(/kosong/.test(await renameErr.textContent()), 'an empty name is refused with a message')
   await renameInput.press('Escape')
   await renamed.waitFor()
+
+  await behaviourChecks(win, tally, pos)
 
   await stopProbe(win)
 
