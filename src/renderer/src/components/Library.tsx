@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  ArrowDownIcon,
+  ArrowUpIcon,
   FilePdfIcon,
   FilePptIcon,
   ImageIcon,
@@ -11,7 +13,8 @@ import {
 import { DECK_NAME_MAX, type DeckMeta } from '../../../shared/types'
 import type { ShownSlide } from '../../../shared/program'
 import type { ImportProgress } from '../../../shared/ipc'
-import { errorMessage, fileKind, importMeta } from '../model'
+import { errorMessage, fileKind, importMeta, reorderTarget } from '../model'
+import { menuItems, onMenuKeyDown } from './menuNav'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
 export type ImportRow = ImportProgress & { meta?: string }
@@ -24,6 +27,8 @@ interface Props {
   currentDeckId: string | null
   /** The slide on the output while Program is LIVE (not frozen, black or standby). */
   live: ShownSlide | null
+  /** The slide still on the output while Program is FROZEN. */
+  frozen: ShownSlide | null
   canImport: boolean
   /** URL of the active event's KV image, or null. */
   kvUrl: string | null
@@ -50,20 +55,32 @@ interface MenuAt {
 /** Right-click menu of a deck; closes on Escape, outside click, scroll or blur. */
 function DeckMenu({
   at,
+  canUp,
+  canDown,
   onRename,
+  onMove,
   onRemove,
   onClose
 }: {
   at: MenuAt
+  canUp: boolean
+  canDown: boolean
   onRename(): void
+  onMove(dir: -1 | 1): void
   onRemove(): void
   onClose(): void
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    ref.current?.querySelector('button')?.focus()
+    menuItems(ref.current!)[0]?.focus()
     const close = (e: Event): void => {
-      if (e.type === 'keydown' && (e as KeyboardEvent).key !== 'Escape') return
+      if (e.type === 'keydown') {
+        if ((e as KeyboardEvent).key !== 'Escape') return
+        // Escape hands focus back to the deck the menu was opened on.
+        document
+          .querySelector<HTMLElement>(`.decks [data-deck-id="${CSS.escape(at.deckId)}"]`)
+          ?.focus()
+      }
       if (e.type === 'pointerdown' && ref.current?.contains(e.target as Node)) return
       onClose()
     }
@@ -77,13 +94,15 @@ function DeckMenu({
       removeEventListener('blur', close)
       removeEventListener('resize', close)
     }
-  }, [onClose])
+  }, [onClose, at.deckId])
   return (
     <div
       ref={ref}
       className="menu ctx-menu"
       role="menu"
+      aria-label="Menu deck"
       data-no-shortcuts
+      onKeyDown={onMenuKeyDown}
       style={{ left: at.x, top: at.y }}
       data-testid="deck-menu"
     >
@@ -91,6 +110,16 @@ function DeckMenu({
         <PencilSimpleIcon className="chk" size={16} />
         Ganti nama…
         <kbd className="opt">F2</kbd>
+      </button>
+      <button role="menuitem" disabled={!canUp} onClick={() => onMove(-1)}>
+        <ArrowUpIcon className="chk" size={16} />
+        Pindah ke atas
+        <kbd className="opt">Alt+↑</kbd>
+      </button>
+      <button role="menuitem" disabled={!canDown} onClick={() => onMove(1)}>
+        <ArrowDownIcon className="chk" size={16} />
+        Pindah ke bawah
+        <kbd className="opt">Alt+↓</kbd>
       </button>
       <button role="menuitem" className="danger" onClick={onRemove}>
         <TrashIcon className="chk" size={16} />
@@ -324,6 +353,7 @@ export function Library(p: Props): React.JSX.Element {
   const [dragging, setDragging] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
   const count = p.decks.length
+  const menuIndex = menu ? p.decks.findIndex((d) => d.id === menu.deckId) : -1
   const closeMenu = useCallback(() => setMenu(null), [])
   // Deck whose row button takes focus once its rename row has closed.
   const refocus = useRef<string | null>(null)
@@ -337,6 +367,21 @@ export function Library(p: Props): React.JSX.Element {
       .find((el) => el.dataset.deckId === id)
       ?.focus()
   }, [renaming])
+
+  // Deck whose row takes focus again after a keyboard move (the DOM node is re-inserted).
+  const movedFocus = useRef<string | null>(null)
+  useEffect(() => {
+    const id = movedFocus.current
+    if (id === null) return
+    movedFocus.current = null
+    ;[...document.querySelectorAll<HTMLElement>('.decks [data-deck-id]')]
+      .find((el) => el.dataset.deckId === id)
+      ?.focus()
+  }, [p.decks])
+  const moveDeck = (from: number, to: number): void => {
+    movedFocus.current = p.decks[from].id
+    p.onMoveDeck(from, to)
+  }
 
   const openMenu = (e: React.MouseEvent<HTMLElement>, deckId: string): void => {
     e.preventDefault()
@@ -359,7 +404,11 @@ export function Library(p: Props): React.JSX.Element {
       </div>
       <div className="decks" data-testid="decks">
         {count === 0 && p.imports.length === 0 && (
-          <div className="empty-lib">Belum ada deck di event ini.</div>
+          <div className="empty-lib">
+            {p.canImport
+              ? 'Belum ada deck di event ini.'
+              : 'Belum ada event. Buat event dulu lewat menu Acara di atas, lalu impor file.'}
+          </div>
         )}
         {p.decks.map((d, i) =>
           renaming === d.id ? (
@@ -388,15 +437,24 @@ export function Library(p: Props): React.JSX.Element {
               className={
                 'deck' +
                 (p.live?.deckId === d.id ? ' live' : '') +
+                (p.frozen?.deckId === d.id ? ' frozen' : '') +
                 (dragging === i ? ' dragging' : '') +
                 (over === i ? ' over' : '')
               }
               data-deck-id={d.id}
               draggable
               aria-current={d.id === p.currentDeckId ? 'true' : undefined}
-              title="Klik untuk menayangkan, seret untuk mengurutkan, F2 atau klik kanan untuk ganti nama atau hapus"
+              title="Klik untuk menayangkan, seret atau Alt+panah atas/bawah untuk mengurutkan, F2 atau klik kanan untuk ganti nama atau hapus"
               onClick={() => p.onSelectDeck(d.id)}
               onKeyDown={(e) => {
+                if (e.altKey) {
+                  // Keyboard reorder (Alt+Up/Down); never reaches the Prev/Next shortcuts.
+                  const to = reorderTarget(e.key, 'vertical', i, count)
+                  if (to === null) return
+                  e.preventDefault()
+                  if (!e.repeat) moveDeck(i, to)
+                  return
+                }
                 if (e.key !== 'F2') return
                 e.preventDefault()
                 setConfirm(null)
@@ -439,7 +497,11 @@ export function Library(p: Props): React.JSX.Element {
               </span>
               <span className="meta">{d.slides.length} slide</span>
               <span className="sub">
-                {p.live?.deckId === d.id ? `LIVE, slide ${p.live.index + 1}` : `.${d.source}`}
+                {p.live?.deckId === d.id
+                  ? `LIVE, slide ${p.live.index + 1}`
+                  : p.frozen?.deckId === d.id
+                    ? `TERTAHAN, slide ${p.frozen.index + 1}`
+                    : `.${d.source}`}
               </span>
             </button>
           )
@@ -473,7 +535,14 @@ export function Library(p: Props): React.JSX.Element {
               </span>
               <span className="n">{x.percent}%</span>
               <span className="meta">{importMeta(x.percent)}</span>
-              <span className="bar">
+              <span
+                className="bar"
+                role="progressbar"
+                aria-label={`Impor ${x.name}`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={x.percent}
+              >
                 <i style={{ width: `${x.percent}%` }} />
               </span>
             </div>
@@ -483,7 +552,13 @@ export function Library(p: Props): React.JSX.Element {
       {menu && (
         <DeckMenu
           at={menu}
+          canUp={menuIndex > 0}
+          canDown={menuIndex >= 0 && menuIndex < count - 1}
           onClose={closeMenu}
+          onMove={(dir) => {
+            setMenu(null)
+            moveDeck(menuIndex, menuIndex + dir)
+          }}
           onRename={() => {
             setRenaming(menu.deckId)
             setMenu(null)
@@ -506,7 +581,11 @@ export function Library(p: Props): React.JSX.Element {
           <PlusIcon size={16} />
           Tambah file
         </button>
-        <p>Atau seret file .pptx, .ppt, .pdf ke jendela ini.</p>
+        <p>
+          {p.canImport
+            ? 'Atau seret file .pptx, .ppt, .pdf ke jendela ini.'
+            : 'Impor aktif setelah event dibuat lewat menu Acara.'}
+        </p>
       </div>
       <input
         ref={input}

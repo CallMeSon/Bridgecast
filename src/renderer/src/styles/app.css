@@ -1230,3 +1230,82 @@ footer .empty {
     animation: none !important;
   }
 }
+
+/* behaviour wave: action error notice, save note, frozen on-air marks */
+.action-error {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 10px 12px;
+  background: var(--raised-hi);
+  border: 1px solid var(--line-hi);
+  border-left: 4px solid var(--text);
+  border-radius: var(--r);
+  color: var(--text);
+}
+.action-error .ph {
+  flex: none;
+  margin-top: 1px;
+}
+.action-error .txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.action-error .txt span {
+  color: var(--text-2);
+}
+.action-error .btn {
+  flex: none;
+}
+.save-note {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  padding: 6px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+  color: var(--text);
+  font-size: 12px;
+  pointer-events: none;
+}
+.save-note:empty {
+  display: none;
+}
+.th[data-role='frozen'] .slide {
+  outline: 2px solid var(--tally);
+}
+.th[data-role='frozen'] .tg {
+  color: var(--text);
+}
+.th[data-role='frozen'] .tg b {
+  border: 1.5px solid var(--tally);
+  color: var(--tally-ink);
+}
+.deck.frozen {
+  background: var(--raised);
+}
+.deck.frozen::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--tally);
+}
+.deck.frozen .ph {
+  color: var(--text);
+}
+.deck.frozen .sub {
+  color: var(--tally-ink);
+  font-weight: 600;
+}

@@ -113,6 +113,9 @@ function isTyping(target: EventTarget | null): boolean {
 /** Keyboard shortcuts: Space/→ Next, ← Prev, F Freeze, B Black, K KV. Ignored while typing. */
 export function keyToAction(e: KeyLike): Action | null {
   if (e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return null
+  // A held key (or a clicker that auto-repeats) must never skip slides: every
+  // action fires once per physical press.
+  if (e.repeat) return null
   switch (e.key) {
     case ' ':
     case 'ArrowRight':
@@ -123,14 +126,14 @@ export function keyToAction(e: KeyLike): Action | null {
       return { type: 'prev' }
     case 'f':
     case 'F':
-      return e.repeat ? null : { type: 'toggleFreeze' }
+      return { type: 'toggleFreeze' }
     case 'b':
     case 'B':
     case '.': // the "blank screen" button of many clickers
-      return e.repeat ? null : { type: 'toggleBlack' }
+      return { type: 'toggleBlack' }
     case 'k':
     case 'K':
-      return e.repeat ? null : { type: 'toggleKv' }
+      return { type: 'toggleKv' }
     default:
       return null
   }
@@ -230,3 +233,75 @@ export function hdmiStatusText(status: HdmiStatus | null, hdmi: HdmiSettings): s
   if (status.state === 'showing') return 'Tampil'
   return 'Tersembunyi, layar tidak tersambung'
 }
+
+/** Role of a thumbnail in the strip (frozen: the slide still on air while Freeze holds the output). */
+export type SlideRole = 'live' | 'frozen' | 'next' | 'pos'
+
+const ROLE_TEXT: Record<SlideRole, string> = {
+  live: 'tayang',
+  frozen: 'tertahan (Freeze)',
+  next: 'berikutnya',
+  pos: 'posisi operator'
+}
+
+/** Accessible name of a thumbnail: number plus role, so a screen reader hears what is on air. */
+export function slideLabel(index: number, role: SlideRole | undefined): string {
+  return role ? `Slide ${index + 1}, ${ROLE_TEXT[role]}` : `Slide ${index + 1}`
+}
+
+/**
+ * Role of slide `i` of `deckId`. The slide on air (`shown`) is LIVE, or FROZEN
+ * while Freeze holds it: it outranks next and the operator position.
+ */
+export function slideRole(
+  decks: DeckMeta[],
+  s: ProgramState,
+  deckId: string,
+  i: number
+): SlideRole | undefined {
+  const t = tally(s)
+  if (s.shown && s.shown.deckId === deckId && s.shown.index === i) {
+    if (t === 'live') return 'live'
+    if (t === 'frozen') return 'frozen'
+  }
+  if (s.deckId === deckId) {
+    if (i === nextIndex(decks, s)) return 'next'
+    if (i === s.index) return 'pos'
+  }
+  return undefined
+}
+
+/**
+ * Alt+arrow reorder: the target index for a focused item, or null when the key
+ * is not a reorder key for this axis or the item is already at that end.
+ */
+export function reorderTarget(
+  key: string,
+  axis: 'vertical' | 'horizontal',
+  index: number,
+  count: number
+): number | null {
+  const [back, fwd] = axis === 'vertical' ? ['ArrowUp', 'ArrowDown'] : ['ArrowLeft', 'ArrowRight']
+  const to = key === back ? index - 1 : key === fwd ? index + 1 : null
+  return to !== null && to >= 0 && to < count ? to : null
+}
+
+/** Roving focus inside a menu: the index to focus for a key, or null for other keys. */
+export function menuFocusTarget(key: string, current: number, count: number): number | null {
+  if (count <= 0) return null
+  switch (key) {
+    case 'ArrowDown':
+      return (current + 1) % count
+    case 'ArrowUp':
+      return (current - 1 + count) % count
+    case 'Home':
+      return 0
+    case 'End':
+      return count - 1
+    default:
+      return null
+  }
+}
+
+/** Short confirmations shown in a polite live region. */
+export const SAVED = { kv: 'KV disimpan', order: 'Urutan disimpan' } as const
