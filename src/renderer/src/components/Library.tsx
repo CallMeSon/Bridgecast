@@ -543,7 +543,7 @@ export function Library(p: Props): React.JSX.Element {
                 aria-valuemax={100}
                 aria-valuenow={x.percent}
               >
-                <i style={{ width: `${x.percent}%` }} />
+                <i style={{ '--p': x.percent / 100 } as React.CSSProperties} />
               </span>
             </div>
           )

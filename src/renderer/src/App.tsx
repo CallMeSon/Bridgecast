@@ -392,7 +392,11 @@ function App(): React.JSX.Element {
         />
         <section className="stage-col" aria-label="Program">
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />
-          <Program state={program} deck={deck} />
+          <Program
+            state={program}
+            deck={deck}
+            emptyHint={eventId ? undefined : 'Buat event dulu lewat menu Acara di kiri atas.'}
+          />
           <Controls
             state={program}
             canPrev={canPrev(decks, program)}

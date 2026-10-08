@@ -1578,6 +1578,10 @@ try {
     Math.abs(w1.left - (w0.left + 80)) <= 2 && w1.stage < w0.stage,
     'dragging the deck splitter widens Library and narrows Program'
   )
+  check(
+    await win.evaluate(() => !document.activeElement?.matches('.splitter')),
+    'after a mouse drag the splitter does not keep focus (Space still means Next)'
+  )
   await win.reload()
   await win.waitForSelector('.app')
   check(Math.abs((await widths()).left - w1.left) <= 1, 'panel width is restored after reload')

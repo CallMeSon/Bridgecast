@@ -76,6 +76,9 @@ function Splitter(p: SplitterProps): React.JSX.Element {
     drag.current = null
     delete el.dataset.dragging
     onDragging(false)
+    // A mouse drag or click must not leave focus here: the splitter swallows
+    // Space (data-no-shortcuts), so the next Space would not take Next.
+    el.blur()
     // A plain click leaves the size (and the stored preference) alone.
     if (current(axis) !== d.size) onCommit(axis, current(axis))
   }
