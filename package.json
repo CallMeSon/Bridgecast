@@ -1,7 +1,7 @@
 {
   "name": "ppt-share",
   "version": "1.0.0",
-  "description": "PPT Share",
+  "description": "PPT Share: slide deck output to a second display (HDMI)",
   "main": "./out/main/index.js",
   "author": "PPT Share",
   "homepage": "https://electron-vite.org",
@@ -20,19 +20,19 @@
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
-    "test:e2e": "electron-vite build && node e2e/smoke.mjs"
+    "test:e2e": "electron-vite build && node e2e/smoke.mjs",
+    "test:packaged": "node e2e/packaged.mjs"
   },
   "dependencies": {
-    "@electron-toolkit/preload": "^3.0.2",
-    "@electron-toolkit/utils": "^4.0.0",
-    "@fontsource-variable/geist": "^5.3.0",
-    "@phosphor-icons/react": "^2.1.10",
-    "pdfjs-dist": "^6.4.299"
+    "@electron-toolkit/utils": "^4.0.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
+    "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
@@ -45,6 +45,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
     "playwright": "^1.63.0",
     "pptxgenjs": "^4.0.1",
     "prettier": "^3.7.4",

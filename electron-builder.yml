@@ -1,20 +1,26 @@
-appId: com.electron.app
-productName: app
+appId: com.pptshare.app
+productName: PPT Share
 directories:
   buildResources: build
+# Allowlist: only the built app (out/) and package.json; production
+# dependencies are added by electron-builder. Fixtures, e2e, docs and local
+# test decks never end up in the installer.
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - out/**
+  - package.json
+extraResources:
+  - from: scripts/export-pptx.ps1
+    to: scripts/export-pptx.ps1
 asarUnpack:
   - resources/**
 win:
-  executableName: app
+  executableName: PPT Share
+  target:
+    - nsis
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
@@ -38,6 +44,3 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates
