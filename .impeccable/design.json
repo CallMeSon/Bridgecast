@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-08T00:00:00Z",
+  "title": "Design System: PPT Share",
+  "extensions": {
+    "colorMeta": {
+      "graphite-bg": { "role": "neutral", "displayName": "Graphite Ground", "canonical": "var(--bg)", "tonalRamp": ["#0d0d0d", "#141414", "#1b1b1b", "#252525", "#2e2e2e", "#454545", "#8c8c8a", "#e8e8e6"] },
+      "graphite-panel": { "role": "neutral", "displayName": "Graphite Panel", "canonical": "var(--panel)" },
+      "graphite-raised": { "role": "neutral", "displayName": "Raised", "canonical": "var(--raised)" },
+      "graphite-raised-hi": { "role": "neutral", "displayName": "Raised High", "canonical": "var(--raised-hi)" },
+      "rule-line": { "role": "neutral", "displayName": "Rule", "canonical": "var(--line)" },
+      "rule-line-hi": { "role": "neutral", "displayName": "Rule High", "canonical": "var(--line-hi)" },
+      "control-edge": { "role": "neutral", "displayName": "Control Edge", "canonical": "var(--edge)" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "var(--text)" },
+      "ink-2": { "role": "neutral", "displayName": "Ink 2", "canonical": "var(--text-2)" },
+      "ink-3": { "role": "neutral", "displayName": "Ink 3", "canonical": "var(--text-3)" },
+      "tally-red": { "role": "primary", "displayName": "Tally Red", "canonical": "var(--tally)", "tonalRamp": ["#3d0d0b", "#5e1411", "#8a1d18", "#b01d17", "#d32f29", "#ff6e66", "#ff9c96", "#ffd1ce"] },
+      "tally-ink": { "role": "primary", "displayName": "Tally Ink", "canonical": "var(--tally-ink)" },
+      "black-tally-ink": { "role": "primary", "displayName": "Black-Tally Ink", "canonical": "var(--black-tally-ink)" },
+      "cue-amber": { "role": "secondary", "displayName": "Cue Amber", "canonical": "var(--cue)", "tonalRamp": ["#17130a", "#3a2a0c", "#6f4b08", "#946512", "#c8922c", "#d4a24a", "#e6c482", "#f6e6c4"] },
+      "cue-edge": { "role": "secondary", "displayName": "Cue Edge", "canonical": "var(--cue-edge)" },
+      "cue-ink": { "role": "secondary", "displayName": "Cue Ink", "canonical": "var(--cue-ink)" },
+      "on-cue": { "role": "secondary", "displayName": "Cue Black", "canonical": "var(--on-cue)" },
+      "on-tally": { "role": "primary", "displayName": "Paper White", "canonical": "var(--on-tally)" },
+      "letterbox": { "role": "neutral", "displayName": "Letterbox Black", "canonical": "var(--letterbox)" },
+      "standby": { "role": "neutral", "displayName": "Standby", "canonical": "var(--standby)" }
+    },
+    "typographyMeta": {
+      "brand": { "displayName": "Brand", "purpose": "The PPT Share word mark in the header only." },
+      "title": { "displayName": "Title", "purpose": "Column heads, menu and popover titles." },
+      "body": { "displayName": "Body", "purpose": "All UI text; tabular numerals on globally." },
+      "control": { "displayName": "Control", "purpose": "Control-deck buttons (Prev, Next, Freeze, KV, Black)." },
+      "notes": { "displayName": "Notes", "purpose": "Speaker notes, readable at a distance." },
+      "numeral-lg": { "displayName": "Numeral Large", "purpose": "Program position." },
+      "numeral": { "displayName": "Numeral", "purpose": "Counts, meta, resolution." },
+      "tally": { "displayName": "Tally", "purpose": "LIVE, FROZEN, BLACK, KV, STANDBY." },
+      "label-mono": { "displayName": "Label Mono", "purpose": "Key caps, strip numbers and tags, PGM tag." }
+    },
+    "shadows": [
+      { "name": "pop-dark", "value": "0 8px 24px rgba(0, 0, 0, 0.45)", "purpose": "Menus and popovers only (dark theme), with a Rule High border." },
+      { "name": "pop-light", "value": "0 8px 24px rgba(0, 0, 0, 0.18)", "purpose": "Menus and popovers only (light theme)." },
+      { "name": "segment-check-bar", "value": "inset 0 -2px 0 var(--text)", "purpose": "Bottom bar marking the checked segment; a state mark, not elevation." }
+    ],
+    "motion": [
+      { "name": "slide-fade", "value": "250ms linear opacity (fade-in / output-fade)", "purpose": "The operator's Fade transition on Program and the output window; runs under reduced motion." },
+      { "name": "slide-cut", "value": "instant once the image is decoded; previous layer removed after 50ms", "purpose": "Cut transition via SlideLayers; never a black frame." },
+      { "name": "black-shade", "value": "opacity 0.25s (none when transition is cut)", "purpose": "Black on the Program monitor mirrors the chosen transition." },
+      { "name": "switch-knob", "value": "transform 0.15s", "purpose": "Decorative; removed under prefers-reduced-motion." },
+      { "name": "progress-fill", "value": "transform scaleX 0.2s linear", "purpose": "Import progress; decorative, removed under prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "window-narrow", "value": "max-width: 1400px (media)" },
+      { "name": "stage-no-key-hints", "value": "stage container max-width: 880px" },
+      { "name": "stage-two-row-deck", "value": "stage container max-width: 700px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Standard edged button; Raised fill, Control Edge border.",
+      "html": "<button class=\"ds-btn\">Choose image</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border: 1px solid var(--edge); border-radius: var(--r); background: var(--raised); color: var(--text); font: 550 13px var(--font-sans); cursor: pointer; } .ds-btn:hover { background: var(--raised-hi); } .ds-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; } .ds-btn:disabled { background: transparent; border: 1px dashed var(--line-hi); color: var(--text-3); cursor: not-allowed; }"
+    },
+    {
+      "name": "Next Button",
+      "kind": "button",
+      "refersTo": "control-next",
+      "description": "The amber Next control with printed key caps.",
+      "html": "<button class=\"ds-next\">Next <span class=\"ds-keys\"><kbd>Space</kbd><kbd>&rarr;</kbd></span></button>",
+      "css": ".ds-next { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; height: 56px; min-width: 176px; padding: 0 12px; border: 1px solid var(--cue-edge); border-radius: var(--r); background: var(--cue); color: var(--on-cue); font: 600 15px var(--font-sans); cursor: pointer; } .ds-next:hover { filter: brightness(1.08); } .ds-next:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; } .ds-keys { display: flex; gap: 6px; } .ds-next kbd { font: 500 12px/1 var(--font-mono); padding: 3px 5px; min-width: 20px; border: 1px solid var(--on-cue); border-radius: var(--r); color: var(--on-cue); background: transparent; }"
+    },
+    {
+      "name": "Hold Button (pressed)",
+      "kind": "button",
+      "refersTo": "control-hold-pressed",
+      "description": "Freeze, KV, Black toggles; pressed inverts to Ink, never red.",
+      "html": "<button class=\"ds-hold\" aria-pressed=\"true\">Black <kbd>B</kbd></button>",
+      "css": ".ds-hold { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 12px; border: 1px solid var(--edge); border-radius: var(--r); background: var(--raised); color: var(--text); font: 600 15px var(--font-sans); cursor: pointer; } .ds-hold:hover { background: var(--raised-hi); } .ds-hold[aria-pressed='true'] { background: var(--text); border-color: var(--text); color: var(--bg); } .ds-hold kbd { font: 500 12px/1 var(--font-mono); padding: 3px 5px; border: 1px solid var(--edge); border-radius: var(--r); background: var(--bg); color: var(--text-2); } .ds-hold[aria-pressed='true'] kbd { background: transparent; border-color: var(--bg); color: var(--bg); } .ds-hold:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }"
+    },
+    {
+      "name": "Tally",
+      "kind": "chip",
+      "refersTo": "tally-live",
+      "description": "On-air lamp: LIVE filled red; FROZEN outlined red.",
+      "html": "<span class=\"ds-tally ds-live\">LIVE</span> <span class=\"ds-tally ds-frozen\">FROZEN</span> <span class=\"ds-tally ds-idle\">STANDBY</span>",
+      "css": ".ds-tally { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--r); font: 700 13px/1 var(--font-mono); letter-spacing: 0.06em; } .ds-live { background: var(--tally); color: var(--on-tally); } .ds-frozen { border: 1.5px solid var(--tally); color: var(--tally-ink); } .ds-idle { border: 1px solid var(--line-hi); color: var(--text-2); }"
+    },
+    {
+      "name": "Segmented Transition",
+      "kind": "custom",
+      "refersTo": "segmented",
+      "description": "Cut / Fade radio group; checked segment has a bottom Ink bar.",
+      "html": "<div class=\"ds-seg\" role=\"radiogroup\"><button role=\"radio\" aria-checked=\"true\">Cut</button><button role=\"radio\" aria-checked=\"false\">Fade</button></div>",
+      "css": ".ds-seg { display: inline-flex; height: 36px; border: 1px solid var(--edge); border-radius: var(--r); } .ds-seg button { padding: 0 16px; border: 0; border-radius: 0; background: var(--bg); color: var(--text-2); font: 550 13px var(--font-sans); cursor: pointer; } .ds-seg button:first-child { border-radius: 2px 0 0 2px; } .ds-seg button:last-child { border-radius: 0 2px 2px 0; } .ds-seg button + button { border-left: 1px solid var(--edge); } .ds-seg button:hover { background: var(--raised); } .ds-seg button[aria-checked='true'] { background: var(--raised-hi); color: var(--text); box-shadow: inset 0 -2px 0 var(--text); } .ds-seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }"
+    },
+    {
+      "name": "Switch",
+      "kind": "input",
+      "refersTo": "switch",
+      "description": "Square-cornered track and knob with On/Off spelled out.",
+      "html": "<span class=\"ds-switch-ctl\"><button class=\"ds-switch\" role=\"switch\" aria-checked=\"true\"><span class=\"ds-knob\"></span></button><span class=\"ds-switch-label\">On</span></span>",
+      "css": ".ds-switch-ctl { display: inline-flex; align-items: center; gap: 8px; } .ds-switch { position: relative; width: 40px; height: 24px; padding: 0; border: 1px solid var(--edge); border-radius: var(--r); background: var(--raised-hi); cursor: pointer; } .ds-knob { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: var(--r); background: var(--text-2); transition: transform 0.15s; } .ds-switch[aria-checked='true'] { background: var(--text); border-color: var(--text); } .ds-switch[aria-checked='true'] .ds-knob { background: var(--bg); transform: translateX(16px); } .ds-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; } .ds-switch-label { min-width: 56px; font-size: 13px; color: var(--text-2); }"
+    },
+    {
+      "name": "Strip Thumbnail",
+      "kind": "custom",
+      "refersTo": "strip-thumb",
+      "description": "16:9 slide thumb with role outline and mono tag (LIVE / NEXT).",
+      "html": "<div class=\"ds-th ds-th-live\"><div class=\"ds-th-slide\"></div><span class=\"ds-tg\"><span>3</span><b>LIVE</b></span></div><div class=\"ds-th ds-th-next\"><div class=\"ds-th-slide\"></div><span class=\"ds-tg\"><span>4</span><b>NEXT</b></span></div>",
+      "css": ".ds-th { display: inline-flex; flex-direction: column; gap: 6px; width: 118px; margin-right: 10px; } .ds-th-slide { aspect-ratio: 16/9; border-radius: var(--r); background: #fff; } .ds-th-live .ds-th-slide { outline: 2px solid var(--tally); } .ds-th-next .ds-th-slide { outline: 2px solid var(--cue-edge); } .ds-tg { display: flex; justify-content: space-between; align-items: center; height: 18px; font: 500 12px/1 var(--font-mono); color: var(--text); } .ds-tg b { padding: 3px 5px; border-radius: var(--r); font-weight: 700; } .ds-th-live .ds-tg b { background: var(--tally); color: var(--on-tally); } .ds-th-next .ds-tg b { background: var(--cue); color: var(--on-cue); }"
+    },
+    {
+      "name": "Menu",
+      "kind": "nav",
+      "refersTo": "menu",
+      "description": "Floating menu: Panel fill, Rule High border, Pop shadow.",
+      "html": "<div class=\"ds-menu\"><button>National Seminar 2026</button><button>Workshop Day 2</button><hr><button>New event</button></div>",
+      "css": ".ds-menu { min-width: 230px; padding: 4px; background: var(--panel); border: 1px solid var(--line-hi); border-radius: var(--r); box-shadow: var(--pop-shadow); } .ds-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--r); background: none; color: var(--text); font: 13px var(--font-sans); text-align: left; cursor: pointer; } .ds-menu button:hover { background: var(--raised); } .ds-menu button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; } .ds-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Broadcast Console",
+    "overview": "PPT Share looks like the program bus of a small vision mixer, not like a slide editor. The operator window is a dense, flat desk of graphite panels divided by 1px rules: a 44px header strip, three resizable columns (Decks, Program, Up next), a control deck under the Program monitor, and a 128px thumbnail strip across the bottom. Nothing floats except menus and popovers. Structure comes from hairlines and three tonal steps, never from cards or shadows.\n\nColour is signal, not decoration. The graphite neutrals carry no hue (they are pure greys with a faint warm cast in the light theme, never blue). Red appears only where something is on air: the tally, the Program monitor ring, the LIVE and FROZEN tags, and the live deck's status line. Amber appears only where something is next: the Next button, the Up next ring and position, the NEXT tag. Everything else (errors, pressed holds, destructive confirms, selection) is expressed with full-strength ink, inversion, weight and shape, so that a glance at the screen in a dark venue answers one question: what is the audience seeing, and what will Next do.\n\nType is Geist for words and the system monospace (Cascadia Mono, then Consolas) for every number, count, key cap and tally, with tabular figures on by default. The UI ships both themes; dark is the default and the one the world is tuned for.",
+    "keyCharacteristics": [
+      "Flat graphite panels, 1px rules, one 3px radius everywhere.",
+      "Red = on air (LIVE, FROZEN, BLACK, KV tallies). Amber = next. No other chromatic colour in the chrome.",
+      "Words in Geist, numbers and tallies in mono; tabular numerals globally.",
+      "State is told by text and shape as well as colour (tally words, pressed inversion, check bar on the chosen segment, On/Off beside switches).",
+      "The Program monitor and slide letterboxes stay black in both themes.",
+      "Dense desktop layout with resizable columns and a container-query control deck."
+    ],
+    "rules": [
+      { "name": "The On-Air Red Rule", "body": "Red means the audience is seeing it: LIVE, FROZEN, BLACK, KV and the marks that point at the on-air slide. It is never used for errors, destructive actions, hover, or emphasis.", "section": "colors" },
+      { "name": "The Amber Means Next Rule", "body": "Amber marks only what Next will take to air (the Next button, the Up next card and position, the NEXT tag). A disabled Next loses its amber.", "section": "colors" },
+      { "name": "The Ink Not Colour Rule", "body": "Problems and warnings are marked by full-strength Ink, weight (550-600) and an icon, never by a hue. The destructive confirm button is inverted Ink, not red.", "section": "colors" },
+      { "name": "The No Blue Rule", "body": "Neutrals are true greys. Do not tint graphite toward blue or slate.", "section": "colors" },
+      { "name": "The Numbers Are Mono Rule", "body": "Every count, position, resolution, key cap and tally is set in the mono stack; every sentence is set in Geist. Captions that are prose stay sans even when they contain a number.", "section": "typography" },
+      { "name": "The Rules Not Cards Rule", "body": "Group with 1px rules and tonal steps. Do not wrap panels, rows or controls in shadowed cards.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep red for on-air marks only: tally fills and outlines, the 2px monitor ring, LIVE/FROZEN tags and outlines, the live deck's status line.",
+      "Do keep amber for what Next will take to air, and drop it whenever Next is disabled.",
+      "Do read every colour from the tokens.css variables so both themes stay correct; never hard-code a hex in a component rule.",
+      "Do put a Control Edge (--edge) border on every control and input so its boundary meets 3:1 in both themes.",
+      "Do say state in words and shape as well as colour: the tally word, On/Off beside switches, the bottom bar on a checked segment, pressed inversion on holds.",
+      "Do set numbers, counts, key caps and tallies in the mono stack, and sentences in Geist.",
+      "Do use the single 3px radius, square corners only where an element touches a rule or the window edge.",
+      "Do draw slide rings as overlays so the slide box stays exactly 16:9.",
+      "Do keep the Program monitor, letterboxes and standby card black in both themes.",
+      "Do respond to the Program column's width (container queries) rather than the window when rearranging the control deck."
+    ],
+    "donts": [
+      "Don't use red for errors, warnings, destructive buttons, hover or emphasis; use Ink, weight and an icon.",
+      "Don't add a third chromatic accent or tint the greys blue.",
+      "Don't wrap panels or rows in shadowed cards; the Pop shadow is for floating menus and popovers only.",
+      "Don't introduce a second radius, pills or circular controls.",
+      "Don't put the operator's Fade under prefers-reduced-motion; only decorative transitions are removed there.",
+      "Don't show a slide before its image is decoded; a black frame between slides is a failure.",
+      "Don't give dashed lines a new meaning. Dashed already marks disabled controls, drop targets and the off-air operator position thumbnail; consolidating these is an open issue, not a pattern to extend."
+    ]
+  }
+}
