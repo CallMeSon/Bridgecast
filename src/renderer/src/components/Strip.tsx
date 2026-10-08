@@ -159,34 +159,45 @@ export function Strip({ decks, state, onGoto, onMoveSlide }: Props): React.JSX.E
           {deck.name}
         </span>
         <span className="m">{countOf(deck.slides.length, 'slide')}</span>
-        <div className="lg">
+      </div>
+      <div className="strip-main">
+        <div className="thumbs" role="group" aria-label={`Slides in ${deck.name}`}>
+          {deck.slides.map((s, i) => (
+            <Thumb
+              key={s.file}
+              deck={deck}
+              s={s}
+              i={i}
+              role={slideRole(decks, state, deck.id, i)}
+              current={i === state.index}
+              dragging={dragging === i}
+              over={over === i}
+              onGoto={onGoto}
+              onMove={move}
+              setDragging={setDragging}
+              setOver={setOver}
+            />
+          ))}
+        </div>
+        {/* Legend under the thumbnails: what each mark in the strip means. */}
+        <div className="lg" aria-hidden="true">
           <span>
             <i className="sk live" />
             Live on Program
           </span>
           <span>
+            <i className="sk frozen" />
+            Frozen on Program
+          </span>
+          <span>
             <i className="sk next" />
             Next
           </span>
+          <span>
+            <i className="sk pos" />
+            Position
+          </span>
         </div>
-      </div>
-      <div className="thumbs" role="group" aria-label={`Slides in ${deck.name}`}>
-        {deck.slides.map((s, i) => (
-          <Thumb
-            key={s.file}
-            deck={deck}
-            s={s}
-            i={i}
-            role={slideRole(decks, state, deck.id, i)}
-            current={i === state.index}
-            dragging={dragging === i}
-            over={over === i}
-            onGoto={onGoto}
-            onMove={move}
-            setDragging={setDragging}
-            setOver={setOver}
-          />
-        ))}
       </div>
     </footer>
   )

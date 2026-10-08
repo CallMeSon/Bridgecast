@@ -6,7 +6,7 @@ export type Stored = Partial<Layout>
 
 export const SIDE_MIN = 200
 export const CENTER_MIN = 420
-export const STRIP_MIN = 96
+export const STRIP_MIN = 120
 export const STRIP_MAX_RATIO = 0.4
 /** Keyboard step for a focused splitter. */
 export const STEP = 16
@@ -14,8 +14,8 @@ const NARROW = 1400
 
 export function defaultLayout(width: number): Layout {
   return width <= NARROW
-    ? { left: 232, right: 288, strip: 128 }
-    : { left: 256, right: 320, strip: 128 }
+    ? { left: 232, right: 288, strip: 150 }
+    : { left: 256, right: 320, strip: 150 }
 }
 
 /** Allowed range of one axis, given the current size of the others. */

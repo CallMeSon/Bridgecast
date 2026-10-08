@@ -31,7 +31,7 @@ h2 {
   display: grid;
   /* The single column may not grow past the window, so a long header never widens the page. */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 44px minmax(0, 1fr) var(--strip-h, 128px);
+  grid-template-rows: 44px minmax(0, 1fr) var(--strip-h, 150px);
 }
 .app[data-resizing] {
   user-select: none;
@@ -1130,11 +1130,19 @@ footer .empty {
   font: 400 13px var(--font-mono);
   color: var(--text-3);
 }
-.lab .lg {
-  margin-top: auto;
+.strip-main {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  min-width: 0;
+  min-height: 0;
+}
+.strip-main .lg {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 0 16px 8px;
   color: var(--text-3);
   font-size: 12px;
 }
@@ -1151,16 +1159,28 @@ footer .empty {
 .sk.next {
   background: var(--cue-edge);
 }
+.sk.frozen {
+  background: none;
+  border: 1.5px solid var(--tally);
+}
+.sk.pos {
+  background: none;
+  border: 1.5px dashed var(--text-2);
+}
 .thumbs {
+  /* Thumbnails take their size from this row's height (resizable strip). */
+  container-type: size;
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 10px 16px 6px;
   overflow-x: auto;
   overflow-y: hidden;
 }
 .th {
-  flex: 0 0 118px;
+  flex: 0 0 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1169,7 +1189,9 @@ footer .empty {
   text-align: left;
 }
 .th .slide {
-  height: auto;
+  /* 100cqh is the thumbnail row; 24px leaves room for the number and tag row. */
+  height: max(36px, calc(100cqh - 24px));
+  width: auto;
   aspect-ratio: 16/9;
   border-radius: var(--r);
 }
@@ -1245,7 +1267,7 @@ footer .empty {
 .splitter[data-axis='left'],
 .splitter[data-axis='right'] {
   top: 44px;
-  bottom: var(--strip-h, 128px);
+  bottom: var(--strip-h, 150px);
   width: 12px;
   cursor: col-resize;
 }
@@ -1270,7 +1292,7 @@ footer .empty {
 .splitter[data-axis='strip'] {
   left: 0;
   right: 0;
-  bottom: calc(var(--strip-h, 128px) - 10px);
+  bottom: calc(var(--strip-h, 150px) - 10px);
   height: 12px;
   cursor: row-resize;
 }

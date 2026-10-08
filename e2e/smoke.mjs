@@ -1615,7 +1615,7 @@ try {
     () => document.querySelector('footer').getBoundingClientRect().height
   )
   check(
-    Math.abs(sh - 144) <= 1 && (await pos.textContent()) === posBefore,
+    Math.abs(sh - 166) <= 1 && (await pos.textContent()) === posBefore,
     `ArrowUp on the strip splitter resizes it without changing slides (strip ${sh}px)`
   )
   await win.getByTestId('splitter-strip').dblclick()

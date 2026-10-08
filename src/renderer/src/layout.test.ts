@@ -9,12 +9,12 @@ import {
   STEP
 } from './layout'
 
-const cur = { left: 256, right: 320, strip: 128 }
+const cur = { left: 256, right: 320, strip: 150 }
 
 describe('defaultLayout', () => {
   it('uses the wide defaults above 1400px and the tight ones below', () => {
-    expect(defaultLayout(1600)).toEqual({ left: 256, right: 320, strip: 128 })
-    expect(defaultLayout(1400)).toEqual({ left: 232, right: 288, strip: 128 })
+    expect(defaultLayout(1600)).toEqual({ left: 256, right: 320, strip: 150 })
+    expect(defaultLayout(1400)).toEqual({ left: 232, right: 288, strip: 150 })
   })
 })
 
@@ -23,12 +23,12 @@ describe('limits', () => {
     expect(limits('left', cur, 1600, 900)).toEqual({ min: 200, max: 1600 - 320 - 420 })
     expect(limits('right', cur, 1600, 900)).toEqual({ min: 200, max: 1600 - 256 - 420 })
   })
-  it('bounds the strip between 96 and 40% of the height', () => {
-    expect(limits('strip', cur, 1600, 900)).toEqual({ min: 96, max: 360 })
-    expect(limits('strip', cur, 1600, 200)).toEqual({ min: 96, max: 96 })
+  it('bounds the strip between 120 and 40% of the height', () => {
+    expect(limits('strip', cur, 1600, 900)).toEqual({ min: 120, max: 360 })
+    expect(limits('strip', cur, 1600, 200)).toEqual({ min: 120, max: 120 })
   })
   it('never lets max fall below min in a tiny window', () => {
-    expect(limits('left', { left: 200, right: 200, strip: 96 }, 700, 500)).toEqual({
+    expect(limits('left', { left: 200, right: 200, strip: 120 }, 700, 500)).toEqual({
       min: 200,
       max: 200
     })
@@ -40,7 +40,7 @@ describe('clampSize', () => {
     expect(clampSize('left', 50, cur, 1600, 900)).toBe(200)
     expect(clampSize('left', 9999, cur, 1600, 900)).toBe(860)
     expect(clampSize('left', 300.4, cur, 1600, 900)).toBe(300)
-    expect(clampSize('strip', 10, cur, 1600, 900)).toBe(96)
+    expect(clampSize('strip', 10, cur, 1600, 900)).toBe(120)
   })
   it('exposes a 16px keyboard step', () => expect(STEP).toBe(16))
 })
@@ -70,7 +70,7 @@ describe('parseStored', () => {
 
 describe('resolveLayout', () => {
   it('falls back to defaults', () => {
-    expect(resolveLayout({}, 1600, 900)).toEqual({ left: 256, right: 320, strip: 128 })
+    expect(resolveLayout({}, 1600, 900)).toEqual({ left: 256, right: 320, strip: 150 })
   })
   it('keeps stored sizes that fit', () => {
     expect(resolveLayout({ left: 400, strip: 200 }, 1600, 900)).toEqual({
@@ -97,6 +97,6 @@ describe('resolveLayout', () => {
   })
   it('clamps the strip to 40% of a short window', () => {
     expect(resolveLayout({ strip: 400 }, 1280, 720).strip).toBe(288)
-    expect(resolveLayout({ strip: 20 }, 1280, 720).strip).toBe(96)
+    expect(resolveLayout({ strip: 20 }, 1280, 720).strip).toBe(120)
   })
 })
