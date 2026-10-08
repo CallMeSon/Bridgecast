@@ -1176,6 +1176,28 @@ try {
   await win.reload()
   await win.waitForSelector('.app')
   check(Math.abs((await widths()).left - w1.left) <= 1, 'panel width is restored after reload')
+  // Narrowest Program column: every control stays visible (two rows), no sideways scroll.
+  const g2 = await win.getByTestId('splitter-left').boundingBox()
+  await win.mouse.move(g2.x + g2.width / 2, g2.y + g2.height / 2)
+  await win.mouse.down()
+  await win.mouse.move(g2.x + 900, g2.y + g2.height / 2, { steps: 5 })
+  await win.mouse.up()
+  const narrow = await win.evaluate(() => {
+    const stage = document.querySelector('.stage-col')
+    const box = stage.getBoundingClientRect()
+    const btns = [...document.querySelectorAll('.controls button')].map((b) =>
+      b.getBoundingClientRect()
+    )
+    return {
+      width: box.width,
+      sideways: stage.scrollWidth > stage.clientWidth,
+      inside: btns.every((r) => r.left >= box.left - 1 && r.right <= box.right + 1)
+    }
+  })
+  check(
+    !narrow.sideways && narrow.inside,
+    `narrow Program (${Math.round(narrow.width)}px): all controls visible, no sideways scroll`
+  )
   await win.getByTestId('splitter-left').dblclick()
   check(Math.abs((await widths()).left - w0.left) <= 1, 'double-click resets the splitter')
   const posBefore = await pos.textContent()

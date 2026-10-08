@@ -340,6 +340,7 @@ main {
 .stage-col {
   background: var(--bg);
   overflow: auto;
+  container: stage / inline-size;
 }
 .colhead {
   height: 40px;
@@ -1117,6 +1118,30 @@ footer .empty {
   }
   footer {
     grid-template-columns: var(--left-w, 232px) minmax(0, 1fr);
+  }
+  .controls kbd.opt {
+    display: none;
+  }
+}
+/*
+ * A narrow Program column (panels resized): the control deck takes two rows,
+ * Prev/Next on top, Transisi/Freeze/Black below, so Black never scrolls away.
+ */
+@container stage (max-width: 700px) {
+  .controls {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .controls > * {
+    min-height: 64px;
+  }
+  .controls > :first-child {
+    grid-column: 1 / -1;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .controls > :nth-child(3) {
+    display: none;
   }
   .controls kbd.opt {
     display: none;
