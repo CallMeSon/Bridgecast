@@ -9,6 +9,8 @@ import {
   type DeckMeta,
   type EventMeta
 } from '../shared/types'
+import { thumbFileName } from './slide-protocol'
+import { writeThumbnail } from './thumbnail'
 
 type DeckInput = {
   name: string
@@ -30,10 +32,18 @@ function writeJsonAtomic(file: string, data: unknown): void {
 
 export { DECK_NAME_MAX }
 
+/** Writes a thumbnail image of `src` to `dest`; throws on failure. */
+export type ThumbWriter = (src: string, dest: string) => void
+
 export class Library {
   private events: EventMeta[]
+  /** Thumbnails being generated, by thumbnail path (one job per file). */
+  private thumbJobs = new Map<string, Promise<boolean>>()
 
-  constructor(private root: string) {
+  constructor(
+    private root: string,
+    private makeThumb: ThumbWriter = writeThumbnail
+  ) {
     fs.mkdirSync(path.join(root, 'decks'), { recursive: true })
     this.events = this.loadEvents()
   }
@@ -121,6 +131,7 @@ export class Library {
       this.writeDeck(deck)
       ev.deckIds.push(id)
       this.saveEvents()
+      void this.generateThumbs(deck)
       return deck
     } catch (err) {
       ev.deckIds = ev.deckIds.filter((x) => x !== id)
@@ -299,6 +310,52 @@ export class Library {
       throw new Error('Slide tidak ditemukan. Pilih slide yang ada di deck ini.')
     }
     return path.join(this.deckDir(deckId), file)
+  }
+
+  /** Generates all thumbnails of a new deck in the background, yielding between slides. */
+  private async generateThumbs(deck: DeckMeta): Promise<void> {
+    for (const s of deck.slides) {
+      await new Promise<void>((r) => setImmediate(r))
+      await this.ensureThumb(deck.id, s.file)
+    }
+  }
+
+  /** Thumbnail path for a slide file (may not exist yet). */
+  private thumbPath(deckId: string, file: string): string {
+    return path.join(this.deckDir(deckId), 'thumbs', thumbFileName(file))
+  }
+
+  /**
+   * Path of the slide's thumbnail, created on first request and cached on disk
+   * (existing decks get theirs lazily). Falls back to the full-size slide when
+   * generation fails, so the strip always has an image.
+   */
+  async thumbFilePath(deckId: string, file: string): Promise<string> {
+    const full = this.slideFilePath(deckId, file)
+    return (await this.ensureThumb(deckId, file)) ? this.thumbPath(deckId, file) : full
+  }
+
+  private ensureThumb(deckId: string, file: string): Promise<boolean> {
+    const dest = this.thumbPath(deckId, file)
+    if (fs.existsSync(dest)) return Promise.resolve(true)
+    let job = this.thumbJobs.get(dest)
+    if (!job) {
+      job = (async () => {
+        const src = path.join(this.deckDir(deckId), file)
+        try {
+          // Never recreate a deck folder that was removed in the meantime.
+          if (!fs.existsSync(src)) return false
+          fs.mkdirSync(path.dirname(dest), { recursive: true })
+          this.makeThumb(src, dest)
+          return true
+        } catch {
+          return false
+        }
+      })()
+      this.thumbJobs.set(dest, job)
+      void job.then(() => this.thumbJobs.delete(dest))
+    }
+    return job
   }
 
   slidePath(deckId: string, index: number): string {

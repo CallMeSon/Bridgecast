@@ -46,6 +46,35 @@ export function parseKvUrl(url: string): { eventId: string; file: string } | nul
   return { eventId: eventId.toLowerCase(), file }
 }
 
+/** Thumbnails: `/thumbs/001.jpg`. */
+const THUMB_RE = /^\/thumbs\/(\d{3,6})\.jpg$/
+
+/**
+ * Parse `slide://<deckId>/thumbs/<n>.jpg` (small strip thumbnail of slide
+ * `<n>.png`); returns the deck id and the slide file (`<n>.png`), or null for
+ * anything else. Same strict rules as parseSlideUrl.
+ */
+export function parseThumbUrl(url: string): { deckId: string; file: string } | null {
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return null
+  }
+  if (u.protocol !== 'slide:' || u.search || u.hash || u.username || u.password || u.port) {
+    return null
+  }
+  if (!UUID_RE.test(u.hostname)) return null
+  const m = THUMB_RE.exec(u.pathname)
+  if (!m) return null
+  return { deckId: u.hostname.toLowerCase(), file: `${m[1]}.png` }
+}
+
+/** Thumbnail file name of a slide file (`003.png` -> `003.jpg`). */
+export function thumbFileName(slideFile: string): string {
+  return slideFile.replace(/\.png$/i, '.jpg')
+}
+
 /** Content-type of a KV file by its extension; null when it is not an allowed image. */
 export function kvMimeType(file: string): string | null {
   const ext = path.extname(file).slice(1).toLowerCase()

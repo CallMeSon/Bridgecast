@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DeckMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
-import { slideUrl } from '../../../shared/ipc'
+import { thumbUrl } from '../../../shared/ipc'
 import { currentDeck, nextIndex, tally } from '../model'
 import { SlideImage } from './Slide'
 
@@ -111,7 +111,7 @@ export function Strip({ decks, state, onGoto, onMoveSlide }: Props): React.JSX.E
               onMoveSlide(deck.id, Number(from), i)
             }}
           >
-            <SlideImage src={slideUrl(deck.id, s.file)} alt="" lazy />
+            <SlideImage src={thumbUrl(deck.id, s.file)} alt="" lazy />
             <span className="tg">
               <span className="n">{i + 1}</span>
               {role(i) === 'live' && <b>LIVE</b>}

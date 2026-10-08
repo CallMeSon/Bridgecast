@@ -1,9 +1,46 @@
 import { describe, it, expect } from 'vitest'
 import * as path from 'path'
-import { isInside, kvMimeType, parseKvUrl, parseSlideUrl } from './slide-protocol'
-import { kvImageUrl, slideUrl } from '../shared/ipc'
+import {
+  isInside,
+  kvMimeType,
+  parseKvUrl,
+  parseSlideUrl,
+  parseThumbUrl,
+  thumbFileName
+} from './slide-protocol'
+import { kvImageUrl, slideUrl, thumbUrl } from '../shared/ipc'
 
 const ID = '0b5e8f3a-9d2c-4f1e-8a7b-6c5d4e3f2a1b'
+
+describe('parseThumbUrl', () => {
+  it('parses a thumbnail URL into the slide file and round-trips thumbUrl', () => {
+    expect(parseThumbUrl(`slide://${ID}/thumbs/003.jpg`)).toEqual({ deckId: ID, file: '003.png' })
+    expect(parseThumbUrl(thumbUrl(ID, '012.png'))).toEqual({ deckId: ID, file: '012.png' })
+    expect(thumbUrl(ID, '001.png')).toBe(`slide://${ID}/thumbs/001.jpg`)
+    expect(thumbFileName('001.png')).toBe('001.jpg')
+  })
+
+  it('rejects everything else', () => {
+    for (const bad of [
+      'slide://not-a-uuid/thumbs/001.jpg',
+      `slide://${ID}/thumbs/001.png`,
+      `slide://${ID}/thumbs/01.jpg`,
+      `slide://${ID}/thumbs/../events.json`,
+      `slide://${ID}/thumbs/a/001.jpg`,
+      `slide://${ID}/thumbs/001.jpg?x=1`,
+      `slide://${ID}/thumbs/001.jpg#x`,
+      `slide://${ID}/thumbs/`,
+      `file://${ID}/thumbs/001.jpg`,
+      `slide://kv/thumbs/001.jpg`
+    ]) {
+      expect(parseThumbUrl(bad), bad).toBeNull()
+    }
+  })
+
+  it('is not accepted as a slide URL', () => {
+    expect(parseSlideUrl(`slide://${ID}/thumbs/001.jpg`)).toBeNull()
+  })
+})
 
 describe('parseSlideUrl', () => {
   it('parses deck id and slide file', () => {

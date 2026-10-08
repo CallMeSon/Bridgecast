@@ -392,7 +392,9 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     check(
       t1.map((t) => t.file).join() === '002.png,001.png,003.png' &&
         t1[0].role === 'live' &&
-        t1.every((t, i) => t.src === `slide://${deckId}/${t.file}` && t.loaded && i >= 0),
+        t1.every(
+          (t) => t.src === `slide://${deckId}/thumbs/${t.file.replace('.png', '.jpg')}` && t.loaded
+        ),
       `thumbnails after: ${JSON.stringify(t1.map((t) => [t.file, t.role, t.src]))}`
     )
     const colours = []
@@ -403,14 +405,26 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     )
     const programSrc = await win.locator('.screen img').getAttribute('src')
     check(
-      programSrc === t1[0].src && (await tally.textContent()) === 'LIVE',
+      programSrc === `slide://${deckId}/${t1[0].file}` && (await tally.textContent()) === 'LIVE',
       `Program shows the same image as the live thumbnail (${programSrc})`
     )
     check(
       (await cap.textContent()) === 'Slide 2' &&
-        (await win.locator('.next-card img').getAttribute('src')) === t1[1].src,
+        (await win.locator('.next-card img').getAttribute('src')) ===
+          `slide://${deckId}/${t1[1].file}`,
       'Next panel shows the new slide 2 (001.png)'
     )
+    const widths = await win.evaluate(() => ({
+      thumbs: [...document.querySelectorAll('[data-testid=strip] .th img')].map(
+        (i) => i.naturalWidth
+      ),
+      program: document.querySelector('.screen img')?.naturalWidth
+    }))
+    check(
+      widths.thumbs.length === 3 && widths.thumbs.every((w) => w > 0 && w <= 400),
+      `strip thumbnails are small (naturalWidth ${JSON.stringify(widths.thumbs)})`
+    )
+    check(widths.program === 1920, `Program image is full size (naturalWidth ${widths.program})`)
     const saved = JSON.parse(
       fs.readFileSync(path.join(userData, 'decks', deckId, 'deck.json'), 'utf8')
     )

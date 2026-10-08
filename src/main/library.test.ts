@@ -428,4 +428,69 @@ describe('Library', () => {
       expect(() => lib.kvFilePath('nope', kv)).toThrow(/Event tidak ditemukan/)
     })
   })
+  describe('thumbnails', () => {
+    const fakeThumb = (s: string, d: string): void =>
+      fs.writeFileSync(d, `thumb-of-${fs.readFileSync(s, 'utf8')}`)
+    const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 50))
+
+    it('addDeck generates a thumbnail per slide in the background', async () => {
+      const lib = new Library(root, fakeThumb)
+      const d = lib.addDeck(lib.createEvent('E').id, deckInput(3))
+      await flush()
+      for (const [i, f] of ['001.jpg', '002.jpg', '003.jpg'].entries()) {
+        expect(fs.readFileSync(path.join(root, 'decks', d.id, 'thumbs', f), 'utf8')).toBe(
+          `thumb-of-png-${i}`
+        )
+      }
+    })
+
+    it('creates a missing thumbnail lazily and caches it', async () => {
+      let calls = 0
+      const lib = new Library(root, (s, d) => {
+        calls++
+        fakeThumb(s, d)
+      })
+      const d = lib.addDeck(lib.createEvent('E').id, deckInput(1))
+      await flush()
+      fs.rmSync(path.join(root, 'decks', d.id, 'thumbs'), { recursive: true })
+      const before = calls
+      const [a, b] = await Promise.all([
+        lib.thumbFilePath(d.id, '001.png'),
+        lib.thumbFilePath(d.id, '001.png')
+      ])
+      expect(a).toBe(path.join(root, 'decks', d.id, 'thumbs', '001.jpg'))
+      expect(b).toBe(a)
+      await lib.thumbFilePath(d.id, '001.png')
+      expect(calls - before).toBe(1)
+    })
+
+    it('falls back to the full slide when generation fails', async () => {
+      const lib = new Library(root, () => {
+        throw new Error('boom')
+      })
+      const d = lib.addDeck(lib.createEvent('E').id, deckInput(1))
+      await flush()
+      expect(await lib.thumbFilePath(d.id, '001.png')).toBe(
+        path.join(root, 'decks', d.id, '001.png')
+      )
+    })
+
+    it('rejects files that are not slides of the deck', async () => {
+      const lib = new Library(root, fakeThumb)
+      const d = lib.addDeck(lib.createEvent('E').id, deckInput(1))
+      await expect(lib.thumbFilePath(d.id, '009.png')).rejects.toThrow(/tidak ditemukan/)
+    })
+
+    it('thumbnails follow the slide file through a reorder and go with the deck', async () => {
+      const lib = new Library(root, fakeThumb)
+      const ev = lib.createEvent('E')
+      const d = lib.addDeck(ev.id, deckInput(2))
+      await flush()
+      lib.reorderSlides(d.id, [1, 0])
+      const p = await lib.thumbFilePath(d.id, '002.png')
+      expect(fs.readFileSync(p, 'utf8')).toBe('thumb-of-png-1')
+      lib.removeDeck(ev.id, d.id)
+      expect(fs.existsSync(path.join(root, 'decks', d.id))).toBe(false)
+    })
+  })
 })

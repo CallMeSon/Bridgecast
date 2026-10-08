@@ -126,6 +126,15 @@ export function slideUrl(deckId: string, file: string): string {
 }
 
 /**
+ * `slide://<deckId>/thumbs/<n>.jpg`: small (320 px) thumbnail of slide file
+ * `<n>.png`, for the strip. Follows the slide's file, so a reorder keeps the
+ * right thumbnail.
+ */
+export function thumbUrl(deckId: string, file: string): string {
+  return `slide://${deckId}/thumbs/${file.replace(/\.png$/i, '.jpg')}`
+}
+
+/**
  * `slide://kv/<eventId>/<file>`: the event's KV image (file = EventMeta.kv, a
  * new name for every upload, so a URL never shows an older image).
  */

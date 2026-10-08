@@ -9,7 +9,7 @@ import { Library } from './library'
 import { AppState } from './state'
 import { importPptx } from './import/pptx'
 import { ImportQueue } from './import-queue'
-import { isInside, kvMimeType, parseKvUrl, parseSlideUrl } from './slide-protocol'
+import { isInside, kvMimeType, parseKvUrl, parseSlideUrl, parseThumbUrl } from './slide-protocol'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import { HdmiOutput, screenDisplays } from './display-output'
 import type { ScreenDisplay } from './hdmi-plan'
@@ -62,16 +62,20 @@ function tempDir(): string {
 
 function registerSlideProtocol(root: string, lib: Library): void {
   protocol.handle('slide', async (req) => {
-    // Two forms: slide://<deckId>/<file> (a slide) and slide://kv/<eventId>/<file> (an event's KV).
+    // Forms: slide://<deckId>/<file> (a slide), slide://<deckId>/thumbs/<n>.jpg (its thumbnail) and slide://kv/<eventId>/<file> (an event's KV).
     const kv = parseKvUrl(req.url)
-    const parsed = kv ? null : parseSlideUrl(req.url)
-    if (!kv && !parsed) return new Response('Bad request', { status: 400 })
+    const thumb = kv ? null : parseThumbUrl(req.url)
+    const parsed = kv || thumb ? null : parseSlideUrl(req.url)
+    if (!kv && !thumb && !parsed) return new Response('Bad request', { status: 400 })
     try {
       const file = kv
         ? lib.kvFilePath(kv.eventId, kv.file)
-        : lib.slideFilePath(parsed!.deckId, parsed!.file)
+        : thumb
+          ? await lib.thumbFilePath(thumb.deckId, thumb.file)
+          : lib.slideFilePath(parsed!.deckId, parsed!.file)
       if (!isInside(root, file)) return new Response('Forbidden', { status: 403 })
-      const type = kv ? kvMimeType(kv.file) : 'image/png'
+      // A thumbnail is a JPEG, or the full PNG when generation failed.
+      const type = kv ? kvMimeType(kv.file) : file.endsWith('.jpg') ? 'image/jpeg' : 'image/png'
       if (!type) return new Response('Bad request', { status: 400 })
       const data = await fs.promises.readFile(file)
       return new Response(data, {
