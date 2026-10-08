@@ -206,15 +206,24 @@ export class Library {
    */
   setKv(eventId: string, srcPath: string): EventMeta {
     const ev = this.findEvent(eventId)
-    const ext = path.extname(String(srcPath)).slice(1).toLowerCase()
+    const src = String(srcPath)
+    if (src.startsWith('\\\\') || src.startsWith('//')) {
+      throw new Error('Pilih gambar KV dari disk komputer ini, bukan dari jaringan.')
+    }
+    const ext = path.extname(src).slice(1).toLowerCase()
     if (!Object.prototype.hasOwnProperty.call(KV_MIME, ext)) {
       throw new Error('Format KV tidak didukung. Pilih gambar PNG, JPG, atau WebP.')
     }
     let stat: fs.Stats
     try {
-      stat = fs.statSync(srcPath)
+      stat = fs.lstatSync(src)
     } catch {
       throw new Error('File KV tidak ditemukan. Pilih gambar KV lagi.')
+    }
+    if (stat.isSymbolicLink()) {
+      throw new Error(
+        'Gambar KV tidak boleh berupa pintasan atau tautan. Pilih file gambar aslinya langsung.'
+      )
     }
     if (!stat.isFile())
       throw new Error('Yang dipilih bukan file. Pilih file gambar KV (PNG, JPG, atau WebP).')
@@ -223,20 +232,30 @@ export class Library {
     }
     const dir = this.kvDir(eventId)
     const file = `${randomUUID()}.${ext}`
+    const target = path.join(dir, file)
     const previous = ev.kv
-    fs.mkdirSync(dir, { recursive: true })
-    fs.copyFileSync(srcPath, path.join(dir, file))
-    ev.kv = file
     try {
+      fs.mkdirSync(dir, { recursive: true })
+      fs.copyFileSync(src, target)
+      if (fs.statSync(target).size > KV_MAX_BYTES) {
+        throw new Error('File KV terlalu besar. Pakai gambar yang ukurannya paling banyak 50 MB.')
+      }
+      ev.kv = file
       this.saveEvents()
     } catch (err) {
       ev.kv = previous
       if (previous === undefined) delete ev.kv
-      fs.rmSync(path.join(dir, file), { force: true })
+      fs.rmSync(target, { force: true })
       throw err
     }
-    if (previous) fs.rmSync(path.join(dir, previous), { force: true })
+    this.removeKvFile(eventId, previous)
     return { ...ev, deckIds: [...ev.deckIds] }
+  }
+
+  /** Delete a stored KV file, but only if its name is one we generated (never follow a damaged events.json). */
+  private removeKvFile(eventId: string, file: string | undefined): void {
+    if (file === undefined || !KV_FILE_RE.test(file)) return
+    fs.rmSync(path.join(this.kvDir(eventId), file), { force: true })
   }
 
   /** Remove the event's KV (file and field). No-op without a KV. Returns the updated event. */
@@ -245,8 +264,13 @@ export class Library {
     const previous = ev.kv
     if (previous !== undefined) {
       delete ev.kv
-      this.saveEvents()
-      fs.rmSync(path.join(this.kvDir(eventId), previous), { force: true })
+      try {
+        this.saveEvents()
+      } catch (err) {
+        ev.kv = previous
+        throw err
+      }
+      this.removeKvFile(eventId, previous)
     }
     return { ...ev, deckIds: [...ev.deckIds] }
   }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { DeckMeta } from '../../shared/types'
-import { initialState, type ProgramState } from '../../shared/program'
+import { initialState, reduce, type ProgramState } from '../../shared/program'
 import {
   baseName,
   canNext,
@@ -139,6 +139,10 @@ describe('tally', () => {
     expect(tally(at('a', 0, { shown, kvUrl }))).toBe('live')
     expect(TALLY_TEXT.kv).toBe('KV')
   })
+  it('is black at STANDBY after K turned the automatic KV off', () => {
+    const kvUrl = 'slide://kv/e/k.png'
+    expect(tally(at('a', 0, { shown: null, kvUrl, black: true }))).toBe('black')
+  })
 })
 
 describe('keyToAction', () => {
@@ -238,6 +242,17 @@ describe('outputSource with KV', () => {
   })
   it('KV on without a kvUrl falls back to the slide', () => {
     expect(outputSource({ ...initialState, shown, kv: true })).toBe(slide)
+  })
+  it('K at STANDBY (black) leaves the KV; K again shows it; LIVE K, K returns to the slide', () => {
+    const standby: ProgramState = { ...base }
+    const off = reduce(standby, { type: 'toggleKv' }, [])
+    expect(outputSource(off)).toBeNull()
+    const on = reduce(off, { type: 'toggleKv' }, [])
+    expect(outputSource(on)).toBe(kvUrl)
+    const live: ProgramState = { ...base, shown }
+    const forced = reduce(live, { type: 'toggleKv' }, [])
+    expect(outputSource(forced)).toBe(kvUrl)
+    expect(outputSource(reduce(forced, { type: 'toggleKv' }, []))).toBe(slide)
   })
   it('Black wins over everything', () => {
     expect(outputSource({ ...base, shown, black: true })).toBeNull()

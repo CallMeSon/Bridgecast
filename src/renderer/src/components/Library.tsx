@@ -27,6 +27,8 @@ interface Props {
   canImport: boolean
   /** URL of the active event's KV image, or null. */
   kvUrl: string | null
+  /** The KV image is on the output now; it cannot be removed meanwhile. */
+  kvOnAir: boolean
   /** Rejects with an Indonesian message when main refuses the image. */
   onSetKv(file: File): Promise<void>
   onClearKv(): Promise<void>
@@ -232,11 +234,13 @@ function ConfirmRemove({
 /** "KV acara": the event's hold image (shown on the output on demand and while STANDBY). */
 function KvBlock({
   kvUrl,
+  onAir,
   canEdit,
   onSet,
   onClear
 }: {
   kvUrl: string | null
+  onAir: boolean
   canEdit: boolean
   onSet(file: File): Promise<void>
   onClear(): Promise<void>
@@ -278,12 +282,17 @@ function KvBlock({
             {kvUrl ? 'Ganti gambar' : 'Pilih gambar'}
           </button>
           {kvUrl && (
-            <button className="btn sm" disabled={busy} onClick={() => void run(onClear)}>
+            <button className="btn sm" disabled={busy || onAir} onClick={() => void run(onClear)}>
               Hapus
             </button>
           )}
         </div>
       </div>
+      {kvUrl && onAir && (
+        <p className="kv-hint" data-testid="kv-hint">
+          Matikan KV dulu untuk menghapus.
+        </p>
+      )}
       {error && (
         <p className="kv-error" role="alert" data-testid="kv-error">
           {error}
@@ -485,7 +494,13 @@ export function Library(p: Props): React.JSX.Element {
           }}
         />
       )}
-      <KvBlock kvUrl={p.kvUrl} canEdit={p.canImport} onSet={p.onSetKv} onClear={p.onClearKv} />
+      <KvBlock
+        kvUrl={p.kvUrl}
+        onAir={p.kvOnAir}
+        canEdit={p.canImport}
+        onSet={p.onSetKv}
+        onClear={p.onClearKv}
+      />
       <div className="add">
         <button className="btn" disabled={!p.canImport} onClick={() => input.current?.click()}>
           <PlusIcon size={16} />

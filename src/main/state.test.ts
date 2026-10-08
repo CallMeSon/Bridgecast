@@ -287,19 +287,107 @@ describe('AppState', () => {
       expect(new AppState(lib).state.kvUrl).toBe(`slide://kv/${a.id}/${kv}`)
     })
 
-    it('setEvent switches kvUrl to the new event, or null without a KV', () => {
+    it('setEvent applies the new event KV when the KV is not on air', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      const kvA = lib.setKv(a.id, img('a.png')).kv
+      const app = new AppState(lib)
+      addDeck(lib, a.id, 2)
+      app.refresh()
+      app.dispatch({ type: 'next' }) // LIVE slide, KV not on air
+      app.setEvent(b.id)
+      expect(app.state.kvUrl).toBeNull()
+      app.setEvent(a.id)
+      expect(app.state.kvUrl).toBe(`slide://kv/${a.id}/${kvA}`)
+    })
+
+    it('setEvent keeps the KV image on air (forced or automatic at STANDBY)', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      const kvA = lib.setKv(a.id, img('a.png')).kv
+      const kvB = lib.setKv(b.id, img('b.png')).kv
+      const urlA = `slide://kv/${a.id}/${kvA}`
+      const app = new AppState(lib)
+      app.setEvent(b.id) // STANDBY automatic KV of A stays until the operator acts
+      expect(app.state.kvUrl).toBe(urlA)
+      app.setEvent(a.id)
+      app.dispatch({ type: 'toggleKv' }) // STANDBY: black
+      expect(app.state).toMatchObject({ black: true, kv: false })
+      app.setEvent(b.id) // not on air: B's own KV is applied
+      expect(app.state.kvUrl).toBe(`slide://kv/${b.id}/${kvB}`)
+      app.dispatch({ type: 'toggleKv' })
+      expect(app.state).toMatchObject({ kv: true, black: false })
+      app.setEvent(a.id)
+      expect(app.state).toMatchObject({ kv: true, kvUrl: `slide://kv/${b.id}/${kvB}` })
+    })
+
+    it('dispatch off the KV applies the active event KV', () => {
       const lib = new Library(root)
       const a = lib.createEvent('A')
       const b = lib.createEvent('B')
       lib.setKv(a.id, img('a.png'))
+      const kvB = lib.setKv(b.id, img('b.png')).kv
+      addDeck(lib, a.id, 2)
       const app = new AppState(lib)
-      expect(app.state.kvUrl).not.toBeNull()
+      app.dispatch({ type: 'next' })
+      app.dispatch({ type: 'toggleKv' }) // forced KV of A
+      app.setEvent(b.id)
+      const urlA = app.state.kvUrl
+      expect(urlA).toContain(a.id)
+      app.dispatch({ type: 'toggleKv' }) // off: back to the slide, B's KV applied
+      expect(app.state).toMatchObject({ kv: false, kvUrl: `slide://kv/${b.id}/${kvB}` })
+    })
+
+    it('setKv/clearKv on another event leave the KV on air alone', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      const kvA = lib.setKv(a.id, img('a.png')).kv
+      const urlA = `slide://kv/${a.id}/${kvA}`
+      const app = new AppState(lib)
+      app.setEvent(b.id) // automatic KV of A on air
+      app.setKv(b.id, img('b.png'))
+      expect(app.state.kvUrl).toBe(urlA)
+      app.clearKv(b.id)
+      expect(app.state.kvUrl).toBe(urlA)
+      app.setKv(a.id, img('a2.png')) // replaces the KV on air
+      expect(app.state.kvUrl).not.toBe(urlA)
+      expect(app.state.kvUrl).toContain(a.id)
+    })
+
+    it('clearKv of the KV on air at STANDBY turns it off and goes black', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      lib.setKv(a.id, img('a.png'))
+      const kvB = lib.setKv(b.id, img('b.png')).kv
+      const app = new AppState(lib)
+      app.setEvent(b.id)
+      app.clearKv(a.id) // the image on air belongs to A
+      expect(app.state).toMatchObject({
+        kv: false,
+        black: true,
+        kvUrl: `slide://kv/${b.id}/${kvB}`
+      })
+    })
+
+    it('clearKv of the active KV at STANDBY goes black; with a slide LIVE it just turns off', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      lib.setKv(a.id, img('a.png'))
+      addDeck(lib, a.id, 2)
+      const app = new AppState(lib)
+      app.clearKv(a.id)
+      expect(app.state).toMatchObject({ kv: false, black: true, kvUrl: null })
+      app.dispatch({ type: 'toggleBlack' })
+      app.setKv(a.id, img('b.png'))
+      app.dispatch({ type: 'next' })
       app.dispatch({ type: 'toggleKv' })
       expect(app.state.kv).toBe(true)
-      app.setEvent(b.id)
-      expect(app.state).toMatchObject({ kv: false, kvUrl: null })
-      app.setEvent(a.id)
-      expect(app.state.kvUrl).not.toBeNull()
+      app.clearKv(a.id)
+      expect(app.state).toMatchObject({ kv: false, black: false, kvUrl: null })
     })
 
     it('setKv on another event does not touch the active kvUrl', () => {
@@ -319,6 +407,8 @@ describe('AppState', () => {
       app.dispatch({ type: 'toggleKv' })
       expect(app.state.kv).toBe(false) // no KV: no-op
       app.setKv(a.id, img('a.png'))
+      app.dispatch({ type: 'toggleKv' }) // STANDBY shows the KV by itself: K goes black
+      expect(app.state).toMatchObject({ kv: false, black: true })
       app.dispatch({ type: 'toggleKv' })
       expect(app.state).toMatchObject({ kv: true, black: false })
       app.dispatch({ type: 'toggleBlack' })

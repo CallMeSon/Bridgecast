@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DeckMeta, EventMeta } from '../../shared/types'
-import { initialState, reduce, type Action, type ProgramState } from '../../shared/program'
+import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '../../shared/program'
 import type { ImportRequest } from '../../shared/ipc'
 import { Header } from './components/Header'
 import { Library, type ImportRow } from './components/Library'
@@ -352,6 +352,7 @@ function App(): React.JSX.Element {
           live={tally(program) === 'live' ? program.shown : null}
           canImport={eventId !== null}
           kvUrl={program.kvUrl}
+          kvOnAir={kvOnAir(program)}
           onSetKv={setKv}
           onClearKv={clearKv}
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}

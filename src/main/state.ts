@@ -4,6 +4,7 @@ import { kvImageUrl } from '../shared/ipc'
 import {
   followSlideOrder,
   initialState,
+  kvOnAir,
   locateShown,
   reconcile,
   reduce,
@@ -68,7 +69,7 @@ export class AppState {
   dispatch(a: Action): ProgramState {
     // Actions arrive over IPC; an unknown type makes reduce return undefined.
     const next = reduce(this.current, a, this.decks()) as ProgramState | undefined
-    return next ? this.commit(next) : this.current
+    return next ? this.commit(this.normalizeKv(next)) : this.current
   }
 
   /** Switch the active event. `shown` is never changed here (spec: output stays until the operator picks a slide). */
@@ -111,16 +112,38 @@ export class AppState {
     return this.commit(this.normalize(followSlideOrder(this.current, deckId, order)))
   }
 
-  /** Set the active or any event's KV image; the output follows if it is the active event. */
+  /** URL of an event's stored KV, or null. */
+  private kvUrlOf(eventId: string): string | null {
+    const ev = this.lib.listEvents().find((e) => e.id === eventId)
+    return ev?.kv ? kvImageUrl(ev.id, ev.kv) : null
+  }
+
+  /**
+   * Set an event's KV image. The KV on air keeps its image when another event
+   * changes; replacing the very image on air puts the new one on air.
+   */
   setKv(eventId: string, srcPath: string): EventMeta {
+    const before = this.kvUrlOf(eventId)
     const ev = this.lib.setKv(eventId, srcPath)
-    this.refresh()
+    const onAir = before !== null && before === this.current.kvUrl && kvOnAir(this.current)
+    this.commit(
+      this.normalize(onAir ? { ...this.current, kvUrl: kvImageUrl(eventId, ev.kv!) } : this.current)
+    )
     return ev
   }
 
+  /**
+   * Remove an event's KV. If that image is on air the KV goes off; at STANDBY
+   * the output becomes black instead of silently showing something else.
+   */
   clearKv(eventId: string): EventMeta {
+    const before = this.kvUrlOf(eventId)
     const ev = this.lib.clearKv(eventId)
-    this.refresh()
+    let s = this.current
+    if (before !== null && before === s.kvUrl && kvOnAir(s)) {
+      s = { ...s, kv: false, black: s.shown === null ? true : s.black, kvUrl: null }
+    }
+    this.commit(this.normalize(s))
     return ev
   }
 
@@ -152,8 +175,17 @@ export class AppState {
     // `shown` stays untouched).
     const pos = reconcile({ ...s, shown: null }, this.decks())
     // The KV belongs to the active event; KV on needs one (a removed KV turns it off).
-    const kvUrl = this.activeKvUrl()
+    // The KV on air keeps its image when the event changes; otherwise the
+    // active event's KV is applied.
+    const kvUrl = kvOnAir(s) ? s.kvUrl : this.activeKvUrl()
     return { ...pos, shown: this.locate(s), kvUrl, kv: s.kv && kvUrl !== null }
+  }
+
+  /** After a dispatch: once the KV is no longer on air, apply the active event's KV. */
+  private normalizeKv(s: ProgramState): ProgramState {
+    if (kvOnAir(s)) return s
+    const kvUrl = this.activeKvUrl()
+    return kvUrl === s.kvUrl ? s : { ...s, kvUrl, kv: s.kv && kvUrl !== null }
   }
 
   private commit(next: ProgramState): ProgramState {

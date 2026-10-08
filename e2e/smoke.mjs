@@ -1050,6 +1050,24 @@ try {
   const kvPath = path.join(frameDir, 'kv.png')
   await kvPng(kvPath)
   const kvBtn = win.locator('.controls button', { hasText: 'KV' })
+  // The image on air in the Program monitor: the newest non-pending layer (a fading
+  // layer counts, the pending one is not on screen yet).
+  const ON_AIR =
+    '.screen .pgm-layer[data-state="shown"] img, .screen .pgm-layer[data-state="fade"] img'
+  const waitOnAirSrc = async (prefix, what) => {
+    await win.waitForFunction(
+      ([sel, pre]) => {
+        const imgs = document.querySelectorAll(sel)
+        const last = imgs[imgs.length - 1]
+        return !!last && (last.getAttribute('src') ?? '').startsWith(pre)
+      },
+      [ON_AIR, prefix],
+      { timeout: 10_000 }
+    )
+    check(true, what)
+    return win.locator(ON_AIR).last().getAttribute('src')
+  }
+  const kvHapus = () => win.getByTestId('kv-block').getByRole('button', { name: 'Hapus' })
   check(await kvBtn.isDisabled(), 'no KV: the KV button is disabled')
   check(
     (await win.getByTestId('kv-block').textContent()).includes('Belum ada KV'),
@@ -1061,9 +1079,32 @@ try {
   check(true, `STANDBY with a KV: the output shows the KV colour (${GRID.length} sample points)`)
   check((await tally.textContent()) === 'STANDBY', 'automatic KV keeps the STANDBY tally')
   check(!(await kvBtn.isDisabled()), 'with a KV: the KV button is enabled')
-  const pgmImg = await win.locator('.screen img').last().getAttribute('src')
-  check((pgmImg ?? '').startsWith('slide://kv/'), 'Program monitor shows the KV at STANDBY too')
-  await win.getByTestId('kv-block').getByRole('button', { name: 'Hapus' }).click()
+  await waitOnAirSrc('slide://kv/', 'Program monitor shows the KV at STANDBY too')
+  // The automatic KV is on air: it cannot be removed, and the hint says why.
+  check(await kvHapus().isDisabled(), 'KV on air at STANDBY: Hapus is disabled')
+  check(
+    (await win.getByTestId('kv-hint').textContent()).includes('Matikan KV dulu'),
+    'KV on air: the hint says to turn KV off first'
+  )
+  // K at STANDBY with a KV: the output really leaves the KV (black, tally BLACK); K again brings it back.
+  const tallyNow = async (t) =>
+    win.waitForFunction((x) => document.querySelector('[data-testid=tally]')?.textContent === x, t)
+  await win.keyboard.press('k')
+  await tallyNow('BLACK')
+  await waitFrame(GRID, (px) => px.every(isBlack), 'K at STANDBY makes the output black')
+  check(
+    (await kvBtn.getAttribute('aria-pressed')) === 'false',
+    'K at STANDBY: KV button not pressed'
+  )
+  await win.keyboard.press('k')
+  await tallyNow('KV')
+  await waitFrame(GRID, (px) => px.every(isKv), 'K again brings the KV back at STANDBY')
+  check((await kvBtn.getAttribute('aria-pressed')) === 'true', 'KV back: KV button pressed')
+  await win.keyboard.press('k')
+  await tallyNow('BLACK')
+  check(!(await kvHapus().isDisabled()), 'KV off: Hapus is enabled again')
+  check((await win.getByTestId('kv-hint').count()) === 0, 'KV off: no hint')
+  await kvHapus().click()
   await kvBtn.waitFor()
   await win.waitForFunction(
     () =>
@@ -1072,6 +1113,14 @@ try {
   )
   await waitFrame(GRID, (px) => px.every(isBlack), 'removing the KV makes STANDBY black again')
   check(true, 'KV removed: button disabled and STANDBY black again')
+  // Clear the Black left over from turning the KV off with K, so the next slide shows.
+  await win.keyboard.press('b')
+  await win.waitForFunction(
+    () =>
+      [...document.querySelectorAll('.controls button')]
+        .find((b) => b.textContent.includes('Black'))
+        ?.getAttribute('aria-pressed') === 'false'
+  )
   await win.setInputFiles('[data-testid=kv-input]', path.join(root, 'fixtures/sample.pdf'))
   await win.getByTestId('kv-error').waitFor()
   check(
@@ -1217,8 +1266,7 @@ try {
   await tallyIs('KV')
   await waitFrame(GRID, (px) => px.every(isKv), 'K puts the KV on the output')
   check((await kvOn()) === 'true', 'K: KV button pressed')
-  const onAir = await win.locator('.screen img').last().getAttribute('src')
-  check((onAir ?? '').startsWith('slide://kv/'), 'Program monitor shows exactly the KV on air')
+  await waitOnAirSrc('slide://kv/', 'Program monitor shows exactly the KV on air')
   await win.keyboard.press('b')
   await tallyIs('BLACK')
   await waitFrame(GRID, (px) => px.every(isBlack), 'B over the KV makes the output black')
@@ -1235,10 +1283,31 @@ try {
   await tallyIs('LIVE')
   await waitFrame([[10, 10]], (px) => blue(px[0]), 'K again returns to slide 2')
   check(true, 'K, B, K, K: KV and Black take turns and the slide comes back')
-  // Removing the KV while a slide is LIVE: the button goes disabled, LIVE stays.
+  // Switching event while the KV is forced on keeps the same KV image on the output.
   await win.keyboard.press('k')
   await tallyIs('KV')
-  await win.getByTestId('kv-block').getByRole('button', { name: 'Hapus' }).click()
+  const kvSrc = await waitOnAirSrc('slide://kv/', 'forced KV on air before the event switch')
+  await win.click('.event-btn')
+  await win.getByRole('menuitem', { name: 'Event baru' }).click()
+  await win.fill('.event-input', 'Event KV')
+  await win.press('.event-input', 'Enter')
+  await win.locator('.event-btn', { hasText: 'Event KV' }).waitFor()
+  await tallyIs('KV')
+  await waitFrame(GRID, (px) => px.every(isKv), 'switching event keeps the KV on the output')
+  check(
+    (await waitOnAirSrc(kvSrc, 'same KV image on air after the event switch')) === kvSrc,
+    'the KV image on air is unchanged by the event switch'
+  )
+  await win.click('.event-btn')
+  await win.getByRole('menuitem', { name: 'Smoke Event' }).click()
+  await win.locator('.event-btn', { hasText: 'Smoke Event' }).waitFor()
+  await tallyIs('KV')
+  // A KV on air cannot be removed: Hapus is disabled with a hint; turn KV off first.
+  check(await kvHapus().isDisabled(), 'KV on air while LIVE: Hapus is disabled')
+  check((await win.getByTestId('kv-hint').count()) === 1, 'KV on air while LIVE: hint shown')
+  await win.keyboard.press('k')
+  await tallyIs('LIVE')
+  await kvHapus().click()
   await tallyIs('LIVE')
   await waitFrame([[10, 10]], (px) => blue(px[0]), 'removing the KV on air returns to slide 2')
   check(await kvBtn.isDisabled(), 'KV removed on air: KV button disabled, slide back on the output')

@@ -629,6 +629,12 @@ main {
   flex-direction: column;
   gap: 6px;
 }
+.kv-hint {
+  margin-top: 8px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .kv-error {
   margin-top: 8px;
   color: var(--text-2);
@@ -638,7 +644,7 @@ main {
 .add {
   flex: none;
   padding: 12px 16px 14px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-hi);
   background: var(--bg);
 }
 .add .btn {

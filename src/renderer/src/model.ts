@@ -1,5 +1,5 @@
 import type { DeckMeta } from '../../shared/types'
-import { pendingTake, reduce, type Action, type ProgramState } from '../../shared/program'
+import { kvOnAir, pendingTake, reduce, type Action, type ProgramState } from '../../shared/program'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import type { HdmiSettings } from '../../shared/settings'
 
@@ -71,8 +71,9 @@ export type Tally = 'live' | 'frozen' | 'black' | 'kv' | 'idle'
 export function tally(s: ProgramState): Tally {
   // KV on (pressed by the operator) is on air whatever else is going on. The
   // automatic KV while STANDBY keeps the STANDBY tally (nothing was taken yet).
-  if (s.kv && s.kvUrl) return 'kv'
-  if (!s.shown) return 'idle'
+  if (s.kv && kvOnAir(s)) return 'kv'
+  // STANDBY goes black only when the operator turned the automatic KV off (K).
+  if (!s.shown) return s.black && s.kvUrl !== null ? 'black' : 'idle'
   if (s.black) return 'black'
   if (s.frozen) return 'frozen'
   return 'live'

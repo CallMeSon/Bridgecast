@@ -1,9 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { Library } from './library'
 import { DECK_NAME_MAX } from '../shared/types'
+
+// fs namespace objects cannot be spied on in ESM; route copyFileSync through a hook.
+const hooks = vi.hoisted(() => ({
+  copy: null as null | ((src: string, dest: string) => void)
+}))
+vi.mock('fs', async (orig) => {
+  const actual = await orig<typeof import('fs')>()
+  const copyFileSync: typeof actual.copyFileSync = (s, d, m) =>
+    hooks.copy ? hooks.copy(String(s), String(d)) : actual.copyFileSync(s, d, m)
+  return { ...actual, default: { ...actual, copyFileSync }, copyFileSync }
+})
 
 let root: string
 let src: string
@@ -304,6 +315,97 @@ describe('Library', () => {
       expect('kv' in r).toBe(false)
       expect(fs.existsSync(path.join(kvDir(ev.id), kv))).toBe(false)
       expect('kv' in new Library(root).listEvents()[0]).toBe(false)
+    })
+
+    /** events.json becomes a folder: the atomic rename in saveEvents then fails. */
+    const breakSave = (): void => {
+      fs.rmSync(path.join(root, 'events.json'), { force: true })
+      fs.mkdirSync(path.join(root, 'events.json'))
+    }
+    const writeEvents = (events: unknown[]): void =>
+      fs.writeFileSync(path.join(root, 'events.json'), JSON.stringify(events))
+
+    it('setKv and clearKv never delete a previous file whose stored name is not a KV name', () => {
+      const victim = path.join(root, 'kv', 'victim.txt')
+      fs.mkdirSync(path.join(root, 'kv'), { recursive: true })
+      fs.writeFileSync(victim, 'keep me')
+      const id = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
+      writeEvents([{ id, name: 'E', deckIds: [], kv: '../victim.txt' }])
+      const lib = new Library(root)
+      const r = lib.setKv(id, img('a.png'))
+      expect(r.kv).toMatch(/^[0-9a-f-]{36}\.png$/)
+      expect(fs.existsSync(victim)).toBe(true)
+      writeEvents([{ id, name: 'E', deckIds: [], kv: '../victim.txt' }])
+      const lib2 = new Library(root)
+      expect('kv' in lib2.clearKv(id)).toBe(false)
+      expect(fs.existsSync(victim)).toBe(true)
+    })
+
+    it('rejects UNC and network paths with advice', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      for (const p of [String.raw`\\server\share\a.png`, '//server/share/a.png']) {
+        expect(() => lib.setKv(ev.id, p)).toThrow('Pilih gambar KV dari disk komputer ini')
+      }
+      expect(fs.existsSync(kvDir(ev.id))).toBe(false)
+    })
+
+    it('rejects a symbolic link as the source', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const target = img('real.png')
+      const link = path.join(src, 'link.png')
+      try {
+        fs.symlinkSync(target, link)
+      } catch {
+        return // no symlink privilege on this machine
+      }
+      expect(() => lib.setKv(ev.id, link)).toThrow(/pintasan|tautan/i)
+      expect(fs.existsSync(kvDir(ev.id))).toBe(false)
+    })
+
+    it('a failed copy leaves no file behind and keeps the old KV', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const old = lib.setKv(ev.id, img('ok.png')).kv
+      hooks.copy = (_s, dest) => {
+        fs.writeFileSync(dest, 'partial')
+        throw new Error('disk penuh')
+      }
+      try {
+        expect(() => lib.setKv(ev.id, img('b.png'))).toThrow('disk penuh')
+      } finally {
+        hooks.copy = null
+      }
+      expect(fs.readdirSync(kvDir(ev.id))).toEqual([old])
+      expect(lib.listEvents()[0].kv).toBe(old)
+    })
+
+    it('rejects and deletes a copy that turned out over 50 MB', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const old = lib.setKv(ev.id, img('ok.png')).kv
+      hooks.copy = (_s, dest) => {
+        fs.closeSync(fs.openSync(dest, 'w'))
+        fs.truncateSync(dest, 50 * 1024 * 1024 + 1)
+      }
+      try {
+        expect(() => lib.setKv(ev.id, img('b.png'))).toThrow(/50 MB/)
+      } finally {
+        hooks.copy = null
+      }
+      expect(fs.readdirSync(kvDir(ev.id))).toEqual([old])
+      expect(lib.listEvents()[0].kv).toBe(old)
+    })
+
+    it('clearKv restores the KV in memory and rethrows when events.json cannot be saved', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const kv = lib.setKv(ev.id, img('a.png')).kv
+      breakSave()
+      expect(() => lib.clearKv(ev.id)).toThrow()
+      expect(lib.listEvents()[0].kv).toBe(kv)
+      expect(fs.existsSync(path.join(kvDir(ev.id), kv!))).toBe(true)
     })
 
     it('kvFilePath only resolves the stored file name', () => {

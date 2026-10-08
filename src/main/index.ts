@@ -226,7 +226,7 @@ function registerIpc(
     assertString(file, 'Lokasi file')
     if (!path.isAbsolute(file)) {
       throw new Error(
-        'Lokasi file tidak valid. Pilih gambar KV lewat tombol Pilih gambar atau seret dari Explorer.'
+        'Lokasi file tidak valid. Pilih gambar KV lewat tombol Pilih gambar atau Ganti gambar.'
       )
     }
     return state.setKv(eventId, file)

@@ -1,5 +1,5 @@
 import { CaretLeftIcon, EyeSlashIcon, ImageIcon, PauseIcon } from '@phosphor-icons/react'
-import type { Action, ProgramState } from '../../../shared/program'
+import { kvOnAir, type Action, type ProgramState } from '../../../shared/program'
 
 interface Props {
   state: ProgramState
@@ -71,7 +71,7 @@ export function Controls({
       <div>
         <button
           className="cbtn hold"
-          aria-pressed={state.kv}
+          aria-pressed={kvOnAir(state)}
           disabled={state.kvUrl === null}
           title={
             state.kvUrl === null ? 'Belum ada KV. Tambahkan KV acara di kolom Deck.' : undefined

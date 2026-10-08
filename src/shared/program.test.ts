@@ -4,6 +4,7 @@ import {
   reconcile,
   followSlideOrder,
   initialState,
+  kvOnAir,
   pendingTake,
   type ProgramState,
   type ShownSlide
@@ -326,21 +327,44 @@ describe('KV', () => {
     const off = reduce(on, { type: 'toggleKv' }, decks)
     expect(off).toEqual({ ...st, kv: false, black: false })
   })
-  it('toggleKv works in STANDBY and while frozen, keeping position and shown', () => {
-    const standbyKv = reduce(
-      at('A', 0, { shown: null, kvUrl: KV_URL }),
-      { type: 'toggleKv' },
-      decks
-    )
-    expect(standbyKv.kv).toBe(true)
-    expect(standbyKv.shown).toBeNull()
+  it('toggleKv while frozen turns KV on, keeping position and shown', () => {
     const fz = at('A', 2, { kvUrl: KV_URL, frozen: true })
     const r = reduce(fz, { type: 'toggleKv' }, decks)
     expect(r).toEqual({ ...fz, kv: true })
   })
+  it('kvOnAir: automatic at STANDBY, forced with a slide, never with black or without a KV', () => {
+    expect(kvOnAir(at('A', 0, { shown: null, kvUrl: KV_URL }))).toBe(true)
+    expect(kvOnAir(at('A', 0, { kvUrl: KV_URL }))).toBe(false)
+    expect(kvOnAir(at('A', 0, { kvUrl: KV_URL, kv: true }))).toBe(true)
+    expect(kvOnAir(at('A', 0, { shown: null, kvUrl: KV_URL, black: true }))).toBe(false)
+    expect(kvOnAir(at('A', 0, { shown: null }))).toBe(false)
+    expect(kvOnAir(at('A', 0, { kv: true }))).toBe(false)
+  })
+  it('STANDBY with a KV: K goes black (output leaves the KV), K again brings the KV back', () => {
+    const st = at('A', 0, { shown: null, kvUrl: KV_URL })
+    const off = reduce(st, { type: 'toggleKv' }, decks)
+    expect(off).toMatchObject({ kv: false, black: true })
+    expect(kvOnAir(off)).toBe(false)
+    const on = reduce(off, { type: 'toggleKv' }, decks)
+    expect(on).toMatchObject({ kv: true, black: false })
+    expect(kvOnAir(on)).toBe(true)
+    const again = reduce(on, { type: 'toggleKv' }, decks)
+    expect(again).toMatchObject({ kv: false, black: true })
+  })
+  it('LIVE: K puts the KV on, K again returns to the slide (no black)', () => {
+    const st = at('A', 1, { kvUrl: KV_URL })
+    const on = reduce(st, { type: 'toggleKv' }, decks)
+    expect(kvOnAir(on)).toBe(true)
+    const back = reduce(on, { type: 'toggleKv' }, decks)
+    expect(back).toEqual(st)
+  })
   it('toggleKv can turn KV off even if kvUrl went away', () => {
     const st = at('A', 0, { kv: true, kvUrl: null })
     expect(reduce(st, { type: 'toggleKv' }, decks).kv).toBe(false)
+  })
+  it('toggleKv is a no-op for a stale kv flag only when it is already off', () => {
+    const st = at('A', 0, { kv: false, kvUrl: null })
+    expect(reduce(st, { type: 'toggleKv' }, decks)).toBe(st)
   })
   it('toggleBlack turning Black on turns KV off; turning it off leaves KV off', () => {
     const st = at('A', 0, { kvUrl: KV_URL, kv: true })

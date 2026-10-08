@@ -50,6 +50,14 @@ export type Action =
 
 type DeckLike = Pick<DeckMeta, 'id' | 'slides'>
 
+/**
+ * The KV image is on the output: not black, there is a KV, and it was pressed
+ * (kv) or nothing is shown (STANDBY shows the KV by itself).
+ */
+export function kvOnAir(s: ProgramState): boolean {
+  return !s.black && s.kvUrl !== null && (s.kv || s.shown === null)
+}
+
 export const initialState: ProgramState = {
   deckId: null,
   index: 0,
@@ -193,8 +201,12 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
     case 'toggleBlack':
       return { ...state, black: !state.black, kv: state.black ? state.kv : false }
     case 'toggleKv':
-      if (state.kv) return { ...state, kv: false }
-      if (state.kvUrl === null) return state
+      // Off: the KV on air goes away. At STANDBY the KV shows by itself, so the
+      // output only really leaves it when it goes black.
+      if (kvOnAir(state)) {
+        return { ...state, kv: false, black: state.shown === null ? true : state.black }
+      }
+      if (state.kvUrl === null) return state.kv ? { ...state, kv: false } : state
       return { ...state, kv: true, black: false }
     case 'setTransition':
       return { ...state, transition: action.transition }
