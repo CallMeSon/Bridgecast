@@ -11,7 +11,7 @@ export type NextView =
       index: number
       file: string
       notes: string
-      /** Frozen: this is the operator position, what goes live on unfreeze (a preview). */
+      /** Frozen: this is the operator position, a preview only (unfreeze keeps the held slide live). */
       held?: true
     }
   | { kind: 'end'; nextDeck: string | null; auto: boolean }

@@ -46,7 +46,7 @@ export function NextPanel({
   return (
     <aside className="right" aria-label="Up next">
       <div className="colhead">
-        <h2>{held ? 'Goes live on unfreeze' : 'Up next'}</h2>
+        <h2>{held ? 'Preview' : 'Up next'}</h2>
         <span className="next-pos" data-testid="next-pos">
           {nextPos}
         </span>

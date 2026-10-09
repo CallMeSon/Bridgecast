@@ -186,17 +186,15 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
     case 'toggleFreeze': {
       // Freezing only means something while a slide is on air.
       if (!state.frozen) return state.shown === null ? state : { ...state, frozen: true }
-      // Unfreeze: the operator position (the preview while frozen) goes live at
-      // once. Nothing on the output (STANDBY) or an invalid position: only the
-      // freeze is cleared. Black stays as it is, the new slide is behind it.
-      const deck = decks.find((d) => d.id === state.deckId)
-      const valid =
-        !!deck &&
-        Number.isInteger(state.index) &&
-        state.index >= 0 &&
-        state.index < deck.slides.length
-      if (!state.shown || !deck || !valid) return { ...state, frozen: false }
-      return moveTo({ ...state, frozen: false }, deck, state.index)
+      // Unfreeze: the output stays on the slide that was held, and the operator
+      // position returns to it, so Next goes on from what is on air. A live
+      // slide outside these decks (or STANDBY): only the freeze is cleared.
+      const live = locateShown(
+        state.shown,
+        decks.find((d) => d.id === state.shown?.deckId)
+      )
+      if (!live) return { ...state, frozen: false }
+      return { ...state, frozen: false, deckId: live.deckId, index: live.index, shown: live }
     }
     case 'toggleBlack':
       return { ...state, black: !state.black, kv: state.black ? state.kv : false }

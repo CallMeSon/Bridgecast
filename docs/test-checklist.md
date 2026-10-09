@@ -29,7 +29,7 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] Next 50 kali berturut-turut (Space/→). Tidak ada slide yang terlewat atau tertinggal.
 - [ ] Prev (←), Freeze (F), Black (B), dan transisi Fade. Layar kedua mengikuti semuanya.
 - [ ] KV: unggah gambar di "Key visual (KV)"; saat STANDBY layar kedua menampilkan KV, saat ada slide tekan K (tally KV), B menggantikan KV dengan hitam, hapus KV mengembalikan STANDBY hitam. Gambar non 16:9 tampil utuh.
-- [ ] Freeze, lalu Next beberapa kali: layar kedua tetap, panel kanan "Goes live on unfreeze" menampilkan slide yang dipilih. Unfreeze: slide itu langsung tayang.
+- [ ] Freeze, lalu Next beberapa kali: layar kedua tetap, panel kanan "Preview" menampilkan slide yang dipilih. Unfreeze: layar kedua tetap di slide yang ditahan, posisi kembali ke slide itu, Next lanjut ke slide berikutnya.
 - [ ] Dengan clicker presentasi (jendela operator aktif): tombol maju/mundur menggeser slide, tombol layar hitam memicu Black.
 - [ ] "Continue to next deck" mati: clicker di slide terakhir tidak pindah ke deck berikutnya. Hidupkan: clicker lanjut ke deck berikutnya. Tutup dan buka aplikasi: pilihannya tetap.
 - [ ] Cabut kabel HDMI saat live. Layar operator tidak tertutup; status menjadi "HDMI hidden".

@@ -21,7 +21,7 @@ web
 
 ## Positioning
 
-- Not "PowerPoint on a second screen": PowerPoint (or pdf.js) is used only at import time to convert slides to images; during the show the app renders Program itself and behaves like a broadcast program bus: LIVE / FROZEN / BLACK / KV / STANDBY tally, Cut or Fade, Freeze as a preview of what goes live on unfreeze, a key visual hold image, and no separate Preview bus (Next/Prev change Program directly).
+- Not "PowerPoint on a second screen": PowerPoint (or pdf.js) is used only at import time to convert slides to images; during the show the app renders Program itself and behaves like a broadcast program bus: LIVE / FROZEN / BLACK / KV / STANDBY tally, Cut or Fade, Freeze that holds the output while the operator previews other slides, a key visual hold image, and no separate Preview bus (Next/Prev change Program directly).
 - Runs fully offline; the output never moves onto the operator's own display.
 
 ## Operating Context
@@ -29,7 +29,7 @@ web
 - Workflow: create an event (starts empty), import .pptx/.ppt/.pdf by button or drag and drop (per-file progress), reorder and rename decks, set an optional KV (key visual) image per event, connect HDMI and choose the target display, then run the show with keys or clicker.
 - Controls: Space / Right / PageDown = Next, Left / PageUp = Prev, F = Freeze, B or "." = Black, K = KV. Keys work only while the operator window has focus (a speaker's clicker therefore only works when that window is active).
 - Auto advance to the next deck is off by default so a clicker stops at the end of the live deck; it is a saved switch.
-- Freeze holds the output while the operator moves a preview; unfreeze takes that slide live.
+- Freeze holds the output while the operator moves a preview; unfreeze keeps the held slide live and returns the position to it (changed 2026-10-08 at the user's request; before, unfreeze took the preview live).
 - HDMI can disappear mid-show: the output hides and returns when the same display reconnects.
 - Environment: Windows 11, PowerPoint installed for PPT/PPTX import (COM), offline, NSIS installer. Field checklist: docs/test-checklist.md.
 
@@ -38,7 +38,7 @@ web
 - Input: .pptx, .ppt, .pdf converted to static PNG slides (1920 px wide) with speaker notes. Animations, video and audio inside slides are not supported.
 - One output (HDMI, second display) with the Program content. Removed or out of scope: NDI (removed 2026-10-08, SDK licensing), Canva import (spike cancelled 2026-10-08), a second output with different content, transcript or speech-to-text, live PowerPoint animation mode, timer, nested playlists, remote control from other devices.
 - Terminology: event, deck, slide, Program (PGM), Next, Prev, Freeze, Black, KV, Cut, Fade, tally states LIVE, FROZEN, BLACK, KV, STANDBY.
-- UI language: English (done 2026-10-08; the user decided the UI should be English "to be more universal", since the app is shared for free with other operators). Broadcast terms stay as they are. Panel and label names: Event (header), Decks (library panel, with the Key visual (KV) block), Up next (right panel; "Goes live on unfreeze" while frozen), Notes, Transition, Continue to next deck.
+- UI language: English (done 2026-10-08; the user decided the UI should be English "to be more universal", since the app is shared for free with other operators). Broadcast terms stay as they are. Panel and label names: Event (header), Decks (library panel, with the Key visual (KV) block), Up next (right panel; "Preview" while frozen), Notes, Transition, Continue to next deck.
 - Every user-facing error names the problem and the recovery action.
 - Light and dark themes (dark default), resizable panels, settings and library stored locally per machine.
 

@@ -85,14 +85,15 @@ describe('reduce navigation', () => {
       st
     )
   })
-  it('frozen keeps shown while the position moves; unfreezing takes the position', () => {
+  it('frozen keeps shown while the position moves; unfreezing keeps shown and returns the position', () => {
     const f = at('A', 0, { frozen: true })
     const r = reduce(f, { type: 'next' }, decks)
     expect(r.index).toBe(1)
     expect(r.shown).toEqual(sh('A', 0))
     const u = reduce(r, { type: 'toggleFreeze' }, decks)
     expect(u.frozen).toBe(false)
-    expect(u.shown).toEqual(sh('A', 1))
+    expect(u.shown).toEqual(sh('A', 0))
+    expect([u.deckId, u.index]).toEqual(['A', 0])
   })
   it('toggleBlack changes neither position nor shown', () => {
     const st = at('A', 1)
@@ -263,7 +264,7 @@ describe('take on first Next/Prev when nothing of this event is shown', () => {
     expect(reduce(st, { type: 'toggleFreeze' }, decks)).toBe(st)
   })
 
-  it('freeze, next, next, unfreeze: shown becomes the position', () => {
+  it('freeze, next, next, unfreeze: the output stays, the position returns to it, Next goes on from there', () => {
     let st = at('A', 0)
     st = reduce(st, { type: 'toggleFreeze' }, decks)
     st = reduce(st, { type: 'next' }, decks)
@@ -272,8 +273,18 @@ describe('take on first Next/Prev when nothing of this event is shown', () => {
     expect(st.index).toBe(2)
     st = reduce(st, { type: 'toggleFreeze' }, decks)
     expect(st.frozen).toBe(false)
-    expect(st.shown).toEqual(sh('A', 2))
-    expect(st.index).toBe(2)
+    expect(st.shown).toEqual(sh('A', 0))
+    expect([st.deckId, st.index]).toEqual(['A', 0])
+    st = reduce(st, { type: 'next' }, decks)
+    expect(st.shown).toEqual(sh('A', 1))
+  })
+
+  it('unfreeze after moving to another deck returns the position to the live deck', () => {
+    let st = reduce(at('A', 1), { type: 'toggleFreeze' }, decks)
+    st = reduce(st, { type: 'selectDeck', deckId: 'B' }, decks)
+    st = reduce(st, { type: 'toggleFreeze' }, decks)
+    expect(st.shown).toEqual(sh('A', 1))
+    expect([st.deckId, st.index]).toEqual(['A', 1])
   })
 
   it('unfreeze with nothing on the output (stale frozen state) only clears the freeze', () => {
@@ -284,20 +295,27 @@ describe('take on first Next/Prev when nothing of this event is shown', () => {
     expect(r.index).toBe(1)
   })
 
-  it('unfreeze while black keeps black with the new slide behind it', () => {
+  it('unfreeze while black keeps black and the same slide behind it', () => {
     let st = at('A', 0, { black: true })
     st = reduce(st, { type: 'toggleFreeze' }, decks)
     st = reduce(st, { type: 'next' }, decks)
     st = reduce(st, { type: 'toggleFreeze' }, decks)
     expect(st.black).toBe(true)
-    expect(st.shown).toEqual(sh('A', 1))
+    expect(st.shown).toEqual(sh('A', 0))
   })
 
-  it('unfreeze with an invalid position only clears the freeze', () => {
+  it('unfreeze with an invalid position returns it to the live slide', () => {
     const st = at('A', 0, { frozen: true, deckId: 'gone' })
     const r = reduce(st, { type: 'toggleFreeze' }, decks)
     expect(r.frozen).toBe(false)
     expect(r.shown).toEqual(sh('A', 0))
+    expect([r.deckId, r.index]).toEqual(['A', 0])
+  })
+
+  it('unfreeze with the live slide outside these decks only clears the freeze', () => {
+    const st = at('B', 1, { frozen: true, shown: sh('OTHER', 4) })
+    const r = reduce(st, { type: 'toggleFreeze' }, decks)
+    expect(r).toEqual({ ...st, frozen: false })
   })
 
   it('unfreeze without moving keeps the same shown slide', () => {
