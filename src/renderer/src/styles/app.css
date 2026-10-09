@@ -747,7 +747,8 @@ main {
   overflow: hidden;
   background: var(--letterbox);
 }
-.slide img {
+.slide img,
+.slide video {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -856,6 +857,10 @@ main {
 .screen .pgm-layer {
   position: absolute;
   inset: 0;
+}
+/* A video layer is see-through until its first frame is on screen (see SlideLayers). */
+.screen .pgm-layer[data-kind='video'] {
+  background: transparent;
 }
 /* Not on screen until its image is decoded (see SlideLayers). */
 .screen .pgm-layer[data-state='pending'] {

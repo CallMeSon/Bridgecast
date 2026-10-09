@@ -22,6 +22,7 @@ import {
   hdmiStatusText,
   nextView,
   outputSource,
+  type OutputMedia,
   TALLY_TEXT,
   tally
 } from './model'
@@ -264,12 +265,40 @@ describe('errorMessage', () => {
   })
 })
 
+const img = (url: string): OutputMedia => ({ kind: 'image', url })
+
+describe('outputSource with a video slide', () => {
+  const deckId = '44444444-4444-4444-4444-444444444444'
+  const shown = { deckId, index: 0, file: '001.png', video: '001.mp4' }
+  const kvUrl = 'slide://kv/22222222-2222-2222-2222-222222222222/k.png'
+  it('a shown video slide is a video with its PNG as poster and the take', () => {
+    expect(outputSource({ ...initialState, shown, take: 7 })).toEqual({
+      kind: 'video',
+      url: `slide://${deckId}/001.mp4`,
+      poster: `slide://${deckId}/001.png`,
+      take: 7
+    })
+  })
+  it('a shown image slide is an image', () => {
+    const still = { deckId, index: 0, file: '001.png' }
+    expect(outputSource({ ...initialState, shown: still, take: 3 })).toEqual(
+      img(`slide://${deckId}/001.png`)
+    )
+  })
+  it('KV over a video slide is the KV image', () => {
+    expect(outputSource({ ...initialState, shown, kvUrl, kv: true, take: 2 })).toEqual(img(kvUrl))
+  })
+  it('Black over a video slide is black', () => {
+    expect(outputSource({ ...initialState, shown, black: true, take: 2 })).toBeNull()
+  })
+})
+
 describe('outputSource', () => {
   // The slide at index 2 is file 005.png (its deck was reordered).
   const shown = { deckId: '11111111-1111-1111-1111-111111111111', index: 2, file: '005.png' }
   it('shows the shown slide by its file, not the operator position or index', () => {
     const s: ProgramState = { ...initialState, deckId: 'other', index: 5, shown }
-    expect(outputSource(s)).toBe(`slide://${shown.deckId}/005.png`)
+    expect(outputSource(s)).toEqual(img(`slide://${shown.deckId}/005.png`))
   })
   it('is black when nothing is shown', () => {
     expect(outputSource({ ...initialState, deckId: 'd', index: 1 })).toBeNull()
@@ -279,7 +308,7 @@ describe('outputSource', () => {
   })
   it('keeps the shown slide while frozen', () => {
     const s: ProgramState = { ...initialState, deckId: shown.deckId, index: 3, shown, frozen: true }
-    expect(outputSource(s)).toBe(`slide://${shown.deckId}/005.png`)
+    expect(outputSource(s)).toEqual(img(`slide://${shown.deckId}/005.png`))
   })
 })
 
@@ -290,31 +319,31 @@ describe('outputSource with KV', () => {
   const slide = `slide://${shown.deckId}/001.png`
   const base: ProgramState = { ...initialState, kvUrl }
   it('STANDBY shows the KV automatically, or black without one', () => {
-    expect(outputSource(base)).toBe(kvUrl)
+    expect(outputSource(base)).toEqual(img(kvUrl))
     expect(outputSource({ ...initialState })).toBeNull()
   })
   it('a shown slide wins over the automatic KV', () => {
-    expect(outputSource({ ...base, shown })).toBe(slide)
-    expect(outputSource({ ...base, shown, frozen: true })).toBe(slide)
+    expect(outputSource({ ...base, shown })).toEqual(img(slide))
+    expect(outputSource({ ...base, shown, frozen: true })).toEqual(img(slide))
   })
   it('KV on shows the KV over a slide, also when frozen', () => {
-    expect(outputSource({ ...base, shown, kv: true })).toBe(kvUrl)
-    expect(outputSource({ ...base, shown, kv: true, frozen: true })).toBe(kvUrl)
-    expect(outputSource({ ...base, kv: true })).toBe(kvUrl)
+    expect(outputSource({ ...base, shown, kv: true })).toEqual(img(kvUrl))
+    expect(outputSource({ ...base, shown, kv: true, frozen: true })).toEqual(img(kvUrl))
+    expect(outputSource({ ...base, kv: true })).toEqual(img(kvUrl))
   })
   it('KV on without a kvUrl falls back to the slide', () => {
-    expect(outputSource({ ...initialState, shown, kv: true })).toBe(slide)
+    expect(outputSource({ ...initialState, shown, kv: true })).toEqual(img(slide))
   })
   it('K at STANDBY (black) leaves the KV; K again shows it; LIVE K, K returns to the slide', () => {
     const standby: ProgramState = { ...base }
     const off = reduce(standby, { type: 'toggleKv' }, [])
     expect(outputSource(off)).toBeNull()
     const on = reduce(off, { type: 'toggleKv' }, [])
-    expect(outputSource(on)).toBe(kvUrl)
+    expect(outputSource(on)).toEqual(img(kvUrl))
     const live: ProgramState = { ...base, shown }
     const forced = reduce(live, { type: 'toggleKv' }, [])
-    expect(outputSource(forced)).toBe(kvUrl)
-    expect(outputSource(reduce(forced, { type: 'toggleKv' }, []))).toBe(slide)
+    expect(outputSource(forced)).toEqual(img(kvUrl))
+    expect(outputSource(reduce(forced, { type: 'toggleKv' }, []))).toEqual(img(slide))
   })
   it('Black wins over everything', () => {
     expect(outputSource({ ...base, shown, black: true })).toBeNull()

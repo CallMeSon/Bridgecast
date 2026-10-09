@@ -12,11 +12,16 @@
   inset: 0;
   background: #000;
 }
-.output-layer img {
+.output-layer img,
+.output-layer video {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+/* A video layer is see-through until its first frame is on screen (see SlideLayers). */
+.output-layer[data-kind='video'] {
+  background: transparent;
 }
 /* Not on screen until its image is decoded (see SlideLayers). */
 .output-layer[data-state='pending'] {

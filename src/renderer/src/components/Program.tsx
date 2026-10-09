@@ -28,7 +28,7 @@ export function Program({
 }): React.JSX.Element {
   const t = tally(state)
   const shown = state.shown
-  const src = outputSource(state)
+  const media = outputSource(state)
   return (
     <div className="program" data-state={t} data-testid="program">
       <div className="colhead">
@@ -43,10 +43,11 @@ export function Program({
       <div className="pgm-view">
         <div className="pgm-stack">
           <div className="screen" data-black={state.black} data-transition={state.transition}>
-            {shown || src ? (
+            {shown || media ? (
               <SlideLayers
-                src={src}
+                media={media}
                 fade={state.transition === 'fade'}
+                muted
                 layerClass="slide pgm-layer"
                 imgAttrs={(_key, url) => ({
                   alt:

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProgramState } from '../../shared/program'
 import { outputSource } from './model'
-import { SlideLayers } from './components/SlideLayers'
+import { SlideLayers, type ShownMedia } from './components/SlideLayers'
 
 const timingId = (key: number): string => `layer-${key}`
 
@@ -60,13 +60,14 @@ export function OutputView(): React.JSX.Element {
   }, [])
 
   // Tell main once the first layer for a known state is on screen, so the HDMI
-  // window is shown without ever flashing a placeholder. The image is decoded
-  // by then; Element Timing confirms it was painted, then two animation frames
-  // let that frame reach the screen.
-  const onShown = (key: number, src: string | null): void => {
+  // window is shown without ever flashing a placeholder. An image is decoded
+  // by then and Element Timing confirms it was painted; a video's first frame
+  // has been presented (SlideLayers reports it only then). Then two animation
+  // frames let that frame reach the screen.
+  const onShown = (key: number, media: ShownMedia): void => {
     if (readySent.current) return
     readySent.current = true
-    const painted = src ? imagePainted(timingId(key)) : Promise.resolve()
+    const painted = media?.kind === 'image' ? imagePainted(timingId(key)) : Promise.resolve()
     void painted.then(() =>
       requestAnimationFrame(() => requestAnimationFrame(() => window.api.outputReady()))
     )
@@ -76,8 +77,9 @@ export function OutputView(): React.JSX.Element {
     <div className="output" aria-hidden="true">
       {program && (
         <SlideLayers
-          src={outputSource(program)}
+          media={outputSource(program)}
           fade={program.transition === 'fade'}
+          muted={false}
           layerClass="output-layer"
           imgAttrs={(key) => ({ elementtiming: timingId(key) })}
           onShown={onShown}

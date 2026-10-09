@@ -695,7 +695,17 @@ async function behaviourChecks(win, tally, pos) {
   const focusedDeck = () => win.evaluate(() => document.activeElement?.dataset?.deckId ?? null)
 
   // Make sure Next has somewhere to go, then park focus on the page body.
+  // Prev is applied asynchronously (main, then the state broadcast); wait for it
+  // so the starting position is settled (it is ignored when focus is in an input).
+  const pBefore = await posText()
   await win.keyboard.press('ArrowLeft')
+  await win
+    .waitForFunction(
+      (b) => document.querySelector('[data-testid=pos]')?.textContent !== b,
+      pBefore,
+      { timeout: 1000 }
+    )
+    .catch(() => undefined)
   await win.evaluate(() => document.activeElement?.blur())
   const p0 = await posText()
   const [cur, total] = p0.split(' / ').map(Number)
@@ -1266,14 +1276,411 @@ async function simulatedHdmiChecks(win, real) {
   )
 }
 
+// --- Video slides (fixtures/video-deck) ---
+// Each video: an 80 px square (640×360 page) moves from x 40 to 520 over ~1 s,
+// then holds; the page's PNG is the last frame. In 1920×1080 frame coordinates
+// the square's row is y 420..660, its start x 120..360, its end x 1560..1800.
+const V_START = [240, 540]
+const V_END = [1680, 540]
+const V_PTS = [V_START, V_END, [960, 540], [60, 60], [1860, 1020]]
+const V_SWEEP = Array.from({ length: 15 }, (_, i) => [120 + i * 120, 540])
+const near = (p, rgb, tol = 60) => p.every((c, i) => Math.abs(c - rgb[i]) < tol)
+const V_BG = [22, 24, 29]
+const BLUE = [30, 91, 255]
+const V_YELLOW = [255, 212, 0]
+const isRed = ([r, g, b]) => r > 150 && g < 100 && b < 100
+const isMagenta = ([r, g, b]) => r > 150 && g < 100 && b > 140
+const sameFrame = (a, b) => a.px.every((p, i) => near(p, b.px[i], 12))
+
+/** Runs `src` in the HDMI output renderer. */
+const hdmiJs = (src) =>
+  app.evaluate(
+    ({ BrowserWindow }, [title, s]) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => !w.isDestroyed() && w.getTitle() === title)
+        .webContents.executeJavaScript(s),
+    [HDMI_TITLE, src]
+  )
+
+/** The newest on-screen (not pending) output layer: its media element and state. */
+const OUTPUT_TOP = `(() => {
+  const l = [...document.querySelectorAll('.output-layer:not([data-state=pending])')].pop()
+  const v = l?.querySelector('video')
+  const i = l?.querySelector('img')
+  return v
+    ? { kind: 'video', src: v.getAttribute('src'), t: v.currentTime, ended: v.ended, paused: v.paused, muted: v.muted }
+    : i ? { kind: 'image', src: i.getAttribute('src') } : null
+})()`
+
+async function waitOutputTop(pred, what, timeout = 10_000) {
+  const end = Date.now() + timeout
+  let top = null
+  while (Date.now() < end) {
+    top = await hdmiJs(OUTPUT_TOP)
+    if (top && pred(top)) return top
+    await sleep(100)
+  }
+  throw new Error(`ASSERT: ${what} (last ${JSON.stringify(top)})`)
+}
+
+/** Polls output frames back to back (no sleep) until `pred(px)`; returns the frame. */
+async function firstFrame(points, pred, what, timeout = 5000) {
+  const end = Date.now() + timeout
+  let f = null
+  while (Date.now() < end) {
+    f = await dumpFrame(points)
+    if (f && pred(f.px)) return f
+  }
+  throw new Error(`ASSERT: ${what} (last frame: ${JSON.stringify(f?.px)})`)
+}
+
+/**
+ * Runs in the output renderer for `ms`: on every animation frame, records the
+ * topmost visible layer's readiness (1 = decoded image or a video with its
+ * frame, 0 = nothing to show), and whether a layer with `watch` in its video
+ * src is ever on screen or playing.
+ */
+function videoRecorder(ms, watch) {
+  return new Promise((resolve) => {
+    const out = { frames: [], watchCreated: 0, watchShown: 0, watchPlaying: 0 }
+    const seen = new WeakSet()
+    const end = performance.now() + ms
+    const tick = () => {
+      const layers = [...document.querySelectorAll('.output-layer')]
+      const top = layers.filter((l) => Number(getComputedStyle(l).opacity) > 0).pop()
+      const v = top?.querySelector('video')
+      const i = top?.querySelector('img')
+      out.frames.push((v && v.readyState >= 2) || (i && i.complete && i.naturalWidth > 0) ? 1 : 0)
+      for (const l of layers) {
+        const w = l.querySelector('video')
+        if (!w || !(w.getAttribute('src') ?? '').includes(watch)) continue
+        if (!seen.has(w)) {
+          seen.add(w)
+          out.watchCreated++
+        }
+        if (l.dataset.state !== 'pending') out.watchShown++
+        if (!w.paused) out.watchPlaying++
+      }
+      if (performance.now() < end) requestAnimationFrame(tick)
+      else resolve(out)
+    }
+    requestAnimationFrame(tick)
+  })
+}
+const videoRecorderSrc = (ms, watch) =>
+  `(${videoRecorder.toString()})(${ms}, ${JSON.stringify(watch)})`
+
+async function videoChecks(win, tally) {
+  const waitPos = (p) =>
+    win.waitForFunction((x) => document.querySelector('[data-testid=pos]')?.textContent === x, p)
+  const tallyIs = (t) =>
+    win.waitForFunction((x) => document.querySelector('[data-testid=tally]')?.textContent === x, t)
+  const blur = () => win.evaluate(() => document.activeElement?.blur())
+  const liveDeck = win.locator('.deck', {
+    has: win.locator('.name', { hasText: /^Session 1: Introduction$/ })
+  })
+
+  /** Imports fixtures/video-deck (a new deck id each time); returns its id and row. */
+  const importVideoDeck = async (id) => {
+    const ids = () =>
+      win.$$eval('[data-testid=decks] .deck[data-deck-id]', (els) =>
+        els.map((e) => e.dataset.deckId)
+      )
+    const before = await ids()
+    await win.evaluate(
+      async ([dir, jobId]) => {
+        const { eventId } = await window.api.getSession()
+        await window.api.importDecks(eventId, [{ id: jobId, path: dir }])
+      },
+      [path.join(root, 'fixtures/video-deck'), id]
+    )
+    await win.waitForFunction(
+      (b) =>
+        [...document.querySelectorAll('[data-testid=decks] .deck[data-deck-id]:not(.busy)')].some(
+          (e) => !b.includes(e.dataset.deckId)
+        ),
+      before,
+      { timeout: 30_000 }
+    )
+    const deckId = (await ids()).find((d) => !before.includes(d))
+    return { deckId, row: win.locator(`.deck[data-deck-id="${deckId}"]`) }
+  }
+  const { row: vDeck } = await importVideoDeck('e2e-video')
+  check(true, 'video deck imported for the playback checks')
+
+  // 1. Plays once from the first frame, then holds the last frame. The Cut from
+  //    the noise slide to the video never passes through a black frame.
+  await vDeck.click()
+  let cutBlack = 0
+  const first = await firstFrame(
+    V_PTS,
+    (px) => {
+      if (px.every(isBlack)) cutBlack++
+      return near(px[1], V_BG, 12) && near(px[3], V_BG, 12)
+    },
+    'video slide 1 reaches the output'
+  )
+  await blur()
+  await waitPos('1 / 5')
+  check(
+    !near(first.px[1], V_YELLOW) && cutBlack === 0,
+    `video starts from its first frame, no black frame on the Cut (end point ${JSON.stringify(first.px[1])}, ${cutBlack} black captures)`
+  )
+  const top1 = await waitOutputTop(
+    (t) => t.kind === 'video' && t.src.endsWith('/001.mp4') && t.ended,
+    'video slide 1 plays to its end on the output'
+  )
+  const held = await dumpFrame(V_PTS)
+  check(
+    near(held.px[1], V_YELLOW) && near(held.px[0], V_BG),
+    `after the end the square is at its last position (start ${JSON.stringify(held.px[0])}, end ${JSON.stringify(held.px[1])})`
+  )
+  await sleep(1000)
+  const later = await dumpFrame(V_PTS)
+  check(
+    sameFrame(held, later),
+    `video slide: first frame differs from the last, then it holds (${JSON.stringify(later.px)})`
+  )
+  const pgm = await win.evaluate(() => {
+    const v = [...document.querySelectorAll('.screen .pgm-layer video')].pop()
+    return v ? { muted: v.muted, src: v.getAttribute('src') } : null
+  })
+  check(
+    !top1.muted && pgm?.muted === true && pgm.src.endsWith('/001.mp4'),
+    `output plays with sound, the Program monitor plays the same video muted (${JSON.stringify(pgm)})`
+  )
+
+  // 2. Black, then Black off: straight back to the last frame (the poster), no replay.
+  await win.keyboard.press('b')
+  await tallyIs('BLACK')
+  await waitFrame(V_PTS, (px) => px.every(isBlack), 'B blacks out the video slide')
+  const tOff = Date.now()
+  await win.keyboard.press('b')
+  const back = await firstFrame(V_PTS, (px) => !px.every(isBlack), 'Black off shows a frame')
+  const dt = Date.now() - tOff
+  const top2 = await hdmiJs(OUTPUT_TOP)
+  check(
+    sameFrame(back, held) && dt <= 300 && top2?.kind === 'image' && top2.src.endsWith('/001.png'),
+    `Black then Black off shows the last frame at once (${dt} ms, ${JSON.stringify(top2)})`
+  )
+  await tallyIs('LIVE')
+
+  // 3. Next to the image slide, Prev back: a new take replays the animation.
+  await win.keyboard.press('ArrowRight')
+  await waitPos('2 / 5')
+  await waitFrame([[960, 540]], (px) => near(px[0], BLUE), 'slide 2 (blue) on the output')
+  await win.keyboard.press('ArrowLeft')
+  await waitPos('1 / 5')
+  const again = await firstFrame(
+    V_PTS,
+    (px) => near(px[3], V_BG, 30),
+    'Prev shows video slide 1 again'
+  )
+  check(
+    !near(again.px[1], V_YELLOW),
+    `Prev then Next replays the animation (end point ${JSON.stringify(again.px[1])} on the first frame)`
+  )
+  await waitOutputTop(
+    (t) => t.kind === 'video' && t.src.endsWith('/001.mp4') && t.ended,
+    'the replay plays to its end'
+  )
+
+  // 4. A pending video superseded by Next (Review Focus 1), made deterministic:
+  //    the output holds back slide 3's `loadeddata`, so its layer stays pending
+  //    until the next Next. It must be stopped (paused, src dropped) and removed,
+  //    never shown and never playing.
+  await win.keyboard.press('ArrowRight')
+  await waitPos('2 / 5')
+  await waitFrame([[960, 540]], (px) => near(px[0], BLUE), 'slide 2 (blue) for the pending check')
+  await hdmiJs(`(() => {
+    const h = (window.__hold = { created: 0, shown: 0, playing: 0, removed: [], on: true })
+    h.stopLoad = (e) => {
+      if (h.on && (e.target.getAttribute?.('src') ?? '').endsWith('/003.mp4')) e.stopImmediatePropagation()
+    }
+    addEventListener('loadeddata', h.stopLoad, true)
+    const seen = new Set()
+    h.obs = new MutationObserver((muts) => {
+      for (const m of muts) for (const n of m.removedNodes) {
+        const v = n.querySelector?.('video')
+        if (v && seen.has(v)) h.removed.push({ paused: v.paused, src: v.getAttribute('src') })
+      }
+    })
+    h.obs.observe(document.querySelector('.output'), { childList: true, subtree: true })
+    const tick = () => {
+      for (const l of document.querySelectorAll('.output-layer')) {
+        const v = l.querySelector('video')
+        if (!v || !(v.getAttribute('src') ?? '').endsWith('/003.mp4')) continue
+        if (!seen.has(v)) { seen.add(v); h.created++ }
+        if (l.dataset.state !== 'pending') h.shown++
+        if (!v.paused) h.playing++
+      }
+      if (h.on) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })()`)
+  await win.keyboard.press('ArrowRight')
+  await waitPos('3 / 5')
+  await win.waitForTimeout(400)
+  const held3 = await hdmiJs(
+    `[...document.querySelectorAll('.output-layer')].map((l) => [l.dataset.state, l.querySelector('video,img')?.getAttribute('src')])`
+  )
+  const stillBlue = await dumpFrame([[960, 540]])
+  check(
+    held3.some(([st, src]) => st === 'pending' && src?.endsWith('/003.mp4')) &&
+      near(stillBlue.px[0], BLUE),
+    `slide 3's video is held pending, slide 2 stays on the output (${JSON.stringify(held3)})`
+  )
+  await win.keyboard.press('ArrowRight')
+  await waitPos('4 / 5')
+  await waitFrame(V_SWEEP, (px) => px.some(isMagenta), 'slide 4 (magenta) after the pending one')
+  await win.waitForTimeout(200)
+  const hold = await hdmiJs(`(() => {
+    const h = window.__hold
+    h.on = false
+    removeEventListener('loadeddata', h.stopLoad, true)
+    h.obs.disconnect()
+    return { created: h.created, shown: h.shown, playing: h.playing, removed: h.removed }
+  })()`)
+  check(
+    hold.created === 1 &&
+      hold.shown === 0 &&
+      hold.playing === 0 &&
+      hold.removed.length === 1 &&
+      hold.removed[0].paused &&
+      hold.removed[0].src === null,
+    `a pending video superseded by Next is paused and removed, never shown or playing (${JSON.stringify(hold)})`
+  )
+
+  // 5. Rapid Next over a video slide: from slide 2, two Nexts within a few ms.
+  //    Slide 3 (red) must never show or play; slide 4 does.
+  await win.keyboard.press('ArrowLeft')
+  await waitPos('3 / 5')
+  await win.keyboard.press('ArrowLeft')
+  await waitPos('2 / 5')
+  await waitFrame([[960, 540]], (px) => near(px[0], BLUE), 'back on slide 2 (blue)')
+  const rec = hdmiJs(videoRecorderSrc(1500, '/003.mp4'))
+  await sleep(100)
+  await win.evaluate(() => {
+    void window.api.dispatch({ type: 'next' })
+    void window.api.dispatch({ type: 'next' })
+  })
+  let reds = 0
+  let magenta = 0
+  let samples = 0
+  const sweepEnd = Date.now() + 1300
+  while (Date.now() < sweepEnd) {
+    const f = await dumpFrame(V_SWEEP)
+    if (!f) continue
+    samples++
+    if (f.px.some(isRed)) reds++
+    if (f.px.some(isMagenta)) magenta++
+  }
+  const r = await rec
+  await waitPos('4 / 5')
+  check(
+    reds === 0 && magenta > 0 && r.watchShown === 0 && r.watchPlaying === 0,
+    `rapid Next over a video slide never shows it (${samples} frames: ${reds} red, ${magenta} magenta; slide 3 video created ${r.watchCreated}x, shown ${r.watchShown}, playing ${r.watchPlaying})`
+  )
+
+  // 6. Fade, video to video (Review Focus 2): slide 3 (red) to 4 (magenta).
+  await win.keyboard.press('ArrowLeft')
+  await waitPos('3 / 5')
+  await waitOutputTop(
+    (t) => t.kind === 'video' && t.src.endsWith('/003.mp4') && t.ended,
+    'slide 3 plays to its end'
+  )
+  await win.getByRole('radio', { name: 'Fade' }).click()
+  await blur()
+  const fadeRec = hdmiJs(videoRecorderSrc(900, '/none'))
+  await sleep(100)
+  await win.keyboard.press('Space')
+  let blackFrames = 0
+  let fadeSamples = 0
+  const fadeEnd = Date.now() + 400
+  while (Date.now() < fadeEnd) {
+    const f = await dumpFrame(GRID)
+    if (!f) continue
+    fadeSamples++
+    if (f.px.every(isBlack)) blackFrames++
+  }
+  const fr = await fadeRec
+  await waitPos('4 / 5')
+  await waitFrame(V_SWEEP, (px) => px.some(isMagenta), 'Fade reaches slide 4 (magenta)')
+  check(
+    blackFrames === 0 && fr.frames.length > 10 && fr.frames.every((n) => n === 1),
+    `fade video to video never shows black (${fadeSamples} captures, ${blackFrames} black; ${fr.frames.length} animation frames, min ${Math.min(...fr.frames)})`
+  )
+  await win.getByRole('radio', { name: 'Cut' }).click()
+  await blur()
+
+  // 7. Missing MP4 (runs last: it deletes 003.mp4): slide 3 shows its PNG.
+  //    Chromium keeps media it already loaded in memory by URL (also across a
+  //    reload), so this uses a fresh import of the deck whose 003.mp4 was never loaded.
+  const { deckId: mId, row: mDeck } = await importVideoDeck('e2e-video-missing')
+  fs.rmSync(path.join(userData, 'decks', mId, '003.mp4'))
+  await mDeck.click()
+  await blur()
+  await waitPos('1 / 5')
+  await win.keyboard.press('ArrowRight')
+  await waitPos('2 / 5')
+  await win.keyboard.press('ArrowRight')
+  await waitPos('3 / 5')
+  const png = await app.evaluate(
+    ({ nativeImage }, [file, pts]) => {
+      const img = nativeImage.createFromPath(file)
+      const { width } = img.getSize()
+      const bmp = img.toBitmap()
+      return pts.map(([x, y]) => {
+        const i = (Math.floor(y / 3) * width + Math.floor(x / 3)) * 4
+        return [bmp[i + 2], bmp[i + 1], bmp[i]]
+      })
+    },
+    [path.join(userData, 'decks', mId, '003.png'), V_PTS]
+  )
+  const top7 = await waitOutputTop(
+    (t) => t.src.includes(mId) && t.src.endsWith('/003.png'),
+    'missing MP4: the output layer is the poster image'
+  )
+  const poster = await waitFrame(
+    V_PTS,
+    (px) => px.every((p, i) => near(p, png[i], 12)),
+    'missing MP4: the output shows the PNG'
+  )
+  check(
+    isRed(poster.px[1]) && top7.kind === 'image',
+    `missing MP4 shows the poster (${JSON.stringify(poster.px)} = PNG ${JSON.stringify(png)})`
+  )
+
+  // Back to the state the next checks expect: the renamed noise deck on 3 / 4, no video deck.
+  await liveDeck.click()
+  await blur()
+  await waitPos('1 / 4')
+  await win.keyboard.press('Space')
+  await waitPos('2 / 4')
+  await win.keyboard.press('Space')
+  await waitPos('3 / 4')
+  for (const row of [vDeck, mDeck]) {
+    await row.click({ button: 'right' })
+    await win.getByTestId('deck-menu').getByRole('menuitem', { name: 'Remove deck…' }).click()
+    await win.getByTestId('confirm-remove').getByRole('button', { name: 'Remove' }).click()
+    await row.waitFor({ state: 'detached' })
+  }
+  check((await tally.textContent()) === 'LIVE', 'video checks done, back on the noise deck')
+}
+
 const errors = []
+// A failed load names no URL in its text; add the resource's URL from the location.
+const msgText = (m) => {
+  const url = m.location()?.url
+  return url && !m.text().includes(url) ? `${m.text()} (${url})` : m.text()
+}
 let failed = false
 try {
   // The HDMI output window is checked for console errors too.
   app.on('window', (page) => {
     const isOutput = () => page.url().endsWith('#/output')
     page.on('console', (m) => {
-      if (isOutput() && m.type() === 'error') errors.push(`[output] ${m.text()}`)
+      if (isOutput() && m.type() === 'error') errors.push(`[output] ${msgText(m)}`)
     })
     page.on('pageerror', (e) => {
       if (isOutput()) errors.push(`[output] ${e}`)
@@ -1281,7 +1688,7 @@ try {
   })
   const win = await app.firstWindow()
   win.on('console', (m) => {
-    if (m.type() === 'error') errors.push(m.text())
+    if (m.type() === 'error') errors.push(msgText(m))
   })
   win.on('pageerror', (e) => errors.push(String(e)))
   await win.waitForSelector('.app')
@@ -1882,13 +2289,18 @@ try {
   await renameInput.press('Escape')
   await renamed.waitFor()
 
+  await videoChecks(win, tally)
+
   await behaviourChecks(win, tally, pos)
 
   await stopProbe(win)
 
   await hdmiChecks(win)
 
-  const relevant = errors.filter((e) => !/Electron Security Warning/.test(e))
+  // The missing-MP4 check makes both windows log the failed video (by design).
+  const relevant = errors.filter(
+    (e) => !/Electron Security Warning/.test(e) && !/\/003\.mp4/.test(e)
+  )
   check(
     relevant.length === 0,
     `no console errors${relevant.length ? ': ' + relevant.join(' | ') : ''}`

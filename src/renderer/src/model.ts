@@ -200,16 +200,29 @@ export function baseName(name: string): string {
 }
 
 /**
- * What the Program output shows, for the HDMI window and the operator monitor:
- * null = black, otherwise an image URL. Black on is black. KV on (with a KV) is
- * the KV. Else the `shown` slide (never the operator position), also while
- * frozen. Else (STANDBY) the event's KV, or black without one.
+ * What is on the Program output. A video slide carries its PNG as `poster` (its
+ * last frame) and the `take` that put it live, so each window plays a take once.
  */
-export function outputSource(s: ProgramState): string | null {
+export type OutputMedia =
+  { kind: 'image'; url: string } | { kind: 'video'; url: string; poster: string; take: number }
+
+/**
+ * What the Program output shows, for the HDMI window and the operator monitor:
+ * null = black. Black on is black. KV on (with a KV) is the KV. Else the `shown`
+ * slide (never the operator position), also while frozen: a video when it has
+ * one, else its image. Else (STANDBY) the event's KV, or black without one.
+ */
+export function outputSource(s: ProgramState): OutputMedia | null {
   if (s.black) return null
-  if (s.kv && s.kvUrl) return s.kvUrl
-  if (s.shown) return slideUrl(s.shown.deckId, s.shown.file)
-  return s.kvUrl
+  if (s.kv && s.kvUrl) return { kind: 'image', url: s.kvUrl }
+  if (s.shown) {
+    const { deckId, file, video } = s.shown
+    const poster = slideUrl(deckId, file)
+    return video
+      ? { kind: 'video', url: slideUrl(deckId, video), poster, take: s.take }
+      : { kind: 'image', url: poster }
+  }
+  return s.kvUrl ? { kind: 'image', url: s.kvUrl } : null
 }
 
 export interface HdmiBadge {
