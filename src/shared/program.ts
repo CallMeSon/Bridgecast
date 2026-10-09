@@ -10,6 +10,8 @@ export interface ShownSlide {
   deckId: string
   index: number
   file: string
+  /** The slide's MP4 in its deck, when it is a video slide. */
+  video?: string
 }
 
 export interface ProgramState {
@@ -35,6 +37,11 @@ export interface ProgramState {
    * deck, so a speaker's clicker cannot run into the next presentation.
    */
   autoAdvance: boolean
+  /**
+   * Counts every take (a slide put live, also the one already live), so a video
+   * slide replays on a repeated take. Not changed by freeze, black, KV, etc.
+   */
+  take: number
 }
 
 export type Action =
@@ -67,16 +74,21 @@ export const initialState: ProgramState = {
   kv: false,
   kvUrl: null,
   transition: 'cut',
-  autoAdvance: false
+  autoAdvance: false,
+  take: 0
 }
 
 /** Move the operator position (index must exist in deck); `shown` follows unless frozen. */
 function moveTo(state: ProgramState, deck: DeckLike, index: number): ProgramState {
+  const slide = deck.slides[index]
+  const shown: ShownSlide = { deckId: deck.id, index, file: slide.file }
+  if (slide.video) shown.video = slide.video
   return {
     ...state,
     deckId: deck.id,
     index,
-    shown: state.frozen ? state.shown : { deckId: deck.id, index, file: deck.slides[index].file }
+    shown: state.frozen ? state.shown : shown,
+    take: state.frozen ? state.take : state.take + 1
   }
 }
 

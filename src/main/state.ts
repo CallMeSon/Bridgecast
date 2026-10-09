@@ -24,6 +24,8 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.kvUrl === b.kvUrl &&
     a.transition === b.transition &&
     a.autoAdvance === b.autoAdvance &&
+    a.take === b.take &&
+    a.shown?.video === b.shown?.video &&
     a.shown?.deckId === b.shown?.deckId &&
     a.shown?.index === b.shown?.index &&
     a.shown?.file === b.shown?.file

@@ -4,6 +4,7 @@ export const DECK_NAME_MAX = 120
 export interface SlideMeta {
   file: string
   notes: string
+  video?: string
 }
 
 export interface DeckMeta {

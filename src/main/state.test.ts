@@ -37,6 +37,19 @@ describe('AppState', () => {
     expect(app.state).toMatchObject({ deckId: d, index: 0, shown: null })
   })
 
+  it('goto on the live slide broadcasts because take changed', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 3)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    const cb = vi.fn()
+    app.onChange(cb)
+    app.dispatch({ type: 'goto', index: 0 })
+    expect(cb).toHaveBeenCalledTimes(1)
+    expect(app.state.take).toBe(2)
+  })
+
   it('setEvent to another event does not change state.shown', () => {
     const lib = new Library(root)
     const a = lib.createEvent('A')

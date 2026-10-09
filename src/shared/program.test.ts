@@ -41,7 +41,8 @@ describe('initialState', () => {
       kv: false,
       kvUrl: null,
       transition: 'cut',
-      autoAdvance: false
+      autoAdvance: false,
+      take: 0
     })
   })
 })
@@ -405,5 +406,77 @@ describe('KV', () => {
       expect(reduce(st, a, decks).kvUrl).toBe(KV_URL)
     }
     expect(reduce(at('A', 0), { type: 'toggleKv' }, decks).kvUrl).toBeNull()
+  })
+})
+
+describe('take and video', () => {
+  it('next/goto/selectDeck increment take; goto on the live slide replays', () => {
+    const r1 = reduce(at('A', 0), { type: 'next' }, decks)
+    expect(r1.take).toBe(1)
+    const r2 = reduce(r1, { type: 'goto', index: 1 }, decks)
+    expect(r2.take).toBe(2)
+    expect(r2.shown).toEqual(r1.shown)
+    expect(reduce(r2, { type: 'selectDeck', deckId: 'B' }, decks).take).toBe(3)
+  })
+  it('freeze, black, kv, transition, autoAdvance, unfreeze keep take', () => {
+    const base = at('A', 1, { take: 5, kvUrl: 'x' })
+    const actions = [
+      { type: 'toggleFreeze' },
+      { type: 'toggleBlack' },
+      { type: 'toggleKv' },
+      { type: 'setTransition', transition: 'fade' },
+      { type: 'setAutoAdvance', on: true }
+    ] as const
+    for (const a of actions) expect(reduce(base, a, decks).take).toBe(5)
+    const frozen = at('A', 1, { take: 5, frozen: true })
+    expect(reduce(frozen, { type: 'toggleFreeze' }, decks).take).toBe(5)
+    expect(reduce(frozen, { type: 'next' }, decks).take).toBe(5)
+  })
+  it('take on STANDBY first Next increments take', () => {
+    const standby = { ...initialState, deckId: 'A', index: 0 }
+    const r = reduce(standby, { type: 'next' }, decks)
+    expect(r.take).toBe(1)
+    expect(r.shown).toEqual(sh('A', 0))
+  })
+  it('shown carries the slide video', () => {
+    const vd = [
+      {
+        id: 'V',
+        slides: [
+          { file: '001.png', notes: '', video: '001.mp4' },
+          { file: '002.png', notes: '' }
+        ]
+      }
+    ]
+    const r = reduce(initialState, { type: 'selectDeck', deckId: 'V' }, vd)
+    expect(r.shown?.video).toBe('001.mp4')
+    const n = reduce(r, { type: 'next' }, vd)
+    expect(n.shown).toEqual({ deckId: 'V', index: 1, file: '002.png' })
+    expect('video' in n.shown!).toBe(false)
+  })
+  it('reconcile and followSlideOrder keep take and video', () => {
+    const vd = [
+      {
+        id: 'V',
+        slides: [
+          { file: '001.png', notes: '' },
+          { file: '002.png', notes: '', video: '002.mp4' }
+        ]
+      }
+    ]
+    const st: ProgramState = {
+      ...initialState,
+      deckId: 'V',
+      index: 1,
+      take: 7,
+      shown: { deckId: 'V', index: 1, file: '002.png', video: '002.mp4' }
+    }
+    const f = followSlideOrder(st, 'V', [1, 0])
+    expect(f.take).toBe(7)
+    expect(f.shown).toEqual({ deckId: 'V', index: 0, file: '002.png', video: '002.mp4' })
+    const reordered = [{ id: 'V', slides: [vd[0].slides[1], vd[0].slides[0]] }]
+    const r = reconcile(st, reordered)
+    expect(r.take).toBe(7)
+    expect(r.shown).toEqual({ deckId: 'V', index: 0, file: '002.png', video: '002.mp4' })
   })
 })
