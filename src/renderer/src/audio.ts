@@ -33,6 +33,16 @@ export function outputGateOpen(
   return audio.deviceId === null || outputs !== null
 }
 
+/**
+ * Whether the output's video is muted. Silent until the real audio settings are
+ * known (a saved Mute must never be played over while they load), and while
+ * the output window is not on screen (it is hidden, not closed, when its
+ * display is unplugged: it must not keep sounding on the default device).
+ */
+export function outputMuted(audio: { muted: boolean } | null, onScreen: boolean): boolean {
+  return audio === null || !onScreen || audio.muted
+}
+
 /** Audio outputs for the device picker; null until the first listing arrives. */
 export function useAudioOutputs(): { deviceId: string; label: string }[] | null {
   // No media API at all: an empty list, never an error.

@@ -42,6 +42,13 @@ const shownOf = (l: Layer): ShownMedia =>
       ? { kind: 'video', url: l.spec.url }
       : { kind: 'image', url: l.spec.poster ?? l.spec.url }
 
+/**
+ * Longest a video layer may stay pending (neither `loadeddata` nor `error`)
+ * before it gives up and shows its poster, so a stuck load never keeps the
+ * previous slide, or the HDMI window's first show, waiting forever.
+ */
+export const PENDING_VIDEO_MS = 3000
+
 /** Longest wait for a revealed video's first frame on screen before the layers under it go. */
 const FIRST_FRAME_MS = 500
 
@@ -105,18 +112,29 @@ export function SlideLayers({
   // Mirror of `layers` so reveal/drop can compute the next list synchronously.
   const current = useRef<Layer[]>([])
   const videos = useRef(new Map<number, HTMLVideoElement>())
-  const commit = useCallback((next: Layer[]) => {
-    // Videos of removed layers are stopped first (never heard or seen again).
-    const keep = new Set(next.map((l) => l.key))
-    for (const [key, v] of videos.current) {
-      if (!keep.has(key)) {
-        stop(v)
-        videos.current.delete(key)
-      }
-    }
-    current.current = next
-    setLayers(next)
+  /** Pending-timeout of each video layer that is not yet revealed. */
+  const pendingTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
+  const clearPending = useCallback((key: number) => {
+    const t = pendingTimers.current.get(key)
+    if (t !== undefined) clearTimeout(t)
+    pendingTimers.current.delete(key)
   }, [])
+  const commit = useCallback(
+    (next: Layer[]) => {
+      // Videos of removed layers are stopped first (never heard or seen again).
+      const keep = new Set(next.map((l) => l.key))
+      for (const [key, v] of videos.current) {
+        if (!keep.has(key)) {
+          stop(v)
+          videos.current.delete(key)
+        }
+      }
+      for (const key of [...pendingTimers.current.keys()]) if (!keep.has(key)) clearPending(key)
+      current.current = next
+      setLayers(next)
+    },
+    [clearPending]
+  )
   const seq = useRef(0)
   /** Id of the newest layer (undefined before the first one; null = black). */
   const topId = useRef<string | null | undefined>(undefined)
@@ -134,9 +152,12 @@ export function SlideLayers({
     alive.current = true
     const pending = timers.current
     const vids = videos.current
+    const loading = pendingTimers.current
     return () => {
       alive.current = false
       pending.forEach(clearTimeout)
+      loading.forEach(clearTimeout)
+      loading.clear()
       vids.forEach(stop)
     }
   }, [])
@@ -148,9 +169,13 @@ export function SlideLayers({
       const l = ls.find((x) => x.key === key)
       if (!l || l.failed) return
       console.error(`[video] ${l.spec?.url} failed, showing its poster:`, why)
+      clearPending(key)
+      // A load that is still going on is dropped with it.
+      const v = videos.current.get(key)
+      if (v) stop(v)
       commit(ls.map((x) => (x.key === key ? { ...x, failed: true } : x)))
     },
-    [commit]
+    [commit, clearPending]
   )
 
   const reveal = useCallback(
@@ -158,6 +183,7 @@ export function SlideLayers({
       const ls = current.current
       const i = ls.findIndex((l) => l.key === key)
       if (i < 0 || ls[i].ready) return
+      clearPending(key)
       // Keep only the newest visible layer underneath (the one to fade from);
       // older or superseded pending layers below are dropped.
       const below = ls.slice(0, i).filter((l) => l.ready)
@@ -188,7 +214,7 @@ export function SlideLayers({
         timers.current.add(t)
       })
     },
-    [commit, fail]
+    [commit, fail, clearPending]
   )
 
   // A stable key for `media` (callers build a new object on every render).
@@ -234,10 +260,24 @@ export function SlideLayers({
     videos.current.forEach((v) => route(v, sink))
   }, [sink, route])
 
+  /** Starts the pending timeout of a video layer that is not revealed yet (once). */
+  const armPending = (key: number): void => {
+    const l = current.current.find((x) => x.key === key)
+    if (!l || l.ready || l.failed || pendingTimers.current.has(key)) return
+    pendingTimers.current.set(
+      key,
+      setTimeout(() => {
+        pendingTimers.current.delete(key)
+        fail(key, `no first frame within ${PENDING_VIDEO_MS} ms`)
+      }, PENDING_VIDEO_MS)
+    )
+  }
+
   const videoRef = (key: number) => (v: HTMLVideoElement | null) => {
     if (!v) return
     videos.current.set(key, v)
     route(v, sink)
+    armPending(key)
   }
 
   return (

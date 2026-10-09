@@ -66,6 +66,8 @@ export function readFolderDeck(dir: string): FolderDeck {
       ? { pngPath: p.png, notes: '' as const, videoPath: p.mp4 }
       : { pngPath: p.png, notes: '' as const }
   })
-  const { width, height } = pngSize(slides[0].pngPath)
+  // Every page is checked, so a bad export is named before any page is converted.
+  const sizes = slides.map((s) => pngSize(s.pngPath))
+  const { width, height } = sizes[0]
   return { name: path.basename(dir), width, height, slides }
 }

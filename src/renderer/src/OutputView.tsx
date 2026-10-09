@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProgramState } from '../../shared/program'
-import { DEFAULT_AUDIO, type AudioSettings } from '../../shared/settings'
+import type { AudioSettings } from '../../shared/settings'
 import { outputSource } from './model'
-import { AUDIO_SETUP_MS, outputGateOpen, pickSink, useAudioOutputs } from './audio'
+import { AUDIO_SETUP_MS, outputGateOpen, outputMuted, pickSink, useAudioOutputs } from './audio'
 import { SlideLayers, type ShownMedia } from './components/SlideLayers'
 
 const timingId = (key: number): string => `layer-${key}`
@@ -45,6 +45,13 @@ export function OutputView(): React.JSX.Element {
   const [program, setProgram] = useState<ProgramState | null>(null)
   // Sound settings: also null until known, so a video never starts with the wrong sound.
   const [audio, setAudio] = useState<AudioSettings | null>(null)
+  // Whether main shows this window (hdmi:status 'showing'). A hidden window is
+  // not closed (its display is unplugged, or the operator window is on it), and
+  // `backgroundThrottling: false` keeps `document.visibilityState` at 'visible',
+  // so main's status is the signal. Until known it counts as not shown (silent).
+  const [onScreen, setOnScreen] = useState(false)
+  // getSettings failed: the slides still show (silently, `audio` stays null).
+  const [audioFailed, setAudioFailed] = useState(false)
   const outputs = useAudioOutputs()
   // Audio setup never blocks slides: after this the output shows them anyway.
   const [setupTimedOut, setSetupTimedOut] = useState(false)
@@ -58,6 +65,7 @@ export function OutputView(): React.JSX.Element {
     const api = window.api
     let fresh = true
     let freshAudio = true
+    let freshHdmi = true
     const offAudio = api.onAudioSettings((a) => {
       freshAudio = false
       setAudio(a)
@@ -68,8 +76,23 @@ export function OutputView(): React.JSX.Element {
         if (freshAudio) setAudio(s.audio)
       })
       .catch((e) => {
-        console.error('[output] settings failed to load:', e)
-        if (freshAudio) setAudio(DEFAULT_AUDIO)
+        // No real settings arrived: the sound stays muted (see outputMuted).
+        console.error('[output] settings failed to load, video stays muted:', e)
+        setAudioFailed(true)
+      })
+    const offHdmi = api.onHdmiStatus((s) => {
+      freshHdmi = false
+      setOnScreen(s.state === 'showing')
+    })
+    api
+      .getHdmiStatus()
+      .then((s) => {
+        if (freshHdmi) setOnScreen(s.state === 'showing')
+      })
+      .catch((e) => {
+        // Main only shows this window once it is ready, so assume it is on screen.
+        console.error('[output] HDMI status failed to load:', e)
+        if (freshHdmi) setOnScreen(true)
       })
     const off = api.onProgramState((s) => {
       fresh = false // a broadcast is newer than the initial fetch
@@ -84,15 +107,15 @@ export function OutputView(): React.JSX.Element {
     return () => {
       off()
       offAudio()
+      offHdmi()
     }
   }, [])
 
   // A saved device is looked up in the device list, so wait (briefly) for the
   // list before the first video. A missing device, or a list that is late,
   // plays on the default one; a late list re-routes through SlideLayers.
-  const sound = audio ?? DEFAULT_AUDIO
-  const sink = pickSink(sound.deviceId, outputs ?? []).sinkId
-  const soundReady = outputGateOpen(audio, outputs, setupTimedOut)
+  const sink = pickSink(audio?.deviceId ?? null, outputs ?? []).sinkId
+  const soundReady = outputGateOpen(audio, outputs, setupTimedOut || audioFailed)
 
   // Tell main once the first layer for a known state is on screen, so the HDMI
   // window is shown without ever flashing a placeholder. An image is decoded
@@ -114,7 +137,7 @@ export function OutputView(): React.JSX.Element {
         <SlideLayers
           media={outputSource(program)}
           fade={program.transition === 'fade'}
-          muted={sound.muted}
+          muted={outputMuted(audio, onScreen)}
           sinkId={sink}
           layerClass="output-layer"
           imgAttrs={(key) => ({ elementtiming: timingId(key) })}

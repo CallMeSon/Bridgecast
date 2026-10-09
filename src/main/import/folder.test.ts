@@ -122,6 +122,13 @@ describe('readFolderDeck', () => {
       `page-1.png is not a readable PNG image. Export the page again, then import the folder again.`
     )
   })
+
+  it('fails when a later PNG cannot be read, naming that file', () => {
+    const dir = makeDir({ 'page-1.png': png, 'page-2.png': 'garbage', 'page-3.png': png })
+    expect(() => readFolderDeck(dir)).toThrow(
+      `page-2.png is not a readable PNG image. Export the page again, then import the folder again.`
+    )
+  })
 })
 
 describe('pngSize', () => {

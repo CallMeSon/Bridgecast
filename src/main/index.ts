@@ -11,6 +11,8 @@ import { importPptx } from './import/pptx'
 import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
 import {
+  VIDEO_CHUNK_BYTES,
+  capRange,
   isInside,
   kvMimeType,
   parseKvUrl,
@@ -85,7 +87,11 @@ function tempDir(): string {
   return fs.mkdtempSync(join(os.tmpdir(), 'ppt-share-import-'))
 }
 
-/** Serves an MP4 with byte ranges, reading only the requested slice. */
+/**
+ * Serves an MP4 with byte ranges, reading only the requested slice. Every
+ * answer is a 206 of at most VIDEO_CHUNK_BYTES (also for a request without
+ * Range or with an open-ended `bytes=0-`), so a large clip never sits in memory.
+ */
 async function videoResponse(file: string, rangeHeader: string | null): Promise<Response> {
   const headers = {
     'content-type': 'video/mp4',
@@ -93,18 +99,14 @@ async function videoResponse(file: string, rangeHeader: string | null): Promise<
     'cache-control': 'no-store'
   }
   const { size } = await fs.promises.stat(file)
-  const range = parseRange(rangeHeader, size)
-  if (range === 'invalid') {
+  const parsed = parseRange(rangeHeader, size)
+  if (parsed === 'invalid' || (parsed === null && size === 0)) {
     return new Response(null, {
       status: 416,
       headers: { ...headers, 'content-range': `bytes */${size}` }
     })
   }
-  if (range === null) {
-    return new Response(await fs.promises.readFile(file), {
-      headers: { ...headers, 'content-length': String(size) }
-    })
-  }
+  const range = capRange(parsed ?? { start: 0, end: size - 1 }, VIDEO_CHUNK_BYTES)
   const length = range.end - range.start + 1
   const handle = await fs.promises.open(file, 'r')
   try {
@@ -114,7 +116,7 @@ async function videoResponse(file: string, rangeHeader: string | null): Promise<
       status: 206,
       headers: {
         ...headers,
-        'content-range': `bytes ${range.start}-${range.end}/${size}`,
+        'content-range': `bytes ${range.start}-${range.start + bytesRead - 1}/${size}`,
         'content-length': String(bytesRead)
       }
     })
