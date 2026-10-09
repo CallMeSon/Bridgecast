@@ -442,10 +442,15 @@ async function dragAndDropChecks(win, tally, pos, cap) {
       programSrc === `slide://${deckId}/${t1[0].file}` && (await tally.textContent()) === 'LIVE',
       `Program shows the same image as the live thumbnail (${programSrc})`
     )
+    // The card swaps layers: wait until its top (last) image is the expected one.
+    const wantNext = `slide://${deckId}/${t1[1].file}`
+    await win.waitForFunction(
+      (src) => [...document.querySelectorAll('.next-card img')].pop()?.getAttribute('src') === src,
+      wantNext
+    )
     check(
       (await cap.textContent()) === 'Slide 2' &&
-        (await win.locator('.next-card img').getAttribute('src')) ===
-          `slide://${deckId}/${t1[1].file}`,
+        (await win.locator('.next-card img').last().getAttribute('src')) === wantNext,
       'Next panel shows the new slide 2 (001.png)'
     )
     const widths = await win.evaluate(() => ({
@@ -1753,12 +1758,25 @@ async function videoChecks(win, tally) {
   await win.keyboard.press('ArrowLeft')
   await waitPos('2 / 5')
   await waitFrame([[960, 540]], (px) => near(px[0], BLUE), 'back on slide 2 (blue)')
+  // The slide 3 video layer of the step before is removed a moment after slide 2 is on screen;
+  // wait for it, or the recorder would count that leftover as a layer shown by the Nexts.
+  for (let n = 0; n < 40 && (await hdmiJs(`document.querySelectorAll('.output-layer').length`)) > 1; n++)
+    await sleep(50)
+  // Hold slide 3's `loadeddata` back, so its video cannot load before the second Next lands.
+  await hdmiJs(`(() => {
+    const h = (window.__rapid = { on: true })
+    h.stopLoad = (e) => {
+      if (h.on && (e.target.getAttribute?.('src') ?? '').endsWith('/003.mp4')) e.stopImmediatePropagation()
+    }
+    addEventListener('loadeddata', h.stopLoad, true)
+  })()`)
   const rec = hdmiJs(videoRecorderSrc(1500, '/003.mp4'))
   await sleep(100)
   await win.evaluate(() => {
     void window.api.dispatch({ type: 'next' })
     void window.api.dispatch({ type: 'next' })
   })
+  await waitPos('4 / 5')
   let reds = 0
   let magenta = 0
   let samples = 0
@@ -1771,7 +1789,10 @@ async function videoChecks(win, tally) {
     if (f.px.some(isMagenta)) magenta++
   }
   const r = await rec
-  await waitPos('4 / 5')
+  await hdmiJs(`(() => {
+    removeEventListener('loadeddata', window.__rapid.stopLoad, true)
+    window.__rapid.on = false
+  })()`)
   check(
     reds === 0 && magenta > 0 && r.watchShown === 0 && r.watchPlaying === 0,
     `rapid Next over a video slide never shows it (${samples} frames: ${reds} red, ${magenta} magenta; slide 3 video created ${r.watchCreated}x, shown ${r.watchShown}, playing ${r.watchPlaying})`
@@ -2436,7 +2457,9 @@ try {
   await win.getByRole('radio', { name: 'Cut' }).click()
 
   // Up next card: pixels of the operator window for every capture while Next and Prev are
-  // pressed on heavy slides. The card must never show the bare letterbox (black) between two slides.
+  // pressed on heavy slides. The card must never show the bare letterbox (black) between two
+  // slides. A MutationObserver counts the image swaps and the card kinds seen, so a run in
+  // which no key moved anything cannot pass.
   {
     const r = await win.evaluate(() => {
       const b = document.querySelector('[data-testid=next-card] .slide').getBoundingClientRect()
@@ -2448,49 +2471,93 @@ try {
         pts.push([r.x + (r.w * gx) / 6, r.y + (r.h * gy) / 4])
       }
     }
-    const rec = app.evaluate(
-      async ({ BrowserWindow }, [title, ps, iw, ih, ms]) => {
-        const w = BrowserWindow.getAllWindows().find(
-          (x) => !x.isDestroyed() && x.getTitle() !== title
-        )
-        const out = []
-        const end = Date.now() + ms
-        while (Date.now() < end) {
-          const img = await w.webContents.capturePage()
-          const { width, height } = img.getSize()
-          const bmp = img.toBitmap()
-          const lums = ps.map(([x, y]) => {
-            const sx = Math.min(width - 1, Math.floor((x * width) / iw))
-            const sy = Math.min(height - 1, Math.floor((y * height) / ih))
-            const i = (sy * width + sx) * 4
-            return Math.max(bmp[i], bmp[i + 1], bmp[i + 2])
-          })
-          out.push(Math.max(...lums))
-        }
-        return out
-      },
-      [HDMI_TITLE, pts, r.iw, r.ih, 7000]
-    )
-    await sleep(300)
-    await win.evaluate(() => document.activeElement?.blur())
-    const keys = [
-      'ArrowLeft',
-      'ArrowLeft',
-      'ArrowRight',
-      'ArrowRight',
-      'ArrowLeft',
-      'ArrowLeft',
-      'ArrowRight'
-    ]
-    for (const k of keys) {
-      await win.keyboard.press(k)
-      await sleep(800)
+    const posOf = () => win.getByTestId('pos').textContent()
+    // Walks to the operator position `to` (clamped presses at the ends do nothing).
+    const toPos = async (to, key) => {
+      await win.evaluate(() => document.activeElement?.blur())
+      for (let n = 0; n < 8 && (await posOf()) !== to; n++) {
+        await win.keyboard.press(key)
+        await sleep(400)
+      }
+      check((await posOf()) === to, `Up next check starts at ${to}`)
+      await sleep(600)
     }
-    const lums = await rec
-    const black = lums.filter((l) => l <= 8).length
+    const upNextRun = async (keys) => {
+      const rec = app.evaluate(
+        async ({ BrowserWindow }, [title, ps, iw, ih, ms]) => {
+          const w = BrowserWindow.getAllWindows().find(
+            (x) => !x.isDestroyed() && x.getTitle() !== title
+          )
+          const out = []
+          const end = Date.now() + ms
+          while (Date.now() < end) {
+            const img = await w.webContents.capturePage()
+            const { width, height } = img.getSize()
+            const bmp = img.toBitmap()
+            const lums = ps.map(([x, y]) => {
+              const sx = Math.min(width - 1, Math.floor((x * width) / iw))
+              const sy = Math.min(height - 1, Math.floor((y * height) / ih))
+              const i = (sy * width + sx) * 4
+              return Math.max(bmp[i], bmp[i + 1], bmp[i + 2])
+            })
+            out.push(Math.max(...lums))
+          }
+          return out
+        },
+        [HDMI_TITLE, pts, r.iw, r.ih, keys.length * 800 + 1200]
+      )
+      // Installed before any key: counts <img> additions and records the card kinds.
+      await win.evaluate(() => {
+        const card = document.querySelector('[data-testid=next-card]')
+        const st = (window.__upNext = { swaps: 0, kinds: [card.dataset.kind] })
+        st.mo = new MutationObserver((muts) => {
+          for (const m of muts) {
+            for (const n of m.addedNodes) {
+              if (n.nodeName === 'IMG' || n.querySelector?.('img')) st.swaps++
+            }
+            if (m.type === 'attributes' && !st.kinds.includes(card.dataset.kind)) {
+              st.kinds.push(card.dataset.kind)
+            }
+          }
+        })
+        st.mo.observe(card, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ['data-kind']
+        })
+      })
+      await sleep(300)
+      for (const k of keys) {
+        await win.keyboard.press(k)
+        await sleep(800)
+      }
+      const lums = await rec
+      const st = await win.evaluate(() => {
+        window.__upNext.mo.disconnect()
+        return { swaps: window.__upNext.swaps, kinds: window.__upNext.kinds }
+      })
+      return { lums, ...st, black: lums.filter((l) => l <= 8).length }
+    }
+
+    // End card to slide: from the last slide (card = end of deck) back and forth.
+    await toPos('4 / 4', 'ArrowRight')
+    const e = await upNextRun(['ArrowLeft', 'ArrowLeft', 'ArrowRight', 'ArrowRight'])
     check(
-      lums.length > 20 && black === 0,
-      `Up next card never flashes black on Next/Prev (${lums.length} captures, ${black} black, min ${Math.min(...lums)})`
+      e.lums.length > 20 && e.swaps >= 1 && e.kinds.includes('end') && e.black === 0,
+      `Up next card never flashes black from the end card (${e.lums.length} captures, ${e.black} black, min ${Math.min(...e.lums)}, ${e.swaps} swaps, kinds ${e.kinds})`
+    )
+
+    // Slide to slide: slide 1 live, the card shows slide 2; 2 > 3 > 4, then back. No end card.
+    await toPos('1 / 4', 'ArrowLeft')
+    const m = await upNextRun(['ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowLeft'])
+    check(
+      m.lums.length > 20 &&
+        m.swaps >= 4 &&
+        m.kinds.length === 1 &&
+        m.kinds[0] === 'slide' &&
+        m.black === 0,
+      `Up next card never flashes black from slide to slide (${m.lums.length} captures, ${m.black} black, min ${Math.min(...m.lums)}, ${m.swaps} swaps, kinds ${m.kinds})`
     )
   }
 
