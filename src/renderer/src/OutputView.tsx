@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProgramState } from '../../shared/program'
-import type { AudioSettings } from '../../shared/settings'
+import { DEFAULT_AUDIO, type AudioSettings } from '../../shared/settings'
 import { outputSource } from './model'
-import { pickSink, useAudioOutputs } from './audio'
+import { AUDIO_SETUP_MS, outputGateOpen, pickSink, useAudioOutputs } from './audio'
 import { SlideLayers, type ShownMedia } from './components/SlideLayers'
 
 const timingId = (key: number): string => `layer-${key}`
@@ -46,6 +46,12 @@ export function OutputView(): React.JSX.Element {
   // Sound settings: also null until known, so a video never starts with the wrong sound.
   const [audio, setAudio] = useState<AudioSettings | null>(null)
   const outputs = useAudioOutputs()
+  // Audio setup never blocks slides: after this the output shows them anyway.
+  const [setupTimedOut, setSetupTimedOut] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setSetupTimedOut(true), AUDIO_SETUP_MS)
+    return () => clearTimeout(t)
+  }, [])
   const readySent = useRef(false)
 
   useEffect(() => {
@@ -61,7 +67,10 @@ export function OutputView(): React.JSX.Element {
       .then((s) => {
         if (freshAudio) setAudio(s.audio)
       })
-      .catch((e) => console.error('[output] settings failed to load:', e))
+      .catch((e) => {
+        console.error('[output] settings failed to load:', e)
+        if (freshAudio) setAudio(DEFAULT_AUDIO)
+      })
     const off = api.onProgramState((s) => {
       fresh = false // a broadcast is newer than the initial fetch
       setProgram(s)
@@ -78,10 +87,12 @@ export function OutputView(): React.JSX.Element {
     }
   }, [])
 
-  // A saved device is looked up in the device list, so wait for the list before
-  // the first video. A missing device plays on the default one (HdmiSection warns).
-  const sink = audio ? pickSink(audio.deviceId, outputs ?? []).sinkId : ''
-  const soundReady = audio !== null && (audio.deviceId === null || outputs !== null)
+  // A saved device is looked up in the device list, so wait (briefly) for the
+  // list before the first video. A missing device, or a list that is late,
+  // plays on the default one; a late list re-routes through SlideLayers.
+  const sound = audio ?? DEFAULT_AUDIO
+  const sink = pickSink(sound.deviceId, outputs ?? []).sinkId
+  const soundReady = outputGateOpen(audio, outputs, setupTimedOut)
 
   // Tell main once the first layer for a known state is on screen, so the HDMI
   // window is shown without ever flashing a placeholder. An image is decoded
@@ -103,7 +114,7 @@ export function OutputView(): React.JSX.Element {
         <SlideLayers
           media={outputSource(program)}
           fade={program.transition === 'fade'}
-          muted={audio.muted}
+          muted={sound.muted}
           sinkId={sink}
           layerClass="output-layer"
           imgAttrs={(key) => ({ elementtiming: timingId(key) })}

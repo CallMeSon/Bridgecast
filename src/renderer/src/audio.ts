@@ -15,11 +15,33 @@ export function pickSink(
     : { sinkId: '', missing: true }
 }
 
+/** How long the output waits for its audio setup before it shows slides anyway. */
+export const AUDIO_SETUP_MS = 1500
+
+/**
+ * Whether the output may render slides. Audio setup must never block them: the
+ * gate opens once the settings (and, for a saved device, the device list) are
+ * known, or at the latest when `timedOut`.
+ */
+export function outputGateOpen(
+  audio: { deviceId: string | null } | null,
+  outputs: unknown[] | null,
+  timedOut: boolean
+): boolean {
+  if (timedOut) return true
+  if (audio === null) return false
+  return audio.deviceId === null || outputs !== null
+}
+
 /** Audio outputs for the device picker; null until the first listing arrives. */
 export function useAudioOutputs(): { deviceId: string; label: string }[] | null {
-  const [outputs, setOutputs] = useState<{ deviceId: string; label: string }[] | null>(null)
+  // No media API at all: an empty list, never an error.
+  const [outputs, setOutputs] = useState<{ deviceId: string; label: string }[] | null>(() =>
+    navigator.mediaDevices ? null : []
+  )
   useEffect(() => {
-    const md = navigator.mediaDevices
+    const md: MediaDevices | undefined = navigator.mediaDevices
+    if (!md) return
     let alive = true
     const refresh = (): void => {
       md.enumerateDevices()
