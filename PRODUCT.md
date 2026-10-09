@@ -36,7 +36,8 @@ web
 ## Capabilities and Constraints
 
 - Input: .pptx, .ppt, .pdf converted to static PNG slides (1920 px wide) with speaker notes. Animations, video and audio inside slides are not supported.
-- One output (HDMI, second display) with the Program content. Removed or out of scope: NDI (removed 2026-10-08, SDK licensing), Canva import (spike cancelled 2026-10-08), a second output with different content, transcript or speech-to-text, live PowerPoint animation mode, timer, nested playlists, remote control from other devices.
+- One output (HDMI, second display) with the Program content. Removed or out of scope: NDI (removed 2026-10-08, SDK licensing), a second output with different content, transcript or speech-to-text, live PowerPoint animation mode, timer, nested playlists, remote control from other devices.
+- Video slides (planned 2026-10-09): an animated page imported as MP4 + PNG plays once when it goes live and holds its last frame; audio plays on the HDMI output. First source is a folder of `page-NN.png` + `page-NN.mp4`; Canva import comes next. Spec: docs/superpowers/specs/2026-10-09-video-slides-design.md.
 - Terminology: event, deck, slide, Program (PGM), Next, Prev, Freeze, Black, KV, Cut, Fade, tally states LIVE, FROZEN, BLACK, KV, STANDBY.
 - UI language: English (done 2026-10-08; the user decided the UI should be English "to be more universal", since the app is shared for free with other operators). Broadcast terms stay as they are. Panel and label names: Event (header), Decks (library panel, with the Key visual (KV) block), Up next (right panel; "Preview" while frozen), Notes, Transition, Continue to next deck.
 - Every user-facing error names the problem and the recovery action.

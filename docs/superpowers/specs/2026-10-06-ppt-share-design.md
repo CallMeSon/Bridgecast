@@ -28,3 +28,5 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 ## Di luar cakupan
 
 NDI, output kedua dengan isi berbeda, transcript/speech-to-text, mode Live PowerPoint (animasi), timer, playlist bertingkat, remote control dari perangkat lain.
+
+Animasi lewat slide video (MP4 per halaman, mis. dari Canva) dikerjakan terpisah: `2026-10-09-video-slides-design.md`.
