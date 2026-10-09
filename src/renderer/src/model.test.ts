@@ -92,6 +92,14 @@ describe('nextView', () => {
       held: true
     })
   })
+  it('marks a next slide that is a video', () => {
+    const vd = deck('v', 3)
+    vd.slides[1].video = '1.mp4'
+    expect(nextView([vd], at('v', 0))).toMatchObject({ kind: 'slide', index: 1, video: true })
+    expect(nextView([vd], at('v', 1))).not.toHaveProperty('video')
+    const held = at('v', 1, { shown: { deckId: 'v', index: 0, file: '0.png' }, frozen: true })
+    expect(nextView([vd], held)).toMatchObject({ held: true, video: true })
+  })
   it('is none without a position', () => {
     expect(nextView([], at(null, 0))).toEqual({ kind: 'none' })
   })

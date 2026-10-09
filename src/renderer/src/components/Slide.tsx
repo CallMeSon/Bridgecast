@@ -1,10 +1,14 @@
+import { PlayIcon } from '@phosphor-icons/react'
+
 interface ImageProps {
   src: string
   alt: string
   lazy?: boolean
+  /** Video slide: shows the play mark in the bottom-left corner. */
+  video?: boolean
 }
 
-export function SlideImage({ src, alt, lazy }: ImageProps): React.JSX.Element {
+export function SlideImage({ src, alt, lazy, video }: ImageProps): React.JSX.Element {
   return (
     <div className="slide">
       <img
@@ -14,6 +18,11 @@ export function SlideImage({ src, alt, lazy }: ImageProps): React.JSX.Element {
         decoding="async"
         loading={lazy ? 'lazy' : 'eager'}
       />
+      {video && (
+        <span className="vmark" role="img" aria-label="Video slide">
+          <PlayIcon size={12} weight="fill" aria-hidden="true" />
+        </span>
+      )}
     </div>
   )
 }

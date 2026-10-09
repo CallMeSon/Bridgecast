@@ -58,6 +58,7 @@ const Thumb = memo(function Thumb({
       className={'th' + (dragging ? ' dragging' : '') + (over ? ' over' : '')}
       data-role={role}
       data-file={s.file}
+      data-video={s.video ? 'true' : undefined}
       draggable
       aria-current={current ? 'true' : undefined}
       aria-label={slideLabel(i, role)}
@@ -94,7 +95,7 @@ const Thumb = memo(function Thumb({
         onMove(deck.id, Number(from), i, s.file)
       }}
     >
-      <SlideImage src={thumbUrl(deck.id, s.file)} alt="" lazy />
+      <SlideImage src={thumbUrl(deck.id, s.file)} alt="" lazy video={!!s.video} />
       <span className="tg">
         <span className="n">{i + 1}</span>
         {role === 'live' && <b>LIVE</b>}

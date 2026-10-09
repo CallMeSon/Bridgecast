@@ -11,6 +11,8 @@ export type NextView =
       index: number
       file: string
       notes: string
+      /** The slide is a video slide. */
+      video?: true
       /** Frozen: this is the operator position, a preview only (unfreeze keeps the held slide live). */
       held?: true
     }
@@ -41,16 +43,31 @@ export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
       index: s.index,
       file: here.file,
       notes: here.notes,
+      ...(here.video ? { video: true as const } : {}),
       held: true
     }
   }
   if (pendingTake(s, decks)) {
     const cur = deck.slides[s.index]
-    return { kind: 'slide', deckId: deck.id, index: s.index, file: cur.file, notes: cur.notes }
+    return {
+      kind: 'slide',
+      deckId: deck.id,
+      index: s.index,
+      file: cur.file,
+      notes: cur.notes,
+      ...(cur.video ? { video: true as const } : {})
+    }
   }
   const nxt = deck.slides[s.index + 1]
   if (nxt) {
-    return { kind: 'slide', deckId: deck.id, index: s.index + 1, file: nxt.file, notes: nxt.notes }
+    return {
+      kind: 'slide',
+      deckId: deck.id,
+      index: s.index + 1,
+      file: nxt.file,
+      notes: nxt.notes,
+      ...(nxt.video ? { video: true as const } : {})
+    }
   }
   const pos = decks.indexOf(deck)
   const nd = decks.slice(pos + 1).find((d) => d.slides.length > 0)

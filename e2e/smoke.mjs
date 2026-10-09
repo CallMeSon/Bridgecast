@@ -1428,6 +1428,16 @@ async function videoChecks(win, tally) {
   )
   await blur()
   await waitPos('1 / 5')
+  // The strip marks the video slides (1, 3, 4) and leaves the image slides (2, 5) alone.
+  const thumbVideo = await win.$$eval('[data-testid=strip] .th', (els) =>
+    els.map((e) => ({ v: e.dataset.video ?? null, mark: !!e.querySelector('[aria-label="Video slide"]') }))
+  )
+  check(
+    thumbVideo.length === 5 &&
+      thumbVideo.every((t, i) => ([0, 2, 3].includes(i) ? t.v === 'true' && t.mark : t.v === null && !t.mark)),
+    `strip thumbnails 1, 3 and 4 carry data-video and the play mark, 2 and 5 do not (${JSON.stringify(thumbVideo)})`
+  )
+  await win.getByTestId('strip').screenshot({ path: path.join(root, '.superpowers/sdd/2026-10-09-video-slides/task-6-video-strip.png') })
   check(
     !near(first.px[1], V_YELLOW) && cutBlack === 0,
     `video starts from its first frame, no black frame on the Cut (end point ${JSON.stringify(first.px[1])}, ${cutBlack} black captures)`

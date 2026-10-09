@@ -762,6 +762,20 @@ main {
   object-fit: contain;
   display: block;
 }
+/* Video slide mark: a small play glyph on the letterbox black, bottom-left, above the ring. */
+.slide .vmark {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r);
+  background: var(--letterbox);
+  color: var(--on-tally);
+  pointer-events: none;
+}
 /* Empty-state card: sentences in the sans, sized with floors and caps so it reads at
    every card width. In the side panels it follows the theme; the Program monitor
    (.screen) is a black surface in both themes. */

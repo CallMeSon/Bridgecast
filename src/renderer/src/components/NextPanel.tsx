@@ -25,7 +25,13 @@ export function NextPanel({
   // Position of the slide Next takes, e.g. "3 / 9"; empty at the end of a deck.
   let nextPos = ''
   if (nx.kind === 'slide') {
-    card = <SlideImage src={slideUrl(nx.deckId, nx.file)} alt={`Slide ${nx.index + 1}`} />
+    card = (
+      <SlideImage
+        src={slideUrl(nx.deckId, nx.file)}
+        alt={`Slide ${nx.index + 1}`}
+        video={nx.video}
+      />
+    )
     cap = `Slide ${nx.index + 1}`
     nextPos = deck ? `${nx.index + 1} / ${deck.slides.length}` : ''
   } else if (nx.kind === 'end') {
@@ -57,6 +63,7 @@ export function NextPanel({
           data-testid="next-card"
           data-kind={nx.kind}
           data-held={held || undefined}
+          data-video={(nx.kind === 'slide' && nx.video) || undefined}
         >
           {card}
           <div className="cap">

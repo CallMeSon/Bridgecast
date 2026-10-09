@@ -36,6 +36,16 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] Colok lagi. Output kembali fullscreen di layar yang sama dengan slide yang sedang live.
 - [ ] Biarkan output tampil 30 menit sambil sesekali Next. Tidak ada kedip, hitam mendadak, atau jendela yang pindah.
 
+## Slide video
+
+- [ ] Impor folder hasil ekspor Canva (`page-NN.png` + `page-NN.mp4`). Deck siap dengan jumlah halaman yang benar; slide video bertanda ikon play di strip dan di panel "Up next".
+- [ ] Seret folder `fixtures/video-deck` dari File Explorer ke jendela aplikasi dan pastikan folder itu terimpor sebagai deck. (Drop folder asli tidak bisa diotomatisasi.)
+- [ ] Animasi diputar sekali di layar HDMI saat slide video tampil, lalu berhenti di frame terakhir.
+- [ ] Black atau KV off pada slide video menampilkan frame akhir, bukan awal animasi.
+- [ ] Suara keluar dari perangkat audio/HDMI yang dipilih.
+- [ ] Mute audio mematikan suara seketika; matikan Mute, suara kembali.
+- [ ] Cabut perangkat audio yang dipilih: suara pindah ke perangkat default dan muncul peringatan.
+
 ## Library dan event
 
 - [ ] Urutkan deck dan slide dengan drag. Output tidak berubah saat mengurutkan.
