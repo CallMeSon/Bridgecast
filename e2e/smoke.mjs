@@ -2435,6 +2435,65 @@ try {
   await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Fade')
   await win.getByRole('radio', { name: 'Cut' }).click()
 
+  // Up next card: pixels of the operator window for every capture while Next and Prev are
+  // pressed on heavy slides. The card must never show the bare letterbox (black) between two slides.
+  {
+    const r = await win.evaluate(() => {
+      const b = document.querySelector('[data-testid=next-card] .slide').getBoundingClientRect()
+      return { x: b.x, y: b.y, w: b.width, h: b.height, iw: innerWidth, ih: innerHeight }
+    })
+    const pts = []
+    for (let gx = 1; gx < 6; gx++) {
+      for (let gy = 1; gy < 4; gy++) {
+        pts.push([r.x + (r.w * gx) / 6, r.y + (r.h * gy) / 4])
+      }
+    }
+    const rec = app.evaluate(
+      async ({ BrowserWindow }, [title, ps, iw, ih, ms]) => {
+        const w = BrowserWindow.getAllWindows().find(
+          (x) => !x.isDestroyed() && x.getTitle() !== title
+        )
+        const out = []
+        const end = Date.now() + ms
+        while (Date.now() < end) {
+          const img = await w.webContents.capturePage()
+          const { width, height } = img.getSize()
+          const bmp = img.toBitmap()
+          const lums = ps.map(([x, y]) => {
+            const sx = Math.min(width - 1, Math.floor((x * width) / iw))
+            const sy = Math.min(height - 1, Math.floor((y * height) / ih))
+            const i = (sy * width + sx) * 4
+            return Math.max(bmp[i], bmp[i + 1], bmp[i + 2])
+          })
+          out.push(Math.max(...lums))
+        }
+        return out
+      },
+      [HDMI_TITLE, pts, r.iw, r.ih, 7000]
+    )
+    await sleep(300)
+    await win.evaluate(() => document.activeElement?.blur())
+    const keys = [
+      'ArrowLeft',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowRight',
+      'ArrowLeft',
+      'ArrowLeft',
+      'ArrowRight'
+    ]
+    for (const k of keys) {
+      await win.keyboard.press(k)
+      await sleep(800)
+    }
+    const lums = await rec
+    const black = lums.filter((l) => l <= 8).length
+    check(
+      lums.length > 20 && black === 0,
+      `Up next card never flashes black on Next/Prev (${lums.length} captures, ${black} black, min ${Math.min(...lums)})`
+    )
+  }
+
   // Rename a deck: right-click > Rename, F2, Escape cancels, empty is refused.
   const noiseId = await noiseDeck.getAttribute('data-deck-id')
   // The options button (three dots) opens the same deck menu as right-click.

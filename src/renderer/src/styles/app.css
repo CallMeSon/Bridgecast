@@ -1103,6 +1103,20 @@ kbd {
   aspect-ratio: 16/9;
   border-radius: var(--r);
 }
+/* Until the first slide has decoded (e.g. coming from the end card) the card shows the
+   placeholder, never the letterbox black; decoded layers are opaque and cover it. */
+.next-card .next-slide {
+  background: var(--placeholder);
+}
+/* Up next layers stack like the Program ones: the new slide covers the old one once decoded. */
+.next-card .next-layer {
+  position: absolute;
+  inset: 0;
+  background: var(--letterbox);
+}
+.next-card .next-layer[data-state='pending'] {
+  opacity: 0;
+}
 .next-card[data-kind='slide'] .slide::after {
   border: 2px solid var(--cue-edge);
 }

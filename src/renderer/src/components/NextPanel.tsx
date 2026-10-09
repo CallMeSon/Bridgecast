@@ -2,7 +2,8 @@ import type { DeckMeta } from '../../../shared/types'
 import type { Action, ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
 import { currentDeck, nextView } from '../model'
-import { EndCard, SlideImage } from './Slide'
+import { EndCard, VideoMark } from './Slide'
+import { SlideLayers } from './SlideLayers'
 import { Switch } from './Switch'
 
 export function NextPanel({
@@ -25,12 +26,19 @@ export function NextPanel({
   // Position of the slide Next takes, e.g. "3 / 9"; empty at the end of a deck.
   let nextPos = ''
   if (nx.kind === 'slide') {
+    // Layers keep the previous slide on screen until the new image has decoded (no black frame).
+    // A video slide shows its poster only; the card never plays video.
     card = (
-      <SlideImage
-        src={slideUrl(nx.deckId, nx.file)}
-        alt={`Slide ${nx.index + 1}`}
-        video={nx.video}
-      />
+      <div className="slide next-slide">
+        <SlideLayers
+          media={{ kind: 'image', url: slideUrl(nx.deckId, nx.file) }}
+          fade={false}
+          muted
+          layerClass="next-layer"
+          imgAttrs={() => ({ alt: `Slide ${nx.index + 1}` })}
+        />
+        {nx.video && <VideoMark />}
+      </div>
     )
     cap = `Slide ${nx.index + 1}`
     nextPos = deck ? `${nx.index + 1} / ${deck.slides.length}` : ''

@@ -8,6 +8,15 @@ interface ImageProps {
   video?: boolean
 }
 
+/** Play glyph on a video slide's card (bottom-left). */
+export function VideoMark(): React.JSX.Element {
+  return (
+    <span className="vmark" role="img" aria-label="Video slide">
+      <PlayIcon size={12} weight="fill" aria-hidden="true" />
+    </span>
+  )
+}
+
 export function SlideImage({ src, alt, lazy, video }: ImageProps): React.JSX.Element {
   return (
     <div className="slide">
@@ -18,11 +27,7 @@ export function SlideImage({ src, alt, lazy, video }: ImageProps): React.JSX.Ele
         decoding="async"
         loading={lazy ? 'lazy' : 'eager'}
       />
-      {video && (
-        <span className="vmark" role="img" aria-label="Video slide">
-          <PlayIcon size={12} weight="fill" aria-hidden="true" />
-        </span>
-      )}
+      {video && <VideoMark />}
     </div>
   )
 }
