@@ -1437,7 +1437,7 @@ async function videoChecks(win, tally) {
       thumbVideo.every((t, i) => ([0, 2, 3].includes(i) ? t.v === 'true' && t.mark : t.v === null && !t.mark)),
     `strip thumbnails 1, 3 and 4 carry data-video and the play mark, 2 and 5 do not (${JSON.stringify(thumbVideo)})`
   )
-  await win.getByTestId('strip').screenshot({ path: path.join(root, '.superpowers/sdd/2026-10-09-video-slides/task-6-video-strip.png') })
+  await win.getByTestId('strip').screenshot({ path: path.join(frameDir, 'video-strip.png') })
   check(
     !near(first.px[1], V_YELLOW) && cutBlack === 0,
     `video starts from its first frame, no black frame on the Cut (end point ${JSON.stringify(first.px[1])}, ${cutBlack} black captures)`
@@ -1553,6 +1553,50 @@ async function videoChecks(win, tally) {
   await apop.waitFor({ state: 'detached' })
   await blur()
 
+  // 1c. A hidden output window is silent (I2). Unplugging the display hides the
+  //     window, it is not closed, and its video would keep sounding on the
+  //     default device. Showing it again follows the saved Mute again.
+  const wired = (await hdmiDebug()).displays
+  const hdmiVisible = async (want) => {
+    const end = Date.now() + 8000
+    while (Date.now() < end) {
+      if ((await hdmiDebug()).visible === want) return
+      await sleep(100)
+    }
+    throw new Error(`ASSERT: the HDMI window becomes ${want ? 'visible' : 'hidden'}`)
+  }
+  await fakeDisplays(wired.filter((d) => d.id !== PROBE_ID))
+  await hdmiVisible(false)
+  const silent = await waitOutputTop(
+    (t) => t.kind === 'video' && t.muted === true,
+    'a hidden output window mutes its video'
+  )
+  check(
+    silent.muted && savedAudio().muted === false,
+    `unplugged: the hidden output's video is muted though the saved Mute is off (${JSON.stringify(savedAudio())})`
+  )
+  await fakeDisplays(wired)
+  await hdmiVisible(true)
+  await waitOutputTop(
+    (t) => t.kind === 'video' && t.muted === false,
+    'the output is unmuted again when shown with Mute off'
+  )
+  check(true, 'shown again with Mute off: the output video plays with sound again')
+  await win.evaluate(() => window.api.setAudio({ deviceId: null, muted: true }))
+  await waitOutputTop((t) => t.kind === 'video' && t.muted === true, 'Mute on before unplugging')
+  await fakeDisplays(wired.filter((d) => d.id !== PROBE_ID))
+  await hdmiVisible(false)
+  await fakeDisplays(wired)
+  await hdmiVisible(true)
+  await sleep(500) // time for a wrong unmute to show up
+  const stillMuted = await hdmiJs(OUTPUT_TOP)
+  check(
+    stillMuted.kind === 'video' && stillMuted.muted === true,
+    'shown again with Mute on: the output video stays muted (follows the saved setting)'
+  )
+  await win.evaluate(() => window.api.setAudio({ deviceId: null, muted: false }))
+  await waitOutputTop((t) => t.kind === 'video' && t.muted === false, 'Mute off again after 1c')
+
   // 2. Black, then Black off: straight back to the last frame (the poster), no replay.
   await win.keyboard.press('b')
   await tallyIs('BLACK')
@@ -1652,6 +1696,54 @@ async function videoChecks(win, tally) {
       hold.removed[0].paused &&
       hold.removed[0].src === null,
     `a pending video superseded by Next is paused and removed, never shown or playing (${JSON.stringify(hold)})`
+  )
+
+  // 4b. A video that never loads (M5): slide 3's `loadeddata` is held back and
+  //     stays held; after PENDING_VIDEO_MS (3 s) the layer gives up and shows
+  //     slide 3's poster instead of keeping slide 4 up for ever. Its failure is
+  //     logged by design, so console.error is captured here (not an error of the run).
+  await hdmiJs(`(() => {
+    const h = (window.__stuck = { logs: [], on: true })
+    h.stopLoad = (e) => {
+      if (h.on && (e.target.getAttribute?.('src') ?? '').endsWith('/003.mp4')) e.stopImmediatePropagation()
+    }
+    addEventListener('loadeddata', h.stopLoad, true)
+    h.orig = console.error
+    console.error = (...a) => h.logs.push(a.map(String).join(' '))
+  })()`)
+  const tStuck = Date.now()
+  await win.keyboard.press('ArrowLeft')
+  await waitPos('3 / 5')
+  await waitOutputTop(
+    (t) => t.kind === 'image' && t.src.endsWith('/003.png'),
+    'a video that never loads gives up and shows its poster',
+    8000
+  )
+  const stuckMs = Date.now() - tStuck
+  const stuck = await hdmiJs(`(() => {
+    const h = window.__stuck
+    h.on = false
+    removeEventListener('loadeddata', h.stopLoad, true)
+    console.error = h.orig
+    return {
+      logs: h.logs,
+      playing: [...document.querySelectorAll('.output-layer video')].filter((v) => !v.paused).length
+    }
+  })()`)
+  check(
+    stuckMs >= 2800 &&
+      stuckMs < 6000 &&
+      stuck.playing === 0 &&
+      stuck.logs.length === 1 &&
+      /\[video\] .*003\.mp4 failed, showing its poster/.test(stuck.logs[0]),
+    `a video stuck pending for 3 s shows its poster, nothing plays (${stuckMs} ms, ${JSON.stringify(stuck)})`
+  )
+  await win.keyboard.press('ArrowRight')
+  await waitPos('4 / 5')
+  await waitFrame(
+    V_SWEEP,
+    (px) => px.some(isMagenta),
+    'back on slide 4 (magenta) after the stuck video'
   )
 
   // 5. Rapid Next over a video slide: from slide 2, two Nexts within a few ms.
@@ -1769,6 +1861,7 @@ async function videoChecks(win, tally) {
     await row.waitFor({ state: 'detached' })
   }
   check((await tally.textContent()) === 'LIVE', 'video checks done, back on the noise deck')
+  return { missingDeckId: mId }
 }
 
 const errors = []
@@ -2392,7 +2485,7 @@ try {
   await renameInput.press('Escape')
   await renamed.waitFor()
 
-  await videoChecks(win, tally)
+  const { missingDeckId } = await videoChecks(win, tally)
 
   await behaviourChecks(win, tally, pos)
 
@@ -2400,17 +2493,43 @@ try {
 
   await hdmiChecks(win)
 
-  // The missing-MP4 check makes both windows log the failed video (by design).
+  // The missing-MP4 check makes both windows log the failed video (by design),
+  // naming that re-imported deck; the same file of any other deck is still an error.
+  const missingMp4 = `${missingDeckId}/003.mp4`
   const relevant = errors.filter(
-    (e) => !/Electron Security Warning/.test(e) && !/\/003\.mp4/.test(e)
+    (e) => !/Electron Security Warning/.test(e) && !e.includes(missingMp4)
   )
   check(
     relevant.length === 0,
     `no console errors${relevant.length ? ': ' + relevant.join(' | ') : ''}`
   )
 
-  // Mute persists across an app restart (same user data folder).
+  // Mute and the audio device persist across an app restart (same user data
+  // folder). A real output device is chosen when this machine has one, else a
+  // saved device that is not connected.
   const mpop = await openOutputPopover(win)
+  const mdev = mpop.getByTestId('audio-device')
+  await mdev
+    .locator('option')
+    .nth(1)
+    .waitFor({ timeout: 3000 })
+    .catch(() => {})
+  const realOpts = (
+    await mdev
+      .locator('option')
+      .evaluateAll((els) => els.map((e) => ({ v: e.value, off: e.disabled })))
+  ).filter((o) => o.v !== '' && !o.off)
+  const chosenDevice = realOpts[0]?.v ?? 'gone-device'
+  if (realOpts.length > 0) await mdev.selectOption(chosenDevice)
+  else await win.evaluate((id) => window.api.setAudio({ deviceId: id, muted: false }), chosenDevice)
+  await win.waitForFunction(
+    (id) => document.querySelector('[data-testid=audio-device]')?.value === id,
+    chosenDevice
+  )
+  check(
+    savedAudio().deviceId === chosenDevice,
+    `audio device ${realOpts.length ? 'chosen' : '(not connected) saved'} before the restart`
+  )
   await mpop.getByTestId('audio-mute').click()
   await win.waitForFunction(
     () =>
@@ -2427,6 +2546,19 @@ try {
   check(
     (await mute2.getAttribute('aria-checked')) === 'true',
     'Mute audio is still on after restarting the app'
+  )
+  const dev2 = win2.getByTestId('audio-device')
+  await win2.waitForFunction(
+    (id) => document.querySelector('[data-testid=audio-device]')?.value === id,
+    chosenDevice
+  )
+  const dev2Text = await dev2.locator('option:checked').textContent()
+  check(
+    (await dev2.inputValue()) === chosenDevice &&
+      (realOpts.length > 0
+        ? dev2Text !== 'Default (Windows)'
+        : dev2Text === 'Saved device (not connected)'),
+    `the saved audio device is still selected after restarting the app (${JSON.stringify(dev2Text)})`
   )
 } catch (e) {
   failed = true
