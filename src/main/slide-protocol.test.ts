@@ -4,6 +4,7 @@ import {
   isInside,
   kvMimeType,
   parseKvUrl,
+  parseRange,
   parseSlideUrl,
   parseThumbUrl,
   thumbFileName
@@ -137,5 +138,31 @@ describe('isInside', () => {
     expect(isInside(root, root)).toBe(false)
     expect(isInside(root, path.join(root, '..', 'other', 'x.png'))).toBe(false)
     expect(isInside(root, path.resolve('/elsewhere/x.png'))).toBe(false)
+  })
+})
+
+describe('video URLs', () => {
+  it('parseSlideUrl accepts NNN.mp4 and nothing else video-like', () => {
+    expect(parseSlideUrl(`slide://${ID}/003.mp4`)).toEqual({ deckId: ID, file: '003.mp4' })
+    expect(parseSlideUrl(`slide://${ID}/003.mov`)).toBeNull()
+    // The URL parser already collapses a plain `/../`; encoded or nested forms must not match.
+    expect(parseSlideUrl(`slide://${ID}/..%2F003.mp4`)).toBeNull()
+    expect(parseSlideUrl(`slide://${ID}/x/003.mp4`)).toBeNull()
+    expect(parseSlideUrl(`slide://${ID}/003.mp4?x=1`)).toBeNull()
+  })
+})
+
+describe('parseRange', () => {
+  it('parses single byte ranges', () => {
+    expect(parseRange('bytes=0-99', 1000)).toEqual({ start: 0, end: 99 })
+    expect(parseRange('bytes=900-', 1000)).toEqual({ start: 900, end: 999 })
+    expect(parseRange('bytes=-100', 1000)).toEqual({ start: 900, end: 999 })
+    expect(parseRange('bytes=0-5000', 1000)).toEqual({ start: 0, end: 999 })
+  })
+
+  it('flags an unsatisfiable range and ignores the rest', () => {
+    expect(parseRange('bytes=2000-', 1000)).toBe('invalid')
+    expect(parseRange('bytes=0-1,5-6', 1000)).toBeNull()
+    expect(parseRange(null, 1000)).toBeNull()
   })
 })

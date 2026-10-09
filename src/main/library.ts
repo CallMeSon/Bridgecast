@@ -14,15 +14,15 @@ import { writeThumbnail } from './thumbnail'
 
 type DeckInput = {
   name: string
-  source: 'pptx' | 'pdf'
+  source: 'pptx' | 'pdf' | 'folder'
   width: number
   height: number
-  slides: { pngPath: string; notes: string }[]
+  slides: { pngPath: string; notes: string; videoPath?: string }[]
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const slideName = (i: number): string => `${String(i + 1).padStart(3, '0')}.png`
+const slideName = (i: number, ext = 'png'): string => `${String(i + 1).padStart(3, '0')}.${ext}`
 
 function writeJsonAtomic(file: string, data: unknown): void {
   const tmp = `${file}.${randomUUID()}.tmp`
@@ -118,7 +118,11 @@ export class Library {
       const slides = d.slides.map((s, i) => {
         const file = slideName(i)
         fs.copyFileSync(s.pngPath, path.join(dir, file))
-        return { file, notes: s.notes }
+        if (!s.videoPath) return { file, notes: s.notes }
+        // The video shares its number with the poster (003.png / 003.mp4).
+        const video = slideName(i, 'mp4')
+        fs.copyFileSync(s.videoPath, path.join(dir, video))
+        return { file, notes: s.notes, video }
       })
       const deck: DeckMeta = {
         id,
@@ -313,6 +317,15 @@ export class Library {
     const deck = this.readDeck(deckId)
     if (!deck.slides.some((s) => s.file === file)) {
       throw new Error('Slide not found. Choose a slide that exists in this deck.')
+    }
+    return path.join(this.deckDir(deckId), file)
+  }
+
+  /** Path of a slide's video by file name; only a video some slide of the deck lists resolves. */
+  videoFilePath(deckId: string, file: string): string {
+    const deck = this.readDeck(deckId)
+    if (!deck.slides.some((s) => s.video === file)) {
+      throw new Error('Video not found. Choose a slide that exists in this deck.')
     }
     return path.join(this.deckDir(deckId), file)
   }

@@ -9,7 +9,14 @@ import { Library } from './library'
 import { AppState } from './state'
 import { importPptx } from './import/pptx'
 import { ImportQueue } from './import-queue'
-import { isInside, kvMimeType, parseKvUrl, parseSlideUrl, parseThumbUrl } from './slide-protocol'
+import {
+  isInside,
+  kvMimeType,
+  parseKvUrl,
+  parseRange,
+  parseSlideUrl,
+  parseThumbUrl
+} from './slide-protocol'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import { HdmiOutput, screenDisplays } from './display-output'
 import type { ScreenDisplay } from './hdmi-plan'
@@ -35,7 +42,10 @@ const MAX_FILES = 200
 
 // Must run before `ready`: lets <img src="slide://..."> load under the CSP.
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'slide', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+  {
+    scheme: 'slide',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
 ])
 
 function broadcast<C extends keyof BroadcastMap>(channel: C, payload: BroadcastMap[C]): void {
@@ -60,6 +70,44 @@ function tempDir(): string {
   return fs.mkdtempSync(join(os.tmpdir(), 'ppt-share-import-'))
 }
 
+/** Serves an MP4 with byte ranges, reading only the requested slice. */
+async function videoResponse(file: string, rangeHeader: string | null): Promise<Response> {
+  const headers = {
+    'content-type': 'video/mp4',
+    'accept-ranges': 'bytes',
+    'cache-control': 'no-store'
+  }
+  const { size } = await fs.promises.stat(file)
+  const range = parseRange(rangeHeader, size)
+  if (range === 'invalid') {
+    return new Response(null, {
+      status: 416,
+      headers: { ...headers, 'content-range': `bytes */${size}` }
+    })
+  }
+  if (range === null) {
+    return new Response(await fs.promises.readFile(file), {
+      headers: { ...headers, 'content-length': String(size) }
+    })
+  }
+  const length = range.end - range.start + 1
+  const handle = await fs.promises.open(file, 'r')
+  try {
+    const buf = Buffer.alloc(length)
+    const { bytesRead } = await handle.read(buf, 0, length, range.start)
+    return new Response(buf.subarray(0, bytesRead), {
+      status: 206,
+      headers: {
+        ...headers,
+        'content-range': `bytes ${range.start}-${range.end}/${size}`,
+        'content-length': String(bytesRead)
+      }
+    })
+  } finally {
+    await handle.close()
+  }
+}
+
 function registerSlideProtocol(root: string, lib: Library): void {
   protocol.handle('slide', async (req) => {
     // Forms: slide://<deckId>/<file> (a slide), slide://<deckId>/thumbs/<n>.jpg (its thumbnail) and slide://kv/<eventId>/<file> (an event's KV).
@@ -72,8 +120,11 @@ function registerSlideProtocol(root: string, lib: Library): void {
         ? lib.kvFilePath(kv.eventId, kv.file)
         : thumb
           ? await lib.thumbFilePath(thumb.deckId, thumb.file)
-          : lib.slideFilePath(parsed!.deckId, parsed!.file)
+          : parsed!.file.endsWith('.mp4')
+            ? lib.videoFilePath(parsed!.deckId, parsed!.file)
+            : lib.slideFilePath(parsed!.deckId, parsed!.file)
       if (!isInside(root, file)) return new Response('Forbidden', { status: 403 })
+      if (parsed?.file.endsWith('.mp4')) return await videoResponse(file, req.headers.get('range'))
       // A thumbnail is a JPEG, or the full PNG when generation failed.
       const type = kv ? kvMimeType(kv.file) : file.endsWith('.jpg') ? 'image/jpeg' : 'image/png'
       if (!type) return new Response('Bad request', { status: 400 })

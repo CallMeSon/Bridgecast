@@ -493,4 +493,42 @@ describe('Library', () => {
       expect(fs.existsSync(path.join(root, 'decks', d.id))).toBe(false)
     })
   })
+
+  describe('video slides', () => {
+    it('stores a video next to its poster and only marks that slide', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const [p0, p1] = makePngs(2)
+      const mp4 = path.join(src, 'clip.mp4')
+      fs.writeFileSync(mp4, 'mp4-data')
+      const deck = lib.addDeck(ev.id, {
+        name: 'V',
+        source: 'folder',
+        width: 1920,
+        height: 1080,
+        slides: [
+          { pngPath: p0, notes: '', videoPath: mp4 },
+          { pngPath: p1, notes: '' }
+        ]
+      })
+      const dir = path.join(root, 'decks', deck.id)
+      expect(fs.readFileSync(path.join(dir, '001.mp4'), 'utf8')).toBe('mp4-data')
+      expect(fs.existsSync(path.join(dir, '002.mp4'))).toBe(false)
+      const saved = JSON.parse(fs.readFileSync(path.join(dir, 'deck.json'), 'utf8'))
+      expect(saved.slides[0].video).toBe('001.mp4')
+      expect('video' in saved.slides[1]).toBe(false)
+      expect(lib.videoFilePath(deck.id, '001.mp4')).toBe(path.join(dir, '001.mp4'))
+      lib.removeDeck(ev.id, deck.id)
+      expect(fs.existsSync(dir)).toBe(false)
+    })
+
+    it('videoFilePath refuses a file no slide uses', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const deck = lib.addDeck(ev.id, deckInput(1))
+      expect(() => lib.videoFilePath(deck.id, '001.mp4')).toThrow(
+        'Video not found. Choose a slide that exists in this deck.'
+      )
+    })
+  })
 })

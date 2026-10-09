@@ -2,8 +2,8 @@ import * as path from 'path'
 import { KV_FILE_RE, KV_MIME } from '../shared/types'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** Slide files are `001.png`, `002.png`, ... (see Library). */
-const FILE_RE = /^\/(\d{3,6}\.png)$/
+/** Slide files are `001.png`, `002.png`, ... and videos `001.mp4`, ... (see Library). */
+const FILE_RE = /^\/(\d{3,6}\.(?:png|mp4))$/
 
 /**
  * Parse `slide://<deckId>/<file>` (e.g. `slide://<uuid>/003.png`); returns
@@ -79,6 +79,35 @@ export function thumbFileName(slideFile: string): string {
 export function kvMimeType(file: string): string | null {
   const ext = path.extname(file).slice(1).toLowerCase()
   return Object.prototype.hasOwnProperty.call(KV_MIME, ext) ? KV_MIME[ext] : null
+}
+
+/**
+ * Parse a `Range` request header for a file of `size` bytes. Returns the
+ * inclusive byte range, `null` when there is no usable header (answer 200 with
+ * the whole file; multi-range is ignored too) or `'invalid'` when it cannot be
+ * satisfied (answer 416).
+ */
+export function parseRange(
+  header: string | null,
+  size: number
+): { start: number; end: number } | null | 'invalid' {
+  if (!header) return null
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim())
+  if (!m || (m[1] === '' && m[2] === '')) return null
+  let start: number
+  let end: number
+  if (m[1] === '') {
+    // Suffix form: the last n bytes.
+    const n = Number(m[2])
+    if (n === 0 || size === 0) return 'invalid'
+    start = Math.max(0, size - n)
+    end = size - 1
+  } else {
+    start = Number(m[1])
+    end = m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1)
+    if (start >= size || start > end) return 'invalid'
+  }
+  return { start, end }
 }
 
 /** True when `file` resolves to a location strictly inside `root`. */

@@ -10,7 +10,7 @@ export interface SlideMeta {
 export interface DeckMeta {
   id: string
   name: string
-  source: 'pptx' | 'pdf'
+  source: 'pptx' | 'pdf' | 'folder'
   width: number
   height: number
   slides: SlideMeta[]
