@@ -8,6 +8,7 @@ import icon from '../../resources/icon.png?asset'
 import { Library } from './library'
 import { AppState } from './state'
 import { importPptx } from './import/pptx'
+import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
 import {
   isInside,
@@ -64,6 +65,14 @@ function handle<C extends InvokeChannel>(
 function assertString(v: unknown, what: string): asserts v is string {
   if (typeof v !== 'string' || !v)
     throw new Error(`${what} is not valid. Reload the app, then try again.`)
+}
+
+function isDirectory(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory()
+  } catch {
+    return false
+  }
 }
 
 function tempDir(): string {
@@ -164,12 +173,20 @@ function registerIpc(
 
   // PPT/PPTX via PowerPoint COM through the import queue: one file at a time
   // (COM must never run in parallel); a failed file never blocks the next.
+  // A folder of page-NN.png / page-NN.mp4 goes through the same queue.
   // Both the "Add files" dialog and drag and drop end up here.
   const jobEvent = new Map<string, string>()
   const queue = new ImportQueue(
     async (job) => {
       const eventId = jobEvent.get(job.id)
       if (!eventId) throw new Error('Target event not found. Choose an event, then import again.')
+      if (isDirectory(job.path)) {
+        const deck = readFolderDeck(job.path)
+        progress({ id: job.id, name: job.name, percent: 90, status: 'busy' })
+        lib.addDeck(eventId, { ...deck, source: 'folder' })
+        state.refresh()
+        return
+      }
       if (!PPTX_RE.test(job.path)) {
         throw new Error('This file type is not supported. Choose a PPTX, PPT, or PDF file.')
       }

@@ -4,21 +4,22 @@ import { hasFiles } from '../model'
 
 export interface DroppedItems {
   files: File[]
-  /** Names of dropped folders (not imported; shown as an error row). */
-  folders: string[]
+  /** Dropped folders (a folder arrives as a content-less File; `api.pathForFile` gives its path). */
+  folders: File[]
 }
 
 /** Splits a drop into files and folders (a folder also arrives as a File without content). */
 function readDrop(dt: DataTransfer): DroppedItems {
   const files: File[] = []
-  const folders: string[] = []
+  const folders: File[] = []
   const items = Array.from(dt.items ?? []).filter((it) => it.kind === 'file')
   if (items.length === 0) return { files: Array.from(dt.files), folders }
   for (const it of items) {
     const entry = it.webkitGetAsEntry?.()
     const file = it.getAsFile()
-    if (entry?.isDirectory) folders.push(entry.name)
-    else if (file) files.push(file)
+    if (!file) continue
+    if (entry?.isDirectory) folders.push(file)
+    else files.push(file)
   }
   return { files, folders }
 }

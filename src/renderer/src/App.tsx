@@ -193,10 +193,11 @@ function App(): React.JSX.Element {
 
   /**
    * One path for the "Add files" dialog and drag and drop: imports into the
-   * active event. Unsupported files and folders become error rows at once.
+   * active event. Unsupported files become error rows at once; a dropped folder
+   * (page-NN.png / page-NN.mp4) goes to main's import queue like a PPTX.
    */
   const importFiles = useCallback(
-    (files: File[], folders: string[] = []) => {
+    (files: File[], folders: File[] = []) => {
       const target = eventRef.current
       const unsupported = (name: string, message: string): void =>
         upsertImport({
@@ -207,9 +208,8 @@ function App(): React.JSX.Element {
           meta: UNSUPPORTED.meta,
           message
         })
-      for (const name of folders) unsupported(name, UNSUPPORTED.folder)
       if (!target) {
-        for (const f of files) {
+        for (const f of [...folders, ...files]) {
           reportError(
             f.name,
             new Error('No event yet. Create one from the Event menu, then import again.')
@@ -218,6 +218,30 @@ function App(): React.JSX.Element {
         return
       }
       const pptx: ImportRequest[] = []
+      /** Main-queue import (PPTX or folder): needs the item's path on disk. */
+      const queueForMain = (f: File, id: string, missing: string): void => {
+        const p = api.pathForFile(f)
+        if (!p) {
+          upsertImport({
+            id,
+            name: f.name,
+            percent: 100,
+            status: 'error',
+            message: missing
+          })
+          return
+        }
+        pptx.push({ id, path: p })
+      }
+      for (const f of folders) {
+        const id = newImportId()
+        upsertImport({ id, name: f.name, percent: 0, status: 'busy' })
+        queueForMain(
+          f,
+          id,
+          'Could not find the folder location. Drag the folder in from File Explorer, then try again.'
+        )
+      }
       for (const f of files) {
         const kind = fileKind(f.name)
         if (kind === 'unsupported') {
@@ -231,19 +255,11 @@ function App(): React.JSX.Element {
           pdfChain.current = pdfChain.current.then(() => importPdf(target, id, f))
           continue
         }
-        const p = api.pathForFile(f)
-        if (!p) {
-          upsertImport({
-            id,
-            name: f.name,
-            percent: 100,
-            status: 'error',
-            message:
-              'Could not find the file location. Save the file to disk, then drag it in from File Explorer.'
-          })
-          continue
-        }
-        pptx.push({ id, path: p })
+        queueForMain(
+          f,
+          id,
+          'Could not find the file location. Save the file to disk, then drag it in from File Explorer.'
+        )
       }
       if (pptx.length) {
         api.importDecks(target, pptx).catch((e) => {

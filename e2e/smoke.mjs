@@ -355,6 +355,37 @@ async function dragAndDropChecks(win, tally, pos, cap) {
       await pptDeck.waitFor({ timeout: 180_000 })
       check(true, 'dropped PPTX imported through the queue')
     }
+    // A folder goes through the same import path as a dropped folder: main's queue with
+    // the folder's path (a real directory File cannot be synthesised here).
+    const folderSrc = path.join(root, 'fixtures/video-deck')
+    await win.evaluate(async (dir) => {
+      const { eventId } = await window.api.getSession()
+      await window.api.importDecks(eventId, [{ id: 'e2e-folder', path: dir }])
+    }, folderSrc)
+    const folderDeck = win.locator('.deck:not(.busy)', {
+      has: win.locator('.name', { hasText: /^video-deck$/ })
+    })
+    await folderDeck.waitFor({ timeout: 30_000 })
+    const folderDeckId = await folderDeck.getAttribute('data-deck-id')
+    const folderMeta = JSON.parse(
+      fs.readFileSync(path.join(userData, 'decks', folderDeckId, 'deck.json'), 'utf8')
+    )
+    check(
+      folderMeta.source === 'folder' &&
+        folderMeta.width === 640 &&
+        folderMeta.slides.map((s) => s.video ?? '-').join() === '001.mp4,-,003.mp4,004.mp4,-' &&
+        fs.existsSync(path.join(userData, 'decks', folderDeckId, '001.mp4')),
+      `dropped folder imported as a 5-slide video deck (${JSON.stringify(folderMeta.slides)})`
+    )
+    await folderDeck.click({ button: 'right' })
+    await win.getByTestId('deck-menu').getByRole('menuitem', { name: 'Remove deck…' }).click()
+    await win.getByTestId('confirm-remove').getByRole('button', { name: 'Remove' }).click()
+    await folderDeck.waitFor({ state: 'detached' })
+    check(
+      !fs.existsSync(path.join(userData, 'decks', folderDeckId)),
+      'removing the folder deck deletes its PNGs and MP4s'
+    )
+
     check((await tally.textContent()) === 'LIVE', 'dropping files does not change the output')
     await errRow.click()
     await errRow.waitFor({ state: 'detached' })

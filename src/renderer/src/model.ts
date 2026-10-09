@@ -150,9 +150,7 @@ export function fileKind(name: string): FileKind {
 /** Copy for a dropped or picked item that cannot be imported (an error row). */
 export const UNSUPPORTED = {
   meta: 'Unsupported',
-  file: 'Only PPTX, PPT, or PDF files can be imported.',
-  folder:
-    'Folders cannot be imported. Open the folder, then drag the PPTX, PPT, or PDF files inside it.'
+  file: 'Only PPTX, PPT, or PDF files can be imported.'
 } as const
 
 /** True when a drag carries files from outside (Explorer), not a deck or slide being reordered. */
