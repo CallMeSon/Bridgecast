@@ -1,6 +1,6 @@
 import type { DeckMeta, EventMeta } from './types'
 import type { Action, ProgramState } from './program'
-import type { HdmiSettings, Settings } from './settings'
+import type { AudioSettings, HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
@@ -22,7 +22,8 @@ export const Invoke = {
   settingsGet: 'settings:get',
   displaysList: 'displays:list',
   hdmiSet: 'hdmi:set',
-  hdmiGetStatus: 'hdmi:getStatus'
+  hdmiGetStatus: 'hdmi:getStatus',
+  audioSet: 'audio:set'
 } as const
 
 /**
@@ -43,7 +44,8 @@ export const Broadcast = {
   programState: 'program:state',
   importProgress: 'import:progress',
   displaysChanged: 'displays:changed',
-  hdmiStatus: 'hdmi:status'
+  hdmiStatus: 'hdmi:status',
+  audioSettings: 'audio:settings'
 } as const
 
 export interface ImportProgress {
@@ -105,6 +107,8 @@ export interface InvokeMap {
   /** Validated in main against the connected displays; saves and applies at once. */
   'hdmi:set': { args: [hdmi: HdmiSettings]; result: Settings }
   'hdmi:getStatus': { args: []; result: HdmiStatus }
+  /** Sanitized, saved, then broadcast as `audio:settings`; applies at once to the output. */
+  'audio:set': { args: [audio: AudioSettings]; result: Settings }
 }
 
 export interface BroadcastMap {
@@ -112,6 +116,7 @@ export interface BroadcastMap {
   'import:progress': ImportProgress
   'displays:changed': DisplayInfo[]
   'hdmi:status': HdmiStatus
+  'audio:settings': AudioSettings
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -168,6 +173,9 @@ export interface Api {
   setHdmi(h: HdmiSettings): Promise<Settings>
   getHdmiStatus(): Promise<HdmiStatus>
   onHdmiStatus(cb: (s: HdmiStatus) => void): () => void
+  /** Sound device and mute for video slides on the HDMI output (applied at once). */
+  setAudio(a: AudioSettings): Promise<Settings>
+  onAudioSettings(cb: (a: AudioSettings) => void): () => void
   /** Output window only (HDMI): the first frame for the current program state is rendered. */
   outputReady(): void
   pathForFile(file: File): string

@@ -25,7 +25,7 @@ interface Props {
   fade: boolean
   /** Video sound; the Program monitor is always muted. */
   muted: boolean
-  /** Audio output device for video (Task 5); unused for now. */
+  /** Audio output device for video (`setSinkId`); '' or missing = the default device. */
   sinkId?: string | null
   /** Class of each layer element (absolutely stacked by the caller's CSS). */
   layerClass: string
@@ -60,6 +60,17 @@ function framePresented(v: HTMLVideoElement): Promise<void> {
   })
 }
 
+/**
+ * Routes `v` to audio output `sinkId` ('' = default). A failure (device gone,
+ * not allowed) is logged and the video keeps playing on the default device.
+ */
+function applySink(v: HTMLVideoElement, sinkId: string): void {
+  const el = v as HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }
+  el.setSinkId?.(sinkId).catch((e: unknown) =>
+    console.warn(`[video] audio device could not be used, playing on the default device:`, e)
+  )
+}
+
 /** Stops a video element and releases its media (it is about to be removed). */
 function stop(v: HTMLVideoElement): void {
   v.pause()
@@ -85,6 +96,7 @@ export function SlideLayers({
   media,
   fade,
   muted,
+  sinkId,
   layerClass,
   imgAttrs,
   onShown
@@ -209,8 +221,23 @@ export function SlideLayers({
       .then(() => reveal(key))
   }
 
+  // The sink each video element was last routed to (a new element is on the default).
+  const sinks = useRef(new WeakMap<HTMLVideoElement, string>())
+  const sink = sinkId ?? ''
+  const route = useCallback((v: HTMLVideoElement, id: string) => {
+    if ((sinks.current.get(v) ?? '') === id) return
+    sinks.current.set(v, id)
+    applySink(v, id)
+  }, [])
+  // A device change reaches the videos already playing, too.
+  useEffect(() => {
+    videos.current.forEach((v) => route(v, sink))
+  }, [sink, route])
+
   const videoRef = (key: number) => (v: HTMLVideoElement | null) => {
-    if (v) videos.current.set(key, v)
+    if (!v) return
+    videos.current.set(key, v)
+    route(v, sink)
   }
 
   return (

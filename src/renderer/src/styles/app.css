@@ -253,6 +253,12 @@ button.output-btn:hover,
   flex: 1;
   font-weight: 600;
 }
+/* Label of a setting row in a popover section (same size as .field label). */
+.row-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 550;
+}
 /* Switch + its visible state (components/Switch.tsx); the same markup everywhere. */
 .switch-ctl {
   flex: none;

@@ -50,6 +50,8 @@ const api: Api = {
   setHdmi: (h) => invoke(Invoke.hdmiSet, h),
   getHdmiStatus: () => invoke(Invoke.hdmiGetStatus),
   onHdmiStatus: (cb) => subscribe(Broadcast.hdmiStatus, cb),
+  setAudio: (a) => invoke(Invoke.audioSet, a),
+  onAudioSettings: (cb) => subscribe(Broadcast.audioSettings, cb),
   outputReady: () => ipcRenderer.send(Send.outputReady),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)

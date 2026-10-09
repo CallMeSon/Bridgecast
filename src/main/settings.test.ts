@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import { join } from 'path'
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings'
-import { sanitizeSettings } from '../shared/settings'
+import { sanitizeAudio, sanitizeSettings } from '../shared/settings'
 
 let dir: string
 let file: string
@@ -18,13 +18,18 @@ describe('loadSettings / saveSettings', () => {
   it('returns the defaults when the file does not exist', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
-      autoAdvance: false
+      autoAdvance: false,
+      audio: { deviceId: null, muted: false }
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
   })
 
   it('save then load returns the same values', () => {
-    const s = { hdmi: { enabled: true, displayId: 2528732444 }, autoAdvance: true }
+    const s = {
+      hdmi: { enabled: true, displayId: 2528732444 },
+      autoAdvance: true,
+      audio: { deviceId: null, muted: false }
+    }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
   })
@@ -63,7 +68,8 @@ describe('hdmi settings', () => {
     fs.writeFileSync(file, JSON.stringify({ ndi }))
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
-      autoAdvance: false
+      autoAdvance: false,
+      audio: { deviceId: null, muted: false }
     })
   })
 
@@ -72,7 +78,8 @@ describe('hdmi settings', () => {
     fs.writeFileSync(file, JSON.stringify({ ndi, hdmi: { enabled: true, displayId: 7 } }))
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: true, displayId: 7 },
-      autoAdvance: false
+      autoAdvance: false,
+      audio: { deviceId: null, muted: false }
     })
   })
 
@@ -101,5 +108,51 @@ describe('hdmi settings', () => {
     expect(sanitizeSettings({ hdmi: { enabled: false, displayId: null, x: 1 }, other: 2 })).toEqual(
       DEFAULT_SETTINGS
     )
+  })
+})
+
+describe('audio settings', () => {
+  it('defaults: no saved device, not muted', () => {
+    expect(DEFAULT_SETTINGS.audio).toEqual({ deviceId: null, muted: false })
+    expect(sanitizeSettings({}).audio).toEqual({ deviceId: null, muted: false })
+  })
+
+  it('missing or wrong-typed audio falls back to the defaults', () => {
+    for (const audio of [undefined, null, 'loud', 7, [], { deviceId: 5, muted: 'yes' }]) {
+      expect(sanitizeAudio(audio)).toEqual({ deviceId: null, muted: false })
+    }
+  })
+
+  it('keeps a valid device id and muted flag', () => {
+    expect(sanitizeAudio({ deviceId: 'abc123', muted: true })).toEqual({
+      deviceId: 'abc123',
+      muted: true
+    })
+    expect(sanitizeSettings({ audio: { deviceId: 'abc123', muted: true } }).audio).toEqual({
+      deviceId: 'abc123',
+      muted: true
+    })
+  })
+
+  it('an empty or too long device id becomes null (512 characters is the limit)', () => {
+    expect(sanitizeAudio({ deviceId: '', muted: true })).toEqual({ deviceId: null, muted: true })
+    expect(sanitizeAudio({ deviceId: 'x'.repeat(512) }).deviceId).toBe('x'.repeat(512))
+    expect(sanitizeAudio({ deviceId: 'x'.repeat(513) }).deviceId).toBeNull()
+  })
+
+  it('drops unknown audio fields', () => {
+    expect(sanitizeAudio({ deviceId: null, muted: false, volume: 3 })).toEqual({
+      deviceId: null,
+      muted: false
+    })
+  })
+
+  it('save then load keeps audio', () => {
+    const s = {
+      ...DEFAULT_SETTINGS,
+      audio: { deviceId: 'hdmi-1', muted: true }
+    }
+    saveSettings(file, s)
+    expect(loadSettings(file).audio).toEqual({ deviceId: 'hdmi-1', muted: true })
   })
 })

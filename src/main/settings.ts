@@ -1,14 +1,15 @@
 import * as fs from 'fs'
 import { dirname } from 'path'
 import { randomUUID } from 'crypto'
-import { DEFAULT_HDMI, sanitizeSettings, type Settings } from '../shared/settings'
+import { DEFAULT_AUDIO, DEFAULT_HDMI, sanitizeSettings, type Settings } from '../shared/settings'
 
 export type { Settings } from '../shared/settings'
 
-/** Spec defaults: HDMI off, no auto advance to the next deck. */
+/** Spec defaults: HDMI off, no auto advance to the next deck, default sound device, not muted. */
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   hdmi: DEFAULT_HDMI,
-  autoAdvance: false
+  autoAdvance: false,
+  audio: DEFAULT_AUDIO
 })
 
 /**

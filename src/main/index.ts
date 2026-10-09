@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, dialog, ipcMain, protocol } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain, protocol, session } from 'electron'
 import * as path from 'path'
 import { join } from 'path'
 import * as fs from 'fs'
@@ -22,7 +22,13 @@ import { loadSettings, saveSettings, type Settings } from './settings'
 import { HdmiOutput, screenDisplays } from './display-output'
 import type { ScreenDisplay } from './hdmi-plan'
 import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
-import { sanitizeSettings, type HdmiSettings } from '../shared/settings'
+import { permissionAllowed } from './permissions'
+import {
+  sanitizeAudio,
+  sanitizeSettings,
+  type AudioSettings,
+  type HdmiSettings
+} from '../shared/settings'
 import {
   Broadcast,
   Invoke,
@@ -331,6 +337,12 @@ function registerIpc(
     return saved
   })
 
+  handle(Invoke.audioSet, (input: AudioSettings) => {
+    const saved = settings.saveAudio(sanitizeAudio(input))
+    broadcast(Broadcast.audioSettings, saved.audio)
+    return saved
+  })
+
   state.onChange((s) => broadcast(Broadcast.programState, s))
 }
 
@@ -349,6 +361,10 @@ class SettingsStore {
   /** Saves HDMI settings (validated by the caller). */
   saveHdmi(hdmi: HdmiSettings): Settings {
     return this.save({ ...this.settings, hdmi })
+  }
+
+  saveAudio(audio: AudioSettings): Settings {
+    return this.save({ ...this.settings, audio })
   }
 
   saveAutoAdvance(autoAdvance: boolean): Settings {
@@ -457,6 +473,16 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // Audio output labels and setSinkId need media permissions; only the app's
+  // own pages get them (the HDMI output window uses the default session).
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  session.defaultSession.setPermissionCheckHandler((_wc, permission, origin) =>
+    permissionAllowed(permission, origin, devUrl)
+  )
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) =>
+    callback(permissionAllowed(permission, details.requestingUrl, devUrl))
+  )
 
   const root = app.getPath('userData')
   let lib: Library

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProgramState } from '../../shared/program'
+import type { AudioSettings } from '../../shared/settings'
 import { outputSource } from './model'
+import { pickSink, useAudioOutputs } from './audio'
 import { SlideLayers, type ShownMedia } from './components/SlideLayers'
 
 const timingId = (key: number): string => `layer-${key}`
@@ -41,11 +43,25 @@ export function OutputView(): React.JSX.Element {
   // null until the real program state is known (initial fetch or a broadcast):
   // nothing is rendered before that, it is not "the current state".
   const [program, setProgram] = useState<ProgramState | null>(null)
+  // Sound settings: also null until known, so a video never starts with the wrong sound.
+  const [audio, setAudio] = useState<AudioSettings | null>(null)
+  const outputs = useAudioOutputs()
   const readySent = useRef(false)
 
   useEffect(() => {
     const api = window.api
     let fresh = true
+    let freshAudio = true
+    const offAudio = api.onAudioSettings((a) => {
+      freshAudio = false
+      setAudio(a)
+    })
+    api
+      .getSettings()
+      .then((s) => {
+        if (freshAudio) setAudio(s.audio)
+      })
+      .catch((e) => console.error('[output] settings failed to load:', e))
     const off = api.onProgramState((s) => {
       fresh = false // a broadcast is newer than the initial fetch
       setProgram(s)
@@ -56,8 +72,16 @@ export function OutputView(): React.JSX.Element {
         if (fresh) setProgram(session.state)
       })
       .catch((e) => console.error('[output] initial state failed to load:', e))
-    return off
+    return () => {
+      off()
+      offAudio()
+    }
   }, [])
+
+  // A saved device is looked up in the device list, so wait for the list before
+  // the first video. A missing device plays on the default one (HdmiSection warns).
+  const sink = audio ? pickSink(audio.deviceId, outputs ?? []).sinkId : ''
+  const soundReady = audio !== null && (audio.deviceId === null || outputs !== null)
 
   // Tell main once the first layer for a known state is on screen, so the HDMI
   // window is shown without ever flashing a placeholder. An image is decoded
@@ -75,11 +99,12 @@ export function OutputView(): React.JSX.Element {
 
   return (
     <div className="output" aria-hidden="true">
-      {program && (
+      {program && soundReady && (
         <SlideLayers
           media={outputSource(program)}
           fade={program.transition === 'fade'}
-          muted={false}
+          muted={audio.muted}
+          sinkId={sink}
           layerClass="output-layer"
           imgAttrs={(key) => ({ elementtiming: timingId(key) })}
           onShown={onShown}

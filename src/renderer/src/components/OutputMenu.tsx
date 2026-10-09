@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MonitorIcon, WarningIcon } from '@phosphor-icons/react'
 import type { HdmiStatus } from '../../../shared/ipc'
 import type { DisplayInfo } from '../../../shared/displays'
-import type { HdmiSettings } from '../../../shared/settings'
+import type { AudioSettings, HdmiSettings } from '../../../shared/settings'
 import { hdmiBadge } from '../model'
 import { HdmiSection } from './HdmiSection'
 
@@ -13,6 +13,7 @@ import { HdmiSection } from './HdmiSection'
 export function OutputMenu(): React.JSX.Element {
   const api = window.api
   const [hdmi, setHdmi] = useState<HdmiSettings | null>(null)
+  const [audio, setAudio] = useState<AudioSettings | null>(null)
   const [status, setStatus] = useState<HdmiStatus | null>(null)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [open, setOpen] = useState(false)
@@ -20,8 +21,15 @@ export function OutputMenu(): React.JSX.Element {
   const trigger = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    const offs = [api.onHdmiStatus(setStatus), api.onDisplaysChanged(setDisplays)]
-    api.getSettings().then((s) => setHdmi(s.hdmi))
+    const offs = [
+      api.onHdmiStatus(setStatus),
+      api.onDisplaysChanged(setDisplays),
+      api.onAudioSettings(setAudio)
+    ]
+    api.getSettings().then((s) => {
+      setHdmi(s.hdmi)
+      setAudio((cur) => cur ?? s.audio)
+    })
     // A status pushed before this resolves is newer; keep it.
     api.getHdmiStatus().then((s) => setStatus((cur) => cur ?? s))
     api.listDisplays().then(setDisplays)
@@ -54,7 +62,7 @@ export function OutputMenu(): React.JSX.Element {
     }
   }, [open])
 
-  if (!hdmi) {
+  if (!hdmi || !audio) {
     return (
       <div className="output-menu">
         <span className="output-btn" data-tone="off">
@@ -100,9 +108,13 @@ export function OutputMenu(): React.JSX.Element {
         >
           <HdmiSection
             hdmi={hdmi}
+            audio={audio}
             displays={displays}
             status={status}
-            onSaved={(s) => setHdmi(s.hdmi)}
+            onSaved={(s) => {
+              setHdmi(s.hdmi)
+              setAudio(s.audio)
+            }}
           />
         </div>
       )}

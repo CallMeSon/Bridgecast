@@ -21,7 +21,7 @@ const frameDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-frames-'))
 const W = 1920
 const H = 1080
 
-const app = await electron.launch({
+const launchOptions = {
   args: [root],
   cwd: root,
   env: {
@@ -30,7 +30,10 @@ const app = await electron.launch({
     PPT_OUTPUT_DUMP: frameDir,
     ELECTRON_RENDERER_URL: ''
   }
-})
+}
+const app = await electron.launch(launchOptions)
+/** The app relaunched on the same user data by the restart check. */
+let app2 = null
 
 // --- Program output helpers ---
 // Program is read back from the HDMI output window (capturePage: its own
@@ -673,6 +676,9 @@ async function stopProbe(win) {
 
 const savedHdmi = () =>
   JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).hdmi
+
+const savedAudio = () =>
+  JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).audio
 
 async function openOutputPopover(win) {
   const pop = win.getByTestId('output-popover')
@@ -1449,6 +1455,93 @@ async function videoChecks(win, tally) {
     !top1.muted && pgm?.muted === true && pgm.src.endsWith('/001.mp4'),
     `output plays with sound, the Program monitor plays the same video muted (${JSON.stringify(pgm)})`
   )
+
+  // 1b. Audio (Task 5): the HDMI section lists the sound devices and mutes the
+  //     output's video at once; the choice is saved in settings.json.
+  const apop = await openOutputPopover(win)
+  const devSel = apop.getByTestId('audio-device')
+  // The device list arrives asynchronously (enumerateDevices); a machine without
+  // any audio output only ever has the Default option.
+  await devSel
+    .locator('option')
+    .nth(1)
+    .waitFor({ timeout: 3000 })
+    .catch(() => {})
+  const devOpts = await devSel.locator('option').allTextContents()
+  check(
+    devOpts[0] === 'Default (Windows)',
+    `audio device list starts with the Default option (${JSON.stringify(devOpts)})`
+  )
+  const realDevs = devOpts.filter((t) => t !== 'Default (Windows)')
+  const unnamed = realDevs.filter((t) => /^Audio device \d+$/.test(t))
+  console.log(
+    `  audio outputs: ${realDevs.length} real device(s); labels ${unnamed.length === 0 ? 'readable' : `EMPTY for ${unnamed.length}`}: ${JSON.stringify(realDevs)}`
+  )
+  const muteSw = apop.getByTestId('audio-mute')
+  check(
+    (await muteSw.getAttribute('aria-checked')) === 'false',
+    'Mute audio starts off (the output plays with sound)'
+  )
+  await muteSw.click()
+  const topMuted = await waitOutputTop(
+    (t) => t.kind === 'video' && t.muted === true,
+    'Mute audio mutes the output video'
+  )
+  await win.waitForFunction(
+    () =>
+      document.querySelector('[data-testid=audio-mute]')?.getAttribute('aria-checked') === 'true'
+  )
+  check(
+    topMuted.muted && savedAudio().muted === true,
+    `Mute audio mutes the HDMI output's playing video at once and is saved (${JSON.stringify(savedAudio())})`
+  )
+  await muteSw.click()
+  await waitOutputTop((t) => t.kind === 'video' && t.muted === false, 'Mute off unmutes the video')
+  check(savedAudio().muted === false, 'Mute audio off unmutes the output video again')
+  if (realDevs.length > 0) {
+    // Route to the first real device: setSinkId must take it without an error.
+    const optValue = await devSel.locator('option').nth(1).getAttribute('value')
+    const sinkOf = () =>
+      hdmiJs(`[...document.querySelectorAll('.output-layer video')].map((v) => v.sinkId)`)
+    const waitSink = async (want) => {
+      const end = Date.now() + 5000
+      let got = null
+      while (Date.now() < end) {
+        got = await sinkOf()
+        if (got.length > 0 && got.every((x) => x === want)) return got
+        await sleep(100)
+      }
+      return got
+    }
+    await devSel.selectOption(optValue)
+    const sink = await waitSink(optValue)
+    check(
+      sink.length > 0 && sink.every((x) => x === optValue) && savedAudio().deviceId === optValue,
+      `choosing an audio device routes the output video to it via setSinkId (${realDevs[0]}: ${JSON.stringify(sink)})`
+    )
+    await devSel.selectOption('')
+    const back = await waitSink('')
+    check(
+      back.length > 0 && back.every((x) => x === '') && savedAudio().deviceId === null,
+      `choosing Default (Windows) routes back to the default device (${JSON.stringify(back)})`
+    )
+  } else {
+    console.log('  (no audio output device on this machine: setSinkId routing not exercised)')
+  }
+  // A saved device that is not connected: warning in the section, default sink on the output.
+  await win.evaluate(() => window.api.setAudio({ deviceId: 'gone-device', muted: false }))
+  const missing = apop.getByTestId('audio-missing')
+  await missing.waitFor()
+  check(
+    (await missing.textContent()) ===
+      'The saved audio device is not connected. Sound plays on the Windows default device.',
+    'a saved audio device that is gone shows the warning in the HDMI section'
+  )
+  await win.evaluate(() => window.api.setAudio({ deviceId: null, muted: false }))
+  await missing.waitFor({ state: 'detached' })
+  await win.keyboard.press('Escape')
+  await apop.waitFor({ state: 'detached' })
+  await blur()
 
   // 2. Black, then Black off: straight back to the last frame (the poster), no replay.
   await win.keyboard.press('b')
@@ -2305,12 +2398,33 @@ try {
     relevant.length === 0,
     `no console errors${relevant.length ? ': ' + relevant.join(' | ') : ''}`
   )
+
+  // Mute persists across an app restart (same user data folder).
+  const mpop = await openOutputPopover(win)
+  await mpop.getByTestId('audio-mute').click()
+  await win.waitForFunction(
+    () =>
+      document.querySelector('[data-testid=audio-mute]')?.getAttribute('aria-checked') === 'true'
+  )
+  check(savedAudio().muted === true, 'Mute audio on is written to settings.json')
+  await app.close()
+  app2 = await electron.launch(launchOptions)
+  const win2 = await app2.firstWindow()
+  await win2.waitForSelector('.app')
+  await win2.getByTestId('output-status').click()
+  const mute2 = win2.getByTestId('audio-mute')
+  await mute2.waitFor()
+  check(
+    (await mute2.getAttribute('aria-checked')) === 'true',
+    'Mute audio is still on after restarting the app'
+  )
 } catch (e) {
   failed = true
   console.error(e)
   if (errors.length) console.error('console errors:', errors)
 } finally {
-  await app.close()
+  await app.close().catch(() => {}) // already closed by the restart check
+  await app2?.close().catch(() => {})
   fs.rmSync(userData, { recursive: true, force: true })
   if (failed) console.error(`output frames kept in ${frameDir}`)
   else fs.rmSync(frameDir, { recursive: true, force: true })
