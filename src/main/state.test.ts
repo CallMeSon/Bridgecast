@@ -457,6 +457,21 @@ describe('AppState sections', () => {
     expect(s.shown?.deckId).toBe(d2)
   })
 
+  it('nextSection from STANDBY after setEvent takes the first section, not the second', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d1 = addDeck(lib, a.id, 1, 'one')
+    addDeck(lib, a.id, 1, 'two')
+    lib.addSection(a.id, 0)
+    lib.addSection(a.id, 1)
+    const app = new AppState(lib)
+    app.setEvent(a.id)
+    expect(app.state).toMatchObject({ deckId: d1, index: 0, shown: null })
+    const s = app.dispatch({ type: 'nextSection' })
+    expect(s.shown).toMatchObject({ deckId: d1, index: 0 })
+    expect(s.deckId).toBe(d1)
+  })
+
   it('nextSection is a no-op after setEvent to an event without sections', () => {
     const lib = new Library(root)
     const a = lib.createEvent('A')

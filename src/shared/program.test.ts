@@ -566,6 +566,28 @@ describe('sections', () => {
     expect(r.shown).toEqual(sh('A', 0))
     expect(reduce(initialState, { type: 'prevSection' }, sd, s1)).toBe(initialState)
   })
+  it('STANDBY with a valid position: nextSection takes the first section, not the second', () => {
+    const open = [
+      { id: 'o', name: 'Opening', at: 0 },
+      { id: 't1', name: 'Talk 1', at: 2 }
+    ]
+    const standby: ProgramState = { ...initialState, deckId: 'A', index: 0, take: 2 }
+    expect(pendingTake(standby, sd)).toBe(true)
+    const r = reduce(standby, { type: 'nextSection' }, sd, open)
+    expect(pos(r)).toEqual(['A', 0])
+    expect(r.shown).toEqual(sh('A', 0))
+    expect(r.take).toBe(3)
+    // prevSection keeps today's behaviour: nothing before the first segment.
+    expect(reduce(standby, { type: 'prevSection' }, sd, open)).toBe(standby)
+  })
+  it('pending take from another event: nextSection takes the position segment first', () => {
+    const away = at('C', 1, { shown: sh('X', 0) })
+    expect(pendingTake(away, sd)).toBe(true)
+    const r = reduce(away, { type: 'nextSection' }, sd, s1)
+    expect(pos(r)).toEqual(['C', 0])
+    expect(r.shown).toEqual(sh('C', 0))
+    expect(r.take).toBe(away.take + 1)
+  })
   it('selectSection jumps to the section; unknown or slideless is unchanged', () => {
     expect(pos(reduce(at('A', 1), { type: 'selectSection', sectionId: 's1' }, sd, s1))).toEqual([
       'C',

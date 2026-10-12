@@ -485,6 +485,11 @@ describe('sections', () => {
     expect(canPrevSection(decks, at('c', 0), secs)).toBe(true)
     expect(canNextSection(decks, at('a', 0), [])).toBe(false)
   })
+  it('canNextSection is true from a STANDBY position inside the first section', () => {
+    const first: SectionMeta[] = [{ id: 's1', name: 'Part 1', at: 0 }]
+    const standby = { ...at('a', 0), shown: null }
+    expect(canNextSection(decks, standby, first)).toBe(true)
+  })
   it('n and N follow shift, not case', () => {
     const target = null
     expect(keyToAction({ key: 'n', target })).toEqual({ type: 'nextSection' })

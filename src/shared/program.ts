@@ -134,7 +134,8 @@ function step(
 
 /**
  * Puts slide 0 of the first deck with slides in the segment `from + dir`, `from + 2 * dir`, …
- * live. Same state object when there is no such segment.
+ * live (forward from a pending take: `from` itself first). Same state object when there is
+ * no such segment.
  */
 function jumpSection(
   state: ProgramState,
@@ -149,7 +150,10 @@ function jumpSection(
     state.deckId === null
       ? -1
       : segments.findIndex((seg) => seg.decks.some((d) => d.id === state.deckId))
-  for (let i = from + dir; i >= 0 && i < segments.length; i += dir) {
+  // Nothing of these decks is on air yet (STANDBY with a valid position): going
+  // forward starts at the position's own segment, so its first slide is not skipped.
+  const start = dir === 1 && from >= 0 && pendingTake(state, decks) ? from : from + dir
+  for (let i = start; i >= 0 && i < segments.length; i += dir) {
     const deck = segments[i].decks.find((d) => d.slides.length > 0)
     if (deck) return moveTo(state, deck, 0)
   }
