@@ -555,11 +555,23 @@ describe('Library sections', () => {
     expect(lib2.listEvents()[0].deckIds).toEqual(decks.map((d) => d.id))
   })
 
+  it("addSection 'end' appends after the last deck stored in main", () => {
+    const { lib, ev, decks } = setup(2)
+    const r = lib.addSection(ev.id, 'end')
+    expect(r.event.sections?.[0]).toMatchObject({ id: r.sectionId, at: 2 })
+    // A deck added meanwhile: 'end' follows it, a stale number would not.
+    lib.addDeck(ev.id, deckInput(1, 'Late'))
+    const r2 = lib.addSection(ev.id, 'end')
+    expect(r2.event.sections?.map((s) => s.at)).toEqual([2, 3])
+    expect(r2.event.deckIds).toHaveLength(decks.length + 1)
+  })
+
   it('addSection uses a given name and rejects invalid at', () => {
     const { lib, ev } = setup()
     expect(lib.addSection(ev.id, 0, ' Opening ').event.sections?.[0].name).toBe('Opening')
     const msg = 'The section position is not valid. Reload the app, then try again.'
     for (const at of [-1, 1.5, 4]) expect(() => lib.addSection(ev.id, at)).toThrow(msg)
+    expect(() => lib.addSection(ev.id, 'last' as never)).toThrow(msg)
   })
 
   it('renameSection persists and validates the name', () => {

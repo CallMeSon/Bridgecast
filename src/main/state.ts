@@ -105,7 +105,7 @@ export class AppState {
     return this.refresh()
   }
 
-  addSection(eventId: string, at: number): { event: EventMeta; sectionId: string } {
+  addSection(eventId: string, at: number | 'end'): { event: EventMeta; sectionId: string } {
     return this.lib.addSection(eventId, at)
   }
 

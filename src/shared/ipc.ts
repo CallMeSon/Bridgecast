@@ -102,7 +102,7 @@ export interface InvokeMap {
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
   'decks:rename': { args: [eventId: string, deckId: string, name: string]; result: DeckMeta }
   'sections:add': {
-    args: [eventId: string, at: number]
+    args: [eventId: string, at: number | 'end']
     result: { event: EventMeta; sectionId: string }
   }
   'sections:rename': { args: [eventId: string, sectionId: string, name: string]; result: EventMeta }
@@ -165,7 +165,7 @@ export interface Api {
   importDecks(eventId: string, files: ImportRequest[]): Promise<void>
   addRendered(eventId: string, payload: RenderedDeck): Promise<DeckMeta>
   reorderDecks(eventId: string, items: OrderItem[]): Promise<void>
-  addSection(eventId: string, at: number): Promise<{ event: EventMeta; sectionId: string }>
+  addSection(eventId: string, at: number | 'end'): Promise<{ event: EventMeta; sectionId: string }>
   renameSection(eventId: string, sectionId: string, name: string): Promise<EventMeta>
   removeSection(eventId: string, sectionId: string): Promise<EventMeta>
   reorderSlides(deckId: string, order: number[]): Promise<void>

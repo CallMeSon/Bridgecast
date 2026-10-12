@@ -347,7 +347,7 @@ function App(): React.JSX.Element {
     []
   )
   const addSection = useCallback(
-    async (at: number): Promise<string | null> => {
+    async (at: number | 'end'): Promise<string | null> => {
       const target = eventRef.current
       if (!target) return null
       try {

@@ -291,7 +291,7 @@ function registerIpc(
   })
   handle(Invoke.sectionsAdd, (eventId, at) => {
     assertString(eventId, 'Event ID')
-    if (!Number.isInteger(at)) {
+    if (at !== 'end' && !Number.isInteger(at)) {
       throw new Error('The section position is not valid. Reload the app, then try again.')
     }
     const res = state.addSection(eventId, at)

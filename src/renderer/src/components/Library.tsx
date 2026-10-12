@@ -52,7 +52,7 @@ interface Props {
   onRenameDeck(deckId: string, name: string): Promise<void>
   sections: SectionMeta[]
   /** `at` is a deck index (the section goes before that deck). Resolves to the new section's id. */
-  onAddSection(at: number): Promise<string | null>
+  onAddSection(at: number | 'end'): Promise<string | null>
   /** Rejects with a user-facing message when main refuses the name. */
   onRenameSection(sectionId: string, name: string): Promise<void>
   onRemoveSection(sectionId: string): void
@@ -400,7 +400,7 @@ export function Library(p: Props): React.JSX.Element {
     p.onMoveItem(from, to)
   }
 
-  const addSection = (at: number): void => {
+  const addSection = (at: number | 'end'): void => {
     setConfirm(null)
     // The new section opens in rename mode (name selected), like a new file in Explorer.
     void p.onAddSection(at).then((id) => {
@@ -727,7 +727,7 @@ export function Library(p: Props): React.JSX.Element {
             <PlusIcon size={16} />
             Add files
           </button>
-          <button className="btn" disabled={!p.canImport} onClick={() => addSection(count)}>
+          <button className="btn" disabled={!p.canImport} onClick={() => addSection('end')}>
             <ListPlusIcon size={16} />
             Add section
           </button>

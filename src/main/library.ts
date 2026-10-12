@@ -221,9 +221,17 @@ export class Library {
     return sec
   }
 
-  /** Adds a divider before `deckIds[at]` (`at === length` appends), after sections already at `at`. */
-  addSection(eventId: string, at: number, name?: string): { event: EventMeta; sectionId: string } {
+  /**
+   * Adds a divider before `deckIds[at]` (`at === length` appends), after sections already at
+   * `at`. `'end'` means after the last deck as stored now, whatever the caller last saw.
+   */
+  addSection(
+    eventId: string,
+    position: number | 'end',
+    name?: string
+  ): { event: EventMeta; sectionId: string } {
     const ev = this.findEvent(eventId)
+    const at = position === 'end' ? ev.deckIds.length : position
     if (!Number.isInteger(at) || at < 0 || at > ev.deckIds.length) {
       throw new Error('The section position is not valid. Reload the app, then try again.')
     }
