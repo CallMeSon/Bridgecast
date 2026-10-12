@@ -16,10 +16,19 @@ export interface DeckMeta {
   slides: SlideMeta[]
 }
 
+export interface SectionMeta {
+  id: string
+  name: string
+  /** The section starts before deckIds[at]; at === deckIds.length means it is last and empty. */
+  at: number
+}
+
 export interface EventMeta {
   id: string
   name: string
   deckIds: string[]
+  /** Dividers over deckIds: a section starts before deckIds[at]. Absent = no sections. */
+  sections?: SectionMeta[]
   /** File name of the event's KV (key visual) image, if any (see Library.setKv). */
   kv?: string
 }
