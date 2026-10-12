@@ -183,9 +183,7 @@ export class Library {
       new Set(keys).size === keys.length &&
       keys.every((k) => expected.has(k))
     if (!valid) {
-      throw new Error(
-        'The deck list is not valid: it must include every deck and section in the event exactly once. Reload the app, then try again.'
-      )
+      throw new Error('The deck list changed meanwhile. It has been reloaded; try the move again.')
     }
     const next = splitOrder(items, sections)
     const prevIds = ev.deckIds

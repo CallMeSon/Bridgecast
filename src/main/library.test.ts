@@ -647,8 +647,7 @@ describe('Library sections', () => {
       decks.map((d) => d.id),
       lib.listEvents()[0].sections
     )
-    const msg =
-      'The deck list is not valid: it must include every deck and section in the event exactly once. Reload the app, then try again.'
+    const msg = 'The deck list changed meanwhile. It has been reloaded; try the move again.'
     const [d0, s, d1] = good
     expect(() => lib.reorder(ev.id, [d0, s])).toThrow(msg) // missing deck
     expect(() => lib.reorder(ev.id, [...good, { deck: 'nope' }])).toThrow(msg) // extra id
