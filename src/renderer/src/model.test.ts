@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import type { DeckMeta } from '../../shared/types'
+import type { DeckMeta, SectionMeta } from '../../shared/types'
 import { initialState, reduce, type ProgramState } from '../../shared/program'
 import {
   baseName,
   canNext,
   canPrev,
+  canNextSection,
+  canPrevSection,
   errorMessage,
   fileKind,
   hasFiles,
@@ -440,5 +442,57 @@ describe('hdmiStatusText', () => {
     expect(hdmiStatusText({ state: 'hidden', message: 'Menyiapkan output HDMI…' }, on)).toBe(
       'Menyiapkan output HDMI…'
     )
+  })
+})
+
+describe('sections', () => {
+  const decks = [deck('a', 2, 'A'), deck('b', 1, 'B'), deck('c', 1, 'C')]
+  const secs: SectionMeta[] = [
+    { id: 's1', name: 'Part 1', at: 0 },
+    { id: 's2', name: 'Part 2', at: 1 },
+    { id: 's3', name: 'Part 3', at: 2 }
+  ]
+  const auto = { autoAdvance: true }
+  it('sectionEnd names the next section', () => {
+    expect(nextView(decks, at('a', 1, auto), secs)).toEqual({
+      kind: 'sectionEnd',
+      nextSection: 'Part 2'
+    })
+  })
+  it('sectionEnd is null on the last segment', () => {
+    expect(nextView(decks, at('c', 0, auto), secs)).toEqual({
+      kind: 'sectionEnd',
+      nextSection: null
+    })
+  })
+  it('auto off keeps end', () => {
+    expect(nextView(decks, at('a', 1), secs)).toEqual({ kind: 'end', nextDeck: 'B', auto: false })
+  })
+  it('no sections keeps end', () => {
+    expect(nextView(decks, at('a', 1, auto))).toEqual({ kind: 'end', nextDeck: 'B', auto: true })
+  })
+  it('a following deck in the same segment keeps end', () => {
+    const one: SectionMeta[] = [{ id: 's1', name: 'All', at: 0 }]
+    expect(nextView(decks, at('a', 1, auto), one)).toEqual({
+      kind: 'end',
+      nextDeck: 'B',
+      auto: true
+    })
+  })
+  it('canNextSection is false on the last segment, true elsewhere', () => {
+    expect(canNextSection(decks, at('c', 0), secs)).toBe(false)
+    expect(canNextSection(decks, at('a', 0), secs)).toBe(true)
+    expect(canPrevSection(decks, at('c', 0), secs)).toBe(true)
+    expect(canNextSection(decks, at('a', 0), [])).toBe(false)
+  })
+  it('n and N follow shift, not case', () => {
+    const target = null
+    expect(keyToAction({ key: 'n', target })).toEqual({ type: 'nextSection' })
+    expect(keyToAction({ key: 'N', shiftKey: true, target })).toEqual({ type: 'prevSection' })
+    expect(keyToAction({ key: 'N', shiftKey: false, target })).toEqual({ type: 'nextSection' })
+    expect(keyToAction({ key: 'n', repeat: true, target })).toBeNull()
+    expect(
+      keyToAction({ key: 'n', target: { tagName: 'INPUT' } as unknown as EventTarget })
+    ).toBeNull()
   })
 })

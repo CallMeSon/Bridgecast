@@ -1,5 +1,6 @@
-import type { DeckMeta } from '../../shared/types'
+import type { DeckMeta, SectionMeta } from '../../shared/types'
 import { kvOnAir, pendingTake, reduce, type Action, type ProgramState } from '../../shared/program'
+import { segmentsOf } from '../../shared/sections'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import type { HdmiSettings } from '../../shared/settings'
 
@@ -17,6 +18,8 @@ export type NextView =
       held?: true
     }
   | { kind: 'end'; nextDeck: string | null; auto: boolean }
+  /** Auto advance stops at the end of a section; `nextSection` is the next section with slides. */
+  | { kind: 'sectionEnd'; nextSection: string | null }
 
 export function currentDeck(decks: DeckMeta[], s: ProgramState): DeckMeta | null {
   const d = decks.find((x) => x.id === s.deckId)
@@ -32,7 +35,11 @@ export function nextIndex(decks: DeckMeta[], s: ProgramState): number {
   return pendingTake(s, decks) ? s.index : s.index + 1
 }
 
-export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
+export function nextView(
+  decks: DeckMeta[],
+  s: ProgramState,
+  sections: SectionMeta[] = []
+): NextView {
   const deck = currentDeck(decks, s)
   if (!deck) return { kind: 'none' }
   const here = deck.slides[s.index]
@@ -69,18 +76,46 @@ export function nextView(decks: DeckMeta[], s: ProgramState): NextView {
       ...(nxt.video ? { video: true as const } : {})
     }
   }
+  if (sections.length > 0 && s.autoAdvance) {
+    const segs = segmentsOf(decks, sections)
+    const si = segs.findIndex((seg) => seg.decks.includes(deck))
+    if (si >= 0) {
+      const inSegment = segs[si].decks
+      const later = inSegment.slice(inSegment.indexOf(deck) + 1)
+      if (!later.some((d) => d.slides.length > 0)) {
+        const ns = segs.slice(si + 1).find((seg) => seg.decks.some((d) => d.slides.length > 0))
+        return { kind: 'sectionEnd', nextSection: ns?.section?.name ?? null }
+      }
+    }
+  }
   const pos = decks.indexOf(deck)
   const nd = decks.slice(pos + 1).find((d) => d.slides.length > 0)
   return { kind: 'end', nextDeck: nd ? nd.name : null, auto: s.autoAdvance }
 }
 
 /** An action is possible when the reducer changes the state (it returns the same object for a no-op). */
-export function canNext(decks: DeckMeta[], s: ProgramState): boolean {
-  return reduce(s, { type: 'next' }, decks) !== s
+export function canNext(decks: DeckMeta[], s: ProgramState, sections: SectionMeta[] = []): boolean {
+  return reduce(s, { type: 'next' }, decks, sections) !== s
 }
 
-export function canPrev(decks: DeckMeta[], s: ProgramState): boolean {
-  return reduce(s, { type: 'prev' }, decks) !== s
+export function canPrev(decks: DeckMeta[], s: ProgramState, sections: SectionMeta[] = []): boolean {
+  return reduce(s, { type: 'prev' }, decks, sections) !== s
+}
+
+export function canNextSection(
+  decks: DeckMeta[],
+  s: ProgramState,
+  sections: SectionMeta[]
+): boolean {
+  return reduce(s, { type: 'nextSection' }, decks, sections) !== s
+}
+
+export function canPrevSection(
+  decks: DeckMeta[],
+  s: ProgramState,
+  sections: SectionMeta[]
+): boolean {
+  return reduce(s, { type: 'prevSection' }, decks, sections) !== s
 }
 
 export type Tally = 'live' | 'frozen' | 'black' | 'kv' | 'idle'
@@ -110,6 +145,7 @@ interface KeyLike {
   altKey?: boolean
   metaKey?: boolean
   repeat?: boolean
+  shiftKey?: boolean
   target: EventTarget | null
 }
 
@@ -127,7 +163,7 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable
 }
 
-/** Keyboard shortcuts: Space/→ Next, ← Prev, F Freeze, B Black, K KV. Ignored while typing. */
+/** Keyboard shortcuts: Space/→ Next, ← Prev, F Freeze, B Black, K KV, N next section, Shift+N previous section. Ignored while typing. */
 export function keyToAction(e: KeyLike): Action | null {
   if (e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return null
   // A held key (or a clicker that auto-repeats) must never skip slides: every
@@ -151,6 +187,10 @@ export function keyToAction(e: KeyLike): Action | null {
     case 'k':
     case 'K':
       return { type: 'toggleKv' }
+    case 'n':
+    case 'N':
+      // Shift decides, never the case: Caps Lock sends 'N' without Shift.
+      return { type: e.shiftKey ? 'prevSection' : 'nextSection' }
     default:
       return null
   }
