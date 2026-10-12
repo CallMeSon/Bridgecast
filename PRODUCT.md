@@ -27,7 +27,7 @@ web
 ## Operating Context
 
 - Workflow: create an event (starts empty), import .pptx/.ppt/.pdf by button or drag and drop (per-file progress), reorder and rename decks, set an optional KV (key visual) image per event, connect HDMI and choose the target display, then run the show with keys or clicker.
-- Controls: Space / Right / PageDown = Next, Left / PageUp = Prev, F = Freeze, B or "." = Black, K = KV. Keys work only while the operator window has focus (a speaker's clicker therefore only works when that window is active).
+- Controls: Space / Right / PageDown = Next, Left / PageUp = Prev, F = Freeze, B or "." = Black, K = KV, N = Next section, Shift+N = Prev section. Keys work only while the operator window has focus (a speaker's clicker therefore only works when that window is active).
 - Auto advance to the next deck is off by default so a clicker stops at the end of the live deck; it is a saved switch.
 - Freeze holds the output while the operator moves a preview; unfreeze keeps the held slide live and returns the position to it (changed 2026-10-08 at the user's request; before, unfreeze took the preview live).
 - HDMI can disappear mid-show: the output hides and returns when the same display reconnects.
@@ -36,7 +36,8 @@ web
 ## Capabilities and Constraints
 
 - Input: .pptx, .ppt, .pdf converted to static PNG slides (1920 px wide) with speaker notes. Animations, video and audio inside slides are not supported.
-- One output (HDMI, second display) with the Program content. Removed or out of scope: NDI (removed 2026-10-08, SDK licensing), a second output with different content, transcript or speech-to-text, live PowerPoint animation mode, timer, nested playlists, remote control from other devices.
+- One output (HDMI, second display) with the Program content. Removed or out of scope: NDI (removed 2026-10-08, SDK licensing), a second output with different content, transcript or speech-to-text, live PowerPoint animation mode, timer, nested sections, remote control from other devices.
+- Sections (2026-10-12): optional dividers in the deck list (Add section, rename, move, remove; the deck menu has Add section above). A section is a boundary for auto advance: the clicker stops at its last slide and Up next shows "End of section". N / Shift+N jump to the next / previous section and go live at once (while frozen they only move the preview). Spec: docs/superpowers/specs/2026-10-12-sections-design.md.
 - Video slides (shipped 2026-10-09): an animated page imported as a folder of `page-NN.png` + `page-NN.mp4` (drop the folder on the app) plays once when it goes live and holds its last frame. Black or KV off shows the end frame again. Audio plays on the HDMI output, with an audio device choice and Mute. Video slides carry a play mark in the strip and in Up next. Canva import comes next. Spec: docs/superpowers/specs/2026-10-09-video-slides-design.md.
 - Canva import (planned 2026-10-09): paste a Canva design link, sign in once (token exchange through a Cloudflare Worker that holds the client secret), pages export as PNG + MP4 with progress and Resume; static pages become image slides. Spec: docs/superpowers/specs/2026-10-09-canva-import-design.md.
 - Terminology: event, deck, slide, Program (PGM), Next, Prev, Freeze, Black, KV, Cut, Fade, tally states LIVE, FROZEN, BLACK, KV, STANDBY.
