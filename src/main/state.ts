@@ -1,5 +1,6 @@
 import type { Library } from './library'
-import type { DeckMeta, EventMeta } from '../shared/types'
+import type { DeckMeta, EventMeta, SectionMeta } from '../shared/types'
+import type { OrderItem } from '../shared/sections'
 import { kvImageUrl } from '../shared/ipc'
 import {
   followSlideOrder,
@@ -64,13 +65,18 @@ export class AppState {
     return this.activeEvent ? this.lib.getDecks(this.activeEvent) : []
   }
 
+  /** Sections of the active event (none without an event). */
+  sections(): SectionMeta[] {
+    return this.lib.listEvents().find((e) => e.id === this.activeEvent)?.sections ?? []
+  }
+
   onChange(cb: (s: ProgramState) => void): void {
     this.listeners.push(cb)
   }
 
   dispatch(a: Action): ProgramState {
     // Actions arrive over IPC; an unknown type makes reduce return undefined.
-    const next = reduce(this.current, a, this.decks()) as ProgramState | undefined
+    const next = reduce(this.current, a, this.decks(), this.sections()) as ProgramState | undefined
     return next ? this.commit(this.normalizeKv(next)) : this.current
   }
 
@@ -93,10 +99,22 @@ export class AppState {
     return this.commit(this.normalize(this.current))
   }
 
-  /** Reorder the decks of an event; position and shown do not change. */
-  reorderDecks(eventId: string, deckIds: string[]): ProgramState {
-    this.lib.reorder(eventId, deckIds.map((deck) => ({ deck })))
+  /** Reorder the decks and section dividers of an event; position and shown do not change. */
+  reorder(eventId: string, items: OrderItem[]): ProgramState {
+    this.lib.reorder(eventId, items)
     return this.refresh()
+  }
+
+  addSection(eventId: string, at: number): { event: EventMeta; sectionId: string } {
+    return this.lib.addSection(eventId, at)
+  }
+
+  renameSection(eventId: string, sectionId: string, name: string): EventMeta {
+    return this.lib.renameSection(eventId, sectionId, name)
+  }
+
+  removeSection(eventId: string, sectionId: string): EventMeta {
+    return this.lib.removeSection(eventId, sectionId)
   }
 
   /**

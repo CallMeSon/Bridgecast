@@ -1,4 +1,5 @@
 import type { DeckMeta, EventMeta } from './types'
+import type { OrderItem } from './sections'
 import type { Action, ProgramState } from './program'
 import type { AudioSettings, HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
@@ -15,6 +16,9 @@ export const Invoke = {
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
   decksRename: 'decks:rename',
+  sectionsAdd: 'sections:add',
+  sectionsRename: 'sections:rename',
+  sectionsRemove: 'sections:remove',
   kvSet: 'kv:set',
   kvClear: 'kv:clear',
   programDispatch: 'program:dispatch',
@@ -93,10 +97,16 @@ export interface InvokeMap {
   'decks:list': { args: [eventId: string]; result: DeckMeta[] }
   'decks:import': { args: [eventId: string, files: ImportRequest[]]; result: void }
   'decks:addRendered': { args: [eventId: string, payload: RenderedDeck]; result: DeckMeta }
-  'decks:reorder': { args: [eventId: string, deckIds: string[]]; result: void }
+  'decks:reorder': { args: [eventId: string, items: OrderItem[]]; result: void }
   'slides:reorder': { args: [deckId: string, order: number[]]; result: void }
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
   'decks:rename': { args: [eventId: string, deckId: string, name: string]; result: DeckMeta }
+  'sections:add': {
+    args: [eventId: string, at: number]
+    result: { event: EventMeta; sectionId: string }
+  }
+  'sections:rename': { args: [eventId: string, sectionId: string, name: string]; result: EventMeta }
+  'sections:remove': { args: [eventId: string, sectionId: string]; result: EventMeta }
   /** Absolute path of an image (PNG, JPG, WebP, at most 50 MB); returns the updated event. */
   'kv:set': { args: [eventId: string, path: string]; result: EventMeta }
   'kv:clear': { args: [eventId: string]; result: EventMeta }
@@ -154,7 +164,10 @@ export interface Api {
   listDecks(eventId: string): Promise<DeckMeta[]>
   importDecks(eventId: string, files: ImportRequest[]): Promise<void>
   addRendered(eventId: string, payload: RenderedDeck): Promise<DeckMeta>
-  reorderDecks(eventId: string, deckIds: string[]): Promise<void>
+  reorderDecks(eventId: string, items: OrderItem[]): Promise<void>
+  addSection(eventId: string, at: number): Promise<{ event: EventMeta; sectionId: string }>
+  renameSection(eventId: string, sectionId: string, name: string): Promise<EventMeta>
+  removeSection(eventId: string, sectionId: string): Promise<EventMeta>
   reorderSlides(deckId: string, order: number[]): Promise<void>
   removeDeck(eventId: string, deckId: string): Promise<void>
   /** Display name only; validated in main (not empty, at most 120 characters). */

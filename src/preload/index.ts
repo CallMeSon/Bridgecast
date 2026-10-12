@@ -34,7 +34,11 @@ const api: Api = {
   listDecks: (eventId) => invoke(Invoke.decksList, eventId),
   importDecks: (eventId, files) => invoke(Invoke.decksImport, eventId, files),
   addRendered: (eventId, payload) => invoke(Invoke.decksAddRendered, eventId, payload),
-  reorderDecks: (eventId, deckIds) => invoke(Invoke.decksReorder, eventId, deckIds),
+  reorderDecks: (eventId, items) => invoke(Invoke.decksReorder, eventId, items),
+  addSection: (eventId, at) => invoke(Invoke.sectionsAdd, eventId, at),
+  renameSection: (eventId, sectionId, name) =>
+    invoke(Invoke.sectionsRename, eventId, sectionId, name),
+  removeSection: (eventId, sectionId) => invoke(Invoke.sectionsRemove, eventId, sectionId),
   reorderSlides: (deckId, order) => invoke(Invoke.slidesReorder, deckId, order),
   removeDeck: (eventId, deckId) => invoke(Invoke.decksRemove, eventId, deckId),
   renameDeck: (eventId, deckId, name) => invoke(Invoke.decksRename, eventId, deckId, name),

@@ -246,7 +246,7 @@ describe('AppState', () => {
     expect(app.state).toBe(before)
   })
 
-  it('reorderDecks keeps position and shown', () => {
+  it('reorder keeps position and shown', () => {
     const lib = new Library(root)
     const a = lib.createEvent('A')
     const d1 = addDeck(lib, a.id, 2, 'one')
@@ -255,7 +255,7 @@ describe('AppState', () => {
     app.dispatch({ type: 'selectDeck', deckId: d1 })
     app.dispatch({ type: 'next' })
     const before = app.state
-    expect(app.reorderDecks(a.id, [d2, d1])).toBe(before)
+    expect(app.reorder(a.id, [{ deck: d2 }, { deck: d1 }])).toBe(before)
     expect(lib.listEvents()[0].deckIds).toEqual([d2, d1])
   })
 
@@ -439,5 +439,57 @@ describe('AppState', () => {
       expect(() => app.setKv(a.id, img('a.gif'))).toThrow(/KV format/)
       expect(app.state.kvUrl).toBeNull()
     })
+  })
+})
+
+describe('AppState sections', () => {
+  it('nextSection uses the active event sections', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d1 = addDeck(lib, a.id, 1, 'one')
+    const d2 = addDeck(lib, a.id, 1, 'two')
+    lib.addSection(a.id, 1)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d1 })
+    expect(app.sections()).toHaveLength(1)
+    const s = app.dispatch({ type: 'nextSection' })
+    expect(s.deckId).toBe(d2)
+    expect(s.shown?.deckId).toBe(d2)
+  })
+
+  it('nextSection is a no-op after setEvent to an event without sections', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const b = lib.createEvent('B')
+    addDeck(lib, a.id, 1, 'a1')
+    addDeck(lib, a.id, 1, 'a2')
+    lib.addSection(a.id, 1)
+    const b1 = addDeck(lib, b.id, 1, 'b1')
+    addDeck(lib, b.id, 1, 'b2')
+    const app = new AppState(lib)
+    app.setEvent(b.id)
+    expect(app.sections()).toEqual([])
+    app.dispatch({ type: 'selectDeck', deckId: b1 })
+    const before = app.state
+    expect(app.dispatch({ type: 'nextSection' })).toBe(before)
+  })
+
+  it('reorder moves the live last slide into and out of a section end for auto advance', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d1 = addDeck(lib, a.id, 1, 'one')
+    const d2 = addDeck(lib, a.id, 1, 'two')
+    const d3 = addDeck(lib, a.id, 1, 'three')
+    const { sectionId } = lib.addSection(a.id, 1)
+    const app = new AppState(lib, true)
+    app.dispatch({ type: 'selectDeck', deckId: d1 })
+    const before = app.state
+    expect(app.dispatch({ type: 'next' })).toBe(before) // d1 alone in the lead block
+    app.reorder(a.id, [{ deck: d2 }, { section: sectionId }, { deck: d1 }, { deck: d3 }])
+    expect(app.dispatch({ type: 'next' }).deckId).toBe(d3)
+    app.dispatch({ type: 'selectDeck', deckId: d1 })
+    app.reorder(a.id, [{ deck: d2 }, { section: sectionId }, { deck: d3 }, { deck: d1 }])
+    const end = app.state
+    expect(app.dispatch({ type: 'next' })).toBe(end)
   })
 })

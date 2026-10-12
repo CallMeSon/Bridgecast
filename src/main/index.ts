@@ -43,6 +43,7 @@ import {
   type RenderedDeck
 } from '../shared/ipc'
 import type { Action } from '../shared/program'
+import type { OrderItem } from '../shared/sections'
 
 const IMPORT_WIDTH = 1920
 const PPTX_RE = /\.pptx?$/i
@@ -73,6 +74,17 @@ function handle<C extends InvokeChannel>(
 function assertString(v: unknown, what: string): asserts v is string {
   if (typeof v !== 'string' || !v)
     throw new Error(`${what} is not valid. Reload the app, then try again.`)
+}
+
+/** A plain object with exactly one own key, `deck` or `section`, holding a string. */
+function isOrderItem(v: unknown): v is OrderItem {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
+  const keys = Object.keys(v)
+  return (
+    keys.length === 1 &&
+    (keys[0] === 'deck' || keys[0] === 'section') &&
+    typeof (v as Record<string, unknown>)[keys[0]] === 'string'
+  )
 }
 
 function isDirectory(p: string): boolean {
@@ -281,12 +293,34 @@ function registerIpc(
     }
   })
 
-  handle(Invoke.decksReorder, (eventId, deckIds) => {
+  handle(Invoke.decksReorder, (eventId, items) => {
     assertString(eventId, 'Event ID')
-    if (!Array.isArray(deckIds) || !deckIds.every((id) => typeof id === 'string')) {
+    if (!Array.isArray(items) || !items.every(isOrderItem)) {
       throw new Error('The deck order is not valid. Reload the app, then try again.')
     }
-    state.reorderDecks(eventId, deckIds)
+    state.reorder(eventId, items)
+  })
+  handle(Invoke.sectionsAdd, (eventId, at) => {
+    assertString(eventId, 'Event ID')
+    if (!Number.isInteger(at)) {
+      throw new Error('The section position is not valid. Reload the app, then try again.')
+    }
+    const res = state.addSection(eventId, at)
+    state.refresh()
+    return res
+  })
+  handle(Invoke.sectionsRename, (eventId, sectionId, name) => {
+    assertString(eventId, 'Event ID')
+    assertString(sectionId, 'Section ID')
+    assertString(name, 'Section name')
+    return state.renameSection(eventId, sectionId, name)
+  })
+  handle(Invoke.sectionsRemove, (eventId, sectionId) => {
+    assertString(eventId, 'Event ID')
+    assertString(sectionId, 'Section ID')
+    const ev = state.removeSection(eventId, sectionId)
+    state.refresh()
+    return ev
   })
   handle(Invoke.slidesReorder, (deckId, order) => {
     assertString(deckId, 'Deck ID')
