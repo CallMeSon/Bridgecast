@@ -964,6 +964,16 @@ async function sectionChecks(win, tally, pos) {
       /^1 \//.test(document.querySelector('[data-testid=pos]')?.textContent ?? '')
     )
 
+  // What Program shows, read back from the HDMI window (the probe is on here): a
+  // 12x7 grid of colours, compared with a small tolerance.
+  const SG = []
+  for (let y = 0; y < 7; y++) for (let x = 0; x < 12; x++) SG.push([80 + x * 160, 60 + y * 150])
+  const flat = (f) => f.px.flat()
+  const sameFrame = (a, b) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) <= 6)
+  const settled = async () => {
+    await sleep(900)
+    return flat(await waitFrame(SG, () => true, 'Program frame'))
+  }
   const [d0, d1, d2] = await ids()
   check(!!d2, 'sections: the event has at least three decks')
   const before = await order()
@@ -1018,6 +1028,17 @@ async function sectionChecks(win, tally, pos) {
   await win.getByRole('button', { name: /^Prev section/ }).waitFor()
   check(true, 'sections: Prev section and Next section buttons show')
 
+  // Reference frames: what Program shows for slide 1 of deck 1 and of deck 3.
+  await win.locator(`[data-deck-id="${d0}"]`).click()
+  await waitLive(d0)
+  await firstSlide()
+  const frameD0 = await settled()
+  await win.locator(`[data-deck-id="${d2}"]`).click()
+  await waitLive(d2)
+  await firstSlide()
+  const frameD2 = await settled()
+  check(!sameFrame(frameD0, frameD2), 'sections: deck 1 and deck 3 look different on Program')
+
   // Auto advance ON; play deck 2 to its last slide; Space must stop at the boundary.
   await win.getByTestId('auto-advance').click()
   await autoOn.waitFor()
@@ -1046,8 +1067,13 @@ async function sectionChecks(win, tally, pos) {
     'sections: Up next shows "End of section" with the next section named'
   )
   const tallyBefore = await tally.textContent()
+  const frameEnd = await settled()
   await win.keyboard.press('Space')
-  await sleep(500)
+  await sleep(1000)
+  check(
+    sameFrame(frameEnd, flat(await dumpFrame(SG))),
+    'sections: Program still shows the same slide after the blocked Space'
+  )
   check(
     (await posText()) === last && (await liveDeck()) === d1,
     'sections: Space on the last slide of a section does not cross into the next one'
@@ -1058,6 +1084,8 @@ async function sectionChecks(win, tally, pos) {
   await win.keyboard.press('n')
   await waitLive(d2)
   await firstSlide()
+  await waitFrame(SG, (px) => sameFrame(px.flat(), frameD2), 'N puts deck 3 slide 1 on Program')
+  check(true, 'sections: Program shows deck 3, slide 1 after N')
   check(
     (await liveDeck()) === d2 && /^1 \//.test(await posText()),
     'sections: N takes deck 3, slide 1, live'
@@ -1065,6 +1093,8 @@ async function sectionChecks(win, tally, pos) {
   await win.keyboard.press('Shift+N')
   await waitLive(d0)
   await firstSlide()
+  await waitFrame(SG, (px) => sameFrame(px.flat(), frameD0), 'Shift+N puts deck 1 slide 1 on Program')
+  check(true, 'sections: Program shows deck 1, slide 1 after Shift+N')
   check(
     (await liveDeck()) === d0 && /^1 \//.test(await posText()),
     'sections: Shift+N goes back to deck 1, slide 1, live'
