@@ -120,8 +120,9 @@ function step(
     seg.decks.some((d) => d.id === state.deckId)
   )
   const flat: { deck: DeckLike; index: number }[] = []
-  for (const d of (state.autoAdvance ? segment?.decks : undefined) ??
-    decks.filter((x) => x.id === state.deckId)) {
+  const source =
+    state.autoAdvance && segment ? segment.decks : decks.filter((x) => x.id === state.deckId)
+  for (const d of source) {
     for (let i = 0; i < d.slides.length; i++) flat.push({ deck: d, index: i })
   }
   const pos = flat.findIndex((p) => p.deck.id === state.deckId && p.index === state.index)
@@ -141,8 +142,13 @@ function jumpSection(
   sections: SectionMeta[],
   dir: 1 | -1
 ): ProgramState {
+  // Without sections there is nothing to jump between.
+  if (sections.length === 0) return state
   const segments = segmentsOf(decks, sections)
-  const from = segmentOfDeck(decks, sections, state.deckId)
+  const from =
+    state.deckId === null
+      ? -1
+      : segments.findIndex((seg) => seg.decks.some((d) => d.id === state.deckId))
   for (let i = from + dir; i >= 0 && i < segments.length; i += dir) {
     const deck = segments[i].decks.find((d) => d.slides.length > 0)
     if (deck) return moveTo(state, deck, 0)
@@ -250,6 +256,7 @@ export function reduce(
     case 'prevSection':
       return jumpSection(state, decks, sections, action.type === 'nextSection' ? 1 : -1)
     case 'selectSection': {
+      if (sections.length === 0) return state
       const seg = segmentsOf(decks, sections).find((x) => x.section?.id === action.sectionId)
       const deck = seg?.decks.find((d) => d.slides.length > 0)
       return deck ? moveTo(state, deck, 0) : state

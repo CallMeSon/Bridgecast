@@ -501,7 +501,7 @@ describe('sections', () => {
     const r = reduce(at('A', 2, { autoAdvance: true }), { type: 'next' }, sd, s1)
     expect(pos(r)).toEqual(['B', 0])
   })
-  it('auto on: the last deck with slides of a segment is skipped over empty decks', () => {
+  it('auto on: Next steps over a deck without slides inside a segment', () => {
     const r = reduce(at('C', 1, { autoAdvance: true }), { type: 'next' }, sd, s1)
     expect(pos(r)).toEqual(['E', 0])
   })
@@ -581,6 +581,14 @@ describe('sections', () => {
     const st = at('A', 1)
     expect(reduce(st, { type: 'nextSection' }, sd)).toBe(st)
     expect(reduce(st, { type: 'prevSection' }, sd)).toBe(st)
+  })
+  it('without sections nextSection does nothing from STANDBY or a stale deck', () => {
+    expect(reduce(initialState, { type: 'nextSection' }, sd)).toBe(initialState)
+    expect(reduce(initialState, { type: 'nextSection' }, sd, [])).toBe(initialState)
+    const stale = at('gone', 0)
+    expect(reduce(stale, { type: 'nextSection' }, sd)).toBe(stale)
+    expect(reduce(stale, { type: 'prevSection' }, sd)).toBe(stale)
+    expect(reduce(initialState, { type: 'selectSection', sectionId: 's1' }, sd)).toBe(initialState)
   })
   it('a pending take keeps priority over section boundaries', () => {
     const away = at('B', 1, { autoAdvance: true, shown: sh('X', 0) })
