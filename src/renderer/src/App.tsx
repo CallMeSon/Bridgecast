@@ -405,15 +405,24 @@ function App(): React.JSX.Element {
       const target = eventRef.current
       if (!target) return
       const name = decks.find((d) => d.id === deckId)?.name ?? 'Deck'
-      // Drop it from the list first so nothing requests its images any more.
+      // Drop it from the list first so nothing requests its images any more. Sections
+      // after it shift with the decks, so list and sections never disagree.
       setDecks((ds) => ds.filter((d) => d.id !== deckId))
+      const rest = splitOrder(
+        orderItems(
+          decks.map((d) => d.id),
+          sections
+        ).filter((item) => !('deck' in item && item.deck === deckId)),
+        sections
+      )
+      setEvents((xs) => xs.map((x) => (x.id === target ? { ...x, sections: rest.sections } : x)))
       api
         .removeDeck(target, deckId)
         .catch((e) => reportError(name, e))
         // Removing a deck shifts the sections after it, so events are reloaded too.
         .finally(() => void reloadAll(target))
     },
-    [api, decks, reloadAll, reportError]
+    [api, decks, sections, reloadAll, reportError]
   )
 
   // KV image of the active event. Main validates the path and the image; the

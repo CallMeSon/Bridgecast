@@ -706,6 +706,9 @@ export function Library(p: Props): React.JSX.Element {
             setSectionMenu(null)
           }}
           onRemove={() => {
+            // Focus moves to the neighbouring row once the list has changed.
+            const near = items[sectionMenuIndex + 1] ?? items[sectionMenuIndex - 1]
+            if (near) movedFocus.current = rowKey(near)
             p.onRemoveSection(sectionMenu.sectionId)
             setSectionMenu(null)
           }}

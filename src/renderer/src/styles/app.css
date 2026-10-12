@@ -1487,7 +1487,7 @@ footer .empty {
 }
 /*
  * With sections the first group holds four buttons and needs more room: the same
- * two-row layout starts at a wider column, and the key hints stay (there is room).
+ * two-row layout starts at a wider column.
  */
 @container stage (max-width: 1000px) {
   .controls.has-sections {
@@ -1505,11 +1505,20 @@ footer .empty {
   .controls.has-sections > :nth-child(3) {
     display: none;
   }
-  .controls.has-sections kbd.opt {
-    display: inline-block;
+  /* Four buttons: they wrap onto a second line instead of pushing anything out of view. */
+  .controls.has-sections > :first-child {
+    flex-wrap: wrap;
+    padding-block: 6px;
   }
   .controls.has-sections .cbtn.sec {
     white-space: nowrap;
+  }
+}
+/* The key hints of the first row come back only where they fit; below 700px the rules
+   above keep hiding them, so Black never scrolls away. */
+@container stage (min-width: 701px) and (max-width: 1000px) {
+  .controls.has-sections > :first-child kbd.opt {
+    display: inline-block;
   }
 }
 /* Decorative UI motion only. The Fade the operator chose is the slide change itself
