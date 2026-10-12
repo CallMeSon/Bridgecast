@@ -6,6 +6,7 @@ import {
   initialState,
   kvOnAir,
   pendingTake,
+  segmentOfDeck,
   type ProgramState,
   type ShownSlide
 } from './program'
@@ -478,5 +479,123 @@ describe('take and video', () => {
     const r = reconcile(st, reordered)
     expect(r.take).toBe(7)
     expect(r.shown).toEqual({ deckId: 'V', index: 0, file: '002.png', video: '002.mp4' })
+  })
+})
+
+describe('sections', () => {
+  const sd = [
+    { id: 'A', slides: s(3) },
+    { id: 'B', slides: s(2) },
+    { id: 'C', slides: s(2) },
+    { id: 'D', slides: s(0) },
+    { id: 'E', slides: s(1) }
+  ]
+  const s1 = [{ id: 's1', name: 'Sesi 1', at: 2 }]
+  const pos = (r: ProgramState): [string | null, number] => [r.deckId, r.index]
+
+  it('auto on: Next/Prev stop at the section boundary, but move inside a segment', () => {
+    const atB1 = at('B', 1, { autoAdvance: true })
+    expect(reduce(atB1, { type: 'next' }, sd, s1)).toBe(atB1)
+    const atC0 = at('C', 0, { autoAdvance: true })
+    expect(reduce(atC0, { type: 'prev' }, sd, s1)).toBe(atC0)
+    const r = reduce(at('A', 2, { autoAdvance: true }), { type: 'next' }, sd, s1)
+    expect(pos(r)).toEqual(['B', 0])
+  })
+  it('auto on: the last deck with slides of a segment is skipped over empty decks', () => {
+    const r = reduce(at('C', 1, { autoAdvance: true }), { type: 'next' }, sd, s1)
+    expect(pos(r)).toEqual(['E', 0])
+  })
+  it('auto off with sections: stays in the deck as before', () => {
+    const atA2 = at('A', 2)
+    expect(reduce(atA2, { type: 'next' }, sd, s1)).toBe(atA2)
+    expect(pos(reduce(at('A', 1), { type: 'next' }, sd, s1))).toEqual(['A', 2])
+  })
+  it('nextSection from A/1 goes to C/0 and counts a take', () => {
+    const st = at('A', 1, { take: 4 })
+    const r = reduce(st, { type: 'nextSection' }, sd, s1)
+    expect(pos(r)).toEqual(['C', 0])
+    expect(r.shown).toEqual(sh('C', 0))
+    expect(r.take).toBe(5)
+  })
+  it('prevSection from C/1 goes to A/0 (leading block); in the leading block unchanged', () => {
+    expect(pos(reduce(at('C', 1), { type: 'prevSection' }, sd, s1))).toEqual(['A', 0])
+    const st = at('B', 1)
+    expect(reduce(st, { type: 'prevSection' }, sd, s1)).toBe(st)
+  })
+  it('nextSection at the last segment is unchanged', () => {
+    const st = at('E', 0)
+    expect(reduce(st, { type: 'nextSection' }, sd, s1)).toBe(st)
+  })
+  it('skips empty sections and decks without slides', () => {
+    const three = [
+      { id: 's1', name: 'S1', at: 2 },
+      { id: 's2', name: 'S2', at: 2 },
+      { id: 's3', name: 'S3', at: 3 }
+    ]
+    expect(pos(reduce(at('A', 0), { type: 'nextSection' }, sd, three))).toEqual(['C', 0])
+    expect(pos(reduce(at('C', 0), { type: 'nextSection' }, sd, three))).toEqual(['E', 0])
+    expect(pos(reduce(at('E', 0), { type: 'prevSection' }, sd, three))).toEqual(['C', 0])
+  })
+  it('skips a segment whose decks were removed (Review Focus 1)', () => {
+    // Originally A,B,C,E with s1 at 2 (C) and s2 at 3 (E); C is removed.
+    const rest = [sd[0], sd[1], sd[4]]
+    const adjusted = [
+      { id: 's1', name: 'S1', at: 2 },
+      { id: 's2', name: 'S2', at: 2 }
+    ]
+    expect(pos(reduce(at('A', 0), { type: 'nextSection' }, rest, adjusted))).toEqual(['E', 0])
+    // Not adjusted by the caller: at 3 clamps to the end, s2 is empty, s1 holds E.
+    const stale = [
+      { id: 's1', name: 'S1', at: 2 },
+      { id: 's2', name: 'S2', at: 3 }
+    ]
+    expect(pos(reduce(at('A', 0), { type: 'nextSection' }, rest, stale))).toEqual(['E', 0])
+    const st = at('E', 0)
+    expect(reduce(st, { type: 'nextSection' }, rest, stale)).toBe(st)
+  })
+  it('frozen: nextSection moves the position but not shown or take', () => {
+    const st = at('A', 1, { frozen: true, take: 3 })
+    const r = reduce(st, { type: 'nextSection' }, sd, s1)
+    expect(pos(r)).toEqual(['C', 0])
+    expect(r.shown).toBe(st.shown)
+    expect(r.take).toBe(3)
+  })
+  it('STANDBY: nextSection takes the first segment with slides at slide 0; prevSection unchanged', () => {
+    const r = reduce(initialState, { type: 'nextSection' }, sd, s1)
+    expect(pos(r)).toEqual(['A', 0])
+    expect(r.shown).toEqual(sh('A', 0))
+    expect(reduce(initialState, { type: 'prevSection' }, sd, s1)).toBe(initialState)
+  })
+  it('selectSection jumps to the section; unknown or slideless is unchanged', () => {
+    expect(pos(reduce(at('A', 1), { type: 'selectSection', sectionId: 's1' }, sd, s1))).toEqual([
+      'C',
+      0
+    ])
+    const st = at('A', 1)
+    expect(reduce(st, { type: 'selectSection', sectionId: 'nope' }, sd, s1)).toBe(st)
+    const slideless = [{ id: 'z', name: 'Z', at: 3 }]
+    const onlyD = [sd[0], sd[1], sd[2], sd[3]]
+    expect(reduce(st, { type: 'selectSection', sectionId: 'z' }, onlyD, slideless)).toBe(st)
+  })
+  it('without sections nextSection/prevSection are unchanged', () => {
+    const st = at('A', 1)
+    expect(reduce(st, { type: 'nextSection' }, sd)).toBe(st)
+    expect(reduce(st, { type: 'prevSection' }, sd)).toBe(st)
+  })
+  it('a pending take keeps priority over section boundaries', () => {
+    const away = at('B', 1, { autoAdvance: true, shown: sh('X', 0) })
+    const r = reduce(away, { type: 'next' }, sd, s1)
+    expect(pos(r)).toEqual(['B', 1])
+    expect(r.shown).toEqual(sh('B', 1))
+    const r2 = reduce(away, { type: 'prev' }, sd, s1)
+    expect(pos(r2)).toEqual(['B', 1])
+    expect(r2.take).toBe(away.take + 1)
+  })
+  it('segmentOfDeck maps a deck to its segment index or -1', () => {
+    expect(segmentOfDeck(sd, s1, 'A')).toBe(0)
+    expect(segmentOfDeck(sd, s1, 'E')).toBe(1)
+    expect(segmentOfDeck(sd, s1, null)).toBe(-1)
+    expect(segmentOfDeck(sd, s1, 'nope')).toBe(-1)
+    expect(segmentOfDeck(sd, [], 'B')).toBe(0)
   })
 })

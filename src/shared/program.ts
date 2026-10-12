@@ -1,4 +1,5 @@
-import type { DeckMeta } from './types'
+import type { DeckMeta, SectionMeta } from './types'
+import { segmentsOf } from './sections'
 
 /**
  * The slide on the output. `file` is the slide's image in its deck and never
@@ -54,6 +55,9 @@ export type Action =
   | { type: 'toggleKv' }
   | { type: 'setTransition'; transition: 'cut' | 'fade' }
   | { type: 'setAutoAdvance'; on: boolean }
+  | { type: 'nextSection' }
+  | { type: 'prevSection' }
+  | { type: 'selectSection'; sectionId: string }
 
 type DeckLike = Pick<DeckMeta, 'id' | 'slides'>
 
@@ -92,9 +96,32 @@ function moveTo(state: ProgramState, deck: DeckLike, index: number): ProgramStat
   }
 }
 
-function step(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramState {
+/**
+ * Index into `segmentsOf(decks, sections)` of the segment holding `deckId`, or -1
+ * (no deck, or a deck that is not in `decks`).
+ */
+export function segmentOfDeck<D extends DeckLike>(
+  decks: D[],
+  sections: SectionMeta[],
+  deckId: string | null
+): number {
+  if (deckId === null) return -1
+  return segmentsOf(decks, sections).findIndex((seg) => seg.decks.some((d) => d.id === deckId))
+}
+
+function step(
+  state: ProgramState,
+  decks: DeckLike[],
+  sections: SectionMeta[],
+  dir: 1 | -1
+): ProgramState {
+  // Auto advance runs on through the decks of the live deck's section only.
+  const segment = segmentsOf(decks, sections).find((seg) =>
+    seg.decks.some((d) => d.id === state.deckId)
+  )
   const flat: { deck: DeckLike; index: number }[] = []
-  for (const d of state.autoAdvance ? decks : decks.filter((x) => x.id === state.deckId)) {
+  for (const d of (state.autoAdvance ? segment?.decks : undefined) ??
+    decks.filter((x) => x.id === state.deckId)) {
     for (let i = 0; i < d.slides.length; i++) flat.push({ deck: d, index: i })
   }
   const pos = flat.findIndex((p) => p.deck.id === state.deckId && p.index === state.index)
@@ -102,6 +129,25 @@ function step(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramState
   const target = flat[pos + dir]
   if (!target) return state
   return moveTo(state, target.deck, target.index)
+}
+
+/**
+ * Puts slide 0 of the first deck with slides in the segment `from + dir`, `from + 2 * dir`, …
+ * live. Same state object when there is no such segment.
+ */
+function jumpSection(
+  state: ProgramState,
+  decks: DeckLike[],
+  sections: SectionMeta[],
+  dir: 1 | -1
+): ProgramState {
+  const segments = segmentsOf(decks, sections)
+  const from = segmentOfDeck(decks, sections, state.deckId)
+  for (let i = from + dir; i >= 0 && i < segments.length; i += dir) {
+    const deck = segments[i].decks.find((d) => d.slides.length > 0)
+    if (deck) return moveTo(state, deck, 0)
+  }
+  return state
 }
 
 /**
@@ -172,7 +218,12 @@ export function pendingTake(state: ProgramState, decks: DeckLike[]): boolean {
   )
 }
 
-export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): ProgramState {
+export function reduce(
+  state: ProgramState,
+  action: Action,
+  decks: DeckLike[],
+  sections: SectionMeta[] = []
+): ProgramState {
   switch (action.type) {
     case 'next':
     case 'prev':
@@ -183,7 +234,7 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
           state.index
         )
       }
-      return step(state, decks, action.type === 'next' ? 1 : -1)
+      return step(state, decks, sections, action.type === 'next' ? 1 : -1)
     case 'goto': {
       const deck = decks.find((d) => d.id === state.deckId)
       if (!deck || !Number.isInteger(action.index)) return state
@@ -194,6 +245,14 @@ export function reduce(state: ProgramState, action: Action, decks: DeckLike[]): 
       const deck = decks.find((d) => d.id === action.deckId)
       if (!deck || deck.slides.length === 0) return state
       return moveTo(state, deck, 0)
+    }
+    case 'nextSection':
+    case 'prevSection':
+      return jumpSection(state, decks, sections, action.type === 'nextSection' ? 1 : -1)
+    case 'selectSection': {
+      const seg = segmentsOf(decks, sections).find((x) => x.section?.id === action.sectionId)
+      const deck = seg?.decks.find((d) => d.slides.length > 0)
+      return deck ? moveTo(state, deck, 0) : state
     }
     case 'toggleFreeze': {
       // Freezing only means something while a slide is on air.
