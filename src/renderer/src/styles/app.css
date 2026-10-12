@@ -654,6 +654,64 @@ main {
   gap: 6px;
   margin-top: 4px;
 }
+/* A section divider in the deck list: thinner than a deck row, no thumbnail. The word
+   SECTION carries the meaning; the rules above and below only separate. */
+.section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 16px;
+  border-top: 1px solid var(--line-hi);
+  border-bottom: 1px solid var(--line-hi);
+  border-radius: 0;
+  background: var(--bg);
+  text-align: left;
+}
+.section-row > .section {
+  padding-right: 44px;
+}
+.section:hover {
+  background: var(--raised);
+}
+.section:focus-visible {
+  outline-offset: -2px;
+}
+.section .tag {
+  flex: none;
+  font: 600 11px/1 var(--font-sans);
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+}
+.section .name {
+  min-width: 0;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.section.dragging {
+  opacity: 0.4;
+}
+.section.over {
+  outline: 2px dashed var(--text-2);
+  outline-offset: -2px;
+}
+.section.rename {
+  flex-wrap: wrap;
+  background: var(--raised);
+  cursor: default;
+}
+.section.rename .text-input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.section.rename .msg {
+  flex: 1 1 100%;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
 .kv-block {
   flex: none;
   padding: 10px 16px 12px;
@@ -734,8 +792,17 @@ main {
   border-top: 1px solid var(--line-hi);
   background: var(--bg);
 }
+.add-row {
+  display: flex;
+  gap: 8px;
+}
 .add .btn {
   width: 100%;
+}
+.add-row .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
 }
 .add p {
   margin-top: 8px;
@@ -999,6 +1066,9 @@ kbd {
 }
 .cbtn:hover:not(:disabled) {
   background: var(--raised-hi);
+}
+.cbtn.sec {
+  font-size: 14px;
 }
 .cbtn.next {
   height: 56px;
@@ -1413,6 +1483,33 @@ footer .empty {
   }
   .controls kbd.opt {
     display: none;
+  }
+}
+/*
+ * With sections the first group holds four buttons and needs more room: the same
+ * two-row layout starts at a wider column, and the key hints stay (there is room).
+ */
+@container stage (max-width: 1000px) {
+  .controls.has-sections {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .controls.has-sections > * {
+    min-height: 64px;
+  }
+  .controls.has-sections > :first-child {
+    grid-column: 1 / -1;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .controls.has-sections > :nth-child(3) {
+    display: none;
+  }
+  .controls.has-sections kbd.opt {
+    display: inline-block;
+  }
+  .controls.has-sections .cbtn.sec {
+    white-space: nowrap;
   }
 }
 /* Decorative UI motion only. The Fade the operator chose is the slide change itself

@@ -6,6 +6,10 @@ interface Props {
   state: ProgramState
   canPrev: boolean
   canNext: boolean
+  /** The event has sections: the section buttons show. */
+  hasSections: boolean
+  canPrevSection: boolean
+  canNextSection: boolean
   /** Freezing needs a slide on the output; unfreezing is always possible. */
   canFreeze: boolean
   onAction(a: Action): void
@@ -16,6 +20,9 @@ export function Controls({
   state,
   canPrev,
   canNext,
+  hasSections,
+  canPrevSection,
+  canNextSection,
   canFreeze,
   onAction
 }: Props): React.JSX.Element {
@@ -44,8 +51,17 @@ export function Controls({
     seg.current?.querySelectorAll<HTMLElement>('[role=radio]')[to]?.focus()
   }
   return (
-    <div className="controls">
+    <div className={'controls' + (hasSections ? ' has-sections' : '')}>
       <div>
+        {hasSections && (
+          <button
+            className="cbtn sec"
+            disabled={!canPrevSection}
+            onClick={() => onAction({ type: 'prevSection' })}
+          >
+            Prev section <kbd className="opt">⇧N</kbd>
+          </button>
+        )}
         <button className="cbtn" disabled={!canPrev} onClick={() => onAction({ type: 'prev' })}>
           <CaretLeftIcon size={16} />
           Prev <kbd className="opt">←</kbd>
@@ -61,6 +77,15 @@ export function Controls({
             <kbd>→</kbd>
           </span>
         </button>
+        {hasSections && (
+          <button
+            className="cbtn sec"
+            disabled={!canNextSection}
+            onClick={() => onAction({ type: 'nextSection' })}
+          >
+            Next section <kbd className="opt">N</kbd>
+          </button>
+        )}
       </div>
       <div className="trans">
         <span className="cl">Transition</span>

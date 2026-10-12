@@ -6,20 +6,24 @@ import {
   FilePdfIcon,
   FilePptIcon,
   ImageIcon,
+  ListPlusIcon,
   PencilSimpleIcon,
   PlusIcon,
   TrashIcon,
   WarningCircleIcon
 } from '@phosphor-icons/react'
-import { DECK_NAME_MAX, type DeckMeta } from '../../../shared/types'
+import { DECK_NAME_MAX, type DeckMeta, type SectionMeta } from '../../../shared/types'
 import type { ShownSlide } from '../../../shared/program'
 import type { ImportProgress } from '../../../shared/ipc'
 import { countOf, errorMessage, fileKind, importMeta, reorderTarget } from '../model'
-import { menuItems, onMenuKeyDown } from './menuNav'
+import { orderItems, type OrderItem } from '../../../shared/sections'
+import { onMenuKeyDown, useContextMenu } from './menuNav'
+import { SectionMenu, SectionRenameRow, SectionRow, type SectionMenuAt } from './SectionRow'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
 export type ImportRow = ImportProgress & { meta?: string }
 
+/** Drag data of both row kinds: the item's index in the ordered list (decks and sections). */
 const DECK_TYPE = 'application/x-ppt-share-deck'
 
 interface Props {
@@ -41,10 +45,18 @@ interface Props {
   onSelectDeck(deckId: string): void
   onDismissImport(id: string): void
   onFiles(files: File[]): void
-  onMoveDeck(from: number, to: number): void
+  /** Indices are into the ordered list of decks and sections (`orderItems`). */
+  onMoveItem(from: number, to: number): void
   onRemoveDeck(deckId: string): void
   /** Rejects with a user-facing message when main refuses the name. */
   onRenameDeck(deckId: string, name: string): Promise<void>
+  sections: SectionMeta[]
+  /** `at` is a deck index (the section goes before that deck). Resolves to the new section's id. */
+  onAddSection(at: number): Promise<string | null>
+  /** Rejects with a user-facing message when main refuses the name. */
+  onRenameSection(sectionId: string, name: string): Promise<void>
+  onRemoveSection(sectionId: string): void
+  onSelectSection(sectionId: string): void
 }
 
 interface MenuAt {
@@ -60,6 +72,7 @@ function DeckMenu({
   canDown,
   onRename,
   onMove,
+  onAddSection,
   onRemove,
   onClose
 }: {
@@ -68,34 +81,13 @@ function DeckMenu({
   canDown: boolean
   onRename(): void
   onMove(dir: -1 | 1): void
+  onAddSection(): void
   onRemove(): void
   onClose(): void
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    menuItems(ref.current!)[0]?.focus()
-    const close = (e: Event): void => {
-      if (e.type === 'keydown') {
-        if ((e as KeyboardEvent).key !== 'Escape') return
-        // Escape hands focus back to the deck the menu was opened on.
-        document
-          .querySelector<HTMLElement>(`.decks [data-deck-id="${CSS.escape(at.deckId)}"]`)
-          ?.focus()
-      }
-      if (e.type === 'pointerdown' && ref.current?.contains(e.target as Node)) return
-      onClose()
-    }
-    addEventListener('pointerdown', close, true)
-    addEventListener('keydown', close, true)
-    addEventListener('blur', close)
-    addEventListener('resize', close)
-    return () => {
-      removeEventListener('pointerdown', close, true)
-      removeEventListener('keydown', close, true)
-      removeEventListener('blur', close)
-      removeEventListener('resize', close)
-    }
-  }, [onClose, at.deckId])
+  // Escape hands focus back to the deck the menu was opened on.
+  useContextMenu(ref, `.decks [data-deck-id="${CSS.escape(at.deckId)}"]`, onClose)
   return (
     <div
       ref={ref}
@@ -121,6 +113,10 @@ function DeckMenu({
         <ArrowDownIcon className="chk" size={16} />
         Move down
         <kbd className="opt">Alt+↓</kbd>
+      </button>
+      <button role="menuitem" onClick={onAddSection}>
+        <ListPlusIcon className="chk" size={16} />
+        Add section above
       </button>
       <button role="menuitem" className="danger" onClick={onRemove}>
         <TrashIcon className="chk" size={16} />
@@ -346,46 +342,76 @@ function KvBlock({
   )
 }
 
+/** Key of a row in the ordered list, for restoring focus after the DOM node is replaced. */
+const rowKey = (item: OrderItem): string =>
+  'deck' in item ? `deck:${item.deck}` : `section:${item.section}`
+
+function focusRow(key: string): void {
+  const sep = key.indexOf(':')
+  const attr = key.slice(0, sep) === 'deck' ? 'deckId' : 'sectionId'
+  const id = key.slice(sep + 1)
+  ;[...document.querySelectorAll<HTMLElement>('.decks [data-deck-id], .decks [data-section-id]')]
+    .find((el) => el.dataset[attr] === id)
+    ?.focus()
+}
+
 export function Library(p: Props): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null)
   const [menu, setMenu] = useState<MenuAt | null>(null)
+  const [sectionMenu, setSectionMenu] = useState<SectionMenuAt | null>(null)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
+  const [renamingSection, setRenamingSection] = useState<string | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
   const count = p.decks.length
-  const menuIndex = menu ? p.decks.findIndex((d) => d.id === menu.deckId) : -1
+  const items = orderItems(
+    p.decks.map((d) => d.id),
+    p.sections
+  )
+  const deckById = new Map(p.decks.map((d) => [d.id, d]))
+  const sectionById = new Map(p.sections.map((s) => [s.id, s]))
+  const itemIndexOf = (key: string): number => items.findIndex((it) => rowKey(it) === key)
+  const menuIndex = menu ? itemIndexOf(`deck:${menu.deckId}`) : -1
+  const sectionMenuIndex = sectionMenu ? itemIndexOf(`section:${sectionMenu.sectionId}`) : -1
   const closeMenu = useCallback(() => setMenu(null), [])
-  // Deck whose row button takes focus once its rename row has closed.
+  const closeSectionMenu = useCallback(() => setSectionMenu(null), [])
+  // Row (see `rowKey`) whose button takes focus once its rename row has closed.
   const refocus = useRef<string | null>(null)
   useEffect(() => {
-    const id = refocus.current
-    if (renaming !== null || id === null) return
+    const key = refocus.current
+    if (renaming !== null || renamingSection !== null || key === null) return
     refocus.current = null
     const active = document.activeElement
     if (active && active !== document.body) return
-    ;[...document.querySelectorAll<HTMLElement>('.decks [data-deck-id]')]
-      .find((el) => el.dataset.deckId === id)
-      ?.focus()
-  }, [renaming])
+    focusRow(key)
+  }, [renaming, renamingSection])
 
-  // Deck whose row takes focus again after a keyboard move (the DOM node is re-inserted).
+  // Row that takes focus again after a keyboard move (the DOM node is re-inserted).
   const movedFocus = useRef<string | null>(null)
   useEffect(() => {
-    const id = movedFocus.current
-    if (id === null) return
+    const key = movedFocus.current
+    if (key === null) return
     movedFocus.current = null
-    ;[...document.querySelectorAll<HTMLElement>('.decks [data-deck-id]')]
-      .find((el) => el.dataset.deckId === id)
-      ?.focus()
-  }, [p.decks])
-  const moveDeck = (from: number, to: number): void => {
-    movedFocus.current = p.decks[from].id
-    p.onMoveDeck(from, to)
+    focusRow(key)
+  }, [p.decks, p.sections])
+  const moveRow = (from: number, to: number): void => {
+    movedFocus.current = rowKey(items[from])
+    p.onMoveItem(from, to)
   }
 
-  const openMenu = (e: React.MouseEvent<HTMLElement>, deckId: string): void => {
-    e.preventDefault()
+  const addSection = (at: number): void => {
+    setConfirm(null)
+    // The new section opens in rename mode (name selected), like a new file in Explorer.
+    void p.onAddSection(at).then((id) => {
+      if (id === null) return
+      setRenaming(null)
+      setRenamingSection(id)
+    })
+  }
+
+  /** Menu anchor for a context-menu event; keyboard-opened menus anchor to the row. */
+  const anchorOf = (e: React.MouseEvent<HTMLElement>): { x: number; y: number } => {
     let { clientX: x, clientY: y } = e
     if (x === 0 && y === 0) {
       // Keyboard (Shift+F10 / context menu key): anchor to the row.
@@ -393,8 +419,66 @@ export function Library(p: Props): React.JSX.Element {
       x = r.left + 24
       y = r.bottom
     }
+    return { x, y }
+  }
+  const openMenu = (e: React.MouseEvent<HTMLElement>, deckId: string): void => {
+    e.preventDefault()
     setConfirm(null)
-    setMenu({ deckId, x, y })
+    setSectionMenu(null)
+    setMenu({ deckId, ...anchorOf(e) })
+  }
+  const openSectionMenu = (e: React.MouseEvent<HTMLElement>, sectionId: string): void => {
+    e.preventDefault()
+    setConfirm(null)
+    setMenu(null)
+    setSectionMenu({ sectionId, ...anchorOf(e) })
+  }
+
+  /** Drag and drop of both row kinds; the drag data is the item index. */
+  const dragProps = (
+    i: number
+  ): {
+    onDragStart(e: React.DragEvent): void
+    onDragEnd(): void
+    onDragOver(e: React.DragEvent): void
+    onDragLeave(): void
+    onDrop(e: React.DragEvent): void
+  } => ({
+    onDragStart: (e) => {
+      e.dataTransfer.setData(DECK_TYPE, String(i))
+      e.dataTransfer.effectAllowed = 'move'
+      setDragging(i)
+    },
+    onDragEnd: () => {
+      setDragging(null)
+      setOver(null)
+    },
+    onDragOver: (e) => {
+      if (!e.dataTransfer.types.includes(DECK_TYPE)) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      if (over !== i) setOver(i)
+    },
+    onDragLeave: () => setOver((o) => (o === i ? null : o)),
+    onDrop: (e) => {
+      const from = e.dataTransfer.getData(DECK_TYPE)
+      if (from === '') return
+      e.preventDefault()
+      e.stopPropagation()
+      setDragging(null)
+      setOver(null)
+      p.onMoveItem(Number(from), i)
+    }
+  })
+  /** Alt+Up/Down moves the row by one item; true when Alt was held (key fully handled here). */
+  const altMove = (e: React.KeyboardEvent, i: number): boolean => {
+    if (!e.altKey) return false
+    // Keyboard reorder (Alt+Up/Down); never reaches the Prev/Next shortcuts.
+    const to = reorderTarget(e.key, 'vertical', i, items.length)
+    if (to === null) return true
+    e.preventDefault()
+    if (!e.repeat) moveRow(i, to)
+    return true
   }
 
   return (
@@ -404,21 +488,67 @@ export function Library(p: Props): React.JSX.Element {
         <span className="meta">{countOf(count, 'deck')}</span>
       </div>
       <div className="decks" data-testid="decks">
-        {count === 0 && p.imports.length === 0 && (
+        {items.length === 0 && p.imports.length === 0 && (
           <div className="empty-lib">
             {p.canImport
               ? 'No decks in this event yet.'
               : 'No event yet. Create one from the Event menu above, then add files.'}
           </div>
         )}
-        {p.decks.map((d, i) =>
-          renaming === d.id ? (
+        {items.map((item, i) => {
+          if ('section' in item) {
+            const sec = sectionById.get(item.section)
+            if (!sec) return null
+            if (renamingSection === sec.id) {
+              return (
+                <SectionRenameRow
+                  key={`s-${sec.id}`}
+                  section={sec}
+                  onSave={(name) => p.onRenameSection(sec.id, name)}
+                  onDone={(restoreFocus) => {
+                    if (restoreFocus) refocus.current = `section:${sec.id}`
+                    setRenamingSection((r) => (r === sec.id ? null : r))
+                  }}
+                />
+              )
+            }
+            return (
+              <SectionRow
+                key={`s-${sec.id}`}
+                section={sec}
+                dragging={dragging === i}
+                over={over === i}
+                menuOpen={sectionMenu?.sectionId === sec.id}
+                onSelect={() => p.onSelectSection(sec.id)}
+                onKeyDown={(e) => {
+                  if (altMove(e, i) || e.key !== 'F2') return
+                  e.preventDefault()
+                  setRenamingSection(sec.id)
+                }}
+                onContextMenu={(e) => openSectionMenu(e, sec.id)}
+                onOptions={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  setConfirm(null)
+                  setMenu(null)
+                  setSectionMenu({
+                    sectionId: sec.id,
+                    x: Math.max(8, r.right - 200),
+                    y: r.bottom + 4
+                  })
+                }}
+                {...dragProps(i)}
+              />
+            )
+          }
+          const d = deckById.get(item.deck)
+          if (!d) return null
+          return renaming === d.id ? (
             <RenameRow
               key={d.id}
               deck={d}
               onSave={(name) => p.onRenameDeck(d.id, name)}
               onDone={(restoreFocus) => {
-                if (restoreFocus) refocus.current = d.id
+                if (restoreFocus) refocus.current = `deck:${d.id}`
                 setRenaming((r) => (r === d.id ? null : r))
               }}
             />
@@ -448,45 +578,13 @@ export function Library(p: Props): React.JSX.Element {
                 title="Click to take this deck live. Drag, or press Alt+↑/↓, to reorder. F2 or right-click to rename or remove."
                 onClick={() => p.onSelectDeck(d.id)}
                 onKeyDown={(e) => {
-                  if (e.altKey) {
-                    // Keyboard reorder (Alt+Up/Down); never reaches the Prev/Next shortcuts.
-                    const to = reorderTarget(e.key, 'vertical', i, count)
-                    if (to === null) return
-                    e.preventDefault()
-                    if (!e.repeat) moveDeck(i, to)
-                    return
-                  }
-                  if (e.key !== 'F2') return
+                  if (altMove(e, i) || e.key !== 'F2') return
                   e.preventDefault()
                   setConfirm(null)
                   setRenaming(d.id)
                 }}
                 onContextMenu={(e) => openMenu(e, d.id)}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(DECK_TYPE, String(i))
-                  e.dataTransfer.effectAllowed = 'move'
-                  setDragging(i)
-                }}
-                onDragEnd={() => {
-                  setDragging(null)
-                  setOver(null)
-                }}
-                onDragOver={(e) => {
-                  if (!e.dataTransfer.types.includes(DECK_TYPE)) return
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = 'move'
-                  if (over !== i) setOver(i)
-                }}
-                onDragLeave={() => setOver((o) => (o === i ? null : o))}
-                onDrop={(e) => {
-                  const from = e.dataTransfer.getData(DECK_TYPE)
-                  if (from === '') return
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setDragging(null)
-                  setOver(null)
-                  p.onMoveDeck(Number(from), i)
-                }}
+                {...dragProps(i)}
               >
                 {d.source === 'pdf' ? (
                   <FilePdfIcon className="ph" size={20} />
@@ -516,6 +614,7 @@ export function Library(p: Props): React.JSX.Element {
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
                   setConfirm(null)
+                  setSectionMenu(null)
                   setMenu({ deckId: d.id, x: Math.max(8, r.right - 200), y: r.bottom + 4 })
                 }}
               >
@@ -523,7 +622,7 @@ export function Library(p: Props): React.JSX.Element {
               </button>
             </div>
           )
-        )}
+        })}
         {p.imports.map((x) =>
           x.status === 'error' ? (
             <button
@@ -571,19 +670,44 @@ export function Library(p: Props): React.JSX.Element {
         <DeckMenu
           at={menu}
           canUp={menuIndex > 0}
-          canDown={menuIndex >= 0 && menuIndex < count - 1}
+          canDown={menuIndex >= 0 && menuIndex < items.length - 1}
           onClose={closeMenu}
           onMove={(dir) => {
             setMenu(null)
-            moveDeck(menuIndex, menuIndex + dir)
+            moveRow(menuIndex, menuIndex + dir)
           }}
           onRename={() => {
             setRenaming(menu.deckId)
             setMenu(null)
           }}
+          onAddSection={() => {
+            const at = p.decks.findIndex((d) => d.id === menu.deckId)
+            setMenu(null)
+            if (at >= 0) addSection(at)
+          }}
           onRemove={() => {
             setConfirm(menu.deckId)
             setMenu(null)
+          }}
+        />
+      )}
+      {sectionMenu && (
+        <SectionMenu
+          at={sectionMenu}
+          canUp={sectionMenuIndex > 0}
+          canDown={sectionMenuIndex >= 0 && sectionMenuIndex < items.length - 1}
+          onClose={closeSectionMenu}
+          onMove={(dir) => {
+            setSectionMenu(null)
+            moveRow(sectionMenuIndex, sectionMenuIndex + dir)
+          }}
+          onRename={() => {
+            setRenamingSection(sectionMenu.sectionId)
+            setSectionMenu(null)
+          }}
+          onRemove={() => {
+            p.onRemoveSection(sectionMenu.sectionId)
+            setSectionMenu(null)
           }}
         />
       )}
@@ -595,10 +719,16 @@ export function Library(p: Props): React.JSX.Element {
         onClear={p.onClearKv}
       />
       <div className="add">
-        <button className="btn" disabled={!p.canImport} onClick={() => input.current?.click()}>
-          <PlusIcon size={16} />
-          Add files
-        </button>
+        <div className="add-row">
+          <button className="btn" disabled={!p.canImport} onClick={() => input.current?.click()}>
+            <PlusIcon size={16} />
+            Add files
+          </button>
+          <button className="btn" disabled={!p.canImport} onClick={() => addSection(count)}>
+            <ListPlusIcon size={16} />
+            Add section
+          </button>
+        </div>
         <p>
           {p.canImport
             ? 'Or drag .pptx, .ppt, or .pdf files into this window.'

@@ -1,4 +1,4 @@
-import type { DeckMeta } from '../../../shared/types'
+import type { DeckMeta, SectionMeta } from '../../../shared/types'
 import type { Action, ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
 import { currentDeck, nextView } from '../model'
@@ -8,15 +8,17 @@ import { Switch } from './Switch'
 
 export function NextPanel({
   decks,
+  sections,
   state,
   onAction
 }: {
   decks: DeckMeta[]
+  sections: SectionMeta[]
   state: ProgramState
   onAction(a: Action): void
 }): React.JSX.Element {
   const deck = currentDeck(decks, state)
-  const nx = nextView(decks, state)
+  const nx = nextView(decks, state, sections)
   // Notes of the slide on the panel: the preview while frozen, else the operator position.
   const notes = nx.kind === 'slide' && nx.held ? nx.notes : (deck?.slides[state.index]?.notes ?? '')
 
@@ -53,6 +55,12 @@ export function NextPanel({
           Next stops here. Choose <strong>{nx.nextDeck}</strong> to continue.
         </>
       )
+  } else if (nx.kind === 'sectionEnd') {
+    if (nx.nextSection === null) card = <EndCard title="End of event" />
+    else {
+      card = <EndCard title="End of section" />
+      cap = `Next section: ${nx.nextSection}. Press N.`
+    }
   } else {
     card = <EndCard title="No slides yet" />
   }

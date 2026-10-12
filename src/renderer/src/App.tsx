@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { DeckMeta, EventMeta } from '../../shared/types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { DeckMeta, EventMeta, SectionMeta } from '../../shared/types'
+import { orderItems, splitOrder } from '../../shared/sections'
 import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '../../shared/program'
 import type { ImportRequest } from '../../shared/ipc'
 import { Header } from './components/Header'
@@ -14,7 +15,9 @@ import { ActionError, SaveNote } from './components/ActionError'
 import {
   baseName,
   canNext,
+  canNextSection,
   canPrev,
+  canPrevSection,
   currentDeck,
   errorMessage,
   fileKind,
@@ -40,6 +43,10 @@ function App(): React.JSX.Element {
   const [program, setProgram] = useState<ProgramState>(initialState)
   const [imports, setImports] = useState<ImportRow[]>([])
   const [theme, setTheme] = useState<Theme>(loadTheme)
+  const sections = useMemo<SectionMeta[]>(
+    () => events.find((e) => e.id === eventId)?.sections ?? [],
+    [events, eventId]
+  )
   const eventRef = useRef<string | null>(null)
   const appRef = useRef<HTMLDivElement>(null)
   // A failed Program action (shown next to the tally) and a short "saved" note.
@@ -83,6 +90,20 @@ function App(): React.JSX.Element {
       if (eventRef.current === id) setDecks(list)
     },
     [api]
+  )
+
+  /** Authoritative decks and events (sections live on the event) after a failed or finished change. */
+  const reloadAll = useCallback(
+    async (id: string) => {
+      try {
+        const [list, evs] = await Promise.all([api.listDecks(id), api.listEvents()])
+        if (eventRef.current === id) setDecks(list)
+        setEvents(evs)
+      } catch (e) {
+        reportError('Decks', e)
+      }
+    },
+    [api, reportError]
   )
 
   // Initial load and main-process subscriptions.
@@ -280,24 +301,72 @@ function App(): React.JSX.Element {
 
   // Reorder and delete: the list moves at once (optimistic), main persists it,
   // then the authoritative list is reloaded. Program follows via program:state.
-  const moveDeck = useCallback(
+  // Indices are into the ordered list of decks and sections.
+  const moveListItem = useCallback(
     (from: number, to: number) => {
       const target = eventRef.current
       if (!target || from === to) return
-      const next = moveItem(decks, from, to)
-      setDecks(next)
+      const items = moveItem(
+        orderItems(
+          decks.map((d) => d.id),
+          sections
+        ),
+        from,
+        to
+      )
+      const split = splitOrder(items, sections)
+      const byId = new Map(decks.map((d) => [d.id, d]))
+      setDecks(split.deckIds.flatMap((id) => byId.get(id) ?? []))
+      setEvents((xs) => xs.map((x) => (x.id === target ? { ...x, sections: split.sections } : x)))
       api
-        .reorderDecks(
-          target,
-          next.map((d) => d.id)
-        )
+        .reorderDecks(target, items)
         .then(
           () => announce(SAVED.order),
           (e) => reportError('Deck order', e)
         )
-        .finally(() => reloadDecks(target).catch((e) => reportError('Decks', e)))
+        .finally(() => void reloadAll(target))
     },
-    [api, decks, announce, reloadDecks, reportError]
+    [api, decks, sections, announce, reloadAll, reportError]
+  )
+
+  // Sections: main validates and saves; the event it returns replaces ours.
+  const replaceEvent = useCallback(
+    (ev: EventMeta) => setEvents((xs) => xs.map((x) => (x.id === ev.id ? ev : x))),
+    []
+  )
+  const addSection = useCallback(
+    async (at: number): Promise<string | null> => {
+      const target = eventRef.current
+      if (!target) return null
+      try {
+        const r = await api.addSection(target, at)
+        replaceEvent(r.event)
+        return r.sectionId
+      } catch (e) {
+        reportError('Section', e)
+        return null
+      }
+    },
+    [api, replaceEvent, reportError]
+  )
+  const renameSection = useCallback(
+    async (sectionId: string, name: string) => {
+      const target = eventRef.current
+      if (!target) throw new Error('Choose an event first, then rename the section.')
+      replaceEvent(await api.renameSection(target, sectionId, name))
+    },
+    [api, replaceEvent]
+  )
+  const removeSection = useCallback(
+    (sectionId: string) => {
+      const target = eventRef.current
+      if (!target) return
+      api.removeSection(target, sectionId).then(replaceEvent, (e) => {
+        reportError('Section', e)
+        void reloadAll(target)
+      })
+    },
+    [api, replaceEvent, reloadAll, reportError]
   )
 
   // Rename: main validates and saves; errors are shown in the row by Library.
@@ -341,9 +410,10 @@ function App(): React.JSX.Element {
       api
         .removeDeck(target, deckId)
         .catch((e) => reportError(name, e))
-        .finally(() => reloadDecks(target).catch((e) => reportError('Decks', e)))
+        // Removing a deck shifts the sections after it, so events are reloaded too.
+        .finally(() => void reloadAll(target))
     },
-    [api, decks, reloadDecks, reportError]
+    [api, decks, reloadAll, reportError]
   )
 
   // KV image of the active event. Main validates the path and the image; the
@@ -403,7 +473,12 @@ function App(): React.JSX.Element {
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}
           onDismissImport={(id) => setImports((xs) => xs.filter((x) => x.id !== id))}
           onFiles={importFiles}
-          onMoveDeck={moveDeck}
+          onMoveItem={moveListItem}
+          sections={sections}
+          onAddSection={addSection}
+          onRenameSection={renameSection}
+          onRemoveSection={removeSection}
+          onSelectSection={(sectionId) => dispatch({ type: 'selectSection', sectionId })}
           onRemoveDeck={removeDeck}
           onRenameDeck={renameDeck}
         />
@@ -418,13 +493,16 @@ function App(): React.JSX.Element {
           />
           <Controls
             state={program}
-            canPrev={canPrev(decks, program)}
-            canNext={canNext(decks, program)}
-            canFreeze={reduce(program, { type: 'toggleFreeze' }, decks) !== program}
+            canPrev={canPrev(decks, program, sections)}
+            canNext={canNext(decks, program, sections)}
+            hasSections={sections.length > 0}
+            canPrevSection={canPrevSection(decks, program, sections)}
+            canNextSection={canNextSection(decks, program, sections)}
+            canFreeze={reduce(program, { type: 'toggleFreeze' }, decks, sections) !== program}
             onAction={dispatch}
           />
         </section>
-        <NextPanel decks={decks} state={program} onAction={dispatch} />
+        <NextPanel decks={decks} sections={sections} state={program} onAction={dispatch} />
       </main>
       <Strip decks={decks} state={program} onGoto={goto} onMoveSlide={moveSlide} />
       <SaveNote text={note} />
