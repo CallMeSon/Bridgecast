@@ -4,6 +4,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { Library } from './library'
 import { DECK_NAME_MAX } from '../shared/types'
+import { orderItems } from '../shared/sections'
 
 // fs namespace objects cannot be spied on in ESM; route copyFileSync through a hook.
 const hooks = vi.hoisted(() => ({
@@ -63,7 +64,7 @@ describe('Library', () => {
     expect(fs.readFileSync(path.join(root, 'decks', a.id, '002.png'), 'utf8')).toBe('png-1')
     expect(a.slides.map((s) => s.file)).toEqual(['001.png', '002.png'])
     expect(lib.getDecks(ev.id).map((d) => d.name)).toEqual(['A', 'B'])
-    lib.reorderDecks(ev.id, [b.id, a.id])
+    lib.reorder(ev.id, [{ deck: b.id }, { deck: a.id }])
     expect(lib.getDecks(ev.id).map((d) => d.name)).toEqual(['B', 'A'])
   })
 
@@ -130,13 +131,13 @@ describe('Library', () => {
     ])
   })
 
-  it('reorderDecks rejects incomplete or unknown ids and keeps order', () => {
+  it('reorder rejects incomplete or unknown ids and keeps order', () => {
     const lib = new Library(root)
     const ev = lib.createEvent('E')
     const a = lib.addDeck(ev.id, deckInput(1, 'A'))
     const b = lib.addDeck(ev.id, deckInput(1, 'B'))
-    expect(() => lib.reorderDecks(ev.id, [a.id])).toThrow()
-    expect(() => lib.reorderDecks(ev.id, [a.id, 'nope'])).toThrow()
+    expect(() => lib.reorder(ev.id, [{ deck: a.id }])).toThrow()
+    expect(() => lib.reorder(ev.id, [{ deck: a.id }, { deck: 'nope' }])).toThrow()
     expect(lib.getDecks(ev.id).map((d) => d.id)).toEqual([a.id, b.id])
     expect(lib.listEvents()[0].deckIds).toEqual([a.id, b.id])
   })
@@ -530,5 +531,153 @@ describe('Library', () => {
         'Video not found. Choose a slide that exists in this deck.'
       )
     })
+  })
+})
+
+describe('Library sections', () => {
+  const setup = (n = 3) => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const decks = Array.from({ length: n }, (_, i) => lib.addDeck(ev.id, deckInput(1, `D${i}`)))
+    return { lib, ev, decks }
+  }
+  const sectionsOf = (l: Library, id: string) => l.listEvents().find((e) => e.id === id)!.sections
+
+  it('addSection persists, uses default names, and goes after same-at sections', () => {
+    const { lib, ev, decks } = setup()
+    const r1 = lib.addSection(ev.id, 1)
+    const r2 = lib.addSection(ev.id, 1)
+    expect(r1.event.sections?.[0]).toEqual({ id: r1.sectionId, name: 'Section 1', at: 1 })
+    expect(r2.event.sections?.map((s) => s.name)).toEqual(['Section 1', 'Section 2'])
+    expect(r2.event.sections?.map((s) => s.id)).toEqual([r1.sectionId, r2.sectionId])
+    const lib2 = new Library(root)
+    expect(sectionsOf(lib2, ev.id)).toHaveLength(2)
+    expect(lib2.listEvents()[0].deckIds).toEqual(decks.map((d) => d.id))
+  })
+
+  it('addSection uses a given name and rejects invalid at', () => {
+    const { lib, ev } = setup()
+    expect(lib.addSection(ev.id, 0, ' Opening ').event.sections?.[0].name).toBe('Opening')
+    const msg = 'The section position is not valid. Reload the app, then try again.'
+    for (const at of [-1, 1.5, 4]) expect(() => lib.addSection(ev.id, at)).toThrow(msg)
+  })
+
+  it('renameSection persists and validates the name', () => {
+    const { lib, ev } = setup()
+    const { sectionId } = lib.addSection(ev.id, 0)
+    expect(lib.renameSection(ev.id, sectionId, '  Part 2 ').sections?.[0].name).toBe('Part 2')
+    expect(sectionsOf(new Library(root), ev.id)?.[0].name).toBe('Part 2')
+    expect(() => lib.renameSection(ev.id, sectionId, '  ')).toThrow(
+      'Section name is empty. Type a name, for example "Opening".'
+    )
+    expect(() => lib.renameSection(ev.id, sectionId, 5 as unknown as string)).toThrow(
+      'Section name is empty'
+    )
+    expect(() => lib.renameSection(ev.id, sectionId, 'a\u0000b')).toThrow('Section name contains')
+    expect(() => lib.renameSection(ev.id, sectionId, 'x'.repeat(DECK_NAME_MAX + 1))).toThrow(
+      `Section name is too long. Use ${DECK_NAME_MAX} characters or fewer.`
+    )
+    expect(() => lib.renameSection(ev.id, 'nope', 'X')).toThrow(
+      'Section not found. Reload the app, then try again.'
+    )
+    expect(() => lib.addSection(ev.id, 0, 'x'.repeat(DECK_NAME_MAX + 1))).toThrow('too long')
+  })
+
+  it('removeSection persists and reports a missing section', () => {
+    const { lib, ev } = setup()
+    const a = lib.addSection(ev.id, 0)
+    const b = lib.addSection(ev.id, 2)
+    expect(lib.removeSection(ev.id, a.sectionId).sections?.map((s) => s.id)).toEqual([b.sectionId])
+    expect(sectionsOf(new Library(root), ev.id)?.map((s) => s.id)).toEqual([b.sectionId])
+    expect(() => lib.removeSection(ev.id, a.sectionId)).toThrow(
+      'Section not found. Reload the app, then try again.'
+    )
+    expect(() => lib.removeSection(ev.id, 7 as unknown as string)).toThrow('Section not found')
+  })
+
+  it('removeDeck shifts at only for sections after the deck', () => {
+    const { lib, ev, decks } = setup()
+    const s0 = lib.addSection(ev.id, 1).sectionId
+    const s1 = lib.addSection(ev.id, 3).sectionId
+    lib.removeDeck(ev.id, decks[1].id) // section at 1 is not after index 1; at 3 is
+    const secs = sectionsOf(lib, ev.id)!
+    expect(secs.find((s) => s.id === s0)?.at).toBe(1)
+    expect(secs.find((s) => s.id === s1)?.at).toBe(2)
+    lib.removeDeck(ev.id, decks[0].id) // both are after index 0
+    expect(sectionsOf(lib, ev.id)!.map((s) => s.at)).toEqual([0, 1])
+  })
+
+  it('addDeck after an empty end section lands in that section', () => {
+    const { lib, ev, decks } = setup(1)
+    const { sectionId } = lib.addSection(ev.id, 1)
+    const d = lib.addDeck(ev.id, deckInput(1, 'New'))
+    const e = lib.listEvents()[0]
+    expect(orderItems(e.deckIds, e.sections)).toEqual([
+      { deck: decks[0].id },
+      { section: sectionId },
+      { deck: d.id }
+    ])
+  })
+
+  it('reorder moves a deck across a section and persists', () => {
+    const { lib, ev, decks } = setup(2)
+    const { sectionId } = lib.addSection(ev.id, 1)
+    lib.reorder(ev.id, [{ section: sectionId }, { deck: decks[1].id }, { deck: decks[0].id }])
+    const e = new Library(root).listEvents()[0]
+    expect(e.deckIds).toEqual([decks[1].id, decks[0].id])
+    expect(e.sections?.[0].at).toBe(0)
+  })
+
+  it('reorder rejects invalid item sets and keeps the stored order', () => {
+    const { lib, ev, decks } = setup(2)
+    lib.addSection(ev.id, 1)
+    const good = orderItems(
+      decks.map((d) => d.id),
+      lib.listEvents()[0].sections
+    )
+    const msg =
+      'The deck list is not valid: it must include every deck and section in the event exactly once. Reload the app, then try again.'
+    const [d0, s, d1] = good
+    expect(() => lib.reorder(ev.id, [d0, s])).toThrow(msg) // missing deck
+    expect(() => lib.reorder(ev.id, [...good, { deck: 'nope' }])).toThrow(msg) // extra id
+    expect(() => lib.reorder(ev.id, [d0, s, s, d1])).toThrow(msg) // duplicate section
+    expect(() => lib.reorder(ev.id, [d0, d1])).toThrow(msg) // missing section
+    expect(() => lib.reorder(ev.id, [d0, { section: 'x' }, d1])).toThrow(msg) // unknown section
+    const stored = JSON.stringify(lib.listEvents())
+    const late = lib.addDeck(ev.id, deckInput(1, 'Late'))
+    const afterLate = JSON.stringify(lib.listEvents())
+    expect(() => lib.reorder(ev.id, good)).toThrow(msg) // deck imported after the order was built
+    expect(JSON.stringify(lib.listEvents())).toBe(afterLate)
+    expect(afterLate).not.toBe(stored)
+    expect(lib.listEvents()[0].deckIds).toEqual([...decks.map((d) => d.id), late.id])
+  })
+
+  it('repairs damaged sections on load without losing decks', () => {
+    const { ev, decks } = setup(2)
+    const file = path.join(root, 'events.json')
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
+    raw[0].sections = [
+      null,
+      { id: 1, name: 'x', at: 0 },
+      { id: 'a', name: '  Keep  ', at: 99 },
+      { id: 'a', name: 'dup', at: 0 },
+      { id: 'b', name: '   ', at: 0 },
+      { id: 'c', name: '', at: 0 },
+      { id: 'd', name: 'Early', at: -5 }
+    ]
+    fs.writeFileSync(file, JSON.stringify(raw))
+    const e = new Library(root).listEvents().find((x) => x.id === ev.id)!
+    expect(e.deckIds).toEqual(decks.map((d) => d.id))
+    expect(e.sections).toEqual([
+      { id: 'd', name: 'Early', at: 0 },
+      { id: 'a', name: 'Keep', at: 2 }
+    ])
+  })
+
+  it('an event without sections lists as before', () => {
+    const { lib, ev } = setup(1)
+    const e = lib.listEvents().find((x) => x.id === ev.id)!
+    expect('sections' in e).toBe(false)
+    expect(new Library(root).listEvents()[0]).toEqual(e)
   })
 })

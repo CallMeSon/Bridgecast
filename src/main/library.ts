@@ -7,8 +7,10 @@ import {
   KV_MAX_BYTES,
   KV_MIME,
   type DeckMeta,
-  type EventMeta
+  type EventMeta,
+  type SectionMeta
 } from '../shared/types'
+import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections'
 import { thumbFileName } from './slide-protocol'
 import { writeThumbnail } from './thumbnail'
 
@@ -31,6 +33,13 @@ function writeJsonAtomic(file: string, data: unknown): void {
 }
 
 export { DECK_NAME_MAX }
+
+/** Copy of an event that shares no arrays with the stored one. */
+function copyEvent(ev: EventMeta): EventMeta {
+  const copy: EventMeta = { ...ev, deckIds: [...ev.deckIds] }
+  if (ev.sections) copy.sections = ev.sections.map((s) => ({ ...s }))
+  return copy
+}
 
 /** Writes a thumbnail image of `src` to `dest`; throws on failure. */
 export type ThumbWriter = (src: string, dest: string) => void
@@ -62,7 +71,14 @@ export class Library {
   private loadEvents(): EventMeta[] {
     if (!fs.existsSync(this.eventsFile)) return []
     try {
-      return JSON.parse(fs.readFileSync(this.eventsFile, 'utf8')) as EventMeta[]
+      const events = JSON.parse(fs.readFileSync(this.eventsFile, 'utf8')) as EventMeta[]
+      for (const ev of events) {
+        if (!ev.sections) continue
+        ev.sections = sanitizeSections(ev.sections, ev.deckIds.length)
+          .map((s) => ({ ...s, name: s.name.trim() }))
+          .filter((s) => s.name !== '')
+      }
+      return events
     } catch {
       throw new Error(
         'events.json is damaged and cannot be read. Restore it from a backup, or delete the file to start over.'
@@ -98,11 +114,11 @@ export class Library {
     const ev: EventMeta = { id: randomUUID(), name: trimmed, deckIds: [] }
     this.events.push(ev)
     this.saveEvents()
-    return { ...ev, deckIds: [...ev.deckIds] }
+    return copyEvent(ev)
   }
 
   listEvents(): EventMeta[] {
-    return this.events.map((e) => ({ ...e, deckIds: [...e.deckIds] }))
+    return this.events.map(copyEvent)
   }
 
   getDecks(eventId: string): DeckMeta[] {
@@ -144,19 +160,117 @@ export class Library {
     }
   }
 
-  reorderDecks(eventId: string, deckIds: string[]): void {
+  /** Sets the order of decks and sections. `items` must be exactly the event's decks and sections, once each. */
+  reorder(eventId: string, items: OrderItem[]): void {
     const ev = this.findEvent(eventId)
+    const sections = ev.sections ?? []
+    const keys = Array.isArray(items)
+      ? items.map((it) =>
+          typeof it === 'object' && it !== null
+            ? 'deck' in it
+              ? `d:${String(it.deck)}`
+              : `s:${String((it as { section: unknown }).section)}`
+            : ''
+        )
+      : []
+    const expected = new Set([
+      ...ev.deckIds.map((id) => `d:${id}`),
+      ...sections.map((x) => `s:${x.id}`)
+    ])
     const valid =
-      deckIds.length === ev.deckIds.length &&
-      new Set(deckIds).size === deckIds.length &&
-      deckIds.every((id) => ev.deckIds.includes(id))
+      Array.isArray(items) &&
+      keys.length === expected.size &&
+      new Set(keys).size === keys.length &&
+      keys.every((k) => expected.has(k))
     if (!valid) {
       throw new Error(
-        'The deck list is not valid: it must include every deck in the event exactly once. Reload the app, then try again.'
+        'The deck list is not valid: it must include every deck and section in the event exactly once. Reload the app, then try again.'
       )
     }
-    ev.deckIds = [...deckIds]
-    this.saveEvents()
+    const next = splitOrder(items, sections)
+    const prevIds = ev.deckIds
+    const prevSections = ev.sections
+    ev.deckIds = next.deckIds
+    if (ev.sections) ev.sections = next.sections
+    try {
+      this.saveEvents()
+    } catch (err) {
+      ev.deckIds = prevIds
+      ev.sections = prevSections
+      if (prevSections === undefined) delete ev.sections
+      throw err
+    }
+  }
+
+  /** Validates a section name like a deck name; returns the trimmed name. */
+  private sectionName(name: unknown): string {
+    const trimmed = typeof name === 'string' ? name.trim() : ''
+    if (!trimmed) throw new Error('Section name is empty. Type a name, for example "Opening".')
+    if (/[\p{Cc}\p{Cf}]/u.test(trimmed)) {
+      throw new Error('Section name contains unsupported characters. Retype the name.')
+    }
+    if ([...trimmed].length > DECK_NAME_MAX) {
+      throw new Error(`Section name is too long. Use ${DECK_NAME_MAX} characters or fewer.`)
+    }
+    return trimmed
+  }
+
+  private findSection(ev: EventMeta, sectionId: string): SectionMeta {
+    const sec = ev.sections?.find((x) => x.id === sectionId)
+    if (!sec) throw new Error('Section not found. Reload the app, then try again.')
+    return sec
+  }
+
+  /** Adds a divider before `deckIds[at]` (`at === length` appends), after sections already at `at`. */
+  addSection(eventId: string, at: number, name?: string): { event: EventMeta; sectionId: string } {
+    const ev = this.findEvent(eventId)
+    if (!Number.isInteger(at) || at < 0 || at > ev.deckIds.length) {
+      throw new Error('The section position is not valid. Reload the app, then try again.')
+    }
+    const sections = ev.sections ?? []
+    const clean = name === undefined ? `Section ${sections.length + 1}` : this.sectionName(name)
+    const section: SectionMeta = { id: randomUUID(), name: clean, at }
+    // Array order is display order: insert after every section at or before `at`.
+    const next = [...sections]
+    let i = next.length
+    while (i > 0 && next[i - 1].at > at) i--
+    next.splice(i, 0, section)
+    this.commitSections(ev, next)
+    return { event: copyEvent(ev), sectionId: section.id }
+  }
+
+  renameSection(eventId: string, sectionId: string, name: string): EventMeta {
+    const ev = this.findEvent(eventId)
+    const sec = this.findSection(ev, sectionId)
+    const clean = this.sectionName(name)
+    this.commitSections(
+      ev,
+      (ev.sections ?? []).map((x) => (x === sec ? { ...x, name: clean } : x))
+    )
+    return copyEvent(ev)
+  }
+
+  removeSection(eventId: string, sectionId: string): EventMeta {
+    const ev = this.findEvent(eventId)
+    this.findSection(ev, sectionId)
+    this.commitSections(
+      ev,
+      (ev.sections ?? []).filter((x) => x.id !== sectionId)
+    )
+    return copyEvent(ev)
+  }
+
+  /** Stores `sections` on the event and saves; restores the previous value if saving fails. */
+  private commitSections(ev: EventMeta, sections: SectionMeta[]): void {
+    const previous = ev.sections
+    ev.sections = sections
+    try {
+      this.saveEvents()
+    } catch (err) {
+      ev.sections = previous
+      if (previous === undefined) delete ev.sections
+      throw err
+    }
   }
 
   reorderSlides(deckId: string, order: number[]): void {
@@ -205,7 +319,11 @@ export class Library {
         'Deck not found in this event. Reload the deck list, then choose a deck from it.'
       )
     }
+    const index = ev.deckIds.indexOf(deckId)
     ev.deckIds = ev.deckIds.filter((id) => id !== deckId)
+    if (ev.sections) {
+      ev.sections = ev.sections.map((x) => (x.at > index ? { ...x, at: x.at - 1 } : x))
+    }
     this.saveEvents()
     fs.rmSync(this.deckDir(deckId), { recursive: true, force: true })
   }
@@ -269,7 +387,7 @@ export class Library {
       throw err
     }
     this.removeKvFile(eventId, previous)
-    return { ...ev, deckIds: [...ev.deckIds] }
+    return copyEvent(ev)
   }
 
   /** Delete a stored KV file, but only if its name is one we generated (never follow a damaged events.json). */
@@ -292,7 +410,7 @@ export class Library {
       }
       this.removeKvFile(eventId, previous)
     }
-    return { ...ev, deckIds: [...ev.deckIds] }
+    return copyEvent(ev)
   }
 
   /** Path of the event's KV image; only the stored file name resolves (no traversal). */

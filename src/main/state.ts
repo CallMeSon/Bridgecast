@@ -95,7 +95,7 @@ export class AppState {
 
   /** Reorder the decks of an event; position and shown do not change. */
   reorderDecks(eventId: string, deckIds: string[]): ProgramState {
-    this.lib.reorderDecks(eventId, deckIds)
+    this.lib.reorder(eventId, deckIds.map((deck) => ({ deck })))
     return this.refresh()
   }
 
