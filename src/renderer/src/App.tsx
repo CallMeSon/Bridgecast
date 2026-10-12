@@ -40,12 +40,15 @@ function App(): React.JSX.Element {
   const [events, setEvents] = useState<EventMeta[]>([])
   const [eventId, setEventId] = useState<string | null>(null)
   const [decks, setDecks] = useState<DeckMeta[]>([])
+  // The event the loaded `decks` belong to. Sections follow this, not `eventId`, so
+  // decks and sections never come from two different events while a switch loads.
+  const [decksEventId, setDecksEventId] = useState<string | null>(null)
   const [program, setProgram] = useState<ProgramState>(initialState)
   const [imports, setImports] = useState<ImportRow[]>([])
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const sections = useMemo<SectionMeta[]>(
-    () => events.find((e) => e.id === eventId)?.sections ?? [],
-    [events, eventId]
+    () => events.find((e) => e.id === decksEventId)?.sections ?? [],
+    [events, decksEventId]
   )
   const eventRef = useRef<string | null>(null)
   const appRef = useRef<HTMLDivElement>(null)
@@ -87,7 +90,10 @@ function App(): React.JSX.Element {
   const reloadDecks = useCallback(
     async (id: string | null) => {
       const list = id ? await api.listDecks(id) : []
-      if (eventRef.current === id) setDecks(list)
+      if (eventRef.current === id) {
+        setDecks(list)
+        setDecksEventId(id)
+      }
     },
     [api]
   )
@@ -97,7 +103,10 @@ function App(): React.JSX.Element {
     async (id: string) => {
       try {
         const [list, evs] = await Promise.all([api.listDecks(id), api.listEvents()])
-        if (eventRef.current === id) setDecks(list)
+        if (eventRef.current === id) {
+          setDecks(list)
+          setDecksEventId(id)
+        }
         setEvents(evs)
       } catch (e) {
         reportError('Decks', e)
@@ -161,7 +170,10 @@ function App(): React.JSX.Element {
         setImports((xs) => xs.filter((x) => x.status === 'busy'))
         const list = await api.listDecks(id)
         const s = await api.selectEvent(id)
-        if (eventRef.current === id) setDecks(list)
+        if (eventRef.current === id) {
+          setDecks(list)
+          setDecksEventId(id)
+        }
         setProgram(s)
       } catch (e) {
         reportError('Event', e)
