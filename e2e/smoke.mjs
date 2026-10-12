@@ -934,6 +934,161 @@ async function behaviourChecks(win, tally, pos) {
   )
 }
 
+// --- Sections: add, drag, auto advance stops at the boundary, N / Shift+N, remove ---
+async function sectionChecks(win, tally, pos) {
+  const rowSel = '[data-testid=decks] .deck[data-deck-id]'
+  const allSel = '[data-testid=decks] [data-deck-id], [data-testid=decks] [data-section-id]'
+  const ids = () => win.$$eval(rowSel, (els) => els.map((e) => e.dataset.deckId))
+  /** Deck and section ids in list order, as "d:<id>" / "s:<id>". */
+  const order = () =>
+    win.$$eval(allSel, (els) =>
+      els.map((e) => (e.dataset.deckId ? `d:${e.dataset.deckId}` : `s:${e.dataset.sectionId}`))
+    )
+  const posText = () => pos.textContent()
+  const liveDeck = () =>
+    win.evaluate(() => document.querySelector('.deck.live')?.getAttribute('data-deck-id') ?? null)
+  const waitLive = (id) =>
+    win.waitForFunction(
+      (d) => document.querySelector('.deck.live')?.getAttribute('data-deck-id') === d,
+      id
+    )
+  const waitRow = (sel, index, key, val) =>
+    win.waitForFunction(
+      ([s, i, k, v]) => [...document.querySelectorAll(s)][i]?.dataset[k] === v,
+      [allSel, index, key, val]
+    )
+  const autoOn = win.locator('[data-testid=auto-advance][aria-checked=true]')
+  const autoOff = win.locator('[data-testid=auto-advance][aria-checked=false]')
+  const firstSlide = () =>
+    win.waitForFunction(() =>
+      /^1 \//.test(document.querySelector('[data-testid=pos]')?.textContent ?? '')
+    )
+
+  const [d0, d1, d2] = await ids()
+  check(!!d2, 'sections: the event has at least three decks')
+  const before = await order()
+  check(
+    (await win.locator('[data-testid=section-row]').count()) === 0,
+    'sections: none to start with'
+  )
+
+  // Add section: a row in rename mode, name typed, Enter saves.
+  await win.getByRole('button', { name: 'Add section' }).click()
+  const nameInput = win.getByRole('textbox', { name: /^New name for section/ })
+  await nameInput.waitFor()
+  await nameInput.fill('Talk 2')
+  await nameInput.press('Enter')
+  await win.getByTestId('rename-section').waitFor({ state: 'detached' })
+  const secRow = win.getByTestId('section-row')
+  await secRow.waitFor()
+  check(
+    (await secRow.getAttribute('aria-label')) === 'Section Talk 2',
+    'sections: the new section is named Talk 2'
+  )
+  const sid = await secRow.getAttribute('data-section-id')
+  check(
+    (await order()).join() === [...before, `s:${sid}`].join(),
+    'sections: a new section lands at the end of the list'
+  )
+
+  // Drag the section above the third deck: decks 1 and 2 form the opening block.
+  await dragOnto(win, `[data-section-id="${sid}"]`, `[data-deck-id="${d2}"]`)
+  await waitRow(allSel, 2, 'sectionId', sid)
+  check(
+    (await order()).slice(0, 4).join() === [`d:${d0}`, `d:${d1}`, `s:${sid}`, `d:${d2}`].join(),
+    'sections: dragging the section row puts it before the third deck'
+  )
+  // Drag deck 2 onto the section row (it ends up below it), then Alt+Up puts it back.
+  await dragOnto(win, `[data-deck-id="${d1}"]`, `[data-section-id="${sid}"]`)
+  await waitRow(allSel, 1, 'sectionId', sid)
+  check(
+    (await order()).slice(0, 4).join() === [`d:${d0}`, `s:${sid}`, `d:${d1}`, `d:${d2}`].join(),
+    'sections: dragging a deck onto the section row moves it below the section'
+  )
+  await win.locator(`[data-deck-id="${d1}"]`).focus()
+  await win.keyboard.press('Alt+ArrowUp')
+  await waitRow(allSel, 1, 'deckId', d1)
+  check(
+    (await order()).slice(0, 4).join() === [`d:${d0}`, `d:${d1}`, `s:${sid}`, `d:${d2}`].join(),
+    'sections: Alt+ArrowUp moves the deck back above the section'
+  )
+  await win.evaluate(() => document.activeElement?.blur())
+
+  await win.getByRole('button', { name: /^Next section/ }).waitFor()
+  await win.getByRole('button', { name: /^Prev section/ }).waitFor()
+  check(true, 'sections: Prev section and Next section buttons show')
+
+  // Auto advance ON; play deck 2 to its last slide; Space must stop at the boundary.
+  await win.getByTestId('auto-advance').click()
+  await autoOn.waitFor()
+  await win.locator(`[data-deck-id="${d1}"]`).click()
+  await waitLive(d1)
+  for (let i = 0; i < 200; i++) {
+    const [c, t] = (await posText()).split(' / ').map(Number)
+    if (c >= t) break
+    await win.keyboard.press('Space')
+    await win.waitForFunction(
+      (b) => document.querySelector('[data-testid=pos]')?.textContent !== b,
+      `${c} / ${t}`
+    )
+  }
+  const last = await posText()
+  const [lc, lt] = last.split(' / ').map(Number)
+  check(lc === lt, `sections: reached the last slide of deck 2 (${last})`)
+  await win.evaluate(() => document.activeElement?.blur())
+  const card = win.getByTestId('next-card')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=next-card]')?.dataset.kind === 'sectionEnd'
+  )
+  const cardText = await card.textContent()
+  check(
+    /End of section/.test(cardText) && /Next section: Talk 2\. Press N\./.test(cardText),
+    'sections: Up next shows "End of section" with the next section named'
+  )
+  const tallyBefore = await tally.textContent()
+  await win.keyboard.press('Space')
+  await sleep(500)
+  check(
+    (await posText()) === last && (await liveDeck()) === d1,
+    'sections: Space on the last slide of a section does not cross into the next one'
+  )
+  check((await tally.textContent()) === tallyBefore, 'sections: the output did not change')
+
+  // N goes to the next section's first deck, Shift+N back to the first deck.
+  await win.keyboard.press('n')
+  await waitLive(d2)
+  await firstSlide()
+  check(
+    (await liveDeck()) === d2 && /^1 \//.test(await posText()),
+    'sections: N takes deck 3, slide 1, live'
+  )
+  await win.keyboard.press('Shift+N')
+  await waitLive(d0)
+  await firstSlide()
+  check(
+    (await liveDeck()) === d0 && /^1 \//.test(await posText()),
+    'sections: Shift+N goes back to deck 1, slide 1, live'
+  )
+
+  // Remove the section: the row goes, every deck stays, order is as found.
+  await win.getByTestId('section-more').click()
+  await win.getByRole('menuitem', { name: /Remove section/ }).click()
+  await win.getByTestId('section-row').waitFor({ state: 'detached' })
+  check(
+    (await order()).join() === before.join(),
+    'sections: Remove section deletes only the row; decks and their order are unchanged'
+  )
+  check(
+    (await win.getByRole('button', { name: /^Next section/ }).count()) === 0,
+    'sections: the section buttons hide again'
+  )
+
+  // Leave the app as found: auto advance OFF.
+  await win.getByTestId('auto-advance').click()
+  await autoOff.waitFor()
+  check(true, 'sections: auto advance restored to OFF')
+}
+
 async function hdmiChecks(win) {
   const hStatus = win.getByTestId('hdmi-status')
   check(
@@ -2614,6 +2769,8 @@ try {
   const { missingDeckId } = await videoChecks(win, tally)
 
   await behaviourChecks(win, tally, pos)
+
+  await sectionChecks(win, tally, pos)
 
   await stopProbe(win)
 
