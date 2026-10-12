@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { orderItems, splitOrder, sanitizeSections, segmentsOf } from './sections'
+import { orderItems, splitOrder, sanitizeSections, segmentsOf, isOrderItem } from './sections'
 import type { SectionMeta } from './types'
 
 const sec = (id: string, at: number, name = id): SectionMeta => ({ id, name, at })
@@ -120,5 +120,25 @@ describe('segmentsOf', () => {
       { section: null, decks },
       { section: s1, decks: [] }
     ])
+  })
+})
+
+describe('isOrderItem', () => {
+  it('accepts one string deck or section key', () => {
+    expect(isOrderItem({ deck: 'a' })).toBe(true)
+    expect(isOrderItem({ section: 's' })).toBe(true)
+  })
+  it('rejects everything else', () => {
+    for (const v of [
+      null,
+      [],
+      'a',
+      { deck: 1 },
+      { deck: 'a', section: 'b' },
+      { deck: 'a', x: 1 },
+      { x: 'a' },
+      Object.create({ deck: 'a' })
+    ])
+      expect(isOrderItem(v)).toBe(false)
   })
 })

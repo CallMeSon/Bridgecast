@@ -43,7 +43,7 @@ import {
   type RenderedDeck
 } from '../shared/ipc'
 import type { Action } from '../shared/program'
-import type { OrderItem } from '../shared/sections'
+import { isOrderItem } from '../shared/sections'
 
 const IMPORT_WIDTH = 1920
 const PPTX_RE = /\.pptx?$/i
@@ -74,17 +74,6 @@ function handle<C extends InvokeChannel>(
 function assertString(v: unknown, what: string): asserts v is string {
   if (typeof v !== 'string' || !v)
     throw new Error(`${what} is not valid. Reload the app, then try again.`)
-}
-
-/** A plain object with exactly one own key, `deck` or `section`, holding a string. */
-function isOrderItem(v: unknown): v is OrderItem {
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
-  const keys = Object.keys(v)
-  return (
-    keys.length === 1 &&
-    (keys[0] === 'deck' || keys[0] === 'section') &&
-    typeof (v as Record<string, unknown>)[keys[0]] === 'string'
-  )
 }
 
 function isDirectory(p: string): boolean {
@@ -312,7 +301,9 @@ function registerIpc(
   handle(Invoke.sectionsRename, (eventId, sectionId, name) => {
     assertString(eventId, 'Event ID')
     assertString(sectionId, 'Section ID')
-    assertString(name, 'Section name')
+    if (typeof name !== 'string') {
+      throw new Error('The section name is not valid. Reload the app, then try again.')
+    }
     return state.renameSection(eventId, sectionId, name)
   })
   handle(Invoke.sectionsRemove, (eventId, sectionId) => {

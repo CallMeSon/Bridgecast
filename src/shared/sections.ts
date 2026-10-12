@@ -3,6 +3,17 @@ import type { SectionMeta } from './types'
 /** One row of an event's ordered list: a deck id or a section id. */
 export type OrderItem = { deck: string } | { section: string }
 
+/** A plain object with exactly one own key, `deck` or `section`, holding a string. */
+export function isOrderItem(v: unknown): v is OrderItem {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
+  const keys = Object.keys(v)
+  return (
+    keys.length === 1 &&
+    (keys[0] === 'deck' || keys[0] === 'section') &&
+    typeof (v as Record<string, unknown>)[keys[0]] === 'string'
+  )
+}
+
 const clampAt = (at: number, max: number): number => Math.min(Math.max(at, 0), max)
 
 /**
