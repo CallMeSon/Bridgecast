@@ -10,6 +10,8 @@ import {
   type EventMeta,
   type SectionMeta
 } from '../shared/types'
+import { CANVAS_INVALID, isDeckFit, sanitizeCanvas } from '../shared/canvas'
+import { sanitizeDeckAudio } from '../shared/audio-levels'
 import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections'
 import { thumbFileName } from './slide-protocol'
 import { writeThumbnail } from './thumbnail'
@@ -38,6 +40,7 @@ export { DECK_NAME_MAX }
 function copyEvent(ev: EventMeta): EventMeta {
   const copy: EventMeta = { ...ev, deckIds: [...ev.deckIds] }
   if (ev.sections) copy.sections = ev.sections.map((s) => ({ ...s }))
+  if (ev.canvas) copy.canvas = { ...ev.canvas }
   return copy
 }
 
@@ -73,10 +76,17 @@ export class Library {
     try {
       const events = JSON.parse(fs.readFileSync(this.eventsFile, 'utf8')) as EventMeta[]
       for (const ev of events) {
-        if (!ev.sections) continue
-        ev.sections = sanitizeSections(ev.sections, ev.deckIds.length)
-          .map((s) => ({ ...s, name: s.name.trim() }))
-          .filter((s) => s.name !== '')
+        if (ev.sections) {
+          ev.sections = sanitizeSections(ev.sections, ev.deckIds.length)
+            .map((s) => ({ ...s, name: s.name.trim() }))
+            .filter((s) => s.name !== '')
+        }
+        // An older or damaged file must not break loading: drop what is not a valid canvas.
+        if ('canvas' in ev) {
+          const canvas = sanitizeCanvas(ev.canvas)
+          if (canvas) ev.canvas = canvas
+          else delete ev.canvas
+        }
       }
       return events
     } catch {
@@ -101,7 +111,16 @@ export class Library {
     const file = path.join(this.deckDir(deckId), 'deck.json')
     if (!fs.existsSync(file))
       throw new Error('Deck not found. Reload the deck list, or import the deck again.')
-    return JSON.parse(fs.readFileSync(file, 'utf8')) as DeckMeta
+    const deck = JSON.parse(fs.readFileSync(file, 'utf8')) as DeckMeta
+    // Fields added after the first release: keep only valid values, never throw on old or damaged files.
+    const { fit, audio } = deck
+    delete deck.fit
+    delete deck.audio
+    if (isDeckFit(fit)) deck.fit = fit
+    if (typeof audio === 'object' && audio !== null && !Array.isArray(audio)) {
+      deck.audio = sanitizeDeckAudio(audio)
+    }
+    return deck
   }
 
   private writeDeck(deck: DeckMeta): void {
@@ -316,6 +335,50 @@ export class Library {
     const deck = { ...this.readDeck(deckId), name: trimmed }
     this.writeDeck(deck)
     return deck
+  }
+
+  /** Deck belonging to the event, or the standard "not found in this event" error. */
+  private deckInEvent(eventId: string, deckId: string): DeckMeta {
+    const ev = this.findEvent(eventId)
+    if (!ev.deckIds.includes(deckId)) {
+      throw new Error(
+        'Deck not found in this event. Reload the deck list, then choose a deck from it.'
+      )
+    }
+    return this.readDeck(deckId)
+  }
+
+  /** How this deck's slides fill the canvas. Rejects anything but fit, fill or stretch. */
+  setDeckFit(eventId: string, deckId: string, fit: unknown): DeckMeta {
+    const current = this.deckInEvent(eventId, deckId)
+    if (!isDeckFit(fit)) {
+      throw new Error('The display mode is not valid. Choose Fit, Fill or Stretch.')
+    }
+    const deck = { ...current, fit }
+    this.writeDeck(deck)
+    return deck
+  }
+
+  /** Sound level of this deck's videos; stored sanitized (volume 0–100, muted flag). */
+  setDeckAudio(eventId: string, deckId: string, audio: unknown): DeckMeta {
+    const current = this.deckInEvent(eventId, deckId)
+    const deck = { ...current, audio: sanitizeDeckAudio(audio) }
+    this.writeDeck(deck)
+    return deck
+  }
+
+  /** Canvas override for one event; `null` removes it so the machine default applies again. */
+  setEventCanvas(eventId: string, canvas: unknown | null): EventMeta {
+    const ev = this.findEvent(eventId)
+    if (canvas === null) {
+      delete ev.canvas
+    } else {
+      const clean = sanitizeCanvas(canvas)
+      if (!clean) throw new Error(CANVAS_INVALID)
+      ev.canvas = clean
+    }
+    this.saveEvents()
+    return copyEvent(ev)
   }
 
   removeDeck(eventId: string, deckId: string): void {

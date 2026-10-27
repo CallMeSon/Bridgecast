@@ -2,9 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import { randomUUID } from 'crypto'
 import { Library } from './library'
-import { DECK_NAME_MAX } from '../shared/types'
+import { DECK_NAME_MAX, type DeckMeta, type EventMeta } from '../shared/types'
 import { orderItems } from '../shared/sections'
+import { CANVAS_INVALID } from '../shared/canvas'
 
 // fs namespace objects cannot be spied on in ESM; route copyFileSync through a hook.
 const hooks = vi.hoisted(() => ({
@@ -535,13 +537,14 @@ describe('Library', () => {
 })
 
 describe('Library sections', () => {
-  const setup = (n = 3) => {
+  const setup = (n = 3): { lib: Library; ev: EventMeta; decks: DeckMeta[] } => {
     const lib = new Library(root)
     const ev = lib.createEvent('E')
     const decks = Array.from({ length: n }, (_, i) => lib.addDeck(ev.id, deckInput(1, `D${i}`)))
     return { lib, ev, decks }
   }
-  const sectionsOf = (l: Library, id: string) => l.listEvents().find((e) => e.id === id)!.sections
+  const sectionsOf = (l: Library, id: string): EventMeta['sections'] =>
+    l.listEvents().find((e) => e.id === id)!.sections
 
   it('addSection persists, uses default names, and goes after same-at sections', () => {
     const { lib, ev, decks } = setup()
@@ -690,5 +693,93 @@ describe('Library sections', () => {
     const e = lib.listEvents().find((x) => x.id === ev.id)!
     expect('sections' in e).toBe(false)
     expect(new Library(root).listEvents()[0]).toEqual(e)
+  })
+})
+
+describe('Library fit, deck audio and event canvas', () => {
+  const setup = (): { lib: Library; ev: EventMeta; deck: DeckMeta } => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const deck = lib.addDeck(ev.id, deckInput(1))
+    return { lib, ev, deck }
+  }
+  const NOT_IN_EVENT =
+    'Deck not found in this event. Reload the deck list, then choose a deck from it.'
+
+  it('setDeckFit persists and survives a reload', () => {
+    const { lib, ev, deck } = setup()
+    expect(lib.setDeckFit(ev.id, deck.id, 'fill').fit).toBe('fill')
+    expect(new Library(root).getDecks(ev.id)[0].fit).toBe('fill')
+  })
+
+  it('setDeckFit rejects an unknown mode and a deck outside the event', () => {
+    const { lib, ev, deck } = setup()
+    expect(() => lib.setDeckFit(ev.id, deck.id, 'cover')).toThrow(
+      'The display mode is not valid. Choose Fit, Fill or Stretch.'
+    )
+    expect(() => lib.setDeckFit(ev.id, randomUUID(), 'fill')).toThrow(NOT_IN_EVENT)
+    expect(new Library(root).getDecks(ev.id)[0].fit).toBeUndefined()
+  })
+
+  it('setDeckAudio stores the sanitized value', () => {
+    const { lib, ev, deck } = setup()
+    expect(lib.setDeckAudio(ev.id, deck.id, { volume: 140, muted: true }).audio).toEqual({
+      volume: 100,
+      muted: true
+    })
+    expect(new Library(root).getDecks(ev.id)[0].audio).toEqual({ volume: 100, muted: true })
+    expect(() => lib.setDeckAudio(ev.id, randomUUID(), {})).toThrow(NOT_IN_EVENT)
+  })
+
+  it('setEventCanvas stores a canvas, null removes it, invalid throws', () => {
+    const { lib, ev } = setup()
+    expect(lib.setEventCanvas(ev.id, { width: 3840, height: 1080 }).canvas).toEqual({
+      width: 3840,
+      height: 1080
+    })
+    expect(new Library(root).listEvents()[0].canvas).toEqual({ width: 3840, height: 1080 })
+    expect(lib.setEventCanvas(ev.id, { width: 1921, height: 1081 }).canvas).toEqual({
+      width: 1920,
+      height: 1080
+    })
+    const cleared = lib.setEventCanvas(ev.id, null)
+    expect('canvas' in cleared).toBe(false)
+    expect('canvas' in new Library(root).listEvents()[0]).toBe(false)
+    expect(() => lib.setEventCanvas(ev.id, { width: 10, height: 10 })).toThrow(CANVAS_INVALID)
+    expect('canvas' in lib.listEvents()[0]).toBe(false)
+  })
+
+  it('listEvents returns a canvas copy that does not alias the stored one', () => {
+    const { lib, ev } = setup()
+    lib.setEventCanvas(ev.id, { width: 1280, height: 720 })
+    lib.listEvents()[0].canvas!.width = 99
+    expect(lib.listEvents()[0].canvas).toEqual({ width: 1280, height: 720 })
+  })
+
+  it('drops garbage fit, audio and canvas on load without throwing', () => {
+    const { ev, deck } = setup()
+    const deckFile = path.join(root, 'decks', deck.id, 'deck.json')
+    fs.writeFileSync(deckFile, JSON.stringify({ ...deck, fit: 'zoom', audio: 'loud' }))
+    const evFile = path.join(root, 'events.json')
+    const raw = JSON.parse(fs.readFileSync(evFile, 'utf8'))
+    raw[0].canvas = { width: 'a' }
+    fs.writeFileSync(evFile, JSON.stringify(raw))
+    const lib = new Library(root)
+    const d = lib.getDecks(ev.id)[0]
+    expect('fit' in d).toBe(false)
+    expect('audio' in d).toBe(false)
+    expect('canvas' in lib.listEvents()[0]).toBe(false)
+  })
+
+  it('keeps a valid stored fit and sanitizes a stored audio object on load', () => {
+    const { ev, deck } = setup()
+    const deckFile = path.join(root, 'decks', deck.id, 'deck.json')
+    fs.writeFileSync(
+      deckFile,
+      JSON.stringify({ ...deck, fit: 'stretch', audio: { volume: 500, muted: 'yes' } })
+    )
+    const d = new Library(root).getDecks(ev.id)[0]
+    expect(d.fit).toBe('stretch')
+    expect(d.audio).toEqual({ volume: 100, muted: false })
   })
 })

@@ -1,3 +1,6 @@
+import type { Canvas, DeckFit } from './canvas'
+import type { DeckAudio } from './audio-levels'
+
 /** Longest deck name accepted when renaming, in code points. */
 export const DECK_NAME_MAX = 120
 
@@ -14,6 +17,10 @@ export interface DeckMeta {
   width: number
   height: number
   slides: SlideMeta[]
+  /** How slides fill the canvas; absent = 'fit'. */
+  fit?: DeckFit
+  /** Sound level of this deck's videos; absent = full volume, not muted. */
+  audio?: DeckAudio
 }
 
 export interface SectionMeta {
@@ -31,6 +38,8 @@ export interface EventMeta {
   sections?: SectionMeta[]
   /** File name of the event's KV (key visual) image, if any (see Library.setKv). */
   kv?: string
+  /** Output canvas for this event; absent = the machine default. */
+  canvas?: Canvas
 }
 
 /** Largest KV image accepted, in bytes (50 MB). */
