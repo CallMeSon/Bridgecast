@@ -218,7 +218,13 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
   const stage = program ? stageRect(program.canvas, windowSize) : null
 
   return (
-    <div ref={root} className="output" aria-hidden="true">
+    <div
+      ref={root}
+      className="output"
+      aria-hidden="true"
+      data-local={String(plan.local)}
+      data-tap={String(plan.tap)}
+    >
       {program && stage && soundReady && (
         <div
           className="output-stage"

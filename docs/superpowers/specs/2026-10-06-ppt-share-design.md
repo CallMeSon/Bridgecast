@@ -25,6 +25,10 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 - **Desain (diperbarui 2026-10-08):** gaya "broadcast console". Abu-abu grafit tanpa rona biru, satu radius 3px, struktur dengan garis 1px (bukan kartu). Merah hanya untuk tally Program (LIVE, FROZEN, BLACK); amber satu-satunya aksen dan hanya berarti "berikutnya". Angka memakai font mono, teks memakai Geist, ikon Phosphor, semua dibundel lokal. Light dan dark, dark default. Token ada di `src/renderer/src/styles/tokens.css`. `design/mockup.html` tidak lagi menjadi acuan visual.
 - **Perilaku saat ganti event:** output Program tidak berubah sampai operator memilih slide baru.
 
+## Output network (OMT, 2026-10-27)
+
+Program juga bisa dikirim lewat network dengan Open Media Transport (OMT) ke vMix dan OBS, dengan video dan suara, di luar atau bersama output HDMI. Ukuran gambar mengikuti Canvas, frame rate 30 atau 60. NDI tetap dicoret; plan `ndi-output` menambahkannya lagi nanti di atas pengirim yang sama. Desain lengkap: `docs/superpowers/specs/2026-10-27-omt-output-design.md`.
+
 ## Di luar cakupan
 
 NDI, output kedua dengan isi berbeda, transcript/speech-to-text, mode Live PowerPoint (animasi), timer, playlist bertingkat, remote control dari perangkat lain.

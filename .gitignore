@@ -14,3 +14,6 @@ out
 *.log*
 .claude/worktrees/
 *.tsbuildinfo
+# OMT native libraries are put in place locally for a build, never committed (see README.md)
+resources/omt/**/*.so
+resources/omt/**/*.dll

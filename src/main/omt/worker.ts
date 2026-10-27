@@ -18,10 +18,19 @@ type In =
   | { type: 'stop' }
   | { type: 'debugGet' }
 
+/** Fake-mode counters for the e2e debug hook. */
+export interface FakeDebug {
+  firstPx: number[][] | null
+  lastPx: number[][] | null
+  blackAfterContent: number
+  audioBlocks: number
+  lastAudioLen: number
+}
+
 export type WorkerOut =
   | { type: 'status'; id: 'omt' | 'ndi'; status: Partial<OmtStatus> }
   | { type: 'stopped' }
-  | { type: 'debug'; count: number; sizes: string[] }
+  | { type: 'debug'; count: number; sizes: string[]; extra?: FakeDebug }
 
 const port = parentPort
 if (port) {
@@ -68,7 +77,14 @@ if (port) {
       case 'debugGet': {
         const frames = fake?.frames ?? []
         const sizes = [...new Set(frames.map((f) => `${f.width}x${f.height}`))]
-        out({ type: 'debug', count: frames.length, sizes })
+        const extra: FakeDebug = {
+          firstPx: fake?.firstPx ?? null,
+          lastPx: fake?.lastPx ?? null,
+          blackAfterContent: fake?.blackAfterContent ?? 0,
+          audioBlocks: fake?.audio ?? 0,
+          lastAudioLen: fake?.lastAudioLen ?? 0
+        }
+        out({ type: 'debug', count: frames.length, sizes, extra })
         break
       }
     }

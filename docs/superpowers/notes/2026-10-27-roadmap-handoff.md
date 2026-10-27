@@ -22,3 +22,10 @@ Semua spec dan plan selesai. Plan: `docs/superpowers/plans/2026-10-27-canvas-aud
 ## Konteks lingkungan
 - Pengembangan di Linux (Zorin OS 18); target produksi Windows 11 dengan PowerPoint terpasang. Apa pun yang butuh PowerPoint COM hanya bisa diuji di Windows.
 - Git di mesin ini belum punya `user.name`/`user.email`; commit `1fa366c` memakai identitas dari commit sebelumnya lewat `git -c`.
+
+## Status plan OMT (2026-10-27)
+Plan `2026-10-27-omt-output.md` (sub-project 1) selesai di kode: task 1 sampai 9 dikomit di `feat/ppt-share`. Uji otomatis: `npm run test:e2e:network` (skrip baru `e2e/network.mjs`, memakai libomt palsu, ikut memeriksa bundle main CJS dan jalur library hilang). `e2e/smoke.mjs` masih merah di baseline (`smoke.mjs:2623`, cek KV, tidak terkait OMT) dan tidak diubah. Paket Linux sudah dicoba: `npm run build:unpack` dengan `libomt.so` + `libvmx.so` di `resources/omt/linux/` menaruhnya di `resources/omt` dan app terpaket memuat libomt lewat koffi (status `running`). Biner tidak di-commit; cara mendapatkannya ada di `README.md`.
+
+Milik pengguna (belum dijalankan): checklist Windows di `docs/superpowers/notes/omt-spike.md`, cek OBS 31 dengan `omtplugin`, dan butir "Output OMT (network)" di `docs/test-checklist.md` (celah penemuan ulang nyata, alamat manual, jitter suara, 60 fps 30 menit, 3840×1080 pada 60 fps, konfirmasi dengan pengirim sungguhan, Resolume).
+
+Langkah berikutnya: plan `ndi-output` (menambah NDI lagi di atas pengirim yang sama), lalu web-source (sub-project 2), 3a, 3b.

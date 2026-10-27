@@ -54,6 +54,25 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] Pasang canvas ultra-lebar (misalnya 3840×1080) untuk satu event ("Canvas for this event…"), lalu tampilkan deck 16:9. Pada Display mode Fit slide berada di tengah dengan bar hitam di kiri dan kanan; Fill memenuhi layar dan tepi atas/bawah terpotong; Stretch memenuhi layar dan gambar terlihat melebar. Mengganti mode saat slide live langsung terlihat di output. Kunci visual (KV) tetap Fit.
 - [ ] Ganti ke event tanpa canvas sendiri: output kembali ke canvas bawaan mesin. Kembali ke event semula: canvas ultra-lebar kembali.
 
+## Output OMT (network)
+
+Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. Resolume best effort. Simpan hasil di catatan spike (`docs/superpowers/notes/omt-spike.md`, Checklist Windows) bila relevan.
+
+- [ ] Nyalakan OMT di popover output. Prompt Windows Firewall muncul: catat teks, nama program, dan jaringan (Private/Public). Izinkan Private.
+- [ ] **vMix**: tambah sumber OMT; `NAMA-PC (PPT Share)` muncul otomatis dan videonya tampil.
+- [ ] **OBS**: sumber OMT muncul otomatis dan videonya tampil.
+- [ ] Tambah sumber lewat **alamat manual** di vMix dan di OBS. Catat format apa yang diterima (string yang dipakai libomt berbentuk `HOSTNAME (NAME)`, bukan URL `omt://`). Bila tidak ada yang diterima, Task berikutnya menambah kolom host:port.
+- [ ] Suara, dengan satu video slide: rute **Local device** (suara di PC ini, tidak di vMix/OBS), **OMT** (suara di vMix/OBS, tidak di PC ini), **Both**. Pada tiap rute, HDMI menyala dan HDMI dicabut: suara lokal hanya keluar dari satu jendela (tidak ganda).
+- [ ] Jitter suara pada 30 dan 60 fps: dengarkan dari vMix/OBS selama beberapa menit (satu thread worker mengirim video dan suara; `omt_send` memblokir sekitar 1/fps detik). Catat bila ada putus-putus; bila ada, suara dipindah ke worker kedua.
+- [ ] Cabut kabel LAN saat OMT jalan, lalu pasang lagi. Aplikasi tidak macet; penerima tersambung lagi (catat berapa lama).
+- [ ] **60 fps selama 30 menit** pada 1920×1080 dengan satu penerima: tidak ada peringatan "dropping frames", gambar mulus.
+- [ ] **3840×1080 pada 60 fps** di laptop acara: di spike Linux hanya ~23 paint unik per detik (gerak tidak mulus). Periksa di Windows; bila tidak mulus, pakai 30 fps.
+- [ ] Ubah canvas, frame rate, lalu nama sumber saat penerima tersambung: **ukur celah penemuan ulang yang sebenarnya** (di spike Linux sampai ~20 s; teks UI berkata "about a second"). Bila lebih lama, ubah teksnya.
+- [ ] Dengan pengirim sungguhan dan satu penerima tersambung: ubah **frame rate** dan **canvas** lewat popover. Konfirmasi muncul; saat slide on air dan ada penerima, hanya SATU pertanyaan ("Change it now?"). Tiga peringatan (drops, no receivers, no sound) tampil dengan teks yang benar (sejauh bisa dipicu).
+- [ ] Tutup aplikasi saat pengirim sibuk (penerima tersambung, 60 fps): proses keluar dalam beberapa detik, tidak menggantung.
+- [ ] **Resolume** (plugin FFGL pihak ketiga, best effort): catat sumber terlihat atau tidak.
+- [ ] Matikan OMT: sumber hilang dari vMix/OBS dan HDMI tidak terpengaruh.
+
 ## Library dan event
 
 - [ ] Urutkan deck dan slide dengan drag. Output tidak berubah saat mengurutkan.

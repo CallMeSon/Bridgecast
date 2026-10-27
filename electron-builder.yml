@@ -18,7 +18,7 @@ asarUnpack:
 win:
   executableName: PPT Share
   extraResources:
-    - from: omt/win32
+    - from: resources/omt/win
       to: omt
   target:
     - nsis
@@ -41,7 +41,7 @@ dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
   extraResources:
-    - from: omt/linux
+    - from: resources/omt/linux
       to: omt
   target:
     - AppImage

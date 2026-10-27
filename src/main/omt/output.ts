@@ -1,3 +1,4 @@
+import type { FakeDebug } from './worker'
 import { restartAllowed, type OmtSettings, type OmtStatus } from '../../shared/omt'
 
 /** Electron-free OMT output logic; the Electron window and worker are injected (see ../omt-output.ts). */
@@ -56,14 +57,15 @@ export interface OmtDebug {
   workerStarts: number
   windowCreates: number
   /** Frames the (fake) binding received, from the worker's debug reply. Null outside PPT_OUTPUT_DUMP. */
-  frames: { count: number; sizes: string[] } | null
+  frames: ({ count: number; sizes: string[] } & Partial<FakeDebug>) | null
+  workerAlive: boolean
 }
 
 type Size = { width: number; height: number }
 type WorkerMsg =
   | { type: 'status'; id: string; status: Partial<OmtStatus> }
   | { type: 'stopped' }
-  | { type: 'debug'; count: number; sizes: string[] }
+  | { type: 'debug'; count: number; sizes: string[]; extra?: FakeDebug }
 
 const OFF: OmtStatus = { state: 'off', connections: 0, address: null }
 
@@ -158,7 +160,8 @@ export class OmtController {
       sending: this.sending,
       workerStarts: this.workerStarts,
       windowCreates: this.windowCreates,
-      frames: this.dbg
+      frames: this.dbg,
+      workerAlive: this.worker !== null
     }
   }
 
@@ -373,7 +376,7 @@ export class OmtController {
     }
     if (w !== this.worker) return
     if (m.type === 'debug') {
-      this.dbg = { count: m.count, sizes: m.sizes }
+      this.dbg = { count: m.count, sizes: m.sizes, ...m.extra }
       return
     }
     if (m.type !== 'status' || m.id !== 'omt') return
