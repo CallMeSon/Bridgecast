@@ -13,8 +13,12 @@ extraResources:
     to: scripts/export-pptx.ps1
 asarUnpack:
   - resources/**
+  - node_modules/koffi/**
 win:
   executableName: PPT Share
+  extraResources:
+    - from: omt/win32
+      to: omt
   target:
     - nsis
 nsis:
@@ -35,6 +39,9 @@ mac:
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
+  extraResources:
+    - from: omt/linux
+      to: omt
   target:
     - AppImage
     - snap

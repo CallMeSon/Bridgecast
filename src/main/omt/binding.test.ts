@@ -1,0 +1,58 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const electron = vi.hoisted(() => ({ app: { isPackaged: false } }))
+vi.mock('electron', () => electron)
+
+import { OmtLoadError, libomtDir, loadLibomt } from './binding'
+import { FakeSenderBinding } from '../net/fake-binding'
+
+describe('libomtDir', () => {
+  afterEach(() => {
+    delete process.env.PPT_LIBOMT_DIR
+    electron.app.isPackaged = false
+  })
+
+  it('honours PPT_LIBOMT_DIR when not packaged', () => {
+    process.env.PPT_LIBOMT_DIR = '/opt/omt'
+    expect(libomtDir()).toBe('/opt/omt')
+  })
+
+  it('ignores PPT_LIBOMT_DIR when packaged', () => {
+    process.env.PPT_LIBOMT_DIR = '/opt/omt'
+    electron.app.isPackaged = true
+    const prev = (process as { resourcesPath?: string }).resourcesPath
+    ;(process as { resourcesPath?: string }).resourcesPath = '/res'
+    try {
+      expect(libomtDir().replace(/\\/g, '/')).toBe('/res/omt')
+    } finally {
+      ;(process as { resourcesPath?: string }).resourcesPath = prev
+    }
+  })
+})
+
+describe('loadLibomt', () => {
+  it('throws OmtLoadError when the library is missing', () => {
+    expect(() => loadLibomt('/nonexistent')).toThrow(OmtLoadError)
+  })
+})
+
+describe('FakeSenderBinding', () => {
+  it('records video (with fps), audio and destroy', () => {
+    const b = new FakeSenderBinding('omt')
+    const h = b.create('x')
+    b.sendVideo(h, { width: 4, height: 2, fps: 30, data: new ArrayBuffer(32) })
+    b.sendAudio(h, { sampleRate: 48000, channels: 2, samples: 1, data: new Float32Array(2) })
+    expect(b.frames).toEqual([{ width: 4, height: 2, fps: 30 }])
+    expect(b.audio).toBe(1)
+    expect(b.address(h)).toBe('omt://fake')
+    b.destroy(h)
+    expect(b.destroyed).toBe(true)
+  })
+
+  it('ndi has no address and zero stats; failCreate throws', () => {
+    const b = new FakeSenderBinding('ndi')
+    expect(b.address(b.create('x'))).toBe('')
+    expect(b.videoStats(1)).toEqual({ frames: 0, dropped: 0 })
+    expect(() => new FakeSenderBinding('omt', { failCreate: true }).create('x')).toThrow()
+  })
+})
