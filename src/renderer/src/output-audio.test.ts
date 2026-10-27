@@ -169,26 +169,70 @@ describe('OutputAudio', () => {
     expect(v.setSinkId).not.toHaveBeenCalled()
   })
 
-  it('a sink the context rejects goes to the elements instead', async () => {
+  it('a sink the context rejects leaves connected elements alone and is retried by the next setSink', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const f = fakeContext({ sinkRejects: true })
+    const f = fakeContext()
+    f.ctx.setSinkId?.mockRejectedValueOnce(new Error('no dev'))
     const a = new OutputAudio(() => asCtx(f.ctx))
     const v = fakeVideo()
     a.attach(asVideo(v))
     await a.setSink('dev')
-    expect(v.setSinkId).toHaveBeenCalledWith('dev')
+    // The element is in the graph: its own setSinkId would do nothing for it.
+    expect(v.setSinkId).not.toHaveBeenCalled()
     expect(a.fallback).toBe(false)
+    await a.setSink('dev2')
+    expect(f.ctx.setSinkId).toHaveBeenCalledTimes(2)
+    expect(f.ctx.setSinkId).toHaveBeenLastCalledWith('dev2')
+    expect(v.setSinkId).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 
-  it('a context without setSinkId uses the elements', async () => {
+  it('a sink the context rejects goes to elements outside the graph', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const f = fakeContext({ sinkRejects: true })
+    const a = new OutputAudio(() => asCtx(f.ctx))
+    const ok = fakeVideo()
+    a.attach(asVideo(ok))
+    f.ctx.createMediaElementSource.mockImplementationOnce(() => {
+      throw new Error('InvalidStateError')
+    })
+    const bad = fakeVideo()
+    a.attach(asVideo(bad))
+    await a.setSink('dev')
+    expect(bad.setSinkId).toHaveBeenCalledWith('dev')
+    expect(ok.setSinkId).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('a context without setSinkId leaves graph elements alone and warns', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const f = fakeContext({ noSinkId: true })
     const a = new OutputAudio(() => asCtx(f.ctx))
     const v = fakeVideo()
     a.attach(asVideo(v))
     await a.setSink('dev')
-    expect(v.setSinkId).toHaveBeenCalledWith('dev')
+    expect(v.setSinkId).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('level reports the gain last set, or the volume of fallback elements', () => {
+    const f = fakeContext()
+    const a = new OutputAudio(() => asCtx(f.ctx))
+    expect(a.level).toBe(1)
+    a.attach(asVideo(fakeVideo()))
+    a.setGain(0.4)
+    expect(a.level).toBe(0.4)
+    a.setGain(7)
+    expect(a.level).toBe(1)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const fb = new OutputAudio(() => {
+      throw new Error('x')
+    })
+    const v = fakeVideo()
+    fb.attach(asVideo(v))
+    fb.setGain(0.3)
+    expect(fb.level).toBe(0.3)
     warn.mockRestore()
   })
 

@@ -134,8 +134,12 @@ export function OutputView(): React.JSX.Element {
   // plays on the default one; a late list re-routes through SlideLayers.
   const sink = pickSink(audio?.deviceId ?? null, outputs ?? []).sinkId
   const gain = program ? outputGain(program, audio) : 1
+  // data-gain shows the level OutputAudio holds after this call, so the e2e
+  // reads what the audio path received, not what React computed.
+  const root = useRef<HTMLDivElement>(null)
   useEffect(() => {
     out.setGain(gain)
+    root.current?.setAttribute('data-gain', out.level.toFixed(2))
   }, [out, gain])
   useEffect(() => {
     out.setSink(sink).catch((e: unknown) => console.warn('[audio] audio device failed:', e))
@@ -159,7 +163,7 @@ export function OutputView(): React.JSX.Element {
   const stage = program ? stageRect(program.canvas, windowSize) : null
 
   return (
-    <div className="output" aria-hidden="true" data-gain={gain.toFixed(2)}>
+    <div ref={root} className="output" aria-hidden="true">
       {program && stage && soundReady && (
         <div
           className="output-stage"

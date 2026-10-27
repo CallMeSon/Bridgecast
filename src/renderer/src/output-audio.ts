@@ -11,8 +11,8 @@ const GAIN_TIME_CONSTANT = 0.015
  * node). Each <video> is connected once; an element can only have one source node.
  *
  * Sound never depends on this working: without an AudioContext, or when an
- * element cannot be connected, it falls back to `element.volume` and the
- * element's own `setSinkId`, and the video keeps playing.
+ * element cannot be connected, that element falls back to `element.volume` and
+ * its own `setSinkId`, and the video keeps playing.
  */
 export class OutputAudio {
   /** True when Web Audio is not usable and `element.volume` is used instead. */
@@ -22,8 +22,6 @@ export class OutputAudio {
   private node: GainNode | null = null
   private gain = 1
   private sink = ''
-  /** Sink routed through the elements (fallback, or the context refused the device). */
-  private elementSink = false
   private readonly routed = new WeakMap<HTMLVideoElement, string>()
   private readonly sources = new Map<HTMLVideoElement, MediaElementAudioSourceNode | null>()
 
@@ -58,6 +56,18 @@ export class OutputAudio {
     this.sources.delete(v)
   }
 
+  /**
+   * The level the sound path was last given (0–1): the gain target, or for
+   * elements outside the graph the volume they actually carry. Lets the e2e
+   * read what the audio path received, not what React computed.
+   */
+  get level(): number {
+    if (!this.node) {
+      for (const [v, src] of this.sources) if (src === null) return v.volume
+    }
+    return this.gain
+  }
+
   /** Sets the gain (0–1) of everything attached. */
   setGain(g: number): void {
     this.gain = Math.min(1, Math.max(0, g))
@@ -68,12 +78,15 @@ export class OutputAudio {
     for (const [v, src] of this.sources) if (src === null) v.volume = this.gain
   }
 
-  /** Sets the audio device ('' = default). A device the context refuses is tried on the elements. */
+  /**
+   * Sets the audio device ('' = default). The context is asked every time, so a
+   * refusal never sticks; elements outside the graph use their own `setSinkId`.
+   */
   async setSink(id: string): Promise<void> {
     this.sink = id
     this.sinkElements()
     // No context yet: it gets the device when it is created.
-    if (this.ctx && !this.elementSink) await this.sinkContext(this.ctx, id)
+    if (this.ctx) await this.sinkContext(this.ctx, id)
   }
 
   /** Releases the context. */
@@ -111,9 +124,9 @@ export class OutputAudio {
       if (!ctx.setSinkId) throw new Error('AudioContext.setSinkId is not available')
       await ctx.setSinkId(id)
     } catch (e) {
-      console.warn('[audio] audio device could not be used, trying it on the video:', e)
-      this.elementSink = true
-      this.sinkElements()
+      // Elements in the graph play through the context, so their own setSinkId
+      // would do nothing; the next setSink tries the context again.
+      console.warn('[audio] audio device could not be used, playing on the default device:', e)
     }
   }
 
@@ -134,10 +147,9 @@ export class OutputAudio {
     for (const v of this.sources.keys()) this.sinkElement(v)
   }
 
-  /** Routes one element to the device through its own `setSinkId`, when that is the path in use. */
+  /** Routes an element outside the graph to the device through its own `setSinkId`. */
   private sinkElement(v: HTMLVideoElement): void {
-    const outside = this.sources.get(v) === null
-    if (!outside && !this.elementSink) return
+    if (this.sources.get(v) !== null) return
     if ((this.routed.get(v) ?? '') === this.sink) return
     this.routed.set(v, this.sink)
     ;(v as SinkElement)
