@@ -1,3 +1,5 @@
+import { DEFAULT_CANVAS, sanitizeCanvas, type Canvas } from './canvas'
+
 /**
  * Program fullscreen on a second display (HDMI, Windows "Extend"). `displayId`
  * is Electron's `Display.id` of the chosen screen; null = not chosen yet.
@@ -21,6 +23,8 @@ export interface Settings {
   /** Next/Prev may leave the live deck (see ProgramState.autoAdvance). Default off. */
   autoAdvance: boolean
   audio: AudioSettings
+  /** Machine default output size; an event may override it (see resolveCanvas). */
+  canvas: Canvas
 }
 
 export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
@@ -69,6 +73,7 @@ export function sanitizeSettings(raw: unknown): Settings {
   return {
     hdmi: sanitizeHdmi(r.hdmi),
     autoAdvance: typeof r.autoAdvance === 'boolean' ? r.autoAdvance : false,
-    audio: sanitizeAudio(r.audio)
+    audio: sanitizeAudio(r.audio),
+    canvas: sanitizeCanvas(r.canvas) ?? { ...DEFAULT_CANVAS }
   }
 }

@@ -19,7 +19,8 @@ describe('loadSettings / saveSettings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false }
+      audio: { deviceId: null, muted: false },
+      canvas: { width: 1920, height: 1080 }
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
   })
@@ -28,7 +29,8 @@ describe('loadSettings / saveSettings', () => {
     const s = {
       hdmi: { enabled: true, displayId: 2528732444 },
       autoAdvance: true,
-      audio: { deviceId: null, muted: false }
+      audio: { deviceId: null, muted: false },
+      canvas: { width: 1920, height: 1080 }
     }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
@@ -69,7 +71,8 @@ describe('hdmi settings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false }
+      audio: { deviceId: null, muted: false },
+      canvas: { width: 1920, height: 1080 }
     })
   })
 
@@ -79,7 +82,8 @@ describe('hdmi settings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: true, displayId: 7 },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false }
+      audio: { deviceId: null, muted: false },
+      canvas: { width: 1920, height: 1080 }
     })
   })
 
@@ -154,5 +158,30 @@ describe('audio settings', () => {
     }
     saveSettings(file, s)
     expect(loadSettings(file).audio).toEqual({ deviceId: 'hdmi-1', muted: true })
+  })
+})
+
+describe('canvas setting', () => {
+  it('a settings file without canvas loads the 1920×1080 default', () => {
+    fs.writeFileSync(file, JSON.stringify({ hdmi: { enabled: true, displayId: 3 } }))
+    expect(loadSettings(file).canvas).toEqual({ width: 1920, height: 1080 })
+  })
+
+  it('an invalid canvas falls back to the default', () => {
+    fs.writeFileSync(file, JSON.stringify({ canvas: { width: 10, height: 10 } }))
+    expect(loadSettings(file).canvas).toEqual({ width: 1920, height: 1080 })
+  })
+
+  it('keeps a valid canvas through save then load', () => {
+    fs.writeFileSync(file, JSON.stringify({ canvas: { width: 3840, height: 1080 } }))
+    expect(loadSettings(file).canvas).toEqual({ width: 3840, height: 1080 })
+    saveSettings(file, { ...DEFAULT_SETTINGS, canvas: { width: 3840, height: 1080 } })
+    expect(loadSettings(file).canvas).toEqual({ width: 3840, height: 1080 })
+  })
+
+  it('does not share the default canvas object with callers', () => {
+    const a = loadSettings(file)
+    a.canvas.width = 640
+    expect(loadSettings(file).canvas.width).toBe(1920)
   })
 })
