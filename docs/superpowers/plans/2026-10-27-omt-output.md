@@ -43,7 +43,7 @@
 ## File Structure
 
 - `src/shared/settings.ts` (+ `OmtSettings`, `sanitizeOmt`, `AudioSettings.route`), `src/shared/omt.ts` (status type, copy, `omtBadge`, `audioPlan`, `restartAllowed`, `dropWarning`)
-- `src/main/omt/frame-clock.ts`, `src/main/omt/binding.ts` (interface + `koffi` implementation + library path), `src/main/omt/fake-binding.ts`, `src/main/omt/sender.ts` (logic used by the worker), `src/main/omt/worker.ts` (thread entry), `src/main/omt-output.ts`
+- `src/main/omt/frame-clock.ts`, `src/main/net/sender-binding.ts` (protocol-neutral `SenderBinding`, shared with the NDI plan), `src/main/net/fake-binding.ts`, `src/main/omt/binding.ts` (libomt `koffi` implementation + library path), `src/main/omt/sender.ts` (logic used by the worker), `src/main/omt/worker.ts` (thread entry), `src/main/omt-output.ts`
 - `src/renderer/src/omt-tap.worklet.ts` (AudioWorklet processor), changes in `output-audio.ts`, `OutputView.tsx`, `main.tsx` routing
 - `src/renderer/src/components/OmtSection.tsx`, `AudioSection.tsx`, `Header.tsx`, `OutputMenu.tsx`
 - `electron-builder.yml`, `electron.vite.config.ts`, `package.json` (`koffi` in `dependencies`)
@@ -90,9 +90,9 @@
 - Modify: `src/shared/omt.ts`, `src/shared/omt.test.ts`
 
 **Interfaces:**
-- Produces: `audioPlan(role: 'hdmi' | 'omt', hdmiShowing: boolean, omtRunning: boolean, route: AudioRoute): { local: boolean; tap: boolean }`. `local`: this window plays sound on the local device (HDMI window when `hdmiShowing`; OMT window when `!hdmiShowing && omtRunning`) and `route !== 'omt'`. `tap`: `role === 'omt'` and `route !== 'local'`.
+- Produces: `audioPlan(role: 'hdmi' | 'omt', hdmiShowing: boolean, networkRunning: boolean, route: AudioRoute): { local: boolean; tap: boolean }`. `networkRunning` means an OMT or NDI sender is running (only OMT exists in this plan; the offscreen window with `role: 'omt'` serves every network protocol, and route value `'omt'` means "network"). `local`: this window plays sound on the local device (HDMI window when `hdmiShowing`; OMT window when `!hdmiShowing && networkRunning`) and `route !== 'omt'`. `tap`: `role === 'omt'` and `route !== 'local'`.
 
-- [ ] **Step 1: Write failing tests** for every combination of role × hdmiShowing × omtRunning × route (table test, 24 rows); assert never two windows `local` at once for the same inputs.
+- [ ] **Step 1: Write failing tests** for every combination of role × hdmiShowing × networkRunning × route (table test, 24 rows); assert never two windows `local` at once for the same inputs.
 - [ ] **Step 2: Run** `npx vitest run src/shared/omt.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** again. Expected: PASS.
@@ -101,18 +101,18 @@
 ### Task 4: libomt binding and fake binding
 
 **Files:**
-- Create: `src/main/omt/binding.ts`, `src/main/omt/fake-binding.ts`, `src/main/omt/binding.test.ts`
+- Create: `src/main/net/sender-binding.ts`, `src/main/net/fake-binding.ts`, `src/main/omt/binding.ts`, `src/main/omt/binding.test.ts`
 - Modify: `package.json` (`koffi` in `dependencies`), `package-lock.json`, `electron-builder.yml` (`asarUnpack: node_modules/koffi/**`; `extraResources` `omt/` per platform), `electron.vite.config.ts` (keep `koffi` external in main)
 
 **Interfaces:**
 - Produces:
-  - `interface OmtBinding { create(name: string): number; sendVideo(h: number, f: { width: number; height: number; data: ArrayBuffer }): void; sendAudio(h: number, a: { sampleRate: number; channels: number; samples: number; data: Float32Array }): void; connections(h: number): number; address(h: number): string; videoStats(h: number): { frames: number; dropped: number }; destroy(h: number): void }`
-  - `loadLibomt(dir: string): OmtBinding` (koffi; throws `OmtLoadError` when the library or a symbol is missing)
+  - `interface SenderBinding` (in `src/main/net/sender-binding.ts`; protocol-neutral so NDI implements it later: `address` returns `''` and `videoStats` zeros when a protocol has none) `{ create(name: string): number; sendVideo(h: number, f: { width: number; height: number; fps: number; data: ArrayBuffer }): void; sendAudio(h: number, a: { sampleRate: number; channels: number; samples: number; data: Float32Array }): void; connections(h: number): number; address(h: number): string; videoStats(h: number): { frames: number; dropped: number }; destroy(h: number): void }`
+  - `loadLibomt(dir: string): SenderBinding` (koffi; throws `OmtLoadError` when the library or a symbol is missing)
   - `libomtDir(): string` — `process.env.PPT_LIBOMT_DIR` only when `!app.isPackaged`; otherwise `join(process.resourcesPath, 'omt')`. File names: `libomt.dll`/`libvmx.dll` (win32), `libomt.so`/`libvmx.so` (linux).
-  - `class FakeOmtBinding implements OmtBinding` recording calls (`frames: {width,height}[]`, `audio: number`, `destroyed: boolean`, `failCreate?: boolean`).
+  - `class FakeSenderBinding implements SenderBinding` (`src/main/net/fake-binding.ts`; `constructor(kind: 'omt' | 'ndi', o?: { failCreate?: boolean })`) recording calls (`frames: { width: number; height: number; fps: number }[]`, `audio: number`, `destroyed: boolean`); `address` returns `'omt://fake'` for `'omt'` and `''` for `'ndi'`.
   - Struct layout of `OMTMediaFrame` taken from `libomt.h` of the version built in Task 1 (fields in order); write the `koffi.struct` from the header, not from memory.
 
-- [ ] **Step 1: Write failing tests**: `libomtDir()` honours the env var only when not packaged (mock `app`); `loadLibomt('/nonexistent')` throws `OmtLoadError`; `FakeOmtBinding` records a video frame and `destroy`.
+- [ ] **Step 1: Write failing tests**: `libomtDir()` honours the env var only when not packaged (mock `app`); `loadLibomt('/nonexistent')` throws `OmtLoadError`; `FakeSenderBinding('omt')` records a video frame (with `fps`) and `destroy`.
 - [ ] **Step 2: Run** `npx vitest run src/main/omt/binding.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement**; `npm install koffi` (exact version in `package.json`).
 - [ ] **Step 4: Run** the test, `npm run typecheck`. With `PPT_LIBOMT_DIR` set to the Task 1 build, a manual `node`/electron check that `loadLibomt` + `create` + `address` returns an `omt://` address. Expected: PASS.
@@ -124,10 +124,10 @@
 - Create: `src/main/omt/sender.ts`, `src/main/omt/sender.test.ts`, `src/main/omt/worker.ts`
 
 **Interfaces:**
-- Consumes: Task 2 `FrameClock`, `dropWarning`; Task 4 `OmtBinding`, `OmtLoadError`.
+- Consumes: Task 2 `FrameClock`, `dropWarning`; Task 4 `SenderBinding`, `OmtLoadError`.
 - Produces:
-  - `class OmtSender` (`sender.ts`): `constructor(binding: () => OmtBinding, report: (s: Partial<OmtStatus>) => void, timers?)`; `start(o: { name: string; fps: 30 | 60; width: number; height: number }): void`; `frame(f: Frame): void`; `audio(a: Float32Array, samples: number): void`; `stop(): void` (clock stops first, then `destroy`). Reports `running` with `address`, polls `connections` and drop samples every 1 s, `warning: 'drops'` via `dropWarning`. Load error → `{ state: 'error', message: <library missing copy> }`; create throws or returns 0 → `{ state: 'error', message: <create copy> }`.
-  - `worker.ts`: thread entry wrapping one `OmtSender` with the koffi binding (or `FakeOmtBinding` when `workerData.fake`). Messages in: `{ type: 'start', ... }`, `{ type: 'frame', width, height, data }` (data transferred), `{ type: 'audio', data, samples }`, `{ type: 'stop' }`. Messages out: `{ type: 'status', status }`, `{ type: 'stopped' }`.
+  - `interface SendTarget { id: 'omt' | 'ndi'; name: string; binding: () => SenderBinding; report: (s: Partial<OmtStatus>) => void }` and `class OmtSender` (`sender.ts`): `constructor(timers?)`; `start(o: { targets: SendTarget[]; fps: 30 | 60; width: number; height: number }): void` (every frame and audio block goes to every target; this plan passes one target, id `'omt'`; status, load/create errors and `drops` are per target, and `drops` only applies to id `'omt'`); `frame(f: Frame): void`; `audio(a: Float32Array, samples: number): void`; `stop(): void` (clock stops first, then `destroy`). Reports `running` with `address`, polls `connections` and drop samples every 1 s, `warning: 'drops'` via `dropWarning`. Load error → `{ state: 'error', message: <library missing copy> }`; create throws or returns 0 → `{ state: 'error', message: <create copy> }`.
+  - `worker.ts`: thread entry wrapping one `OmtSender` with the koffi binding (or `FakeSenderBinding` when `workerData.fake`). Messages in: `{ type: 'start', targets: { id: 'omt' | 'ndi'; name: string }[], fps, width, height }`, `{ type: 'frame', width, height, data }` (data transferred), `{ type: 'audio', data, samples }`, `{ type: 'stop' }`. Messages out: `{ type: 'status', id: 'omt' | 'ndi', status }`, `{ type: 'stopped' }`.
 
 - [ ] **Step 1: Write failing tests** (`sender.test.ts`, fake binding, fake timers): start → `running` with the fake address; a frame then 3 ticks → 3 `sendVideo` calls of that frame; load error and create failure produce the exact messages; `stop()` → clock stopped before `destroy` (order recorded), no `sendVideo` after `destroy`; 11 % drops at 60 fps for 10 s → `warning: 'drops'`.
 - [ ] **Step 2: Run** `npx vitest run src/main/omt/sender.test.ts`. Expected: FAIL.
@@ -150,7 +150,7 @@
   - Canvas or fps change → resize window, `stop` + `start` the sender.
   - Sound: `MessageChannelMain`; `port1` posted to the OMT window (`webContents.postMessage('omt:audio-port', null, [port1])`); main forwards `port2` messages to the worker (`audio`).
   - IPC: `'omt:set'` `[omt: OmtSettings]` → `Settings` (sanitize, save, `apply`); `'omt:getStatus'` → `OmtStatus`; broadcast `'omt:status'`; `Api.setOmt`, `getOmtStatus`, `onOmtStatus`, and for the output renderer `onOmtAudioPort(cb: (port: MessagePort) => void)`.
-  - `index.ts`: create `OmtOutput` with saved settings; call `canvasChanged()` when `program:state` carries a new canvas; `shutdown()` on quit. `PPT_OUTPUT_DUMP`: `globalThis.__pptOmt` = debug (status, window exists, frames received by the fake binding with their sizes); `PPT_OMT_FAKE=1` uses `FakeOmtBinding`.
+  - `index.ts`: create `OmtOutput` with saved settings; call `canvasChanged()` when `program:state` carries a new canvas; `shutdown()` on quit. `PPT_OUTPUT_DUMP`: `globalThis.__pptOmt` = debug (status, window exists, frames received by the fake binding with their sizes); `PPT_OMT_FAKE=1` uses `FakeSenderBinding('omt')`.
 
 - [ ] **Step 1: Implement** as listed (behaviour is covered end to end in Task 9; pure parts are already tested).
 - [ ] **Step 2: Run** `npm run typecheck`, `npx vitest run`, `npm run build`. Expected: PASS.
