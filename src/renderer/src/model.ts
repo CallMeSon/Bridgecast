@@ -5,6 +5,7 @@ import { segmentsOf } from '../../shared/sections'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import { DEFAULT_AUDIO, type AudioSettings, type HdmiSettings } from '../../shared/settings'
 import { DEFAULT_DECK_AUDIO, effectiveGain, type DeckAudio } from '../../shared/audio-levels'
+import { posterWithVersion, type StreamSourceKind } from './stream'
 
 export type NextView =
   | { kind: 'none' }
@@ -278,6 +279,18 @@ export function baseName(name: string): string {
 export type OutputMedia =
   | { kind: 'image'; url: string; fit: DeckFit }
   | { kind: 'video'; url: string; poster: string; take: number; fit: DeckFit }
+  /**
+   * A live capture (a web deck's page). `poster` is the deck's snapshot, shown when
+   * the capture fails; `paused` holds the last frame (Freeze or HOLD).
+   */
+  | {
+      kind: 'stream'
+      source: StreamSourceKind
+      deckId: string
+      poster: string
+      paused: boolean
+      take: number
+    }
 
 /**
  * What the Program output shows, for the HDMI window and the operator monitor:
@@ -285,10 +298,23 @@ export type OutputMedia =
  * slide (never the operator position), also while frozen: a video when it has
  * one, else its image. Else (STANDBY) the event's KV, or black without one.
  * The `shown` slide carries its deck's `fit` (missing = `fit`); the KV is always `fit`.
+ * A web deck's page is a stream, paused while frozen or held; its poster (the
+ * snapshot, rewritten under the same name) carries `posterVersion` to reload it.
  */
-export function outputSource(s: ProgramState): OutputMedia | null {
+export function outputSource(s: ProgramState, posterVersion = 0): OutputMedia | null {
   if (s.black) return null
   if (s.kv && s.kvUrl) return { kind: 'image', url: s.kvUrl, fit: 'fit' }
+  if (s.shown?.web) {
+    const { deckId } = s.shown.web
+    return {
+      kind: 'stream',
+      source: 'tab',
+      deckId,
+      poster: posterWithVersion(slideUrl(s.shown.deckId, s.shown.file), posterVersion),
+      paused: s.frozen || s.webHold,
+      take: s.take
+    }
+  }
   if (s.shown) {
     const { deckId, file, video } = s.shown
     const fit = s.shown.fit ?? 'fit'

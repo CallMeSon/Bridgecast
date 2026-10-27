@@ -52,3 +52,27 @@
     opacity: 1;
   }
 }
+/* A stream layer (web deck page): the page has the canvas size and fills the stage.
+   A re-capture plays hidden underneath until it has a frame (see StreamLayer). */
+.stream-layer,
+.stream-layer video,
+.stream-layer img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+.stream-layer video[data-incoming] {
+  opacity: 0;
+}
+.web-precapture {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}

@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'url'
 import { DECK_NAME_MAX } from '../../shared/types'
-import { webDomain } from '../../shared/web'
+import { webDomain, type WebCaptureWarning } from '../../shared/web'
 
 /** Pure decisions of WebHost, kept apart so they can be unit tested without Electron. */
 
@@ -100,4 +100,24 @@ export function frameSenderAllowed(
     default:
       return false
   }
+}
+
+/**
+ * Capture warnings after an output's report (`output` null = only re-check):
+ * at most one per output (its live page), cleared when that page works again,
+ * and dropped for an output that is no longer active (its picture is not on air).
+ */
+export function updateCaptureWarnings(
+  list: readonly WebCaptureWarning[],
+  output: 'hdmi' | 'omt' | null,
+  deckId: string,
+  failed: boolean,
+  outputsActive: { hdmi: boolean; omt: boolean }
+): WebCaptureWarning[] {
+  let next = [...list]
+  if (output) {
+    if (failed) next = [...next.filter((w) => w.output !== output), { output, deckId }]
+    else next = next.filter((w) => !(w.output === output && w.deckId === deckId))
+  }
+  return next.filter((w) => outputsActive[w.output])
 }

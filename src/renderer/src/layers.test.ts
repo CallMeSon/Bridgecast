@@ -59,6 +59,31 @@ describe('layerFor', () => {
     expect(layerFor(v, new Set(), null)?.fit).toBe('fill')
     expect(layerFor(v, new Set(), null)?.id).toBe(layerFor(video(4), new Set(), null)?.id)
   })
+  it('a stream has a stable id per deck and take; poster and pause never change it', () => {
+    const s = (take: number, paused = false, poster = 'slide://w/001.png'): OutputMedia => ({
+      kind: 'stream',
+      source: 'tab',
+      deckId: 'w',
+      poster,
+      paused,
+      take
+    })
+    expect(layerFor(s(2), new Set(), null)).toEqual({
+      id: 's:tab:w#2',
+      kind: 'stream',
+      source: 'tab',
+      deckId: 'w',
+      url: 'slide://w/001.png',
+      poster: 'slide://w/001.png',
+      paused: false,
+      take: 2,
+      fit: 'stretch'
+    })
+    expect(layerFor(s(2, true, 'slide://w/001.png?v=3'), new Set(), null)?.id).toBe('s:tab:w#2')
+    // A stream is live: coming back after KV or Black captures again (never a poster swap).
+    expect(layerFor(s(2), new Set([2]), 'slide://kv/k.png')?.kind).toBe('stream')
+    expect(layerFor(s(3), new Set(), null)?.id).toBe('s:tab:w#3')
+  })
   it('a poster for a played take keeps the fit', () => {
     const v = { ...video(4), fit: 'stretch' as const }
     expect(layerFor(v, new Set([4]), null)).toMatchObject({ kind: 'image', fit: 'stretch' })

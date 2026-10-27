@@ -63,10 +63,11 @@ import {
 } from '../shared/ipc'
 import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
-import { sanitizeWebUrl, webDomain } from '../shared/web'
+import { sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
 import {
   frameSenderAllowed,
+  updateCaptureWarnings,
   isAppPageUrl,
   mergeDisableFeatures,
   webDeckName,
@@ -105,6 +106,12 @@ protocol.registerSchemesAsPrivileged([
     }
   }
 ])
+
+/**
+ * Called after an HDMI or network status change (set by registerWebIpc): which
+ * outputs count for the ready gate may have changed (`web:outputs`).
+ */
+let outputsMaybeChanged: () => void = () => {}
 
 /** Set once the web host exists: web deck pages and their popups never get app broadcasts. */
 let isWebPage: (wc: Electron.WebContents) => boolean = () => false
@@ -627,6 +634,32 @@ function registerWebIpc(
   })
   appHandle(Invoke.webSignOut, () => web.signOut())
   appHandle(Invoke.webStatuses, () => web.statuses())
+
+  // Who captures pages that are not live yet: active outputs, else the operator window.
+  let outputs = outputsActive()
+  let warnings: WebCaptureWarning[] = []
+  const setWarnings = (next: WebCaptureWarning[]): void => {
+    if (JSON.stringify(next) === JSON.stringify(warnings)) return
+    warnings = next
+    broadcast(Broadcast.webCaptureWarnings, warnings)
+  }
+  outputsMaybeChanged = () => {
+    const now = outputsActive()
+    if (now.hdmi !== outputs.hdmi || now.omt !== outputs.omt) {
+      outputs = now
+      broadcast(Broadcast.webOutputs, now)
+    }
+    setWarnings(updateCaptureWarnings(warnings, null, '', false, now))
+  }
+  appHandle(Invoke.webOutputs, () => outputsActive())
+  appHandle(Invoke.webCaptureFailed, (e, deckId, failed) => {
+    assertString(deckId, 'Deck ID')
+    const role = roleOf(e.sender)
+    // Only the outputs show the page to the audience; other windows have no warning.
+    if (role !== 'hdmi' && role !== 'omt') return
+    setWarnings(updateCaptureWarnings(warnings, role, deckId, failed === true, outputsActive()))
+  })
+  appHandle(Invoke.webCaptureWarnings, () => warnings)
 }
 
 /** settings.json: loaded once, saved atomically on every change. */
@@ -688,7 +721,10 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
   let fakeDisplays: ScreenDisplay[] | null = null
   const hdmi = new HdmiOutput(
     settings.get().hdmi,
-    (s: HdmiStatus) => broadcast(Broadcast.hdmiStatus, s),
+    (s: HdmiStatus) => {
+      broadcast(Broadcast.hdmiStatus, s)
+      queueMicrotask(() => outputsMaybeChanged())
+    },
     (d) => broadcast(Broadcast.displaysChanged, d),
     (displayId) => {
       try {
@@ -726,8 +762,11 @@ function createNetOutput(settings: SettingsStore, state: AppState): NetOutput {
   const net = new NetOutput(
     { omt: settings.get().omt, ndi: settings.get().ndi },
     () => state.state.canvas,
-    (id: 'omt' | 'ndi', s: NetStatus) =>
-      broadcast(id === 'omt' ? Broadcast.omtStatus : Broadcast.ndiStatus, s),
+    (id: 'omt' | 'ndi', s: NetStatus) => {
+      broadcast(id === 'omt' ? Broadcast.omtStatus : Broadcast.ndiStatus, s)
+      // After the microtask: the network window is created right after the status is set.
+      queueMicrotask(() => outputsMaybeChanged())
+    },
     {
       fake: process.env['PPT_OMT_FAKE'] === '1',
       fakeNdi: ndiFake === 'missing' ? 'missing' : ndiFake === '1',

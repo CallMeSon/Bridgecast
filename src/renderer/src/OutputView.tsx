@@ -7,7 +7,10 @@ import { OutputAudio } from './output-audio'
 import { stageRect } from './stage'
 import tapModuleUrl from './omt-tap.worklet.ts?worker&url'
 import { AUDIO_SETUP_MS, outputGateOpen, pickSink, useAudioOutputs } from './audio'
-import { SlideLayers, type ShownMedia } from './components/SlideLayers'
+import { SlideLayers, type ShownMedia, type StreamOptions } from './components/SlideLayers'
+import { WebPrecapture } from './components/WebPrecapture'
+import { useWebOutputs, useWebPages } from './web-pages'
+import { capturesForGate, precaptureIds, streamFps } from './stream'
 
 const timingId = (key: number): string => `layer-${key}`
 
@@ -66,6 +69,8 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
   // `backgroundThrottling: false` keeps `document.visibilityState` at 'visible',
   // so main's status is the signal. Until known it counts as not shown (silent).
   const [onScreen, setOnScreen] = useState(false)
+  // Network frame rate setting: a captured web page is sent at it while OMT or NDI runs.
+  const [netFps, setNetFps] = useState<number | undefined>(undefined)
   // getSettings failed: the slides still show (silently, `audio` stays null).
   const [audioFailed, setAudioFailed] = useState(false)
   const outputs = useAudioOutputs()
@@ -105,6 +110,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     api
       .getSettings()
       .then((s) => {
+        setNetFps(s.omt.fps)
         if (freshAudio) setAudio(s.audio)
       })
       .catch((e) => {
@@ -228,6 +234,29 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     )
   }
 
+  // Web deck pages: this window captures the live one (stream layer) and, while
+  // main counts it as an active output, the pages not on air yet (ready gate).
+  const pages = useWebPages()
+  const webOutputs = useWebOutputs()
+  const media = program
+    ? outputSource(program, pages.versions[program.shown?.web?.deckId ?? ''] ?? 0)
+    : null
+  const streaming = media?.kind === 'stream' ? media.deckId : null
+  const precapture = capturesForGate(role, webOutputs)
+    ? precaptureIds(pages.statuses, streaming)
+    : []
+  const streamOpts: StreamOptions | undefined = program
+    ? {
+        canvas: program.canvas,
+        fps: streamFps(netFps, networkRunning(omtState, ndiState)),
+        generation: (id) => pages.generations[id] ?? 0,
+        onFrame: (id) => void window.api.webFrame(id).catch(() => undefined),
+        onEnded: (id) => void window.api.webEnded(id).catch(() => undefined),
+        onFailed: (id, failed) =>
+          void window.api.webCaptureFailed(id, failed).catch(() => undefined)
+      }
+    : undefined
+
   const stage = program ? stageRect(program.canvas, windowSize) : null
 
   return (
@@ -245,16 +274,18 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
           style={{ left: stage.left, top: stage.top, width: stage.width, height: stage.height }}
         >
           <SlideLayers
-            media={outputSource(program)}
+            media={media}
             fade={program.transition === 'fade'}
             muted={audio === null || audio.muted}
             audio={out}
             layerClass="output-layer"
             imgAttrs={(key) => ({ elementtiming: timingId(key) })}
             onShown={onShown}
+            stream={streamOpts}
           />
         </div>
       )}
+      <WebPrecapture deckIds={precapture} onGone={pages.refresh} />
     </div>
   )
 }

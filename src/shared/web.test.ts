@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeWebUrl, webDomain, WEB_URL_ERROR, WEB_HTTP_WARNING } from './web'
+import {
+  captureWarningText,
+  sanitizeWebUrl,
+  webDomain,
+  WEB_URL_ERROR,
+  WEB_HTTP_WARNING
+} from './web'
 
 describe('sanitizeWebUrl', () => {
   it('trims and keeps https', () => {
@@ -40,5 +46,16 @@ describe('webDomain', () => {
   })
   it('returns the input when it is not a URL', () => {
     expect(webDomain('nonsense')).toBe('nonsense')
+  })
+})
+
+describe('captureWarningText', () => {
+  it('names the output in the spec copy', () => {
+    expect(captureWarningText('hdmi')).toBe(
+      'The web page cannot be shown on HDMI. It shows the last snapshot.'
+    )
+    expect(captureWarningText('omt')).toBe(
+      'The web page cannot be shown on OMT. It shows the last snapshot.'
+    )
   })
 })

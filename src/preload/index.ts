@@ -96,6 +96,11 @@ const api: Api = {
   signOutWeb: () => invoke(Invoke.webSignOut),
   webStatuses: () => invoke(Invoke.webStatuses),
   onWebStatus: (cb) => subscribe(Broadcast.webStatus, cb),
+  webOutputs: () => invoke(Invoke.webOutputs),
+  onWebOutputs: (cb) => subscribe(Broadcast.webOutputs, cb),
+  webCaptureFailed: (deckId, failed) => invoke(Invoke.webCaptureFailed, deckId, failed),
+  webCaptureWarnings: () => invoke(Invoke.webCaptureWarnings),
+  onWebCaptureWarnings: (cb) => subscribe(Broadcast.webCaptureWarnings, cb),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }

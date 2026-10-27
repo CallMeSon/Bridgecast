@@ -4,6 +4,9 @@ import { KV_FILE_RE, KV_MIME } from '../shared/types'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Slide files are `001.png`, `002.png`, ... and videos `001.mp4`, ... (see Library). */
 const FILE_RE = /^\/(\d{3,6}\.(?:png|mp4))$/
+/** The only query allowed: `?v=<n>`, which renderers add to reload a web deck's rewritten snapshot. */
+const VERSION_RE = /^\?v=\d{1,12}$/
+const badSearch = (search: string): boolean => search !== '' && !VERSION_RE.test(search)
 
 /**
  * Parse `slide://<deckId>/<file>` (e.g. `slide://<uuid>/003.png`); returns
@@ -17,7 +20,7 @@ export function parseSlideUrl(url: string): { deckId: string; file: string } | n
   } catch {
     return null
   }
-  if (u.protocol !== 'slide:' || u.search || u.hash || u.username || u.port) return null
+  if (u.protocol !== 'slide:' || badSearch(u.search) || u.hash || u.username || u.port) return null
   const deckId = u.hostname
   if (!UUID_RE.test(deckId)) return null
   const m = FILE_RE.exec(u.pathname)
@@ -61,7 +64,14 @@ export function parseThumbUrl(url: string): { deckId: string; file: string } | n
   } catch {
     return null
   }
-  if (u.protocol !== 'slide:' || u.search || u.hash || u.username || u.password || u.port) {
+  if (
+    u.protocol !== 'slide:' ||
+    badSearch(u.search) ||
+    u.hash ||
+    u.username ||
+    u.password ||
+    u.port
+  ) {
     return null
   }
   if (!UUID_RE.test(u.hostname)) return null

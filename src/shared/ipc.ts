@@ -6,7 +6,7 @@ import type { AudioSettings, HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
 import type { DeckAudio } from './audio-levels'
-import type { PrepareInput, WebStatus } from './web'
+import type { PrepareInput, WebCaptureWarning, WebOutputs, WebStatus } from './web'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
 export const Invoke = {
@@ -51,7 +51,10 @@ export const Invoke = {
   webEnded: 'web:ended',
   webOpenPrepare: 'web:openPrepare',
   webSignOut: 'web:signOut',
-  webStatuses: 'web:statuses'
+  webStatuses: 'web:statuses',
+  webOutputs: 'web:outputs',
+  webCaptureFailed: 'web:captureFailed',
+  webCaptureWarnings: 'web:captureWarnings'
 } as const
 
 /**
@@ -80,7 +83,9 @@ export const Broadcast = {
   audioSettings: 'audio:settings',
   omtStatus: 'omt:status',
   ndiStatus: 'ndi:status',
-  webStatus: 'web:status'
+  webStatus: 'web:status',
+  webOutputs: 'web:outputs',
+  webCaptureWarnings: 'web:captureWarnings'
 } as const
 
 /** Main → OMT output window: carries the MessagePort the window sends program sound on. */
@@ -199,6 +204,12 @@ export interface InvokeMap {
   'web:signOut': { args: []; result: void }
   /** Current load state of every open page (later changes arrive as `web:status`). */
   'web:statuses': { args: []; result: WebStatusEvent[] }
+  /** Which outputs main counts for the ready gate (later changes arrive as `web:outputs`). */
+  'web:outputs': { args: []; result: WebOutputs }
+  /** HDMI or OMT window: capturing the live page failed (true) or works again (false). */
+  'web:captureFailed': { args: [deckId: string, failed: boolean]; result: void }
+  /** Current capture warnings (later changes arrive as `web:captureWarnings`). */
+  'web:captureWarnings': { args: []; result: WebCaptureWarning[] }
 }
 
 export interface BroadcastMap {
@@ -210,6 +221,8 @@ export interface BroadcastMap {
   'omt:status': OmtStatus
   'ndi:status': NdiStatus
   'web:status': WebStatusEvent
+  'web:outputs': WebOutputs
+  'web:captureWarnings': WebCaptureWarning[]
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -312,5 +325,12 @@ export interface Api {
   signOutWeb(): Promise<void>
   webStatuses(): Promise<WebStatusEvent[]>
   onWebStatus(cb: (s: WebStatusEvent) => void): () => void
+  /** Which outputs are active for the ready gate (who captures pages that are not live yet). */
+  webOutputs(): Promise<WebOutputs>
+  onWebOutputs(cb: (o: WebOutputs) => void): () => void
+  /** HDMI or OMT window: the live page cannot be captured (true) or can again (false). */
+  webCaptureFailed(deckId: string, failed: boolean): Promise<void>
+  webCaptureWarnings(): Promise<WebCaptureWarning[]>
+  onWebCaptureWarnings(cb: (w: WebCaptureWarning[]) => void): () => void
   pathForFile(file: File): string
 }

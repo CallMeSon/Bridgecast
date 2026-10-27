@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  updateCaptureWarnings,
   failLoadIsError,
   frameSenderAllowed,
   isAppPageUrl,
@@ -124,5 +125,35 @@ describe('frameSenderAllowed', () => {
   it('never takes a Prepare window', () => {
     expect(frameSenderAllowed('prepare', none)).toBe(false)
     expect(frameSenderAllowed('prepare', { hdmi: true, omt: true })).toBe(false)
+  })
+})
+
+describe('updateCaptureWarnings', () => {
+  const on = { hdmi: true, omt: true }
+  it('one warning per output; a later report for that output replaces it', () => {
+    let w = updateCaptureWarnings([], 'hdmi', 'a', true, on)
+    w = updateCaptureWarnings(w, 'omt', 'a', true, on)
+    w = updateCaptureWarnings(w, 'hdmi', 'b', true, on)
+    expect(w).toEqual([
+      { output: 'omt', deckId: 'a' },
+      { output: 'hdmi', deckId: 'b' }
+    ])
+  })
+  it('a recovery clears only that output and deck', () => {
+    const w = updateCaptureWarnings([{ output: 'hdmi', deckId: 'a' }], 'hdmi', 'b', false, on)
+    expect(w).toEqual([{ output: 'hdmi', deckId: 'a' }])
+    expect(updateCaptureWarnings(w, 'hdmi', 'a', false, on)).toEqual([])
+  })
+  it('an output that is no longer active drops its warning', () => {
+    const w = [
+      { output: 'hdmi' as const, deckId: 'a' },
+      { output: 'omt' as const, deckId: 'a' }
+    ]
+    expect(updateCaptureWarnings(w, null, '', false, { hdmi: false, omt: true })).toEqual([
+      { output: 'omt', deckId: 'a' }
+    ])
+  })
+  it('a report from an inactive output is not kept', () => {
+    expect(updateCaptureWarnings([], 'hdmi', 'a', true, { hdmi: false, omt: false })).toEqual([])
   })
 })

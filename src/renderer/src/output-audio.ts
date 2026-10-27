@@ -42,6 +42,7 @@ export class OutputAudio {
   private sink = ''
   private readonly routed = new WeakMap<HTMLVideoElement, string>()
   private readonly sources = new Map<HTMLVideoElement, MediaElementAudioSourceNode | null>()
+  private readonly streams = new Map<MediaStream, MediaStreamAudioSourceNode>()
 
   private plan: SoundPlan = { local: true, tap: false }
   private port: MessagePort | null = null
@@ -186,6 +187,37 @@ export class OutputAudio {
     this.sinkElement(v)
   }
 
+  /**
+   * Routes a captured stream's sound (a web deck's page) into the same gain.
+   * False when Web Audio is not usable: the stream then has no sound here (a
+   * captured page is never played locally by Chromium either).
+   */
+  attachStream(stream: MediaStream): boolean {
+    if (this.streams.has(stream)) return true
+    if (!this.fallback && !this.ctx) this.open()
+    if (!this.ctx || !this.node) return false
+    try {
+      const src = this.ctx.createMediaStreamSource(stream)
+      src.connect(this.node)
+      this.streams.set(stream, src)
+      this.resume()
+      return true
+    } catch (e) {
+      console.warn('[audio] web page sound could not be connected:', e)
+      return false
+    }
+  }
+
+  /** Disconnects a stream's sound (its layer is going away or muted). */
+  detachStream(stream: MediaStream): void {
+    try {
+      this.streams.get(stream)?.disconnect()
+    } catch {
+      // Already disconnected.
+    }
+    this.streams.delete(stream)
+  }
+
   /** Forgets a video that is about to be removed. */
   detach(v: HTMLVideoElement): void {
     try {
@@ -232,6 +264,7 @@ export class OutputAudio {
   /** Releases the context. */
   close(): void {
     for (const v of [...this.sources.keys()]) this.detach(v)
+    for (const st of [...this.streams.keys()]) this.detachStream(st)
     this.removeTap()
     const ctx = this.ctx
     this.ctx = null

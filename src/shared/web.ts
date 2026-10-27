@@ -46,6 +46,23 @@ export function webDomain(url: string): string {
 /** Load state of a web deck's page (`web:status`). */
 export type WebStatus = 'loading' | 'ready' | 'error'
 
+/** Outputs main counts as putting a page on air (ready gate, capture ended). */
+export interface WebOutputs {
+  hdmi: boolean
+  omt: boolean
+}
+
+/** An output that shows a web deck's snapshot because it cannot capture the page. */
+export interface WebCaptureWarning {
+  output: 'hdmi' | 'omt'
+  deckId: string
+}
+
+/** Operator warning for a failed capture on one output (spec 6). */
+export function captureWarningText(output: 'hdmi' | 'omt'): string {
+  return `The web page cannot be shown on ${output === 'hdmi' ? 'HDMI' : 'OMT'}. It shows the last snapshot.`
+}
+
 /** One input event from the Prepare preview, coordinates 0 to 1 of the preview (checked in main). */
 export type PrepareInput =
   | {

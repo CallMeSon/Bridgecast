@@ -3,7 +3,7 @@ import type { DeckMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { outputSource, TALLY_TEXT, tally, type Tally } from '../model'
 import { EndCard } from './Slide'
-import { SlideLayers } from './SlideLayers'
+import { SlideLayers, type StreamOptions } from './SlideLayers'
 
 const TALLY_ICON: Partial<Record<Tally, React.JSX.Element>> = {
   frozen: <SnowflakeIcon size={14} />,
@@ -19,16 +19,22 @@ const TALLY_ICON: Partial<Record<Tally, React.JSX.Element>> = {
 export function Program({
   state,
   deck,
-  emptyHint = 'Drag .pptx, .ppt, or .pdf files into this window.'
+  emptyHint = 'Drag .pptx, .ppt, or .pdf files into this window.',
+  posterVersion = 0,
+  stream
 }: {
   state: ProgramState
   deck: DeckMeta | null
   /** Second line of the empty monitor (e.g. a different hint while no event exists). */
   emptyHint?: string
+  /** Version of the live web deck's snapshot (reloads the poster when it is rewritten). */
+  posterVersion?: number
+  /** How the monitor captures a live web page (video only, 30 fps; no sound). */
+  stream?: StreamOptions
 }): React.JSX.Element {
   const t = tally(state)
   const shown = state.shown
-  const media = outputSource(state)
+  const media = outputSource(state, posterVersion)
   return (
     <div className="program" data-state={t} data-testid="program">
       <div className="colhead">
@@ -57,6 +63,7 @@ export function Program({
                 fade={state.transition === 'fade'}
                 muted
                 layerClass="slide pgm-layer"
+                stream={stream}
                 imgAttrs={(_key, url) => ({
                   alt:
                     url === state.kvUrl

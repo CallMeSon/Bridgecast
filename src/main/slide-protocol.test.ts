@@ -55,6 +55,14 @@ describe('parseSlideUrl', () => {
     })
   })
 
+  it('accepts a cache-busting ?v=<n> on a slide or thumbnail (rewritten web snapshot)', () => {
+    expect(parseSlideUrl(`slide://${ID}/001.png?v=12`)).toEqual({ deckId: ID, file: '001.png' })
+    expect(parseThumbUrl(`slide://${ID}/thumbs/001.jpg?v=3`)).toEqual({
+      deckId: ID,
+      file: '001.png'
+    })
+  })
+
   it('round-trips slideUrl', () => {
     expect(parseSlideUrl(slideUrl(ID, '007.png'))).toEqual({ deckId: ID, file: '007.png' })
   })
@@ -68,6 +76,8 @@ describe('parseSlideUrl', () => {
     expect(parseSlideUrl(`slide://${ID}/../events.json`)).toBeNull()
     expect(parseSlideUrl(`slide://${ID}/a/0.png`)).toBeNull()
     expect(parseSlideUrl(`slide://${ID}/001.png?x=1`)).toBeNull()
+    expect(parseSlideUrl(`slide://${ID}/001.png?v=abc`)).toBeNull()
+    expect(parseSlideUrl(`slide://${ID}/001.png?v=1&x=2`)).toBeNull()
     expect(parseSlideUrl(`slide://${ID}/001.png#x`)).toBeNull()
     // Index-style names are not slide files (files are 001.png, 002.png, ...).
     expect(parseSlideUrl(`slide://${ID}/0.png`)).toBeNull()

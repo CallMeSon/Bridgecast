@@ -305,6 +305,36 @@ describe('errorMessage', () => {
 
 const img = (url: string, fit: DeckFit = 'fit'): OutputMedia => ({ kind: 'image', url, fit })
 
+describe('outputSource with a web deck', () => {
+  const deckId = '55555555-5555-5555-5555-555555555555'
+  const shown = { deckId, index: 0, file: '001.png', web: { deckId } }
+  const kvUrl = 'slide://kv/22222222-2222-2222-2222-222222222222/k.png'
+  const stream = (paused: boolean, poster = `slide://${deckId}/001.png`): OutputMedia => ({
+    kind: 'stream',
+    source: 'tab',
+    deckId,
+    poster,
+    paused,
+    take: 4
+  })
+  it('a shown web page is the tab stream with its snapshot as poster', () => {
+    expect(outputSource({ ...initialState, shown, take: 4 })).toEqual(stream(false))
+  })
+  it('is paused while frozen or held (HOLD)', () => {
+    expect(outputSource({ ...initialState, shown, take: 4, frozen: true })).toEqual(stream(true))
+    expect(outputSource({ ...initialState, shown, take: 4, webHold: true })).toEqual(stream(true))
+  })
+  it('the poster carries a version so a rewritten snapshot loads again', () => {
+    expect(outputSource({ ...initialState, shown, take: 4 }, 7)).toEqual(
+      stream(false, `slide://${deckId}/001.png?v=7`)
+    )
+  })
+  it('KV and Black still win over the page', () => {
+    expect(outputSource({ ...initialState, shown, kvUrl, kv: true, take: 4 })).toEqual(img(kvUrl))
+    expect(outputSource({ ...initialState, shown, black: true, take: 4 })).toBeNull()
+  })
+})
+
 describe('outputSource with a video slide', () => {
   const deckId = '44444444-4444-4444-4444-444444444444'
   const shown = { deckId, index: 0, file: '001.png', video: '001.mp4' }

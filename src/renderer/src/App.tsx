@@ -14,6 +14,12 @@ import { NextPanel } from './components/NextPanel'
 import { Strip } from './components/Strip'
 import { Splitters } from './components/Splitters'
 import { ActionError, SaveNote } from './components/ActionError'
+import { CaptureWarning } from './components/CaptureWarning'
+import { WebPrecapture } from './components/WebPrecapture'
+import { useWebOutputs, useWebPages } from './web-pages'
+import type { StreamOptions } from './components/SlideLayers'
+import type { WebCaptureWarning } from '../../shared/web'
+import { capturesForGate, precaptureIds } from './stream'
 import {
   baseName,
   canNext,
@@ -26,6 +32,7 @@ import {
   keyToAction,
   moveItem,
   moveOrder,
+  outputSource,
   SAVED,
   tally,
   UNSUPPORTED
@@ -504,6 +511,44 @@ function App(): React.JSX.Element {
     setTheme(t)
   }
 
+  // Web deck pages: the monitor shows the live one (video only, 30 fps). While no
+  // output is active this window is the one whose first frames open the ready gate.
+  const pages = useWebPages()
+  const outputs = useWebOutputs()
+  const liveWeb = program.shown?.web?.deckId ?? null
+  const onMonitor = outputSource(program)
+  const monitorStreams = onMonitor?.kind === 'stream' ? onMonitor.deckId : null
+  const precapture = capturesForGate('operator', outputs)
+    ? precaptureIds(pages.statuses, monitorStreams)
+    : []
+  const monitorStream = useMemo<StreamOptions>(
+    () => ({
+      canvas: program.canvas,
+      fps: 30,
+      generation: (id) => pages.generations[id] ?? 0,
+      // Main counts these only while no output is active.
+      onFrame: (id) => void api.webFrame(id).catch(() => undefined),
+      onEnded: (id) => void api.webEnded(id).catch(() => undefined),
+      label: 'Web page on Program'
+    }),
+    [api, program.canvas, pages.generations]
+  )
+  const [captureWarnings, setCaptureWarnings] = useState<WebCaptureWarning[]>([])
+  useEffect(() => {
+    let fresh = true
+    const off = api.onWebCaptureWarnings((w) => {
+      fresh = false
+      setCaptureWarnings(w)
+    })
+    api
+      .webCaptureWarnings()
+      .then((w) => {
+        if (fresh) setCaptureWarnings(w)
+      })
+      .catch((e: unknown) => console.warn('[web] capture warnings failed to load:', e))
+    return off
+  }, [api])
+
   const deck = currentDeck(decks, program)
   const ready = deck !== null
 
@@ -547,9 +592,12 @@ function App(): React.JSX.Element {
         />
         <section className="stage-col" aria-label="Program">
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />
+          <CaptureWarning warnings={captureWarnings} />
           <Program
             state={program}
             deck={deck}
+            posterVersion={liveWeb ? (pages.versions[liveWeb] ?? 0) : 0}
+            stream={monitorStream}
             emptyHint={
               eventId ? undefined : 'Create an event first from the Event menu at the top left.'
             }
@@ -571,6 +619,7 @@ function App(): React.JSX.Element {
       <SaveNote text={note} />
       <Splitters appRef={appRef} />
       <DropOverlay onDrop={({ files, folders }) => importFiles(files, folders)} />
+      <WebPrecapture deckIds={precapture} onGone={pages.refresh} />
     </div>
   )
 }

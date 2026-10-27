@@ -22,6 +22,11 @@ function fakeContext(
     state: opts.state ?? 'running',
     destination,
     createGain: vi.fn(() => gainNode),
+    createMediaStreamSource: vi.fn((stream: unknown) => {
+      const s = { el: stream, connect: vi.fn(), disconnect: vi.fn() }
+      sources.push(s)
+      return s
+    }),
     createMediaElementSource: vi.fn((el: unknown) => {
       const s = { el, connect: vi.fn(), disconnect: vi.fn() }
       sources.push(s)
@@ -399,5 +404,41 @@ describe('OutputAudio sound plan', () => {
     await a.setPlan({ local: true, tap: false }, null)
     expect(v.volume).toBe(0.5)
     warn.mockRestore()
+  })
+})
+
+describe('OutputAudio.attachStream', () => {
+  const asStream = (s: unknown): MediaStream => s as MediaStream
+  it('connects a captured stream to the same gain once and detaches it', () => {
+    const f = fakeContext()
+    const a = new OutputAudio(() => asCtx(f.ctx))
+    const stream = { id: 's1' }
+    expect(a.attachStream(asStream(stream))).toBe(true)
+    expect(a.attachStream(asStream(stream))).toBe(true)
+    expect(f.ctx.createMediaStreamSource).toHaveBeenCalledTimes(1)
+    expect(f.sources[0].connect).toHaveBeenCalledWith(f.gainNode)
+    // The same gain as element sound: one gain node in total.
+    a.attach(asVideo(fakeVideo()))
+    expect(f.ctx.createGain).toHaveBeenCalledTimes(1)
+    a.detachStream(asStream(stream))
+    expect(f.sources[0].disconnect).toHaveBeenCalled()
+    // Attached again after a detach: a new source node.
+    a.attachStream(asStream(stream))
+    expect(f.ctx.createMediaStreamSource).toHaveBeenCalledTimes(2)
+  })
+  it('without Web Audio the stream is not attached (false)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const a = new OutputAudio(() => {
+      throw new Error('no audio')
+    })
+    expect(a.attachStream(asStream({ id: 's2' }))).toBe(false)
+    warn.mockRestore()
+  })
+  it('close disconnects attached streams', () => {
+    const f = fakeContext()
+    const a = new OutputAudio(() => asCtx(f.ctx))
+    a.attachStream(asStream({ id: 's3' }))
+    a.close()
+    expect(f.sources[0].disconnect).toHaveBeenCalled()
   })
 })

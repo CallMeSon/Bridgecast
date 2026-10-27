@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { OutputMedia } from '../model'
 import type { OutputAudio } from '../output-audio'
 import { layerFor, type LayerSpec } from './layers'
+import { StreamLayer } from './StreamLayer'
 
 /** Crossfade length for a 'fade' transition (spec: 250 ms); the CSS animations match. */
 export const FADE_MS = 250
@@ -19,6 +20,19 @@ interface Layer {
 
 /** What a layer actually puts on screen (a failed video shows its poster image). */
 export type ShownMedia = { kind: 'image' | 'video'; url: string } | null
+
+/** How this window captures stream layers (web deck pages) and what it reports. */
+export interface StreamOptions {
+  canvas: { width: number; height: number }
+  fps: number
+  /** Bumped per captured id to capture again with a new source id. */
+  generation?: (id: string) => number
+  onFrame?: (id: string) => void
+  onEnded?: (id: string) => void
+  onFailed?: (id: string, failed: boolean) => void
+  /** Accessible name of a stream layer (the operator monitor). */
+  label?: string
+}
 
 interface Props {
   /** What to show; null = black. */
@@ -39,14 +53,24 @@ interface Props {
   imgAttrs?: (key: number, src: string) => Record<string, string>
   /** A layer is now on screen (cut) or fading in; a video once its first frame is presented. */
   onShown?: (key: number, media: ShownMedia) => void
+  /**
+   * Capture settings for stream media. The stream's sound goes through `audio`
+   * when given (output windows); without it the capture is video only.
+   */
+  stream?: StreamOptions
 }
 
 const shownOf = (l: Layer): ShownMedia =>
   !l.spec
     ? null
-    : l.spec.kind === 'video' && !l.failed
-      ? { kind: 'video', url: l.spec.url }
-      : { kind: 'image', url: l.spec.poster ?? l.spec.url }
+    : l.spec.kind === 'stream'
+      ? { kind: 'video', url: l.spec.poster ?? l.spec.url }
+      : l.spec.kind === 'video' && !l.failed
+        ? { kind: 'video', url: l.spec.url }
+        : { kind: 'image', url: l.spec.poster ?? l.spec.url }
+
+const DEFAULT_CANVAS = { width: 1920, height: 1080 }
+const streamCb = (cb: ((id: string) => void) | undefined, id: string) => (): void => cb?.(id)
 
 /**
  * Longest a video layer may stay pending (neither `loadeddata` nor `error`)
@@ -116,7 +140,8 @@ export function SlideLayers({
   audio,
   layerClass,
   imgAttrs,
-  onShown
+  onShown,
+  stream
 }: Props): React.JSX.Element {
   const [layers, setLayers] = useState<Layer[]>([])
   // Mirror of `layers` so reveal/drop can compute the next list synchronously.
@@ -248,8 +273,14 @@ export function SlideLayers({
       const ls = current.current
       const i = ls.map((l) => l.spec?.id ?? null).lastIndexOf(id)
       const at = i >= 0 ? ls[i].spec : null
-      if (spec && at && at.fit !== spec.fit) {
-        commit(ls.map((l, j) => (j === i ? { ...l, spec: { ...at, fit: spec.fit } } : l)))
+      // A stream's poster (new snapshot) and pause (Freeze, HOLD) also change in place.
+      if (
+        spec &&
+        at &&
+        (at.fit !== spec.fit || at.poster !== spec.poster || at.paused !== spec.paused)
+      ) {
+        const next = { ...at, fit: spec.fit, poster: spec.poster, paused: spec.paused }
+        commit(ls.map((l, j) => (j === i ? { ...l, spec: next } : l)))
       }
       return
     }
@@ -318,10 +349,33 @@ export function SlideLayers({
           key={l.key}
           className={layerClass}
           data-state={!l.ready ? 'pending' : l.fade ? 'fade' : 'shown'}
-          data-kind={l.spec?.kind === 'video' && !l.failed ? 'video' : undefined}
+          data-kind={
+            l.spec?.kind === 'stream'
+              ? 'stream'
+              : l.spec?.kind === 'video' && !l.failed
+                ? 'video'
+                : undefined
+          }
           data-fit={l.spec?.fit}
         >
-          {l.spec?.kind === 'video' && !l.failed ? (
+          {l.spec?.kind === 'stream' && l.spec.source && l.spec.deckId ? (
+            <StreamLayer
+              source={l.spec.source}
+              id={l.spec.deckId}
+              poster={l.spec.poster ?? l.spec.url}
+              paused={!!l.spec.paused}
+              canvas={stream?.canvas ?? DEFAULT_CANVAS}
+              fps={stream?.fps ?? 30}
+              audio={audio}
+              muted={muted}
+              generation={stream?.generation?.(l.spec.deckId) ?? 0}
+              onReady={() => reveal(l.key)}
+              onFrame={streamCb(stream?.onFrame, l.spec.deckId)}
+              onEnded={streamCb(stream?.onEnded, l.spec.deckId)}
+              onFailed={(f) => stream?.onFailed?.(l.spec?.deckId ?? '', f)}
+              label={stream?.label}
+            />
+          ) : l.spec?.kind === 'video' && !l.failed ? (
             <video
               src={l.spec.url}
               muted={muted}
