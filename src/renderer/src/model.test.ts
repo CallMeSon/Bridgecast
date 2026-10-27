@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { DeckMeta, SectionMeta } from '../../shared/types'
 import { initialState, reduce, type ProgramState } from '../../shared/program'
 import type { DeckFit } from '../../shared/canvas'
+import type { AudioSettings } from '../../shared/settings'
 import {
   baseName,
   canNext,
@@ -24,6 +25,7 @@ import {
   hdmiBadge,
   hdmiStatusText,
   nextView,
+  outputGain,
   outputSource,
   type OutputMedia,
   TALLY_TEXT,
@@ -519,5 +521,32 @@ describe('sections', () => {
     expect(
       keyToAction({ key: 'n', target: { tagName: 'INPUT' } as unknown as EventTarget })
     ).toBeNull()
+  })
+})
+
+describe('outputGain', () => {
+  const live = (audio?: { volume: number; muted: boolean }): ProgramState => ({
+    ...initialState,
+    shown: { deckId: 'd', index: 0, file: '0.png', ...(audio ? { audio } : {}) }
+  })
+  const master = (masterVolume: number, muted = false): AudioSettings => ({
+    deviceId: null,
+    muted,
+    masterVolume
+  })
+
+  it('is deck volume times master volume', () => {
+    expect(outputGain(live({ volume: 50, muted: false }), master(50))).toBeCloseTo(0.25)
+  })
+  it('uses the deck gain alone while the settings are unknown', () => {
+    expect(outputGain(live({ volume: 50, muted: false }), null)).toBeCloseTo(0.5)
+  })
+  it('is 1 with no live slide or no deck audio and default settings', () => {
+    expect(outputGain(initialState, null)).toBe(1)
+    expect(outputGain(live(), master(100))).toBe(1)
+  })
+  it('is 0 when the master is muted, or the deck is', () => {
+    expect(outputGain(live({ volume: 50, muted: false }), master(50, true))).toBe(0)
+    expect(outputGain(live({ volume: 50, muted: true }), master(50))).toBe(0)
   })
 })

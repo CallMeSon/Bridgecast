@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProgramState } from '../../shared/program'
 import type { AudioSettings } from '../../shared/settings'
-import { outputSource } from './model'
+import { outputGain, outputSource } from './model'
+import { OutputAudio } from './output-audio'
 import { stageRect } from './stage'
 import { AUDIO_SETUP_MS, outputGateOpen, outputMuted, pickSink, useAudioOutputs } from './audio'
 import { SlideLayers, type ShownMedia } from './components/SlideLayers'
@@ -73,6 +74,9 @@ export function OutputView(): React.JSX.Element {
     return () => clearTimeout(t)
   }, [])
   const readySent = useRef(false)
+  // One gain stage for all the output's video sound (deck level times master).
+  const [out] = useState(() => new OutputAudio())
+  useEffect(() => () => out.close(), [out])
   const windowSize = useWindowSize()
 
   useEffect(() => {
@@ -129,6 +133,13 @@ export function OutputView(): React.JSX.Element {
   // list before the first video. A missing device, or a list that is late,
   // plays on the default one; a late list re-routes through SlideLayers.
   const sink = pickSink(audio?.deviceId ?? null, outputs ?? []).sinkId
+  const gain = program ? outputGain(program, audio) : 1
+  useEffect(() => {
+    out.setGain(gain)
+  }, [out, gain])
+  useEffect(() => {
+    out.setSink(sink).catch((e: unknown) => console.warn('[audio] audio device failed:', e))
+  }, [out, sink])
   const soundReady = outputGateOpen(audio, outputs, setupTimedOut || audioFailed)
 
   // Tell main once the first layer for a known state is on screen, so the HDMI
@@ -148,7 +159,7 @@ export function OutputView(): React.JSX.Element {
   const stage = program ? stageRect(program.canvas, windowSize) : null
 
   return (
-    <div className="output" aria-hidden="true">
+    <div className="output" aria-hidden="true" data-gain={gain.toFixed(2)}>
       {program && stage && soundReady && (
         <div
           className="output-stage"
@@ -159,7 +170,7 @@ export function OutputView(): React.JSX.Element {
             media={outputSource(program)}
             fade={program.transition === 'fade'}
             muted={outputMuted(audio, onScreen)}
-            sinkId={sink}
+            audio={out}
             layerClass="output-layer"
             imgAttrs={(key) => ({ elementtiming: timingId(key) })}
             onShown={onShown}

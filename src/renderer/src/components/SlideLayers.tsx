@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { OutputMedia } from '../model'
+import type { OutputAudio } from '../output-audio'
 import { layerFor, type LayerSpec } from './layers'
 
 /** Crossfade length for a 'fade' transition (spec: 250 ms); the CSS animations match. */
@@ -27,6 +28,11 @@ interface Props {
   muted: boolean
   /** Audio output device for video (`setSinkId`); '' or missing = the default device. */
   sinkId?: string | null
+  /**
+   * The output's gain stage. When given, each video's sound goes through it (it
+   * also owns the device, so `sinkId` is ignored); without it the video plays as is.
+   */
+  audio?: OutputAudio
   /** Class of each layer element (absolutely stacked by the caller's CSS). */
   layerClass: string
   /** Extra attributes for a layer's <img> (e.g. elementtiming). */
@@ -107,6 +113,7 @@ export function SlideLayers({
   fade,
   muted,
   sinkId,
+  audio,
   layerClass,
   imgAttrs,
   onShown
@@ -115,6 +122,10 @@ export function SlideLayers({
   // Mirror of `layers` so reveal/drop can compute the next list synchronously.
   const current = useRef<Layer[]>([])
   const videos = useRef(new Map<number, HTMLVideoElement>())
+  const audioRef = useRef(audio)
+  useEffect(() => {
+    audioRef.current = audio
+  })
   /** Pending-timeout of each video layer that is not yet revealed. */
   const pendingTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
   const clearPending = useCallback((key: number) => {
@@ -128,6 +139,7 @@ export function SlideLayers({
       const keep = new Set(next.map((l) => l.key))
       for (const [key, v] of videos.current) {
         if (!keep.has(key)) {
+          audioRef.current?.detach(v)
           stop(v)
           videos.current.delete(key)
         }
@@ -161,7 +173,10 @@ export function SlideLayers({
       pending.forEach(clearTimeout)
       loading.forEach(clearTimeout)
       loading.clear()
-      vids.forEach(stop)
+      vids.forEach((v) => {
+        audioRef.current?.detach(v)
+        stop(v)
+      })
     }
   }, [])
 
@@ -265,6 +280,7 @@ export function SlideLayers({
   const sinks = useRef(new WeakMap<HTMLVideoElement, string>())
   const sink = sinkId ?? ''
   const route = useCallback((v: HTMLVideoElement, id: string) => {
+    if (audioRef.current) return // the gain stage owns the device
     if ((sinks.current.get(v) ?? '') === id) return
     sinks.current.set(v, id)
     applySink(v, id)
@@ -290,6 +306,7 @@ export function SlideLayers({
   const videoRef = (key: number) => (v: HTMLVideoElement | null) => {
     if (!v) return
     videos.current.set(key, v)
+    audio?.attach(v)
     route(v, sink)
     armPending(key)
   }
@@ -308,6 +325,8 @@ export function SlideLayers({
             <video
               src={l.spec.url}
               muted={muted}
+              // Sound through Web Audio is silent for a cross-origin video without CORS.
+              crossOrigin={audio ? 'anonymous' : undefined}
               playsInline
               preload="auto"
               ref={videoRef(l.key)}

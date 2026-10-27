@@ -3,7 +3,8 @@ import type { DeckFit } from '../../shared/canvas'
 import { kvOnAir, pendingTake, reduce, type Action, type ProgramState } from '../../shared/program'
 import { segmentsOf } from '../../shared/sections'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
-import type { HdmiSettings } from '../../shared/settings'
+import { DEFAULT_AUDIO, type AudioSettings, type HdmiSettings } from '../../shared/settings'
+import { DEFAULT_DECK_AUDIO, effectiveGain } from '../../shared/audio-levels'
 
 export type NextView =
   | { kind: 'none' }
@@ -284,6 +285,15 @@ export function outputSource(s: ProgramState): OutputMedia | null {
       : { kind: 'image', url: poster, fit }
   }
   return s.kvUrl ? { kind: 'image', url: s.kvUrl, fit: 'fit' } : null
+}
+
+/**
+ * Gain (0–1) of the output's video sound: the live deck's level times the
+ * master. Settings not known yet (null) count as the defaults, so only the
+ * deck level applies; the output stays muted separately until they arrive.
+ */
+export function outputGain(s: ProgramState, audio: AudioSettings | null): number {
+  return effectiveGain(s.shown?.audio ?? DEFAULT_DECK_AUDIO, audio ?? DEFAULT_AUDIO)
 }
 
 export interface HdmiBadge {

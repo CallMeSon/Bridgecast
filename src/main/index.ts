@@ -98,7 +98,9 @@ async function videoResponse(file: string, rangeHeader: string | null): Promise<
   const headers = {
     'content-type': 'video/mp4',
     'accept-ranges': 'bytes',
-    'cache-control': 'no-store'
+    'cache-control': 'no-store',
+    // The output plays video through Web Audio, which needs a CORS-clean source (silent otherwise).
+    'access-control-allow-origin': '*'
   }
   const { size } = await fs.promises.stat(file)
   const parsed = parseRange(rangeHeader, size)
