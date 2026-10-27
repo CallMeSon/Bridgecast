@@ -277,11 +277,16 @@ export class WebHost {
       const wc = p.win.webContents
       let counter: number | undefined
       try {
-        const v = await wc.executeJavaScript('window.__counter')
+        // A page still loading never answers executeJavaScript: do not wait for it.
+        const v = await Promise.race([
+          wc.executeJavaScript('window.__counter'),
+          new Promise((resolve) => setTimeout(resolve, 1000))
+        ])
         if (typeof v === 'number') counter = v
       } catch {
         // Page not loaded or crashed: no counter.
       }
+      if (p.win.isDestroyed()) continue // closed while the counter was read
       out[p.deckId] = {
         status: p.status,
         ...(counter === undefined ? {} : { counter }),

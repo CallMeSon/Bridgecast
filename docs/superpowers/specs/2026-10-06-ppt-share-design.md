@@ -7,7 +7,7 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 ## Keputusan
 
 - **Platform:** aplikasi desktop Windows (Electron + TypeScript + React). Berjalan offline.
-- **Input:** `.pptx`, `.ppt`, `.pdf`. Semua dikonversi ke gambar PNG saat import, lalu aplikasi merender slide sendiri.
+- **Input:** `.pptx`, `.ppt`, `.pdf`, dan halaman web (lihat Deck web). Semua dikonversi ke gambar PNG saat import, lalu aplikasi merender slide sendiri.
   - PPT/PPTX: diekspor lewat PowerPoint yang terinstal (COM). Notes slide ikut diambil.
   - PDF: dirender dengan pdf.js.
   - Animasi dan video di dalam slide tidak didukung (slide menjadi gambar statis).
@@ -28,6 +28,10 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 ## Output network (OMT, 2026-10-27)
 
 Program juga bisa dikirim lewat network dengan Open Media Transport (OMT) ke vMix dan OBS, dengan video dan suara, di luar atau bersama output HDMI. Ukuran gambar mengikuti Canvas, frame rate 30 atau 60. Plan `ndi-output` (`docs/superpowers/plans/2026-10-27-ndi-output.md`) menambahkan NDI di atas pengirim yang sama: OMT dan NDI bisa menyala bersamaan, satu renderer offscreen, dan frame rate berlaku untuk semua protokol network. Desain lengkap: `docs/superpowers/specs/2026-10-27-omt-output-design.md`.
+
+## Deck web (2026-10-27)
+
+Sebuah deck bisa berupa halaman web (Canva mode present, YouTube, halaman https lain), ditambahkan dengan "Add web page". Satu halaman tersembunyi per deck, gambar dan suaranya di-capture ke semua output (HDMI, OMT/NDI, monitor operator). Disiapkan dulu di jendela Prepare (login, Present), dikunci saat live: Next/Prev dan clicker hanya diteruskan sebagai panah ke halaman dan tidak pernah memindah posisi; pindah deck dengan D / Shift+D. Ini satu-satunya bagian show yang butuh network; pengamannya ready gate sebelum take dan HOLD (output menahan frame bagus terakhir) saat live. Berjalan di mesin Linux/xvfb sejauh ini; uji Windows dan Canva sungguhan ada di `docs/test-checklist.md`. Desain lengkap: `docs/superpowers/specs/2026-10-27-web-source-design.md`.
 
 ## Di luar cakupan
 

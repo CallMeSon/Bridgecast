@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Web fixture</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #204080;
+        color: #fff;
+        font-family: sans-serif;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2vh;
+      }
+      #counter {
+        font-size: 40vh;
+        font-weight: 700;
+        line-height: 1;
+      }
+      button {
+        font-size: 3vh;
+        padding: 1vh 2vw;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="counter">0</div>
+    <div>
+      <button id="tone">440 Hz tone</button>
+      <button id="popup">window.open</button>
+      <button id="camera">getUserMedia video</button>
+    </div>
+    <input id="text" aria-label="Test input" />
+    <script>
+      // Test hooks: window.__counter, window.__popup, window.__camera.
+      window.__counter = 0
+      window.__popup = null
+      window.__camera = null
+      const shown = document.getElementById('counter')
+      const render = () => {
+        shown.textContent = String(window.__counter)
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') window.__counter += 1
+        else if (e.key === 'ArrowLeft') window.__counter -= 1
+        else return
+        render()
+      })
+      let ctx = null
+      document.getElementById('tone').addEventListener('click', () => {
+        ctx = ctx || new AudioContext()
+        const osc = ctx.createOscillator()
+        osc.frequency.value = 440
+        const gain = ctx.createGain()
+        gain.gain.value = 0.2
+        osc.connect(gain).connect(ctx.destination)
+        osc.start()
+        ctx.resume()
+      })
+      document.getElementById('popup').addEventListener('click', () => {
+        const w = window.open('/popup')
+        window.__popup = w ? 'opened' : 'blocked'
+      })
+      document.getElementById('camera').addEventListener('click', () => {
+        navigator.mediaDevices
+          .getUserMedia({ video: true })
+          .then(() => {
+            window.__camera = 'granted'
+          })
+          .catch((e) => {
+            window.__camera = e.name
+          })
+      })
+    </script>
+  </body>
+</html>

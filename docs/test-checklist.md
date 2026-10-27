@@ -88,6 +88,23 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] Ubah frame rate dengan kedua protokol menyala: konfirmasi muncul sekali, kedua sumber kembali setelah sekitar satu detik.
 - [ ] Tanpa NDI Runtime: nyalakan NDI, muncul pesan runtime tidak terpasang dan OMT serta HDMI tetap jalan.
 
+## Deck web (browser source)
+
+**BELUM DIJALANKAN oleh pengguna.** Di kode dan di Linux/xvfb sudah diuji otomatis (`npm run test:e2e:web`: ready gate, Next diteruskan satu kali per tekan, D / Shift+D, HOLD setelah server mati lalu Reload, pop-up dan kamera ditolak, input Prepare, ganti event, user agent tanpa token Electron dan aplikasi). Belum pernah dijalankan di Windows, dengan Canva sungguhan, dengan clicker sungguhan, atau dengan Google sign-in. Butuh internet dan akun Canva. Catatan spike: `docs/superpowers/notes/web-source-spike.md`.
+
+- [ ] **Canva dari link view**: Add web page, tempel link view Canva (bukan akun), buka Prepare, klik Present sampai mode present tampil, tutup Prepare. Take: Program tampil seperti di Canva, tidak ada pop-up atau bilah browser di output.
+- [ ] **Canva dari akun**: Prepare, Sign in dengan email (bukan Google), buka desain milik akun, Present, lalu take. Tutup dan buka lagi aplikasi: login masih ada (satu profil untuk seluruh mesin).
+- [ ] **Clicker di Canva**: dengan clicker presentasi (jendela operator aktif), tekan maju **dua kali berturut-turut**: kedua tekanan memajukan slide Canva satu kali tiap tekan (tidak ada yang hilang, tidak lompat dua). Posisi deck di daftar tidak berubah. Fokus tidak pindah ke halaman: tombol keyboard operator (F, B, D) tetap jalan tanpa klik ulang ke jendela operator.
+- [ ] **YouTube dengan suara**: deck web YouTube dengan video yang bersuara, rute **Local device**, **OMT**, **Both**. Local: suara hanya di PC ini. OMT: hanya di vMix/OBS. Both: keduanya, dan suara lokal hanya keluar dari satu jendela. Volume deck dan master volume berlaku.
+- [ ] **Canvas tidak biasa**, mis. **3840×1080**: jendela halaman tersembunyi mengikuti ukuran canvas (Windows memotong jendela di layar kecil: cek `contentSize` lewat tampilan halaman, tidak ada scrollbar atau halaman yang terpotong). Picture di HDMI dan OMT tidak melar.
+- [ ] **Internet dicabut saat live, lalu Reload**: halaman yang sudah termuat tetap tampil tanpa Reload. Tekan Reload (menu deck): muncul peringatan HOLD ("Web page lost its connection. ..."), output menahan frame bagus terakhir (periksa tidak hitam; di Linux/xvfb kadang hitam, lihat daftar masalah di `docs/superpowers/notes/2026-10-27-roadmap-handoff.md`), tidak berakhir sendiri. Colok lagi, tunggu chip Ready, tekan **Resume web**.
+- [ ] **Sign out of all websites**: Prepare, menu More. Saat ada halaman web live: ditolak dengan pesan "Take another deck first, then sign out." Saat tidak live: konfirmasi, lalu halaman dimuat ulang dan login Canva hilang.
+- [ ] **Windows occlusion**: jendela halaman tersembunyi tetap digambar saat jendela lain menutupinya. Uji dengan app seperti biasa (switch `CalculateNativeWinOcclusion` dimatikan oleh aplikasi) dan, sebagai pembanding, dengan switch itu dihidupkan lagi: catat apakah gambar membeku saat tertutup tanpa switch.
+- [ ] **`document.hasFocus()` salah** pada halaman yang bergantung pada fokus: halaman hidden tidak punya fokus. Coba editor atau widget yang menampilkan kursor atau menahan tombol saat tidak fokus; catat halaman yang rusak.
+- [ ] **Login Google dengan user agent Chrome**: coba Sign in with Google di Canva. Bila diblokir ("This browser or app may not be secure"), catat dan pakai login email.
+- [ ] **Jendela OMT di layar utama 1920×1080** (masalah 1 px): dengan layar utama tepat 1920×1080, nyalakan OMT. Di Linux/xvfb jendela OMT jadi 1919×1079 dan frame OMT dibuang (hitam di penerima). Periksa di Windows: frame sampai di vMix/OBS dan bukan hitam. Ini bug OMT yang sudah ada, bukan deck web, tetapi mengenai deck web juga.
+- [ ] Prepare: saat deck live dan tidak frozen, klik dan ketik di jendela Prepare ditolak (banner "ON AIR: input locked. Press F to freeze before you click."); setelah Freeze (F) diterima; pop-up yang dibuka halaman saat tidak live muncul sebagai jendela biasa di layar operator, bukan di HDMI.
+
 ## Library dan event
 
 - [ ] Urutkan deck dan slide dengan drag. Output tidak berubah saat mengurutkan.
