@@ -735,7 +735,7 @@ async function behaviourChecks(win, tally, pos) {
   )
   await win.keyboard.press('End')
   check(
-    (await win.evaluate(() => document.activeElement?.textContent)) === 'New event',
+    (await win.evaluate(() => document.activeElement?.textContent)) === 'Canvas for this event…',
     'End moves focus to the last event menu item'
   )
   await win.keyboard.press('ArrowDown')
@@ -1566,6 +1566,30 @@ function videoRecorder(ms, watch) {
 const videoRecorderSrc = (ms, watch) =>
   `(${videoRecorder.toString()})(${ms}, ${JSON.stringify(watch)})`
 
+/** Imports fixtures/video-deck into the open event (a new deck id each time); returns its id and row. */
+async function importVideoFixture(win, id) {
+  const ids = () =>
+    win.$$eval('[data-testid=decks] .deck[data-deck-id]', (els) => els.map((e) => e.dataset.deckId))
+  const before = await ids()
+  await win.evaluate(
+    async ([dir, jobId]) => {
+      const { eventId } = await window.api.getSession()
+      await window.api.importDecks(eventId, [{ id: jobId, path: dir }])
+    },
+    [path.join(root, 'fixtures/video-deck'), id]
+  )
+  await win.waitForFunction(
+    (b) =>
+      [...document.querySelectorAll('[data-testid=decks] .deck[data-deck-id]:not(.busy)')].some(
+        (e) => !b.includes(e.dataset.deckId)
+      ),
+    before,
+    { timeout: 30_000 }
+  )
+  const deckId = (await ids()).find((d) => !before.includes(d))
+  return { deckId, row: win.locator(`.deck[data-deck-id="${deckId}"]`) }
+}
+
 async function videoChecks(win, tally) {
   const waitPos = (p) =>
     win.waitForFunction((x) => document.querySelector('[data-testid=pos]')?.textContent === x, p)
@@ -1576,31 +1600,7 @@ async function videoChecks(win, tally) {
     has: win.locator('.name', { hasText: /^Session 1: Introduction$/ })
   })
 
-  /** Imports fixtures/video-deck (a new deck id each time); returns its id and row. */
-  const importVideoDeck = async (id) => {
-    const ids = () =>
-      win.$$eval('[data-testid=decks] .deck[data-deck-id]', (els) =>
-        els.map((e) => e.dataset.deckId)
-      )
-    const before = await ids()
-    await win.evaluate(
-      async ([dir, jobId]) => {
-        const { eventId } = await window.api.getSession()
-        await window.api.importDecks(eventId, [{ id: jobId, path: dir }])
-      },
-      [path.join(root, 'fixtures/video-deck'), id]
-    )
-    await win.waitForFunction(
-      (b) =>
-        [...document.querySelectorAll('[data-testid=decks] .deck[data-deck-id]:not(.busy)')].some(
-          (e) => !b.includes(e.dataset.deckId)
-        ),
-      before,
-      { timeout: 30_000 }
-    )
-    const deckId = (await ids()).find((d) => !before.includes(d))
-    return { deckId, row: win.locator(`.deck[data-deck-id="${deckId}"]`) }
-  }
+  const importVideoDeck = (id) => importVideoFixture(win, id)
   const { row: vDeck } = await importVideoDeck('e2e-video')
   check(true, 'video deck imported for the playback checks')
 
@@ -1699,30 +1699,52 @@ async function videoChecks(win, tally) {
   await waitOutputTop((t) => t.kind === 'video' && t.muted === false, 'Mute off unmutes the video')
   check(savedAudio().muted === false, 'Mute audio off unmutes the output video again')
   if (realDevs.length > 0) {
-    // Route to the first real device: setSinkId must take it without an error.
+    // Route to the first real device: setSinkId must take it without an error. The
+    // output's sound goes through one AudioContext (setSinkId on the context); only
+    // when the context refuses the device is it tried on the <video> elements. The
+    // context is private to the renderer, so its setSinkId calls are recorded.
+    await hdmiJs(`(() => {
+      const proto = AudioContext.prototype
+      if (!proto.setSinkId || window.__sinkCalls) return
+      const calls = (window.__sinkCalls = [])
+      const orig = proto.setSinkId
+      proto.setSinkId = function (id) {
+        const call = { id, ok: null }
+        calls.push(call)
+        return orig.call(this, id).then(
+          (r) => ((call.ok = true), r),
+          (e) => ((call.ok = false), Promise.reject(e))
+        )
+      }
+    })()`)
     const optValue = await devSel.locator('option').nth(1).getAttribute('value')
     const sinkOf = () =>
-      hdmiJs(`[...document.querySelectorAll('.output-layer video')].map((v) => v.sinkId)`)
+      hdmiJs(`({
+        ctx: (window.__sinkCalls ?? []).at(-1) ?? null,
+        videos: [...document.querySelectorAll('.output-layer video')].map((v) => v.sinkId)
+      })`)
     const waitSink = async (want) => {
       const end = Date.now() + 5000
       let got = null
       while (Date.now() < end) {
         got = await sinkOf()
-        if (got.length > 0 && got.every((x) => x === want)) return got
+        const viaCtx = got.ctx?.id === want && got.ctx.ok === true
+        const viaVideos = got.videos.length > 0 && got.videos.every((x) => x === want)
+        if (viaCtx || viaVideos) return got
         await sleep(100)
       }
-      return got
+      return null
     }
     await devSel.selectOption(optValue)
     const sink = await waitSink(optValue)
     check(
-      sink.length > 0 && sink.every((x) => x === optValue) && savedAudio().deviceId === optValue,
-      `choosing an audio device routes the output video to it via setSinkId (${realDevs[0]}: ${JSON.stringify(sink)})`
+      sink !== null && savedAudio().deviceId === optValue,
+      `choosing an audio device routes the output sound to it via setSinkId (${realDevs[0]}: ${JSON.stringify(sink)})`
     )
     await devSel.selectOption('')
     const back = await waitSink('')
     check(
-      back.length > 0 && back.every((x) => x === '') && savedAudio().deviceId === null,
+      back !== null && savedAudio().deviceId === null,
       `choosing Default (Windows) routes back to the default device (${JSON.stringify(back)})`
     )
   } else {
@@ -2068,6 +2090,184 @@ async function videoChecks(win, tally) {
   }
   check((await tally.textContent()) === 'LIVE', 'video checks done, back on the noise deck')
   return { missingDeckId: mId }
+}
+
+// --- Canvas, Fit and audio levels (2026-10-27) ---
+// Read back from the HDMI output renderer: `.output-stage[data-canvas]`, the
+// newest on-screen layer's `data-fit`, and `.output[data-gain]`.
+const OUT_CANVAS = `document.querySelector('.output-stage')?.dataset.canvas ?? null`
+const OUT_FIT = `[...document.querySelectorAll('.output-layer:not([data-state=pending])')].pop()?.dataset.fit ?? null`
+const OUT_GAIN = `document.querySelector('.output')?.dataset.gain ?? null`
+const CANVAS_INVALID_TEXT =
+  'Use a width and height from 320 to 7680 pixels, at most 3840×2160 in total.'
+
+/** Polls an expression in the HDMI renderer until it equals `want`. */
+async function waitOut(src, want, what, timeout = 8000) {
+  const end = Date.now() + timeout
+  let got = null
+  while (Date.now() < end) {
+    got = await hdmiJs(src)
+    if (got === want) return got
+    await sleep(100)
+  }
+  throw new Error(`ASSERT: ${what} (wanted ${JSON.stringify(want)}, last ${JSON.stringify(got)})`)
+}
+
+/**
+ * Canvas per machine and per event, Fit of the live deck, deck and master
+ * volume: each is read back from the HDMI output. Runs with the probe on and
+ * the noise deck live (image slide), and leaves the app as it found it.
+ */
+async function canvasAndLevelsChecks(win, tally) {
+  const waitPos = (p) =>
+    win.waitForFunction((x) => document.querySelector('[data-testid=pos]')?.textContent === x, p)
+  const waitTally = (t) =>
+    win.waitForFunction((x) => document.querySelector('[data-testid=tally]')?.textContent === x, t)
+  const blur = () => win.evaluate(() => document.activeElement?.blur())
+  const session = () => win.evaluate(() => window.api.getSession())
+  const liveDeckId = () =>
+    win.evaluate(() => document.querySelector('.deck.live')?.getAttribute('data-deck-id') ?? null)
+  const { eventId } = await session()
+  const pickEvent = async (name) => {
+    await win.click('.event-btn')
+    await win.getByRole('menuitem', { name }).click()
+    await win.locator('.event-btn', { hasText: name }).waitFor()
+  }
+
+  // 1. Canvas. Default 1920×1080; an event override applies at once, follows the
+  //    event in and out, and a machine default outside the limits is refused.
+  await waitOut(OUT_CANVAS, '1920x1080', 'the output starts on the default 1920x1080 canvas')
+  check(true, 'output canvas is 1920x1080 by default')
+  await win.evaluate((id) => window.api.setEventCanvas(id, { width: 3840, height: 1080 }), eventId)
+  await waitOut(OUT_CANVAS, '3840x1080', 'an event canvas of 3840x1080 reaches the output')
+  check(true, 'event canvas 3840x1080: the output stage switches to data-canvas="3840x1080"')
+  await pickEvent('Event Kedua')
+  await waitOut(
+    OUT_CANVAS,
+    '1920x1080',
+    'another event without an override uses the default canvas'
+  )
+  check(true, 'selecting another event: the output goes back to 1920x1080')
+  await pickEvent('Smoke Event')
+  await waitOut(OUT_CANVAS, '3840x1080', 'the first event brings its 3840x1080 canvas back')
+  check(true, 'selecting the first event again: the output is 3840x1080 again')
+  const badDefault = await win.evaluate(() =>
+    window.api.setDefaultCanvas({ width: 10, height: 10 }).then(
+      () => 'ok',
+      (e) => String(e.message)
+    )
+  )
+  check(
+    badDefault !== 'ok' && badDefault.includes(CANVAS_INVALID_TEXT),
+    `a 10x10 machine canvas is refused with the exact message ("${badDefault}")`
+  )
+  await win.evaluate((id) => window.api.setEventCanvas(id, null), eventId)
+  await waitOut(OUT_CANVAS, '1920x1080', 'removing the event canvas goes back to the default')
+  check(true, 'event canvas removed (Use default): the output is 1920x1080 again')
+
+  // 2. Fit of a live image slide (the noise deck): Fill, Stretch, then the KV is always Fit.
+  // The library re-renders after the event switch: wait for the live row to be back.
+  await win.locator('.deck.live').waitFor()
+  const noiseId = await liveDeckId()
+  check(
+    !!noiseId && (await tally.textContent()) === 'LIVE',
+    'an image slide is live for the Fit checks'
+  )
+  await waitOut(OUT_FIT, 'fit', 'a deck starts with Fit')
+  await win.evaluate(([e, d]) => window.api.setDeckFit(e, d, 'fill'), [eventId, noiseId])
+  await waitOut(OUT_FIT, 'fill', 'Fill reaches the live layer')
+  await win.evaluate(([e, d]) => window.api.setDeckFit(e, d, 'stretch'), [eventId, noiseId])
+  await waitOut(OUT_FIT, 'stretch', 'Stretch reaches the live layer')
+  check(true, 'live image slide: Fit -> Fill -> Stretch updates the layer data-fit')
+  const kvPath = path.join(frameDir, 'kv-fit.png')
+  await kvPng(kvPath)
+  await win.setInputFiles('[data-testid=kv-input]', kvPath)
+  await win.locator('[data-testid=kv-thumb] img').waitFor({ timeout: 10_000 })
+  await blur()
+  await win.keyboard.press('k')
+  await waitTally('KV')
+  await waitFrame(GRID, (px) => px.every(isKv), 'KV on the output while the deck is Stretch')
+  await waitOut(OUT_FIT, 'fit', 'the KV layer is always Fit')
+  check(true, 'KV on: the top layer is data-fit="fit" though the deck is Stretch')
+  await win.keyboard.press('k')
+  await waitTally('LIVE')
+  await waitOut(OUT_FIT, 'stretch', 'KV off returns to the Stretch slide')
+  await win.evaluate(([e, d]) => window.api.setDeckFit(e, d, 'fit'), [eventId, noiseId])
+  await waitOut(OUT_FIT, 'fit', 'Fit again')
+  await win.getByTestId('kv-block').getByRole('button', { name: 'Remove' }).click()
+  await win.locator('[data-testid=kv-thumb] img').waitFor({ state: 'detached' })
+  check(true, 'KV off, deck back on Fit, test KV removed')
+
+  // 3. Volume of a live video slide: deck 50 x master 50 = gain 0.25 without
+  //    replaying the video (same <video>, same take); a muted deck is silent.
+  const { deckId: vId, row: vRow } = await importVideoFixture(win, 'e2e-levels')
+  await vRow.click()
+  await blur()
+  await waitPos('1 / 5')
+  await waitOutputTop(
+    (t) => t.kind === 'video' && t.src.endsWith('/001.mp4') && t.ended,
+    'the video slide plays to its end before the volume changes'
+  )
+  await waitOut(OUT_GAIN, '1.00', 'full volume at the start')
+  const takeBefore = (await session()).state.take
+  await hdmiJs(`(() => {
+    window.__levelsVideo = [...document.querySelectorAll('.output-layer video')].pop()
+    return !!window.__levelsVideo
+  })()`)
+  // Same element, still connected, still at its end (a replay would reset it).
+  const sameVideo = () =>
+    hdmiJs(`(() => {
+      const v = window.__levelsVideo
+      return !!v && v.isConnected && v.ended && v.currentTime > 0.5 &&
+        v === [...document.querySelectorAll('.output-layer video')].pop()
+    })()`)
+  check(await sameVideo(), 'the live video is marked on the output before the volume changes')
+  await win.evaluate(() => window.api.setAudio({ deviceId: null, muted: false, masterVolume: 50 }))
+  await win.evaluate(
+    ([e, d]) => window.api.setDeckAudio(e, d, { volume: 50, muted: false }),
+    [eventId, vId]
+  )
+  await waitOut(OUT_GAIN, '0.25', 'deck 50 and master 50 give gain 0.25')
+  check(
+    (await sameVideo()) && (await session()).state.take === takeBefore,
+    `deck 50 x master 50: output gain 0.25, same <video> and take ${takeBefore} (no replay)`
+  )
+  await win.evaluate(
+    ([e, d]) => window.api.setDeckAudio(e, d, { volume: 50, muted: true }),
+    [eventId, vId]
+  )
+  await waitOut(OUT_GAIN, '0.00', 'a muted deck gives gain 0')
+  check(
+    (await sameVideo()) && (await session()).state.take === takeBefore,
+    'deck muted: output gain 0.00, still the same <video> and take'
+  )
+  await win.evaluate(
+    ([e, d]) => window.api.setDeckAudio(e, d, { volume: 100, muted: false }),
+    [eventId, vId]
+  )
+  await win.evaluate(() => window.api.setAudio({ deviceId: null, muted: false, masterVolume: 100 }))
+  await waitOut(OUT_GAIN, '1.00', 'volumes back to 100')
+  check(
+    (await sameVideo()) && (await session()).state.take === takeBefore,
+    'volumes back to 100: output gain 1.00, same <video> and take'
+  )
+
+  // Back to the state the next checks expect: the noise deck on 3 / 4, no video deck.
+  await vRow.click({ button: 'right' })
+  await win.getByTestId('deck-menu').getByRole('menuitem', { name: 'Remove deck…' }).click()
+  await win.getByTestId('confirm-remove').getByRole('button', { name: 'Remove' }).click()
+  await vRow.waitFor({ state: 'detached' })
+  await win.locator(`.deck[data-deck-id="${noiseId}"]`).click()
+  await blur()
+  await waitPos('1 / 4')
+  await win.keyboard.press('Space')
+  await waitPos('2 / 4')
+  await win.keyboard.press('Space')
+  await waitPos('3 / 4')
+  check(
+    (await tally.textContent()) === 'LIVE',
+    'canvas and level checks done, back on the noise deck'
+  )
 }
 
 const errors = []
@@ -2797,6 +2997,8 @@ try {
   await renamed.waitFor()
 
   const { missingDeckId } = await videoChecks(win, tally)
+
+  await canvasAndLevelsChecks(win, tally)
 
   await behaviourChecks(win, tally, pos)
 

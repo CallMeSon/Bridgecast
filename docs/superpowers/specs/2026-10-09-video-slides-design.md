@@ -5,13 +5,13 @@ Menayangkan halaman presentasi beranimasi (hasil ekspor Canva per halaman: MP4 +
 
 Cakupan spec ini: slide video di model, output HDMI, dan monitor Program; audio di output; impor **folder** berisi `page-NN.png` + `page-NN.mp4` (format hasil spike dan importer Canva nanti).
 
-Di luar cakupan: login/ekspor Canva di app, auto-Next setelah video selesai, slider volume, deteksi otomatis halaman statis (MP4 tanpa animasi tetap jadi slide video).
+Di luar cakupan: login/ekspor Canva di app, auto-Next setelah video selesai, slider volume (belakangan ditambahkan lewat `2026-10-27-canvas-audio-levels-design.md`), deteksi otomatis halaman statis (MP4 tanpa animasi tetap jadi slide video).
 
 ## Keputusan pengguna
 - Kembali ke slide video lewat Prev/Next/klik: animasi **diputar ulang dari awal**.
 - Black atau KV di atas slide video lalu dimatikan: slide kembali di **frame akhir**, tanpa animasi ulang.
 - Freeze saat animasi berjalan: animasi **jalan terus** sampai selesai (Freeze menahan slide, bukan pemutaran). Unfreeze tidak mengubah output (lihat perubahan Freeze 2026-10-08).
-- Audio video **berbunyi di output HDMI**; operator memilih **perangkat audio** dan bisa **Mute**. Tanpa slider volume.
+- Audio video **berbunyi di output HDMI**; operator memilih **perangkat audio** dan bisa **Mute**. ~~Tanpa slider volume.~~ **Digantikan (2026-10-27):** sekarang ada volume per deck dan master volume (spec `2026-10-27-canvas-audio-levels-design.md`); suara output lewat Web Audio (spec `2026-10-27-omt-output-design.md`).
 
 ## 1. Model dan state
 - `SlideMeta` mendapat `video?: string` (mis. `001.mp4`). `file` tetap PNG: poster, thumbnail, dan frame akhir. Slide tanpa `video` adalah slide gambar biasa; satu deck boleh campuran.
@@ -33,6 +33,7 @@ Di luar cakupan: login/ekspor Canva di app, auto-Next setelah video selesai, sli
 - `Settings.audio = { deviceId: string | null, muted: boolean }`, default `{ deviceId: null, muted: false }`; `sanitizeSettings` memvalidasinya. `null` = perangkat default Windows.
 - Popover Output, bagian HDMI: pilihan **Audio device** (daftar `audiooutput` dari `enumerateDevices`) dan tombol **Mute audio**. Perubahan berlaku langsung ke video yang sedang main.
 - Output memakai `HTMLMediaElement.setSinkId(deviceId)`. Perangkat tersimpan tidak ada: pakai default dan tampilkan peringatan di bagian HDMI.
+- **Digantikan (2026-10-27):** aturan audio di bagian ini (`Settings.audio` hanya `deviceId` dan `muted`, tombol "Mute audio", dan `setSinkId` pada elemen video) diganti oleh `2026-10-27-canvas-audio-levels-design.md` dan `2026-10-27-omt-output-design.md`. Sekarang `Settings.audio` punya `masterVolume`, tombol bernama "Mute all", tiap deck punya volume dan mute sendiri, dan suara video lewat satu `GainNode` Web Audio dengan `AudioContext.setSinkId` untuk perangkat (`setSinkId` pada elemen hanya cadangan). Aturan peringatan perangkat yang hilang tetap berlaku.
 - Main memberi izin media yang diperlukan agar label perangkat terbaca (handler permission session). Ini risiko yang harus dibuktikan di tes.
 
 ## 4. Protokol

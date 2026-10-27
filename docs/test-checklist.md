@@ -44,8 +44,15 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] Animasi diputar sekali di layar HDMI saat slide video tampil, lalu berhenti di frame terakhir.
 - [ ] Black atau KV off pada slide video menampilkan frame akhir, bukan awal animasi.
 - [ ] Suara keluar dari perangkat audio/HDMI yang dipilih.
-- [ ] Mute audio mematikan suara seketika; matikan Mute, suara kembali.
+- [ ] Mute all mematikan suara seketika; matikan Mute all, suara kembali.
+- [ ] Ubah volume deck (klik kanan, Sound…) atau master volume saat slide video sedang live, tanpa klik apa pun di layar output. Suara di output ikut naik atau turun dan videonya tidak diputar ulang.
 - [ ] Cabut perangkat audio yang dipilih: suara pindah ke perangkat default dan muncul peringatan.
+
+## Canvas dan Fit
+
+- [ ] Sambungkan layar LED atau proyektor dengan resolusi tidak lazim (misalnya 1920×640 atau 3840×1080). Di popover output pilih "Match HDMI display": canvas mengikuti resolusi layar itu dan gambar memenuhi layar tanpa bingkai hitam. Ulangi dengan "Custom size" memakai angka yang sama (angka ganjil dibulatkan ke bawah menjadi genap dan pembulatannya diberitahukan).
+- [ ] Pasang canvas ultra-lebar (misalnya 3840×1080) untuk satu event ("Canvas for this event…"), lalu tampilkan deck 16:9. Pada Display mode Fit slide berada di tengah dengan bar hitam di kiri dan kanan; Fill memenuhi layar dan tepi atas/bawah terpotong; Stretch memenuhi layar dan gambar terlihat melebar. Mengganti mode saat slide live langsung terlihat di output. Kunci visual (KV) tetap Fit.
+- [ ] Ganti ke event tanpa canvas sendiri: output kembali ke canvas bawaan mesin. Kembali ke event semula: canvas ultra-lebar kembali.
 
 ## Library dan event
 
