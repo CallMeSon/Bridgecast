@@ -4,7 +4,7 @@ import { kvOnAir, pendingTake, reduce, type Action, type ProgramState } from '..
 import { segmentsOf } from '../../shared/sections'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import { DEFAULT_AUDIO, type AudioSettings, type HdmiSettings } from '../../shared/settings'
-import { DEFAULT_DECK_AUDIO, effectiveGain } from '../../shared/audio-levels'
+import { DEFAULT_DECK_AUDIO, effectiveGain, type DeckAudio } from '../../shared/audio-levels'
 
 export type NextView =
   | { kind: 'none' }
@@ -398,6 +398,17 @@ export function menuFocusTarget(key: string, current: number, count: number): nu
     default:
       return null
   }
+}
+
+/**
+ * Words for a deck whose sound is not the default (shown on its row, so the
+ * operator sees it without opening the menu); null while it plays at full volume.
+ * Muted wins over the volume, because that is what the audience hears.
+ */
+export function deckSoundLabel(a: DeckAudio | undefined): string | null {
+  if (!a) return null
+  if (a.muted) return 'Deck sound: muted'
+  return a.volume === DEFAULT_DECK_AUDIO.volume ? null : `Deck sound: ${a.volume}%`
 }
 
 /** Short confirmations shown in a polite live region. */

@@ -151,6 +151,19 @@ header > .event {
 .menu button kbd {
   margin-left: auto;
 }
+/* Name of a group of choices inside a menu (Display mode); the checked one is bold and ticked. */
+.menu .menu-label {
+  display: block;
+  padding: 6px 10px 2px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.menu [role='menuitemradio'][aria-checked='true'] {
+  font-weight: 600;
+}
+.menu button:focus-visible {
+  outline-offset: -2px;
+}
 .menu.ctx-menu {
   position: fixed;
   min-width: 180px;
@@ -319,6 +332,58 @@ button.output-btn:hover,
   color: var(--text);
   font-weight: 550;
 }
+/* Volume: range 0-100 with its number (components/VolumeSlider.tsx). The filled part of the
+   track is Ink 2 on Raised High, the thumb is Ink; the number says the level in words. */
+.level {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.level-num {
+  flex: none;
+  min-width: 4ch;
+  text-align: right;
+  font: 400 13px var(--font-mono);
+  color: var(--text);
+}
+.level-range {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+.level-range::-webkit-slider-runnable-track {
+  height: 8px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  background: linear-gradient(to right, var(--text-2) var(--p, 0%), var(--raised-hi) var(--p, 0%));
+}
+.level-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 20px;
+  margin-top: -7px;
+  border: 1px solid var(--bg);
+  border-radius: var(--r);
+  background: var(--text);
+}
+/* Deck sound popover: floats over the list at the menu it came from. */
+.popover.deck-sound {
+  position: fixed;
+  right: auto;
+  z-index: 20;
+  gap: 12px;
+}
+.deck-sound-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Canvas: output size choice (components/CanvasPicker.tsx). Rows read like menu items;
    the checked one carries a check mark and weight, not colour. */
 .pop-section + .pop-section {
@@ -662,6 +727,20 @@ main {
 }
 .deck-more:focus-visible {
   outline-offset: -2px;
+}
+/* Sound mark on a deck row: icon beside its words, in mono because it is a level. */
+.deck .sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 10px;
+}
+.deck .snd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 400 13px var(--font-mono);
+  color: var(--text-2);
 }
 .deck .sub,
 .deck .meta {

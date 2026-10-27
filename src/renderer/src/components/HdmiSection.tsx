@@ -1,25 +1,23 @@
 import { useState } from 'react'
 import type { HdmiStatus } from '../../../shared/ipc'
-import type { AudioSettings, HdmiSettings, Settings } from '../../../shared/settings'
+import type { HdmiSettings, Settings } from '../../../shared/settings'
 import { NO_SECOND_DISPLAY, displayText, type DisplayInfo } from '../../../shared/displays'
 import { errorMessage, hdmiBadge, hdmiStatusText } from '../model'
-import { pickSink, useAudioOutputs } from '../audio'
 import { Switch } from './Switch'
 
 interface Props {
   hdmi: HdmiSettings
-  audio: AudioSettings
   displays: DisplayInfo[]
   status: HdmiStatus | null
   onSaved(s: Settings): void
 }
 
 /**
- * "HDMI output" part of the output popover: on/off, the target display and the
- * sound of video slides (device, mute). Every change is applied at once, like Win+P.
+ * "HDMI output" part of the output popover: on/off and the target display. Every
+ * change is applied at once, like Win+P (the sound has its own AudioSection).
  * Main validates the display again against the screens connected right now.
  */
-export function HdmiSection({ hdmi, audio, displays, status, onSaved }: Props): React.JSX.Element {
+export function HdmiSection({ hdmi, displays, status, onSaved }: Props): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -31,27 +29,12 @@ export function HdmiSection({ hdmi, audio, displays, status, onSaved }: Props): 
   const selected = hdmi.displayId ?? displays.find((d) => !unusable(d))?.id ?? null
   const savedMissing = hdmi.displayId !== null && !displays.some((d) => d.id === hdmi.displayId)
   const tone = hdmiBadge(status, hdmi).tone
-  const outputs = useAudioOutputs()
-  // Until the list arrives the saved device is assumed present (no false warning).
-  const audioMissing = outputs !== null && pickSink(audio.deviceId, outputs).missing
 
   const save = async (next: HdmiSettings): Promise<void> => {
     setBusy(true)
     setError(null)
     try {
       onSaved(await window.api.setHdmi(next))
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const saveAudio = async (next: AudioSettings): Promise<void> => {
-    setBusy(true)
-    setError(null)
-    try {
-      onSaved(await window.api.setAudio(next))
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -111,50 +94,6 @@ export function HdmiSection({ hdmi, audio, displays, status, onSaved }: Props): 
         <span className="hint">
           Program shows fullscreen on this display. HDMI changes apply immediately.
         </span>
-      </div>
-
-      <div className="field">
-        <label htmlFor="audio-device">Audio device</label>
-        <select
-          id="audio-device"
-          className="text-input"
-          data-testid="audio-device"
-          value={audio.deviceId ?? ''}
-          disabled={busy}
-          onChange={(e) => void saveAudio({ ...audio, deviceId: e.target.value || null })}
-        >
-          <option value="">Default (Windows)</option>
-          {(outputs ?? []).map((d, i) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || `Audio device ${i + 1}`}
-            </option>
-          ))}
-          {audioMissing && (
-            <option value={audio.deviceId ?? ''} disabled>
-              Saved device (not connected)
-            </option>
-          )}
-        </select>
-        {audioMissing && (
-          <p className="pop-status warn" role="status" data-testid="audio-missing">
-            The saved audio device is not connected. Sound plays on the Windows default device.
-          </p>
-        )}
-        <span className="hint">Sound of video slides plays on the HDMI output only.</span>
-      </div>
-
-      <div className="pop-head">
-        <label className="row-label" id="audio-mute-title" htmlFor="audio-mute">
-          Mute audio
-        </label>
-        <Switch
-          id="audio-mute"
-          labelledBy="audio-mute-title"
-          checked={audio.muted}
-          disabled={busy}
-          testId="audio-mute"
-          onChange={(muted) => void saveAudio({ ...audio, muted })}
-        />
       </div>
 
       {error && (

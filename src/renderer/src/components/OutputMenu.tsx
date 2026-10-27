@@ -7,6 +7,7 @@ import { pickDisplay, type DisplayInfo } from '../../../shared/displays'
 import type { AudioSettings, HdmiSettings } from '../../../shared/settings'
 import { hdmiBadge, needsCanvasConfirm } from '../model'
 import { HdmiSection } from './HdmiSection'
+import { AudioSection } from './AudioSection'
 import { CanvasSetting } from './CanvasPicker'
 
 /**
@@ -126,7 +127,6 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
         >
           <HdmiSection
             hdmi={hdmi}
-            audio={audio}
             displays={displays}
             status={status}
             onSaved={(s) => {
@@ -135,6 +135,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
               setCanvas(s.canvas)
             }}
           />
+          <AudioSection audio={audio} onSaved={(s) => setAudio(s.audio)} />
           {canvas && (
             <section
               className="pop-section canvas-section"

@@ -3,21 +3,35 @@ import {
   DotsThreeVerticalIcon,
   ArrowDownIcon,
   ArrowUpIcon,
+  CheckIcon,
   FilePdfIcon,
   FilePptIcon,
   ImageIcon,
   ListPlusIcon,
   PencilSimpleIcon,
   PlusIcon,
+  SpeakerHighIcon,
+  SpeakerLowIcon,
+  SpeakerSlashIcon,
   TrashIcon,
   WarningCircleIcon
 } from '@phosphor-icons/react'
 import { DECK_NAME_MAX, type DeckMeta, type SectionMeta } from '../../../shared/types'
 import type { ShownSlide } from '../../../shared/program'
 import type { ImportProgress } from '../../../shared/ipc'
-import { countOf, errorMessage, fileKind, importMeta, reorderTarget } from '../model'
+import { DECK_FITS, sanitizeFit, type DeckFit } from '../../../shared/canvas'
+import { sanitizeDeckAudio, type DeckAudio } from '../../../shared/audio-levels'
+import {
+  countOf,
+  deckSoundLabel,
+  errorMessage,
+  fileKind,
+  importMeta,
+  reorderTarget
+} from '../model'
 import { orderItems, type OrderItem } from '../../../shared/sections'
 import { onMenuKeyDown, useContextMenu } from './menuNav'
+import { DeckSound } from './DeckSound'
 import { SectionMenu, SectionRenameRow, SectionRow, type SectionMenuAt } from './SectionRow'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
@@ -50,6 +64,10 @@ interface Props {
   onRemoveDeck(deckId: string): void
   /** Rejects with a user-facing message when main refuses the name. */
   onRenameDeck(deckId: string, name: string): Promise<void>
+  /** How the deck fills the canvas; App saves it and reports a failure itself. */
+  onSetDeckFit(deckId: string, fit: DeckFit): void
+  /** Volume and mute of the deck; App saves it and reports a failure itself. */
+  onSetDeckAudio(deckId: string, audio: DeckAudio): void
   sections: SectionMeta[]
   /** `at` is a deck index (the section goes before that deck). Resolves to the new section's id. */
   onAddSection(at: number | 'end'): Promise<string | null>
@@ -65,12 +83,21 @@ interface MenuAt {
   y: number
 }
 
+const FIT_NAMES: Record<DeckFit, { name: string; hint: string }> = {
+  fit: { name: 'Fit', hint: 'Whole slide, black bars where the shapes differ' },
+  fill: { name: 'Fill', hint: 'Fills the canvas, edges may be cropped' },
+  stretch: { name: 'Stretch', hint: 'Fills the canvas, the picture is distorted' }
+}
+
 /** Right-click menu of a deck; closes on Escape, outside click, scroll or blur. */
 function DeckMenu({
   at,
   canUp,
   canDown,
+  fit,
   onRename,
+  onSound,
+  onFit,
   onMove,
   onAddSection,
   onRemove,
@@ -79,7 +106,10 @@ function DeckMenu({
   at: MenuAt
   canUp: boolean
   canDown: boolean
+  fit: DeckFit
   onRename(): void
+  onSound(): void
+  onFit(fit: DeckFit): void
   onMove(dir: -1 | 1): void
   onAddSection(): void
   onRemove(): void
@@ -118,11 +148,52 @@ function DeckMenu({
         <ListPlusIcon className="chk" size={16} />
         Add section above
       </button>
+      <button role="menuitem" onClick={onSound}>
+        <SpeakerHighIcon className="chk" size={16} />
+        Sound…
+      </button>
+      <hr />
+      <div role="group" aria-labelledby="deck-fit-label">
+        <span className="menu-label" id="deck-fit-label">
+          Display mode
+        </span>
+        {DECK_FITS.map((f) => (
+          <button
+            key={f}
+            role="menuitemradio"
+            aria-checked={fit === f}
+            title={FIT_NAMES[f].hint}
+            onClick={() => onFit(f)}
+          >
+            {/* The check mark is the shape cue; the empty slot keeps the names aligned. */}
+            {fit === f ? <CheckIcon className="chk" size={16} /> : <span className="chk" />}
+            {FIT_NAMES[f].name}
+          </button>
+        ))}
+      </div>
+      <hr />
       <button role="menuitem" className="danger" onClick={onRemove}>
         <TrashIcon className="chk" size={16} />
         Remove deck…
       </button>
     </div>
+  )
+}
+
+/**
+ * Speaker mark on a deck whose sound is not at full volume: the icon sits beside the
+ * words ("Muted" or the level), and carries the full label for screen readers.
+ */
+function DeckSoundMark({ audio }: { audio: DeckAudio | undefined }): React.JSX.Element | null {
+  const label = deckSoundLabel(audio)
+  if (!label) return null
+  const a = sanitizeDeckAudio(audio)
+  const Icon = a.muted ? SpeakerSlashIcon : SpeakerLowIcon
+  return (
+    <span className="snd" title={label} data-testid="deck-sound-mark">
+      <Icon size={14} role="img" aria-label={label} />
+      <span aria-hidden="true">{a.muted ? 'Muted' : `${a.volume}%`}</span>
+    </span>
   )
 }
 
@@ -360,6 +431,7 @@ export function Library(p: Props): React.JSX.Element {
   const [menu, setMenu] = useState<MenuAt | null>(null)
   const [sectionMenu, setSectionMenu] = useState<SectionMenuAt | null>(null)
   const [confirm, setConfirm] = useState<string | null>(null)
+  const [sound, setSound] = useState<MenuAt | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renamingSection, setRenamingSection] = useState<string | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
@@ -425,6 +497,7 @@ export function Library(p: Props): React.JSX.Element {
     e.preventDefault()
     setConfirm(null)
     setSectionMenu(null)
+    setSound(null)
     setMenu({ deckId, ...anchorOf(e) })
   }
   const openSectionMenu = (e: React.MouseEvent<HTMLElement>, sectionId: string): void => {
@@ -601,6 +674,7 @@ export function Library(p: Props): React.JSX.Element {
                     : p.frozen?.deckId === d.id
                       ? `FROZEN, slide ${p.frozen.index + 1}`
                       : `.${d.source}`}
+                  <DeckSoundMark audio={d.audio} />
                 </span>
               </button>
               {/* Visible way to the deck menu (also: right-click, F2). */}
@@ -615,6 +689,7 @@ export function Library(p: Props): React.JSX.Element {
                   const r = e.currentTarget.getBoundingClientRect()
                   setConfirm(null)
                   setSectionMenu(null)
+                  setSound(null)
                   setMenu({ deckId: d.id, x: Math.max(8, r.right - 200), y: r.bottom + 4 })
                 }}
               >
@@ -671,6 +746,7 @@ export function Library(p: Props): React.JSX.Element {
           at={menu}
           canUp={menuIndex > 0}
           canDown={menuIndex >= 0 && menuIndex < items.length - 1}
+          fit={sanitizeFit(deckById.get(menu.deckId)?.fit)}
           onClose={closeMenu}
           onMove={(dir) => {
             setMenu(null)
@@ -680,6 +756,16 @@ export function Library(p: Props): React.JSX.Element {
             setRenaming(menu.deckId)
             setMenu(null)
           }}
+          onSound={() => {
+            setSound(menu)
+            setMenu(null)
+          }}
+          onFit={(fit) => {
+            // The menu is about to unmount: hand focus back to the deck first.
+            focusRow(`deck:${menu.deckId}`)
+            setMenu(null)
+            p.onSetDeckFit(menu.deckId, fit)
+          }}
           onAddSection={() => {
             const at = p.decks.findIndex((d) => d.id === menu.deckId)
             setMenu(null)
@@ -688,6 +774,18 @@ export function Library(p: Props): React.JSX.Element {
           onRemove={() => {
             setConfirm(menu.deckId)
             setMenu(null)
+          }}
+        />
+      )}
+      {sound && deckById.get(sound.deckId) && (
+        <DeckSound
+          key={sound.deckId}
+          deck={deckById.get(sound.deckId)!}
+          at={sound}
+          onSave={(audio) => p.onSetDeckAudio(sound.deckId, audio)}
+          onClose={(restoreFocus) => {
+            setSound(null)
+            if (restoreFocus) focusRow(`deck:${sound.deckId}`)
           }}
         />
       )}

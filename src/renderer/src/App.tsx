@@ -3,6 +3,8 @@ import type { DeckMeta, EventMeta, SectionMeta } from '../../shared/types'
 import { orderItems, splitOrder } from '../../shared/sections'
 import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '../../shared/program'
 import type { ImportRequest } from '../../shared/ipc'
+import type { DeckFit } from '../../shared/canvas'
+import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
 import { Library, type ImportRow } from './components/Library'
 import { DropOverlay } from './components/DropOverlay'
@@ -392,6 +394,42 @@ function App(): React.JSX.Element {
     [api, reloadDecks]
   )
 
+  /**
+   * Keep the fit and sound main answers with, and nothing else of the deck: a slide
+   * reorder that is still on its way must not be undone by this older copy.
+   */
+  const applyDeckLevels = useCallback((meta: DeckMeta) => {
+    setDecks((ds) =>
+      ds.map((d) => (d.id === meta.id ? { ...d, fit: meta.fit, audio: meta.audio } : d))
+    )
+  }, [])
+
+  // Fit and sound change what the audience sees and hears at once (Program does not
+  // replay); a refusal is shown in the list and the saved values are read back.
+  const setDeckFit = useCallback(
+    (deckId: string, fit: DeckFit) => {
+      const target = eventRef.current
+      if (!target) return
+      api.setDeckFit(target, deckId, fit).then(applyDeckLevels, (e) => {
+        reportError('Display mode', e)
+        reloadDecks(target).catch((err) => reportError('Decks', err))
+      })
+    },
+    [api, applyDeckLevels, reloadDecks, reportError]
+  )
+
+  const setDeckAudio = useCallback(
+    (deckId: string, audio: DeckAudio) => {
+      const target = eventRef.current
+      if (!target) return
+      api.setDeckAudio(target, deckId, audio).then(applyDeckLevels, (e) => {
+        reportError('Deck sound', e)
+        reloadDecks(target).catch((err) => reportError('Decks', err))
+      })
+    },
+    [api, applyDeckLevels, reloadDecks, reportError]
+  )
+
   const moveSlide = useCallback(
     (deckId: string, from: number, to: number) => {
       const target = eventRef.current
@@ -504,6 +542,8 @@ function App(): React.JSX.Element {
           onSelectSection={(sectionId) => dispatch({ type: 'selectSection', sectionId })}
           onRemoveDeck={removeDeck}
           onRenameDeck={renameDeck}
+          onSetDeckFit={setDeckFit}
+          onSetDeckAudio={setDeckAudio}
         />
         <section className="stage-col" aria-label="Program">
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />

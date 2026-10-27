@@ -1,9 +1,13 @@
 import { useEffect, type KeyboardEvent, type RefObject } from 'react'
 import { menuFocusTarget } from '../model'
 
-/** Enabled items of a menu, in DOM order. */
+/** Enabled items of a menu (plain and radio items, also inside groups), in DOM order. */
 export function menuItems(menu: HTMLElement): HTMLElement[] {
-  return [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)')]
+  return [
+    ...menu.querySelectorAll<HTMLElement>(
+      '[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)'
+    )
+  ]
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   fileKind,
   hasFiles,
   countOf,
+  deckSoundLabel,
   importMeta,
   keyToAction,
   menuFocusTarget,
@@ -565,5 +566,20 @@ describe('outputGain', () => {
   it('is 0 when the master is muted, or the deck is', () => {
     expect(outputGain(live({ volume: 50, muted: false }), master(50, true))).toBe(0)
     expect(outputGain(live({ volume: 50, muted: true }), master(50))).toBe(0)
+  })
+})
+
+describe('deckSoundLabel', () => {
+  it('is null for a deck at the default sound', () => {
+    expect(deckSoundLabel(undefined)).toBeNull()
+    expect(deckSoundLabel({ volume: 100, muted: false })).toBeNull()
+  })
+  it('says muted whatever the volume', () => {
+    expect(deckSoundLabel({ volume: 100, muted: true })).toBe('Deck sound: muted')
+    expect(deckSoundLabel({ volume: 60, muted: true })).toBe('Deck sound: muted')
+  })
+  it('gives the volume of a deck that is lowered', () => {
+    expect(deckSoundLabel({ volume: 60, muted: false })).toBe('Deck sound: 60%')
+    expect(deckSoundLabel({ volume: 0, muted: false })).toBe('Deck sound: 0%')
   })
 })
