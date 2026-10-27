@@ -76,3 +76,18 @@ export function dropWarning(
   const total = sent + dropped
   return total > 0 && dropped / total > DROP_RATIO
 }
+
+/**
+ * What one output window does with its sound. Exactly one window plays locally:
+ * the HDMI window while it shows, otherwise the OMT window while a network sender runs.
+ * `networkRunning` covers any network protocol; route 'omt' means "network".
+ */
+export function audioPlan(
+  role: 'hdmi' | 'omt',
+  hdmiShowing: boolean,
+  networkRunning: boolean,
+  route: AudioRoute
+): { local: boolean; tap: boolean } {
+  const owner = role === 'hdmi' ? hdmiShowing : !hdmiShowing && networkRunning
+  return { local: owner && route !== 'omt', tap: role === 'omt' && route !== 'local' }
+}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_OMT, dropWarning, restartAllowed, sanitizeOmt } from './omt'
+import { DEFAULT_OMT, audioPlan, dropWarning, restartAllowed, sanitizeOmt } from './omt'
+import type { AudioRoute } from './omt'
 
 describe('sanitizeOmt', () => {
   it('defaults for anything that is not an object', () => {
@@ -67,5 +68,55 @@ describe('dropWarning', () => {
   it('ignores samples older than 10 s and empty input', () => {
     expect(dropWarning([{ sent: 0, dropped: 600, at: now - 20_000 }], 60, now)).toBe(false)
     expect(dropWarning([], 60, now)).toBe(false)
+  })
+})
+
+describe('audioPlan', () => {
+  // [role, hdmiShowing, networkRunning, route, local, tap]
+  const T = true
+  const F = false
+  const rows: Array<['hdmi' | 'omt', boolean, boolean, AudioRoute, boolean, boolean]> = [
+    ['hdmi', T, T, 'local', T, F],
+    ['hdmi', T, T, 'omt', F, F],
+    ['hdmi', T, T, 'both', T, F],
+    ['hdmi', T, F, 'local', T, F],
+    ['hdmi', T, F, 'omt', F, F],
+    ['hdmi', T, F, 'both', T, F],
+    ['hdmi', F, T, 'local', F, F],
+    ['hdmi', F, T, 'omt', F, F],
+    ['hdmi', F, T, 'both', F, F],
+    ['hdmi', F, F, 'local', F, F],
+    ['hdmi', F, F, 'omt', F, F],
+    ['hdmi', F, F, 'both', F, F],
+    ['omt', T, T, 'local', F, F],
+    ['omt', T, T, 'omt', F, T],
+    ['omt', T, T, 'both', F, T],
+    ['omt', T, F, 'local', F, F],
+    ['omt', T, F, 'omt', F, T],
+    ['omt', T, F, 'both', F, T],
+    ['omt', F, T, 'local', T, F],
+    ['omt', F, T, 'omt', F, T],
+    ['omt', F, T, 'both', T, T],
+    ['omt', F, F, 'local', F, F],
+    ['omt', F, F, 'omt', F, T],
+    ['omt', F, F, 'both', F, T]
+  ]
+
+  it('covers every combination exactly once', () => {
+    expect(new Set(rows.map((r) => r.slice(0, 4).join())).size).toBe(24)
+  })
+
+  it.each(rows)('%s showing=%s network=%s route=%s', (role, showing, net, route, local, tap) => {
+    expect(audioPlan(role, showing, net, route)).toEqual({ local, tap })
+  })
+
+  it('never lets both windows play locally', () => {
+    for (const showing of [true, false])
+      for (const net of [true, false])
+        for (const route of ['local', 'omt', 'both'] as const) {
+          const both =
+            audioPlan('hdmi', showing, net, route).local && audioPlan('omt', showing, net, route).local
+          expect(both).toBe(false)
+        }
   })
 })
