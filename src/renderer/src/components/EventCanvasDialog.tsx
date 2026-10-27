@@ -39,7 +39,12 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
   }, [api])
 
   useEffect(() => {
-    box.current?.querySelector<HTMLElement>('[role=radio][tabindex="0"]')?.focus()
+    // The current choice; with a custom size, its Width field.
+    const root = box.current
+    const to =
+      root?.querySelector<HTMLElement>('.canvas-opt[aria-pressed="true"]') ??
+      root?.querySelector<HTMLElement>('.canvas-custom input')
+    to?.focus()
     // pointerdown, not click: the click that opened this dialog is already over.
     const onPointer = (e: PointerEvent): void => {
       if (!box.current?.parentElement?.contains(e.target as Node)) onClose(false)

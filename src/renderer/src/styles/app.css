@@ -380,22 +380,40 @@ button.output-btn:hover,
   font-size: 13px;
   color: var(--text-2);
 }
-.canvas-opt[aria-checked='true'] {
+.canvas-opt[aria-pressed='true'] {
   background: var(--raised-hi);
   color: var(--text);
   font-weight: 600;
 }
-.canvas-opt[aria-checked='true'] .meta {
+.canvas-opt[aria-pressed='true'] .meta {
   color: var(--text-2);
 }
-.canvas-opt[aria-disabled='true'] {
+.canvas-opt:disabled {
   background: transparent;
   cursor: not-allowed;
 }
-.canvas-opt[aria-disabled='true'] .nm {
+.canvas-opt:disabled .nm {
   color: var(--text-3);
 }
 .canvas-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.canvas-custom-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.canvas-custom-head .chk {
+  flex: none;
+}
+.canvas-custom-head .on {
+  font-weight: 600;
+}
+.canvas-custom-row {
   display: flex;
   align-items: flex-end;
   gap: 8px;

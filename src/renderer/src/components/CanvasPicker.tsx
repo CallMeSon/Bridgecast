@@ -38,16 +38,17 @@ interface Option {
   label: string
   /** Numbers on the right, set in mono. */
   meta?: string
-  /** Why the option cannot be used; stays focusable so the reason can be read. */
+  /** Why the option cannot be used; shown in the row, which is disabled. */
   unavailable?: string
   canvas: Canvas | null
 }
 
 /**
- * Canvas size choice: Use default, the presets, Custom width and height, and
- * Match HDMI display. A radio group: the checked row carries a check mark and
- * weight, not colour. Arrow keys only move focus (Space or Enter chooses),
- * because choosing can ask to confirm a change of what the audience sees.
+ * Canvas size choice: Use default, the presets and Match HDMI display as
+ * pressed-state buttons (each is a Tab stop; Enter or Space chooses, which can
+ * ask to confirm a change of what the audience sees), plus a Width and Height
+ * pair for a custom size. The chosen button carries a check mark and weight,
+ * not colour; when the canvas is none of them, the pair is labelled "current".
  * Custom sizes apply on Enter, or when focus leaves both fields.
  */
 export function CanvasPicker({
@@ -57,8 +58,6 @@ export function CanvasPicker({
   onChange
 }: PickerProps): React.JSX.Element {
   const id = useId()
-  const group = useRef<HTMLDivElement>(null)
-  const widthInput = useRef<HTMLInputElement>(null)
   const match = displayCanvas(hdmiDisplay)
 
   const options: Option[] = [
@@ -75,20 +74,17 @@ export function CanvasPicker({
       meta: match ? size(match) : undefined,
       unavailable: match ? undefined : CANVAS_NO_HDMI,
       canvas: match
-    },
-    { key: 'custom', label: 'Custom', canvas: null }
+    }
   ]
 
-  // Exactly one row is checked: default, then a preset, then the display's size, else custom.
+  // Exactly one thing is current: default, then a preset, then the display's size, else custom.
   const checked =
     value === null
       ? allowDefault
         ? 'default'
         : null
-      : (options.find(
-          (o) =>
-            o.key !== 'custom' && o.key !== 'default' && o.key !== 'match' && same(o.canvas, value)
-        )?.key ?? (match && same(match, value) ? 'match' : 'custom'))
+      : (options.find((o) => o.key !== 'default' && o.key !== 'match' && same(o.canvas, value))
+          ?.key ?? (match && same(match, value) ? 'match' : 'custom'))
 
   const baseW = value ? String(value.width) : ''
   const baseH = value ? String(value.height) : ''
@@ -106,12 +102,6 @@ export function CanvasPicker({
   }
 
   const choose = (o: Option): void => {
-    if (o.unavailable) return
-    if (o.key === 'custom') {
-      widthInput.current?.focus()
-      widthInput.current?.select()
-      return
-    }
     if (!same(o.canvas, value)) onChange(o.canvas)
   }
 
@@ -130,46 +120,19 @@ export function CanvasPicker({
     if (!same(c, value)) onChange(c)
   }
 
-  const onGroupKey = (e: React.KeyboardEvent): void => {
-    const rows = [...group.current!.querySelectorAll<HTMLElement>('[role=radio]')]
-    const at = rows.indexOf(document.activeElement as HTMLElement)
-    const to =
-      e.key === 'ArrowDown' || e.key === 'ArrowRight'
-        ? (at + 1) % rows.length
-        : e.key === 'ArrowUp' || e.key === 'ArrowLeft'
-          ? (at - 1 + rows.length) % rows.length
-          : e.key === 'Home'
-            ? 0
-            : e.key === 'End'
-              ? rows.length - 1
-              : -1
-    if (to < 0 || at < 0) return
-    e.preventDefault()
-    e.stopPropagation()
-    rows[to].focus()
-  }
-
-  const tabStop = options.some((o) => o.key === checked) ? checked : options[0].key
   const errorId = `${id}-error`
   const noteId = `${id}-note`
 
   return (
     <div className="canvas-picker" data-testid="canvas-picker">
-      <div
-        ref={group}
-        className="canvas-opts"
-        role="radiogroup"
-        aria-label="Canvas size"
-        onKeyDown={onGroupKey}
-      >
+      <div className="canvas-opts" role="group" aria-label="Canvas size">
         {options.map((o) => (
           <button
             key={o.key}
+            type="button"
             className="canvas-opt"
-            role="radio"
-            aria-checked={o.key === checked}
-            aria-disabled={o.unavailable ? true : undefined}
-            tabIndex={o.key === tabStop ? 0 : -1}
+            aria-pressed={o.key === checked}
+            disabled={!!o.unavailable}
             data-testid={`canvas-opt-${o.key}`}
             onClick={() => choose(o)}
           >
@@ -185,46 +148,58 @@ export function CanvasPicker({
         ))}
       </div>
 
-      <div className="canvas-custom" role="group" aria-label="Custom size">
-        {(
-          [
-            ['Width', w, setW, widthInput],
-            ['Height', h, setH, undefined]
-          ] as const
-        ).map(([label, text, set, ref], i) => (
-          <div className="field" key={label}>
-            <label htmlFor={`${id}-${i}`}>{label}</label>
-            <input
-              id={`${id}-${i}`}
-              ref={ref}
-              className="text-input num"
-              type="number"
-              inputMode="numeric"
-              value={text}
-              placeholder={i === 0 ? '1920' : '1080'}
-              aria-invalid={invalid || undefined}
-              aria-describedby={invalid ? errorId : rounded ? noteId : undefined}
-              data-testid={`canvas-${label.toLowerCase()}`}
-              onChange={(e) => {
-                set(e.target.value)
-                setRounded(null)
-                setInvalid(false)
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter') return
-                e.preventDefault()
-                commit()
-              }}
-              // Tabbing from Width to Height is not "done": apply once focus leaves both.
-              onBlur={(e) => {
-                if (!e.currentTarget.closest('.canvas-custom')?.contains(e.relatedTarget)) commit()
-              }}
-            />
-          </div>
-        ))}
-        <span className="px" aria-hidden="true">
-          px
-        </span>
+      <div className="canvas-custom" role="group" aria-labelledby={`${id}-custom`}>
+        <div className="canvas-custom-head" id={`${id}-custom`}>
+          <CheckIcon
+            className="chk"
+            size={16}
+            style={{ visibility: checked === 'custom' ? 'visible' : 'hidden' }}
+          />
+          <span className={checked === 'custom' ? 'on' : undefined}>
+            Custom size{checked === 'custom' ? ' (current)' : ''}
+          </span>
+        </div>
+        <div className="canvas-custom-row">
+          {(
+            [
+              ['Width', w, setW],
+              ['Height', h, setH]
+            ] as const
+          ).map(([label, text, set], i) => (
+            <div className="field" key={label}>
+              <label htmlFor={`${id}-${i}`}>{label}</label>
+              <input
+                id={`${id}-${i}`}
+                className="text-input num"
+                type="number"
+                inputMode="numeric"
+                value={text}
+                placeholder={i === 0 ? '1920' : '1080'}
+                aria-invalid={invalid || undefined}
+                aria-describedby={invalid ? errorId : rounded ? noteId : undefined}
+                data-testid={`canvas-${label.toLowerCase()}`}
+                onChange={(e) => {
+                  set(e.target.value)
+                  setRounded(null)
+                  setInvalid(false)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return
+                  e.preventDefault()
+                  commit()
+                }}
+                // Tabbing from Width to Height is not "done": apply once focus leaves both.
+                onBlur={(e) => {
+                  if (!e.currentTarget.closest('.canvas-custom-row')?.contains(e.relatedTarget))
+                    commit()
+                }}
+              />
+            </div>
+          ))}
+          <span className="px" aria-hidden="true">
+            px
+          </span>
+        </div>
       </div>
       {invalid && (
         <p id={errorId} className="pop-error" role="alert" data-testid="canvas-invalid">
@@ -257,21 +232,36 @@ export function CanvasSetting({ confirm, apply, ...picker }: SettingProps): Reac
   const [error, setError] = useState<string | null>(null)
   // Bumped on Cancel so the picker forgets what was typed.
   const [reset, setReset] = useState(0)
+  // Counts confirmed changes that finished (saved or failed).
+  const [settled, setSettled] = useState(0)
   const cancel = useRef<HTMLButtonElement>(null)
   const box = useRef<HTMLDivElement>(null)
-  const asked = useRef(false)
 
-  // Focus goes to Cancel while asking, and back to the picker afterwards: the
-  // button that had it is gone, and focus must not fall back to the window.
+  /** The current choice (or the first control): where focus belongs after the question. */
+  const focusPicker = (): void => {
+    const root = box.current
+    const to =
+      root?.querySelector<HTMLElement>('.canvas-opt[aria-pressed="true"]') ??
+      root?.querySelector<HTMLElement>('.canvas-custom input') ??
+      root?.querySelector<HTMLElement>('.canvas-opt:not(:disabled)')
+    to?.focus()
+  }
+
+  // Asking: focus the safe answer (Cancel).
   useEffect(() => {
-    if (pending) {
-      asked.current = true
-      cancel.current?.focus()
-    } else if (asked.current) {
-      asked.current = false
-      box.current?.querySelector<HTMLElement>('[role=radio][tabindex="0"]')?.focus()
-    }
-  }, [pending, reset])
+    if (pending) cancel.current?.focus()
+  }, [pending])
+  // Cancel or Esc: the picker was rebuilt, focus returns to it.
+  useEffect(() => {
+    if (reset > 0) focusPicker()
+  }, [reset])
+  // After Change canvas: the button that had focus is gone. `settled` only
+  // moves once the save is over, so by now the picker shows the new canvas
+  // (its option is the pressed one, which a screen reader reads); on an error
+  // it still shows the old one and the error is announced by its alert.
+  useEffect(() => {
+    if (settled > 0) focusPicker()
+  }, [settled])
 
   const run = async (c: Canvas | null): Promise<void> => {
     setError(null)
@@ -328,7 +318,7 @@ export function CanvasSetting({ confirm, apply, ...picker }: SettingProps): Reac
               onClick={() => {
                 const c = pending.canvas
                 setPending(null)
-                void run(c)
+                void run(c).then(() => setSettled((n) => n + 1))
               }}
             >
               Change canvas
