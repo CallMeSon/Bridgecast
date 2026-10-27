@@ -42,6 +42,22 @@ export function navigationAllowed(url: string): boolean {
   }
 }
 
+const SUBFRAME_PROTOCOLS = new Set(['http:', 'https:', 'about:', 'blob:', 'data:'])
+
+/**
+ * A frame navigation: the main frame only to web pages (navigationAllowed); a
+ * subframe also to about:, blob: and data: documents, which embeds and widgets
+ * use (about:srcdoc iframes). External protocols, file: and javascript: stay blocked.
+ */
+export function frameNavigationAllowed(url: string, isMainFrame: boolean): boolean {
+  if (isMainFrame) return navigationAllowed(url)
+  try {
+    return SUBFRAME_PROTOCOLS.has(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
+
 /** A page may open a window only while its deck is not on air. */
 export function popupAllowed(live: boolean): boolean {
   return !live

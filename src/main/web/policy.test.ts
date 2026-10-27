@@ -3,6 +3,7 @@ import {
   appTabCapture,
   chromeUserAgent,
   electronKeyName,
+  frameNavigationAllowed,
   navigationAllowed,
   permissionAllowed,
   popupAllowed,
@@ -66,6 +67,37 @@ describe('navigationAllowed', () => {
     ''
   ])('refuses %s', (u) => {
     expect(navigationAllowed(u)).toBe(false)
+  })
+})
+
+describe('frameNavigationAllowed', () => {
+  it('main frame: only http and https', () => {
+    expect(frameNavigationAllowed('https://a.org/', true)).toBe(true)
+    expect(frameNavigationAllowed('http://a.org/', true)).toBe(true)
+    for (const u of ['about:srcdoc', 'about:blank', 'blob:https://a.org/x', 'data:text/html,hi']) {
+      expect(frameNavigationAllowed(u, true)).toBe(false)
+    }
+  })
+  it.each([
+    'https://a.org/embed',
+    'http://a.org/',
+    'about:srcdoc',
+    'about:blank',
+    'blob:https://a.org/1234',
+    'data:text/html,hi'
+  ])('subframe allows %s (embeds and widgets)', (u) => {
+    expect(frameNavigationAllowed(u, false)).toBe(true)
+  })
+  it.each([
+    'mailto:a@b.c',
+    'canva:open',
+    'ms-word:ofe|u|https://x',
+    'file:///etc/passwd',
+    'javascript:alert(1)',
+    'not a url',
+    ''
+  ])('subframe refuses %s', (u) => {
+    expect(frameNavigationAllowed(u, false)).toBe(false)
   })
 })
 
