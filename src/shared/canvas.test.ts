@@ -3,6 +3,7 @@ import {
   CANVAS_CHANGE_LIVE,
   CANVAS_INVALID,
   CANVAS_NO_HDMI,
+  CANVAS_DISPLAY_TOO_LARGE,
   CANVAS_PRESETS,
   DEFAULT_CANVAS,
   DECK_FITS,
@@ -104,6 +105,8 @@ describe('canvasLabel / displayCanvas', () => {
     expect(displayCanvas({ width: 5760, height: 1080 })).toEqual({ width: 5760, height: 1080 })
     expect(displayCanvas({ width: 1921, height: 1081 })).toEqual({ width: 1920, height: 1080 })
     expect(displayCanvas(null)).toBeNull()
+    // A connected display over the pixel budget has no matching canvas either.
+    expect(displayCanvas({ width: 5120, height: 2880 })).toBeNull()
   })
 })
 
@@ -119,6 +122,9 @@ describe('constants', () => {
       'Use a width and height from 320 to 7680 pixels, at most 3840×2160 in total.'
     )
     expect(CANVAS_NO_HDMI).toBe('Connect the HDMI display first.')
+    expect(CANVAS_DISPLAY_TOO_LARGE).toBe(
+      'This display is larger than 3840×2160 in total. Use Custom instead.'
+    )
     expect(CANVAS_CHANGE_LIVE).toBe(
       'Changing the canvas changes what the audience sees. Change it now?'
     )

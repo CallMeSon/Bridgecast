@@ -2,9 +2,11 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { CheckIcon, WarningCircleIcon } from '@phosphor-icons/react'
 import {
   CANVAS_CHANGE_LIVE,
+  CANVAS_DISPLAY_TOO_LARGE,
   CANVAS_INVALID,
   CANVAS_NO_HDMI,
   CANVAS_PRESETS,
+  canvasLabel,
   displayCanvas,
   sanitizeCanvas,
   type Canvas
@@ -72,7 +74,8 @@ export function CanvasPicker({
       key: 'match',
       label: 'Match HDMI display',
       meta: match ? size(match) : undefined,
-      unavailable: match ? undefined : CANVAS_NO_HDMI,
+      // A connected display can still be over the pixel budget.
+      unavailable: match ? undefined : hdmiDisplay ? CANVAS_DISPLAY_TOO_LARGE : CANVAS_NO_HDMI,
       canvas: match
     }
   ]
@@ -218,6 +221,8 @@ export function CanvasPicker({
 interface SettingProps extends Omit<PickerProps, 'onChange'> {
   /** The show is visible to the audience: ask before changing (see needsCanvasConfirm). */
   confirm: boolean
+  /** The machine canvas that "Use default" applies; shown in the confirm. */
+  defaultCanvas?: Canvas | null
   /** Saves the canvas; a rejection is shown under the picker. */
   apply(c: Canvas | null): Promise<void>
 }
@@ -227,7 +232,12 @@ interface SettingProps extends Omit<PickerProps, 'onChange'> {
  * output shows something, and the error from a rejected save. Cancel leaves
  * everything as it was. Shared by the output popover and the event dialog.
  */
-export function CanvasSetting({ confirm, apply, ...picker }: SettingProps): React.JSX.Element {
+export function CanvasSetting({
+  confirm,
+  defaultCanvas,
+  apply,
+  ...picker
+}: SettingProps): React.JSX.Element {
   const [pending, setPending] = useState<{ canvas: Canvas | null } | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Bumped on Cancel so the picker forgets what was typed.
@@ -308,7 +318,13 @@ export function CanvasSetting({ confirm, apply, ...picker }: SettingProps): Reac
             <strong>{CANVAS_CHANGE_LIVE}</strong>
             <span>
               New canvas:{' '}
-              <span className="num">{pending.canvas ? size(pending.canvas) : 'default'}</span>
+              <span className="num">
+                {pending.canvas
+                  ? size(pending.canvas)
+                  : defaultCanvas
+                    ? canvasLabel({ ...defaultCanvas, origin: 'default' })
+                    : 'default'}
+              </span>
             </span>
           </p>
           <span className="actions">

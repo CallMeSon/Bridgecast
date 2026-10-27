@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { XIcon } from '@phosphor-icons/react'
+import type { Canvas } from '../../../shared/canvas'
 import type { EventMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { pickDisplay, type DisplayInfo } from '../../../shared/displays'
@@ -23,12 +24,15 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
   const api = window.api
   const box = useRef<HTMLDivElement>(null)
   const [hdmiDisplay, setHdmiDisplay] = useState<DisplayInfo | null>(null)
+  const [machine, setMachine] = useState<Canvas | null>(null)
 
   useEffect(() => {
     let alive = true
     const load = async (): Promise<void> => {
       const [s, displays] = await Promise.all([api.getSettings(), api.listDisplays()])
-      if (alive) setHdmiDisplay(pickDisplay(displays, s.hdmi.displayId))
+      if (!alive) return
+      setHdmiDisplay(pickDisplay(displays, s.hdmi.displayId))
+      setMachine(s.canvas)
     }
     void load()
     const off = api.onDisplaysChanged(() => void load())
@@ -86,6 +90,7 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
           value={event.canvas ?? null}
           allowDefault
           hdmiDisplay={hdmiDisplay}
+          defaultCanvas={machine}
           confirm={needsCanvasConfirm(program)}
           apply={async (c) => onSaved(await api.setEventCanvas(event.id, c))}
         />
