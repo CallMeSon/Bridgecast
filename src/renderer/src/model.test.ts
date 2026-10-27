@@ -29,7 +29,8 @@ import {
   outputSource,
   type OutputMedia,
   TALLY_TEXT,
-  tally
+  tally,
+  needsCanvasConfirm
 } from './model'
 
 const deck = (id: string, n: number, name = id): DeckMeta => ({
@@ -161,6 +162,22 @@ describe('tally', () => {
   it('is black at STANDBY after K turned the automatic KV off', () => {
     const kvUrl = 'slide://kv/e/k.png'
     expect(tally(at('a', 0, { shown: null, kvUrl, black: true }))).toBe('black')
+  })
+})
+
+describe('needsCanvasConfirm', () => {
+  const shown = { deckId: 'a', index: 0, file: '001.png' }
+  const kvUrl = 'slide://kv/e/k.png'
+  it('is false at STANDBY and BLACK: the audience sees no slide change', () => {
+    expect(needsCanvasConfirm(at('a', 0, { shown: null }))).toBe(false)
+    expect(needsCanvasConfirm(at('a', 0, { shown, black: true }))).toBe(false)
+    expect(needsCanvasConfirm(at('a', 0, { shown: null, kvUrl, black: true }))).toBe(false)
+  })
+  it('is true while live, frozen or showing KV', () => {
+    expect(needsCanvasConfirm(at('a', 0, { shown }))).toBe(true)
+    expect(needsCanvasConfirm(at('a', 0, { shown, frozen: true }))).toBe(true)
+    expect(needsCanvasConfirm(at('a', 0, { shown, kv: true, kvUrl }))).toBe(true)
+    expect(needsCanvasConfirm(at('a', 0, { shown: null, kv: true, kvUrl }))).toBe(true)
   })
 })
 

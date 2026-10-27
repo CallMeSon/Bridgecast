@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { MonitorIcon, WarningIcon } from '@phosphor-icons/react'
 import type { HdmiStatus } from '../../../shared/ipc'
-import type { DisplayInfo } from '../../../shared/displays'
+import { canvasLabel, type Canvas } from '../../../shared/canvas'
+import type { ProgramState } from '../../../shared/program'
+import { pickDisplay, type DisplayInfo } from '../../../shared/displays'
 import type { AudioSettings, HdmiSettings } from '../../../shared/settings'
-import { hdmiBadge } from '../model'
+import { hdmiBadge, needsCanvasConfirm } from '../model'
 import { HdmiSection } from './HdmiSection'
+import { CanvasSetting } from './CanvasPicker'
 
 /**
  * Header output status (HDMI: green only while its window shows on the second
- * display) and the output settings popover.
+ * display), the canvas now in force, and the output settings popover (HDMI,
+ * audio and the machine's default canvas).
  */
-export function OutputMenu(): React.JSX.Element {
+export function OutputMenu({ program }: { program: ProgramState }): React.JSX.Element {
   const api = window.api
   const [hdmi, setHdmi] = useState<HdmiSettings | null>(null)
   const [audio, setAudio] = useState<AudioSettings | null>(null)
+  const [canvas, setCanvas] = useState<Canvas | null>(null)
   const [status, setStatus] = useState<HdmiStatus | null>(null)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [open, setOpen] = useState(false)
@@ -29,6 +34,7 @@ export function OutputMenu(): React.JSX.Element {
     api.getSettings().then((s) => {
       setHdmi(s.hdmi)
       setAudio((cur) => cur ?? s.audio)
+      setCanvas(s.canvas)
     })
     // A status pushed before this resolves is newer; keep it.
     api.getHdmiStatus().then((s) => setStatus((cur) => cur ?? s))
@@ -39,7 +45,10 @@ export function OutputMenu(): React.JSX.Element {
   // Main may re-save the HDMI display id (a re-plugged screen got a new id).
   useEffect(() => {
     if (!open) return
-    api.getSettings().then((s) => setHdmi(s.hdmi))
+    api.getSettings().then((s) => {
+      setHdmi(s.hdmi)
+      setCanvas(s.canvas)
+    })
     api.listDisplays().then(setDisplays)
   }, [api, open])
 
@@ -47,6 +56,8 @@ export function OutputMenu(): React.JSX.Element {
     if (!open) return
     wrap.current?.querySelector<HTMLElement>('[role=switch]')?.focus()
     const onClick = (e: MouseEvent): void => {
+      // A button that removed itself (the canvas confirm) is not an outside click.
+      if (!(e.target as Node).isConnected) return
       if (!wrap.current?.contains(e.target as Node)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent): void => {
@@ -92,6 +103,13 @@ export function OutputMenu(): React.JSX.Element {
           <StatusIcon size={16} />
           <span>{badge.text}</span>
         </span>
+        <span
+          className="canvas-tag"
+          data-testid="canvas-badge"
+          title={`Canvas ${canvasLabel(program.canvas)}`}
+        >
+          {canvasLabel(program.canvas)}
+        </span>
         {target && (
           <span className="res" title={`${target.label}, ${target.width}x${target.height}`}>
             {target.label}, {target.width}x{target.height}
@@ -114,8 +132,36 @@ export function OutputMenu(): React.JSX.Element {
             onSaved={(s) => {
               setHdmi(s.hdmi)
               setAudio(s.audio)
+              setCanvas(s.canvas)
             }}
           />
+          {canvas && (
+            <section
+              className="pop-section canvas-section"
+              aria-labelledby="canvas-title"
+              data-testid="canvas-section"
+            >
+              <div className="pop-head">
+                <h2 className="pop-title" id="canvas-title">
+                  Canvas
+                </h2>
+              </div>
+              <span className="hint">
+                Output size for every event without its own canvas. Choose one for an event in the
+                Event menu.
+              </span>
+              <CanvasSetting
+                value={canvas}
+                allowDefault={false}
+                hdmiDisplay={pickDisplay(displays, hdmi.displayId)}
+                confirm={needsCanvasConfirm(program)}
+                apply={async (c) => {
+                  // allowDefault is false: the picker never hands over null here.
+                  if (c) setCanvas((await api.setDefaultCanvas(c)).canvas)
+                }}
+              />
+            </section>
+          )}
         </div>
       )}
     </div>

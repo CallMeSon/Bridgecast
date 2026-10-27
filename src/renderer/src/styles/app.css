@@ -319,6 +319,141 @@ button.output-btn:hover,
   color: var(--text);
   font-weight: 550;
 }
+/* Canvas: output size choice (components/CanvasPicker.tsx). Rows read like menu items;
+   the checked one carries a check mark and weight, not colour. */
+.pop-section + .pop-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.canvas-tag {
+  font: 400 13px var(--font-mono);
+  color: var(--text-3);
+}
+.canvas-setting,
+.canvas-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.canvas-opts {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  background: var(--bg);
+}
+.canvas-opt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 0;
+  text-align: left;
+  color: var(--text-2);
+}
+.canvas-opt + .canvas-opt {
+  border-top: 1px solid var(--line);
+}
+.canvas-opt:hover {
+  background: var(--raised);
+}
+.canvas-opt:focus-visible {
+  outline-offset: -3px;
+}
+.canvas-opt .chk {
+  flex: none;
+  color: var(--text);
+}
+.canvas-opt .nm {
+  flex: 1;
+}
+.canvas-opt .meta {
+  font: 400 13px var(--font-mono);
+  color: var(--text-3);
+}
+.canvas-opt .sub {
+  flex-basis: 100%;
+  padding-left: 24px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.canvas-opt[aria-checked='true'] {
+  background: var(--raised-hi);
+  color: var(--text);
+  font-weight: 600;
+}
+.canvas-opt[aria-checked='true'] .meta {
+  color: var(--text-2);
+}
+.canvas-opt[aria-disabled='true'] {
+  background: transparent;
+  cursor: not-allowed;
+}
+.canvas-opt[aria-disabled='true'] .nm {
+  color: var(--text-3);
+}
+.canvas-custom {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.canvas-custom .field {
+  flex: 1;
+  min-width: 0;
+}
+.canvas-custom .px {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  color: var(--text-3);
+  font: 400 13px var(--font-mono);
+}
+.text-input.num {
+  font-family: var(--font-mono);
+  width: 100%;
+  min-width: 0;
+}
+.canvas-confirm {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  background: var(--raised-hi);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+}
+.canvas-confirm .ph {
+  margin-top: 1px;
+  color: var(--text);
+}
+.canvas-confirm p {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.canvas-confirm strong {
+  font-weight: 600;
+}
+.canvas-confirm .num {
+  font-family: var(--font-mono);
+}
+.canvas-confirm .actions {
+  grid-column: 2;
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.popover.canvas-dialog {
+  right: auto;
+  left: 0;
+}
+.canvas-dialog .pop-title {
+  font-size: 13px;
+}
+
 .field {
   display: flex;
   flex-direction: column;

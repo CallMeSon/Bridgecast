@@ -1,18 +1,32 @@
-import { useEffect, useRef, useState } from 'react'
-import { CaretDownIcon, CheckIcon, PlusIcon } from '@phosphor-icons/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { CaretDownIcon, CheckIcon, FrameCornersIcon, PlusIcon } from '@phosphor-icons/react'
 import type { EventMeta } from '../../../shared/types'
+import type { ProgramState } from '../../../shared/program'
 import { menuItems, onMenuKeyDown } from './menuNav'
+import { EventCanvasDialog } from './EventCanvasDialog'
 
 interface Props {
   events: EventMeta[]
   eventId: string | null
   onSelect(eventId: string): void
   onCreate(name: string): void
+  /** What is on air now: decides whether a canvas change asks first. */
+  program: ProgramState
+  /** An event changed in main (its canvas); replaces ours. */
+  onEventUpdated(ev: EventMeta): void
 }
 
-export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React.JSX.Element {
+export function EventMenu({
+  events,
+  eventId,
+  onSelect,
+  onCreate,
+  program,
+  onEventUpdated
+}: Props): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [canvasOpen, setCanvasOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const wrap = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -60,6 +74,11 @@ export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React
     setDraft('')
     setCreating(true)
   }
+
+  const closeCanvas = useCallback((restoreFocus: boolean): void => {
+    setCanvasOpen(false)
+    if (restoreFocus) trigger.current?.focus()
+  }, [])
 
   const endNew = (commit: boolean, restoreFocus: boolean): void => {
     const name = draft.trim()
@@ -137,7 +156,26 @@ export function EventMenu({ events, eventId, onSelect, onCreate }: Props): React
             <PlusIcon className="chk muted" size={16} />
             New event
           </button>
+          <button
+            role="menuitem"
+            disabled={!current}
+            onClick={() => {
+              setOpen(false)
+              setCanvasOpen(true)
+            }}
+          >
+            <FrameCornersIcon className="chk muted" size={16} />
+            Canvas for this event…
+          </button>
         </div>
+      )}
+      {canvasOpen && current && (
+        <EventCanvasDialog
+          event={current}
+          program={program}
+          onSaved={onEventUpdated}
+          onClose={closeCanvas}
+        />
       )}
     </div>
   )

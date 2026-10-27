@@ -476,6 +476,8 @@ function App(): React.JSX.Element {
         eventId={eventId}
         onSelectEvent={selectEvent}
         onCreateEvent={createEvent}
+        onEventUpdated={replaceEvent}
+        program={program}
         theme={theme}
         onSetTheme={chooseTheme}
       />

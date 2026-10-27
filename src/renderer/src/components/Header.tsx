@@ -1,5 +1,6 @@
 import { MoonIcon, SunIcon } from '@phosphor-icons/react'
 import type { EventMeta } from '../../../shared/types'
+import type { ProgramState } from '../../../shared/program'
 import type { Theme } from '../theme'
 import { EventMenu } from './EventMenu'
 import { OutputMenu } from './OutputMenu'
@@ -9,6 +10,8 @@ interface Props {
   eventId: string | null
   onSelectEvent(eventId: string): void
   onCreateEvent(name: string): void
+  onEventUpdated(ev: EventMeta): void
+  program: ProgramState
   theme: Theme
   onSetTheme(theme: Theme): void
 }
@@ -46,9 +49,11 @@ export function Header(p: Props): React.JSX.Element {
         eventId={p.eventId}
         onSelect={p.onSelectEvent}
         onCreate={p.onCreateEvent}
+        program={p.program}
+        onEventUpdated={p.onEventUpdated}
       />
       <span className="grow" />
-      <OutputMenu />
+      <OutputMenu program={p.program} />
       <ThemeToggle theme={p.theme} onSet={p.onSetTheme} />
     </header>
   )

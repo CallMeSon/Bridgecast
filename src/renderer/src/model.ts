@@ -133,6 +133,15 @@ export function tally(s: ProgramState): Tally {
   return 'live'
 }
 
+/**
+ * Changing the canvas resizes what the audience sees, so it needs a confirm
+ * unless nothing of the show is visible: STANDBY and BLACK show no slide.
+ */
+export function needsCanvasConfirm(s: ProgramState): boolean {
+  const t = tally(s)
+  return t !== 'idle' && t !== 'black'
+}
+
 export const TALLY_TEXT: Record<Tally, string> = {
   live: 'LIVE',
   frozen: 'FROZEN',
