@@ -102,6 +102,10 @@ export class OmtSender {
     this.clock?.push(f)
   }
 
+  /**
+   * `a` must be 48 kHz planar stereo with a.length === 2 * samples: all left
+   * samples first, then all right samples.
+   */
   audio(a: Float32Array, samples: number): void {
     for (const l of this.live) {
       this.safe(() => {

@@ -1,6 +1,5 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
 import { createRequire } from 'module'
 import type KoffiModule from 'koffi'
 import type { SenderBinding } from '../net/sender-binding'
@@ -18,12 +17,6 @@ const OMT_CODEC_BGRA = 0x41524742
 const OMT_CODEC_FPA1 = 0x31415046
 const OMT_QUALITY_DEFAULT = 0
 const ADDRESS_MAX = 1024
-
-/** Directory holding libomt and libvmx (side by side). */
-export function libomtDir(): string {
-  if (!app.isPackaged && process.env.PPT_LIBOMT_DIR) return process.env.PPT_LIBOMT_DIR
-  return join(process.resourcesPath, 'omt')
-}
 
 function libName(base: 'libomt' | 'libvmx'): string {
   return `${base}.${process.platform === 'win32' ? 'dll' : process.platform === 'darwin' ? 'dylib' : 'so'}`

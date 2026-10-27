@@ -1,6 +1,5 @@
+import { readFileSync } from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('electron', () => ({ app: { isPackaged: false } }))
 
 import { OmtSender, type SendTarget } from './sender'
 import { OmtLoadError } from './binding'
@@ -111,7 +110,7 @@ describe('OmtSender', () => {
     expect(reports.some((r) => r.warning === 'drops')).toBe(true)
   })
 
-  it('does not warn at 30 fps and ignores drops for ndi targets', () => {
+  it('never reports a drops warning for an ndi target', () => {
     const fake = new FakeSenderBinding('ndi')
     const { reports, target } = setup(() => fake, 'ndi')
     const s = new OmtSender()
@@ -122,5 +121,44 @@ describe('OmtSender', () => {
       vi.advanceTimersByTime(1000 / 60)
     }
     expect(reports.some((r) => r.warning === 'drops')).toBe(false)
+  })
+
+  it('a restart builds a new clock: the old last frame is not resent', () => {
+    const fake = new FakeSenderBinding('omt')
+    const { target } = setup(() => fake)
+    const s = new OmtSender()
+    s.start({ targets: [target], fps: 30, width: 4, height: 2 })
+    s.frame(frame())
+    vi.advanceTimersByTime(100)
+    expect(fake.frames).toHaveLength(3)
+    s.stop()
+    s.start({ targets: [target], fps: 30, width: 4, height: 2 })
+    vi.advanceTimersByTime(200)
+    expect(fake.frames).toHaveLength(3)
+    s.frame(frame())
+    vi.advanceTimersByTime(34)
+    expect(fake.frames).toHaveLength(4)
+  })
+})
+
+describe('worker import graph', () => {
+  it('has no electron import in the files the worker loads', () => {
+    for (const f of ['worker', 'sender', 'binding', 'frame-clock']) {
+      const src = readFileSync(new URL(`./${f}.ts`, import.meta.url), 'utf8')
+      expect(src, f).not.toMatch(/from\s+['"]electron['"]/)
+      expect(src, f).not.toMatch(/require\(\s*['"]electron['"]/)
+    }
+    const fake = readFileSync(new URL('../net/fake-binding.ts', import.meta.url), 'utf8')
+    expect(fake).not.toMatch(/['"]electron['"]/)
+  })
+
+  it('imports sender and binding without touching electron', async () => {
+    vi.resetModules()
+    vi.doMock('electron', () => {
+      throw new Error('electron must not load in the worker graph')
+    })
+    await expect(import('./sender')).resolves.toBeDefined()
+    await expect(import('./binding')).resolves.toBeDefined()
+    vi.doUnmock('electron')
   })
 })

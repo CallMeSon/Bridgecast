@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'worker_threads'
 import { FakeSenderBinding } from '../net/fake-binding'
 import type { SenderBinding } from '../net/sender-binding'
 import type { OmtStatus } from '../../shared/omt'
-import { libomtDir, loadLibomt } from './binding'
+import { OmtLoadError, loadLibomt } from './binding'
 import { OmtSender, type SendTarget } from './sender'
 
 type In =
@@ -28,8 +28,12 @@ if (port) {
 
   const bindingFor = (id: 'omt' | 'ndi'): (() => SenderBinding) => {
     if (id === 'omt')
-      return () =>
-        data.fake ? new FakeSenderBinding('omt') : loadLibomt(data.libDir ?? libomtDir())
+      return () => {
+        if (data.fake) return new FakeSenderBinding('omt')
+        // The main process resolves the directory (libomtDir()); this graph never loads electron.
+        if (!data.libDir) throw new OmtLoadError('workerData.libDir missing')
+        return loadLibomt(data.libDir)
+      }
     return () => new FakeSenderBinding('ndi') // NDI is not implemented yet
   }
 
