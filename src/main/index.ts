@@ -25,6 +25,7 @@ import { HdmiOutput, screenDisplays } from './display-output'
 import type { ScreenDisplay } from './hdmi-plan'
 import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
 import { permissionAllowed } from './permissions'
+import { CANVAS_INVALID, sanitizeCanvas, type Canvas } from '../shared/canvas'
 import {
   sanitizeAudio,
   sanitizeSettings,
@@ -327,6 +328,33 @@ function registerIpc(
       throw new Error('The deck name is not valid. Type a name, then try again.')
     return lib.renameDeck(eventId, deckId, name)
   })
+  handle(Invoke.decksSetFit, (eventId, deckId, fit) => {
+    assertString(eventId, 'Event ID')
+    assertString(deckId, 'Deck ID')
+    const deck = lib.setDeckFit(eventId, deckId, fit)
+    state.refresh()
+    return deck
+  })
+  handle(Invoke.decksSetAudio, (eventId, deckId, audio) => {
+    assertString(eventId, 'Event ID')
+    assertString(deckId, 'Deck ID')
+    const deck = lib.setDeckAudio(eventId, deckId, audio)
+    state.refresh()
+    return deck
+  })
+  handle(Invoke.eventsSetCanvas, (eventId, canvas) => {
+    assertString(eventId, 'Event ID')
+    const ev = lib.setEventCanvas(eventId, canvas)
+    state.refresh()
+    return ev
+  })
+  handle(Invoke.canvasSetDefault, (canvas) => {
+    const clean = sanitizeCanvas(canvas)
+    if (!clean) throw new Error(CANVAS_INVALID)
+    const saved = settings.saveCanvas(clean)
+    state.refresh()
+    return saved
+  })
   handle(Invoke.kvSet, (eventId, file) => {
     assertString(eventId, 'Event ID')
     assertString(file, 'File location')
@@ -392,6 +420,11 @@ class SettingsStore {
 
   saveAudio(audio: AudioSettings): Settings {
     return this.save({ ...this.settings, audio })
+  }
+
+  /** Saves the machine default canvas (validated by the caller). */
+  saveCanvas(canvas: Canvas): Settings {
+    return this.save({ ...this.settings, canvas })
   }
 
   saveAutoAdvance(autoAdvance: boolean): Settings {

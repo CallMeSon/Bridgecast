@@ -3,6 +3,8 @@ import type { OrderItem } from './sections'
 import type { Action, ProgramState } from './program'
 import type { AudioSettings, HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
+import type { Canvas, DeckFit } from './canvas'
+import type { DeckAudio } from './audio-levels'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
 export const Invoke = {
@@ -16,6 +18,10 @@ export const Invoke = {
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
   decksRename: 'decks:rename',
+  decksSetFit: 'decks:setFit',
+  decksSetAudio: 'decks:setAudio',
+  eventsSetCanvas: 'events:setCanvas',
+  canvasSetDefault: 'canvas:setDefault',
   sectionsAdd: 'sections:add',
   sectionsRename: 'sections:rename',
   sectionsRemove: 'sections:remove',
@@ -101,6 +107,14 @@ export interface InvokeMap {
   'slides:reorder': { args: [deckId: string, order: number[]]; result: void }
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
   'decks:rename': { args: [eventId: string, deckId: string, name: string]; result: DeckMeta }
+  /** How the deck's slides fill the canvas; takes effect on the output without replaying a live video. */
+  'decks:setFit': { args: [eventId: string, deckId: string, fit: DeckFit]; result: DeckMeta }
+  /** The deck's own volume and mute (0–100, sanitized in the library). */
+  'decks:setAudio': { args: [eventId: string, deckId: string, audio: DeckAudio]; result: DeckMeta }
+  /** Per-event canvas override; `null` goes back to the machine default. Throws if the size is invalid. */
+  'events:setCanvas': { args: [eventId: string, canvas: Canvas | null]; result: EventMeta }
+  /** Machine default canvas; sanitized, saved, then applied to every event without an override. */
+  'canvas:setDefault': { args: [canvas: Canvas]; result: Settings }
   'sections:add': {
     args: [eventId: string, at: number | 'end']
     result: { event: EventMeta; sectionId: string }
@@ -172,6 +186,14 @@ export interface Api {
   removeDeck(eventId: string, deckId: string): Promise<void>
   /** Display name only; validated in main (not empty, at most 120 characters). */
   renameDeck(eventId: string, deckId: string, name: string): Promise<DeckMeta>
+  /** Fit, Fill or Stretch for the deck's slides on the output. */
+  setDeckFit(eventId: string, deckId: string, fit: DeckFit): Promise<DeckMeta>
+  /** Deck volume (0–100) and mute for its video slides. */
+  setDeckAudio(eventId: string, deckId: string, audio: DeckAudio): Promise<DeckMeta>
+  /** Canvas override for one event, or `null` to use the machine default. */
+  setEventCanvas(eventId: string, canvas: Canvas | null): Promise<EventMeta>
+  /** Machine default canvas size; validated in main. */
+  setDefaultCanvas(canvas: Canvas): Promise<Settings>
   /** Set the event's KV image from an absolute path (`pathForFile`); validated in main. */
   setKv(eventId: string, path: string): Promise<EventMeta>
   clearKv(eventId: string): Promise<EventMeta>
