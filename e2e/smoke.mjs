@@ -1718,31 +1718,42 @@ async function videoChecks(win, tally) {
       }
     })()`)
     const optValue = await devSel.locator('option').nth(1).getAttribute('value')
+    // `since` is how many context calls existed before the step, so a record from an
+    // earlier step cannot satisfy it. The elements' own sinkId is accepted only when
+    // the context has no usable route (no setSinkId, or it refused the device).
     const sinkOf = () =>
       hdmiJs(`({
-        ctx: (window.__sinkCalls ?? []).at(-1) ?? null,
+        hasCtx: !!window.__sinkCalls,
+        calls: (window.__sinkCalls ?? []).map((c) => ({ id: c.id, ok: c.ok })),
         videos: [...document.querySelectorAll('.output-layer video')].map((v) => v.sinkId)
       })`)
-    const waitSink = async (want) => {
+    const waitSink = async (want, since) => {
       const end = Date.now() + 5000
       let got = null
       while (Date.now() < end) {
         got = await sinkOf()
-        const viaCtx = got.ctx?.id === want && got.ctx.ok === true
+        const fresh = got.calls.slice(since)
+        const viaCtx = fresh.some((c) => c.id === want && c.ok === true)
+        const ctxRefused = !got.hasCtx || fresh.some((c) => c.ok === false)
         const viaVideos = got.videos.length > 0 && got.videos.every((x) => x === want)
-        if (viaCtx || viaVideos) return got
+        if (viaCtx || (ctxRefused && viaVideos)) {
+          return { via: viaCtx ? 'context' : 'videos', ...got }
+        }
         await sleep(100)
       }
       return null
     }
+    const callsSoFar = async () => (await sinkOf()).calls.length
+    let since = await callsSoFar()
     await devSel.selectOption(optValue)
-    const sink = await waitSink(optValue)
+    const sink = await waitSink(optValue, since)
     check(
       sink !== null && savedAudio().deviceId === optValue,
       `choosing an audio device routes the output sound to it via setSinkId (${realDevs[0]}: ${JSON.stringify(sink)})`
     )
+    since = await callsSoFar()
     await devSel.selectOption('')
-    const back = await waitSink('')
+    const back = await waitSink('', since)
     check(
       back !== null && savedAudio().deviceId === null,
       `choosing Default (Windows) routes back to the default device (${JSON.stringify(back)})`
