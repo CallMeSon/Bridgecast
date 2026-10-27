@@ -5,6 +5,7 @@ import { segmentsOf } from '../../shared/sections'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import { DEFAULT_AUDIO, type AudioSettings, type HdmiSettings } from '../../shared/settings'
 import { DEFAULT_DECK_AUDIO, effectiveGain, type DeckAudio } from '../../shared/audio-levels'
+import type { PrepareInput } from '../../shared/web'
 import { posterWithVersion, type StreamSourceKind } from './stream'
 
 export type NextView =
@@ -443,3 +444,104 @@ export function deckSoundLabel(a: DeckAudio | undefined): string | null {
 
 /** Short confirmations shown in a polite live region. */
 export const SAVED = { kv: 'KV saved', order: 'Order saved' } as const
+
+/** What the Prepare banner says: this web deck is not on air, is on air, or is on air and frozen. */
+export type PrepareBanner = 'idle' | 'live' | 'frozen'
+
+/** Live = this deck is the one shown (`shown.deckId`); another deck on air leaves this one idle. */
+export function prepareBanner(s: ProgramState, deckId: string): PrepareBanner {
+  if (s.shown?.deckId !== deckId) return 'idle'
+  return s.frozen ? 'frozen' : 'live'
+}
+
+export function prepareBannerText(b: PrepareBanner): string {
+  switch (b) {
+    case 'idle':
+      return 'Not on air. You can click and type.'
+    case 'live':
+      return 'ON AIR: input locked. Press F to freeze before you click.'
+    case 'frozen':
+      return 'FROZEN: the output holds the last frame. Your clicks are not on air until you unfreeze.'
+  }
+}
+
+type ModifierKeys = Pick<KeyboardEvent, 'shiftKey' | 'ctrlKey' | 'altKey' | 'metaKey'>
+
+function modifiersOf(e: ModifierKeys): string[] {
+  const m: string[] = []
+  if (e.shiftKey) m.push('shift')
+  if (e.ctrlKey) m.push('control')
+  if (e.altKey) m.push('alt')
+  if (e.metaKey) m.push('meta')
+  return m
+}
+
+/** Keys that do nothing on their own (a modifier alone, a dead key): not sent to the page. */
+const SILENT_KEYS = new Set([
+  'Shift',
+  'Control',
+  'Alt',
+  'Meta',
+  'AltGraph',
+  'CapsLock',
+  'Dead',
+  'Unidentified'
+])
+
+/**
+ * One DOM event on the Prepare preview as input for the page. `rect` is the
+ * preview's content rect (the stage with the canvas aspect, never the window), so
+ * x and y are 0 to 1 of the page; a point outside it gives null. Wheel deltas keep
+ * the DOM sign (positive = down): main flips them for Electron. Key events carry
+ * the DOM `key` and the modifiers; `keypress` does not exist here, see toPrepareChar.
+ */
+export function toPrepareInput(
+  e: MouseEvent | WheelEvent | KeyboardEvent,
+  rect: DOMRect
+): PrepareInput | null {
+  if (e.type === 'keydown' || e.type === 'keyup') {
+    const k = e as KeyboardEvent
+    if (SILENT_KEYS.has(k.key)) return null
+    return {
+      kind: 'key',
+      type: e.type === 'keydown' ? 'keyDown' : 'keyUp',
+      keyCode: k.key,
+      modifiers: modifiersOf(k)
+    }
+  }
+  const m = e as MouseEvent
+  if (rect.width <= 0 || rect.height <= 0) return null
+  const x = (m.clientX - rect.left) / rect.width
+  const y = (m.clientY - rect.top) / rect.height
+  if (x < 0 || x > 1 || y < 0 || y > 1) return null
+  if (e.type === 'wheel') {
+    const w = e as WheelEvent
+    return { kind: 'wheel', x, y, deltaX: w.deltaX, deltaY: w.deltaY }
+  }
+  const type =
+    e.type === 'mousedown'
+      ? 'mouseDown'
+      : e.type === 'mouseup'
+        ? 'mouseUp'
+        : e.type === 'mousemove'
+          ? 'mouseMove'
+          : null
+  if (!type) return null
+  const button =
+    m.button === 0 ? 'left' : m.button === 1 ? 'middle' : m.button === 2 ? 'right' : null
+  if (!button) return null
+  const clickCount = type === 'mouseMove' ? 0 : Math.min(3, Math.max(1, Math.round(m.detail) || 1))
+  return { kind: 'mouse', type, x, y, button, clickCount }
+}
+
+/**
+ * The `char` event that goes with a key press that types a character (the page
+ * needs keyDown and char to type). Enter types a carriage return; shortcuts with
+ * Ctrl or Meta and navigation keys type nothing.
+ */
+export function toPrepareChar(e: KeyboardEvent): PrepareInput | null {
+  if (e.ctrlKey || e.metaKey) return null
+  const typed = e.key === 'Enter' ? '\r' : e.key.length === 1 ? e.key : null
+  if (typed === null) return null
+  return { kind: 'key', type: 'char', keyCode: typed, modifiers: modifiersOf(e) }
+}

@@ -495,7 +495,8 @@ function registerIpc(
       // Any other app window is a Prepare window.
       return operatorWindow()?.webContents === wc ? 'operator' : 'prepare'
     },
-    () => ({ hdmi: hdmi.getStatus().state === 'showing', omt: net.windowActive })
+    () => ({ hdmi: hdmi.getStatus().state === 'showing', omt: net.windowActive }),
+    operatorWindow
   )
 
   handle(Invoke.settingsGet, () => settings.get())
@@ -553,7 +554,8 @@ function registerWebIpc(
   web: WebHost,
   syncWeb: () => void,
   roleOf: (wc: Electron.WebContents) => AppWindowRole,
-  outputsActive: () => { hdmi: boolean; omt: boolean }
+  outputsActive: () => { hdmi: boolean; omt: boolean },
+  operatorWindow: () => BrowserWindow | null
 ): void {
   // Ready gate and capture-ended reports only count from a window that puts the page on air.
   const onAirSender = (e: IpcMainInvokeEvent): boolean =>
@@ -630,7 +632,7 @@ function registerWebIpc(
   })
   appHandle(Invoke.webOpenPrepare, (_e, deckId) => {
     assertString(deckId, 'Deck ID')
-    openPrepareWindow(deckId)
+    openPrepareWindow(deckId, operatorWindow())
   })
   appHandle(Invoke.webSignOut, () => web.signOut())
   appHandle(Invoke.webStatuses, () => web.statuses())

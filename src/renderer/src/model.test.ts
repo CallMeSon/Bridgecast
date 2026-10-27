@@ -14,6 +14,10 @@ import {
   hasFiles,
   countOf,
   deckSoundLabel,
+  prepareBanner,
+  prepareBannerText,
+  toPrepareInput,
+  toPrepareChar,
   importMeta,
   keyToAction,
   menuFocusTarget,
@@ -619,5 +623,148 @@ describe('deckSoundLabel', () => {
   it('gives the volume of a deck that is lowered', () => {
     expect(deckSoundLabel({ volume: 60, muted: false })).toBe('Deck sound: 60%')
     expect(deckSoundLabel({ volume: 0, muted: false })).toBe('Deck sound: 0%')
+  })
+})
+
+describe('prepareBanner', () => {
+  const live = (deckId: string, frozen = false): ProgramState => at(deckId, 0, { frozen })
+  it('is idle when nothing or another deck is on air', () => {
+    expect(prepareBanner(initialState, 'w')).toBe('idle')
+    expect(prepareBanner(live('other'), 'w')).toBe('idle')
+    expect(prepareBanner(live('other', true), 'w')).toBe('idle')
+  })
+  it('is live when this deck is shown, frozen when it is also frozen', () => {
+    expect(prepareBanner(live('w'), 'w')).toBe('live')
+    expect(prepareBanner(live('w', true), 'w')).toBe('frozen')
+  })
+  it('has the exact words for each state', () => {
+    expect(prepareBannerText('idle')).toBe('Not on air. You can click and type.')
+    expect(prepareBannerText('live')).toBe(
+      'ON AIR: input locked. Press F to freeze before you click.'
+    )
+    expect(prepareBannerText('frozen')).toBe(
+      'FROZEN: the output holds the last frame. Your clicks are not on air until you unfreeze.'
+    )
+  })
+})
+
+describe('toPrepareInput', () => {
+  // A 400x225 preview whose top left is at (100, 50) in the window (the video's content rect).
+  const rect = { left: 100, top: 50, width: 400, height: 225 } as DOMRect
+  const mouse = (type: string, x: number, y: number, extra = {}): MouseEvent =>
+    ({ type, clientX: x, clientY: y, button: 0, detail: 1, ...extra }) as MouseEvent
+  it('normalizes a click in the centre to 0.5 / 0.5', () => {
+    expect(toPrepareInput(mouse('mousedown', 300, 162.5), rect)).toEqual({
+      kind: 'mouse',
+      type: 'mouseDown',
+      x: 0.5,
+      y: 0.5,
+      button: 'left',
+      clickCount: 1
+    })
+  })
+  it('maps up, move (no click count) and the button', () => {
+    expect(toPrepareInput(mouse('mouseup', 100, 50, { button: 2 }), rect)).toMatchObject({
+      type: 'mouseUp',
+      x: 0,
+      y: 0,
+      button: 'right'
+    })
+    expect(toPrepareInput(mouse('mousemove', 500, 275, { button: 0, detail: 0 }), rect)).toEqual({
+      kind: 'mouse',
+      type: 'mouseMove',
+      x: 1,
+      y: 1,
+      button: 'left',
+      clickCount: 0
+    })
+    expect(toPrepareInput(mouse('mousedown', 300, 100, { button: 1 }), rect)).toMatchObject({
+      button: 'middle'
+    })
+    expect(toPrepareInput(mouse('mousedown', 300, 100, { button: 4 }), rect)).toBeNull()
+  })
+  it('caps the click count at 3', () => {
+    expect(toPrepareInput(mouse('mousedown', 300, 100, { detail: 7 }), rect)).toMatchObject({
+      clickCount: 3
+    })
+  })
+  it('gives null outside the preview', () => {
+    expect(toPrepareInput(mouse('mousedown', 99, 100), rect)).toBeNull()
+    expect(toPrepareInput(mouse('mousedown', 300, 49), rect)).toBeNull()
+    expect(toPrepareInput(mouse('mousedown', 501, 100), rect)).toBeNull()
+    expect(toPrepareInput(mouse('mousedown', 300, 276), rect)).toBeNull()
+    expect(
+      toPrepareInput(mouse('mousedown', 300, 100), { ...rect, width: 0 } as DOMRect)
+    ).toBeNull()
+  })
+  it('sends wheel deltas raw (positive = down), not negated', () => {
+    const w = mouse('wheel', 200, 100, { deltaX: 0, deltaY: 120 })
+    expect(toPrepareInput(w, rect)).toEqual({
+      kind: 'wheel',
+      x: 0.25,
+      y: 50 / 225,
+      deltaX: 0,
+      deltaY: 120
+    })
+    expect(toPrepareInput(mouse('wheel', 0, 0, { deltaX: 0, deltaY: 120 }), rect)).toBeNull()
+  })
+  const key = (type: string, k: string, extra = {}): KeyboardEvent =>
+    ({
+      type,
+      key: k,
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+      ...extra
+    }) as KeyboardEvent
+  it('maps key down and up with the DOM key and the modifiers', () => {
+    expect(toPrepareInput(key('keydown', 'ArrowRight'), rect)).toEqual({
+      kind: 'key',
+      type: 'keyDown',
+      keyCode: 'ArrowRight',
+      modifiers: []
+    })
+    expect(toPrepareInput(key('keyup', 'a', { ctrlKey: true, shiftKey: true }), rect)).toEqual({
+      kind: 'key',
+      type: 'keyUp',
+      keyCode: 'a',
+      modifiers: ['shift', 'control']
+    })
+    expect(
+      toPrepareInput(key('keydown', 'x', { altKey: true, metaKey: true }), rect)
+    ).toMatchObject({ modifiers: ['alt', 'meta'] })
+  })
+  it('ignores modifier-only keys and dead or unidentified keys', () => {
+    for (const k of ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Dead', 'Unidentified']) {
+      expect(toPrepareInput(key('keydown', k), rect)).toBeNull()
+    }
+  })
+})
+
+describe('toPrepareChar', () => {
+  const key = (k: string, extra = {}): KeyboardEvent =>
+    ({
+      key: k,
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+      ...extra
+    }) as KeyboardEvent
+  it('gives a char event for a typed character, Enter as a carriage return', () => {
+    expect(toPrepareChar(key('H', { shiftKey: true }))).toEqual({
+      kind: 'key',
+      type: 'char',
+      keyCode: 'H',
+      modifiers: ['shift']
+    })
+    expect(toPrepareChar(key('Enter'))).toMatchObject({ type: 'char', keyCode: '\r' })
+  })
+  it('gives none for navigation keys and for shortcuts with Ctrl or Meta', () => {
+    expect(toPrepareChar(key('ArrowRight'))).toBeNull()
+    expect(toPrepareChar(key('Backspace'))).toBeNull()
+    expect(toPrepareChar(key('c', { ctrlKey: true }))).toBeNull()
+    expect(toPrepareChar(key('c', { metaKey: true }))).toBeNull()
   })
 })
