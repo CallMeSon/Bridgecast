@@ -616,3 +616,8 @@ export function visibleCaptureWarnings(
   if (!s.webHold) return warnings
   return warnings.filter((w) => w.deckId !== s.shown?.web?.deckId)
 }
+
+/** The deck whose row shows HOLD: the live web deck while held, also while frozen; else null. */
+export function holdDeckId(s: ProgramState): string | null {
+  return s.webHold ? (s.shown?.web?.deckId ?? null) : null
+}

@@ -40,6 +40,7 @@ import {
   webChip,
   canResumeWeb,
   visibleCaptureWarnings,
+  holdDeckId,
   WEB_LIVE_NEXT,
   WEB_NOT_READY,
   WEB_HOLD_TEXT
@@ -862,5 +863,12 @@ describe('webUpNext, webChip and canResumeWeb', () => {
     ]
     expect(visibleCaptureWarnings(warnings, live('w1'))).toEqual(warnings)
     expect(visibleCaptureWarnings(warnings, live('w1', { webHold: true }))).toEqual([warnings[1]])
+  })
+
+  it('the HOLD row stays while frozen and clears without HOLD', () => {
+    expect(holdDeckId(live('w1', { webHold: true }))).toBe('w1')
+    expect(holdDeckId(live('w1', { webHold: true, frozen: true }))).toBe('w1')
+    expect(holdDeckId(live('w1'))).toBeNull()
+    expect(holdDeckId(at('a', 0, { webHold: true }))).toBeNull()
   })
 })

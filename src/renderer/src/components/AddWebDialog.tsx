@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { WarningCircleIcon, XIcon } from '@phosphor-icons/react'
 import { DECK_NAME_MAX } from '../../../shared/types'
 import { sanitizeWebUrl, webDomain } from '../../../shared/web'
@@ -34,6 +35,17 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
   const checked = sanitizeWebUrl(url)
   const warning = 'warning' in checked ? checked.warning : undefined
 
+  // The rest of the app is inert while the dialog is open (no Tab, no virtual cursor into
+  // it); the cleanup also runs when the dialog unmounts abruptly.
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (!root) return
+    root.inert = true
+    return () => {
+      root.inert = false
+    }
+  }, [])
+
   useEffect(() => {
     urlInput.current?.focus()
     urlInput.current?.select()
@@ -58,11 +70,16 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
     }
   }
 
+  // A submit in flight cannot be cancelled: nothing closes the dialog until it answers.
+  const close = (restoreFocus: boolean): void => {
+    if (!busy) onClose(restoreFocus)
+  }
+
   const onKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
-      onClose(true)
+      close(true)
       return
     }
     if (e.key !== 'Tab') return
@@ -71,7 +88,11 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
     if (items.length === 0) return
     const first = items[0]
     const last = items[items.length - 1]
-    if (e.shiftKey && document.activeElement === first) {
+    if (!box.current?.contains(document.activeElement) || document.activeElement === box.current) {
+      // Focus sits on the dialog itself (a click on its text): enter at the matching end.
+      e.preventDefault()
+      ;(e.shiftKey ? last : first).focus()
+    } else if (e.shiftKey && document.activeElement === first) {
       e.preventDefault()
       last.focus()
     } else if (!e.shiftKey && document.activeElement === last) {
@@ -82,11 +103,12 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
 
   const errorId = `${id}-error`
   const hintId = `${id}-hint`
-  return (
+  return createPortal(
     <div
       className="modal-scrim"
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose(false)
+      // On click, not pointerdown: the press itself would take focus away again after the restore.
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close(true)
       }}
     >
       <div
@@ -94,6 +116,7 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
         className="popover modal add-web"
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-labelledby={`${id}-title`}
         data-no-shortcuts
         data-testid="add-web-dialog"
@@ -111,7 +134,7 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
             <h2 className="pop-title" id={`${id}-title`}>
               {edit ? 'Edit URL' : 'Add web page'}
             </h2>
-            <button type="button" className="btn sm" onClick={() => onClose(true)}>
+            <button type="button" className="btn sm" onClick={() => close(true)}>
               <XIcon size={14} />
               Close
             </button>
@@ -176,7 +199,7 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
             </div>
           )}
           <div className="modal-actions">
-            <button type="button" className="btn" onClick={() => onClose(true)}>
+            <button type="button" className="btn" onClick={() => close(true)}>
               Cancel
             </button>
             <button type="submit" className="btn inverse" disabled={busy}>
@@ -185,6 +208,7 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

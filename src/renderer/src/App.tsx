@@ -31,6 +31,7 @@ import {
   currentDeck,
   errorMessage,
   fileKind,
+  holdDeckId,
   keyToAction,
   moveItem,
   moveOrder,
@@ -648,7 +649,7 @@ function App(): React.JSX.Element {
           onSetDeckFit={setDeckFit}
           onSetDeckAudio={setDeckAudio}
           webStatuses={pages.statuses}
-          webHold={program.webHold}
+          holdDeckId={holdDeckId(program)}
           onAddWeb={addWeb}
           onSetWebUrl={setWebUrl}
           onReloadWeb={reloadWeb}

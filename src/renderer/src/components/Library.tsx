@@ -83,8 +83,8 @@ interface Props {
   onSetDeckAudio(deckId: string, audio: DeckAudio): void
   /** Load state of every open web deck page. */
   webStatuses: Record<string, WebStatus>
-  /** The live web page lost its connection (HOLD): its row shows the HOLD chip. */
-  webHold: boolean
+  /** The web deck on HOLD (live or frozen, lost its connection): its row shows the HOLD chip. */
+  holdDeckId: string | null
   /** Adds a web deck to the active event; rejects with a user-facing message. */
   onAddWeb(url: string, name: string | undefined): Promise<void>
   /** Changes the page of a web deck; rejects with a user-facing message. */
@@ -512,6 +512,15 @@ export function Library(p: Props): React.JSX.Element {
   // The Add web page dialog, or the Edit URL one of a web deck.
   const [webDialog, setWebDialog] = useState<'add' | { deckId: string } | null>(null)
   const addWebButton = useRef<HTMLButtonElement>(null)
+  // Where focus goes once the dialog has unmounted (the app behind it is inert until then).
+  const webFocus = useRef<'add' | { deckId: string } | null>(null)
+  useEffect(() => {
+    const target = webFocus.current
+    if (webDialog !== null || target === null) return
+    webFocus.current = null
+    if (target === 'add') addWebButton.current?.focus()
+    else focusRow(`deck:${target.deckId}`)
+  }, [webDialog])
   const [renamingSection, setRenamingSection] = useState<string | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
@@ -743,9 +752,7 @@ export function Library(p: Props): React.JSX.Element {
                   {d.name}
                 </span>
                 {d.source === 'web' ? (
-                  <WebChip
-                    kind={webChip(p.webStatuses[d.id], p.webHold && p.live?.deckId === d.id)}
-                  />
+                  <WebChip kind={webChip(p.webStatuses[d.id], p.holdDeckId === d.id)} />
                 ) : (
                   <span className="meta">{countOf(d.slides.length, 'slide')}</span>
                 )}
@@ -934,8 +941,7 @@ export function Library(p: Props): React.JSX.Element {
             setWebDialog(null)
             if (!restoreFocus) return
             // Back to the opener: the Add button, or the row of the deck being edited.
-            if (target === 'add') addWebButton.current?.focus()
-            else focusRow(`deck:${target.deckId}`)
+            webFocus.current = target
           }}
         />
       )}
