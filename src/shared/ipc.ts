@@ -1,7 +1,7 @@
 import type { DeckMeta, EventMeta } from './types'
 import type { OrderItem } from './sections'
 import type { Action, ProgramState } from './program'
-import type { OmtSettings, OmtStatus } from './omt'
+import type { NdiSettings, NdiStatus, OmtSettings, OmtStatus } from './omt'
 import type { AudioSettings, HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
@@ -36,7 +36,10 @@ export const Invoke = {
   hdmiGetStatus: 'hdmi:getStatus',
   audioSet: 'audio:set',
   omtSet: 'omt:set',
-  omtGetStatus: 'omt:getStatus'
+  omtGetStatus: 'omt:getStatus',
+  ndiSet: 'ndi:set',
+  ndiGetStatus: 'ndi:getStatus',
+  networkSetFps: 'network:setFps'
 } as const
 
 /**
@@ -63,7 +66,8 @@ export const Broadcast = {
   displaysChanged: 'displays:changed',
   hdmiStatus: 'hdmi:status',
   audioSettings: 'audio:settings',
-  omtStatus: 'omt:status'
+  omtStatus: 'omt:status',
+  ndiStatus: 'ndi:status'
 } as const
 
 /** Main → OMT output window: carries the MessagePort the window sends program sound on. */
@@ -147,6 +151,11 @@ export interface InvokeMap {
   /** Sanitized, saved, then applied: starts, restarts or stops the OMT sender. */
   'omt:set': { args: [omt: OmtSettings]; result: Settings }
   'omt:getStatus': { args: []; result: OmtStatus }
+  /** Sanitized, saved, then applied: starts, restarts or stops the NDI target only. */
+  'ndi:set': { args: [ndi: NdiSettings]; result: Settings }
+  'ndi:getStatus': { args: []; result: NdiStatus }
+  /** Saves `omt.fps` (30 or 60, anything else becomes 30) without touching `omt.enabled`; restarts the running targets. */
+  'network:setFps': { args: [fps: 30 | 60]; result: Settings }
 }
 
 export interface BroadcastMap {
@@ -156,6 +165,7 @@ export interface BroadcastMap {
   'hdmi:status': HdmiStatus
   'audio:settings': AudioSettings
   'omt:status': OmtStatus
+  'ndi:status': NdiStatus
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -231,6 +241,11 @@ export interface Api {
   setOmt(o: OmtSettings): Promise<Settings>
   getOmtStatus(): Promise<OmtStatus>
   onOmtStatus(cb: (s: OmtStatus) => void): () => void
+  setNdi(n: NdiSettings): Promise<Settings>
+  getNdiStatus(): Promise<NdiStatus>
+  onNdiStatus(cb: (s: NdiStatus) => void): () => void
+  /** Frame rate of every network protocol; updates `omt.fps` and leaves `omt.enabled` alone. */
+  setNetworkFps(fps: 30 | 60): Promise<Settings>
   /**
    * OMT output window only. Main answers with a fresh MessagePort that the
    * preload forwards to the page as `window.postMessage('omt:audio-port', '*', ports)`

@@ -3,13 +3,15 @@ import { join } from 'path'
 import { Worker } from 'worker_threads'
 import { is } from '@electron-toolkit/utils'
 import { OMT_AUDIO_PORT, Send } from '../shared/ipc'
-import type { OmtSettings, OmtStatus } from '../shared/omt'
+import type { NetStatus } from '../shared/omt'
 import { libomtDir } from './omt/lib-dir'
 import { AudioPortFeed } from './omt/audio-port'
 import {
-  OmtController,
+  NetController,
   RESTART_DELAY_MS,
   STOP_WAIT_MS,
+  type NetId,
+  type NetSettings,
   type OmtDeps,
   type OmtWindowLike,
   type WindowHandlers,
@@ -20,7 +22,7 @@ import { omtWorkerPath } from './omt/worker-path'
 
 export type { OmtDebug } from './omt/output'
 
-/** Offscreen window rendering `#/output?role=omt`; its frames go to the OMT worker. */
+/** Offscreen window rendering `#/output?role=omt`; its frames go to the network worker (OMT and NDI share it). */
 function createOmtWindow(
   h: WindowHandlers,
   size: { width: number; height: number },
@@ -67,7 +69,7 @@ function createOmtWindow(
   })
   win.on('page-title-updated', (e) => e.preventDefault())
   wc.on('render-process-gone', (_e, details) => {
-    console.error(`[omt] renderer stopped (${details.reason})`)
+    console.error(`[net] renderer stopped (${details.reason})`)
     h.onGone()
   })
   // Output only: no keyboard/mouse input, no navigation, no popups.
@@ -110,18 +112,25 @@ function createOmtWindow(
   }
 }
 
-/** The OMT network output: offscreen renderer → worker thread → libomt. See omt/output.ts. */
-export class OmtOutput extends OmtController {
+/**
+ * The network output: one offscreen renderer → one worker thread → every enabled
+ * target (libomt and/or the NDI runtime). See omt/output.ts.
+ */
+export class NetOutput extends NetController {
   constructor(
-    settings: OmtSettings,
+    settings: NetSettings,
     canvas: () => { width: number; height: number },
-    onStatus: (s: OmtStatus) => void,
-    opts: { fake?: boolean; debug?: boolean } = {}
+    onStatus: (id: NetId, s: NetStatus) => void,
+    opts: { fake?: boolean; fakeNdi?: boolean | 'missing'; debug?: boolean } = {}
   ) {
     const deps: OmtDeps = {
       createWorker: (): WorkerLike =>
         new Worker(omtWorkerPath, {
-          workerData: { libDir: libomtDir(), fake: opts.fake === true }
+          workerData: {
+            libDir: libomtDir(),
+            fake: opts.fake === true,
+            fakeNdi: opts.fakeNdi ?? false
+          }
         }) as unknown as WorkerLike,
       createWindow: createOmtWindow,
       setTimer: (fn, ms) => setTimeout(fn, ms),

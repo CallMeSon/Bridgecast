@@ -22,11 +22,17 @@ import {
 } from './slide-protocol'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import { HdmiOutput, screenDisplays } from './display-output'
-import { OmtOutput } from './omt-output'
+import { NetOutput } from './net-output'
 import type { ScreenDisplay } from './hdmi-plan'
 import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
 import { permissionAllowed } from './permissions'
-import { sanitizeOmt, type OmtSettings, type OmtStatus } from '../shared/omt'
+import {
+  sanitizeNdi,
+  sanitizeOmt,
+  type NdiSettings,
+  type NetStatus,
+  type OmtSettings
+} from '../shared/omt'
 import { CANVAS_INVALID, sanitizeCanvas, type Canvas } from '../shared/canvas'
 import {
   sanitizeAudio,
@@ -178,7 +184,7 @@ function registerIpc(
   state: AppState,
   settings: SettingsStore,
   hdmi: HdmiOutput,
-  omt: OmtOutput
+  net: NetOutput
 ): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
@@ -415,17 +421,28 @@ function registerIpc(
     return saved
   })
 
-  handle(Invoke.omtGetStatus, () => omt.status())
+  handle(Invoke.omtGetStatus, () => net.status('omt'))
   handle(Invoke.omtSet, (input: OmtSettings) => {
     const saved = settings.saveOmt(sanitizeOmt(input))
-    omt.apply(saved.omt)
+    net.apply({ omt: saved.omt, ndi: saved.ndi })
+    return saved
+  })
+  handle(Invoke.networkSetFps, (fps: 30 | 60) => {
+    const saved = settings.saveOmt({ ...settings.get().omt, fps: fps === 60 ? 60 : 30 })
+    net.apply({ omt: saved.omt, ndi: saved.ndi })
+    return saved
+  })
+  handle(Invoke.ndiGetStatus, () => net.status('ndi'))
+  handle(Invoke.ndiSet, (input: NdiSettings) => {
+    const saved = settings.saveNdi(sanitizeNdi(input))
+    net.apply({ omt: saved.omt, ndi: saved.ndi })
     return saved
   })
 
   state.onChange((s) => {
     broadcast(Broadcast.programState, s)
     // The Canvas may differ (event override, machine default): the OMT frame size follows it.
-    omt.canvasChanged()
+    net.canvasChanged()
   })
 }
 
@@ -448,6 +465,10 @@ class SettingsStore {
 
   saveOmt(omt: OmtSettings): Settings {
     return this.save({ ...this.settings, omt })
+  }
+
+  saveNdi(ndi: NdiSettings): Settings {
+    return this.save({ ...this.settings, ndi })
   }
 
   saveAudio(audio: AudioSettings): Settings {
@@ -511,19 +532,39 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
   return hdmi
 }
 
-/** OMT network output; PPT_OMT_FAKE=1 swaps libomt for a recording fake (e2e, no native library). */
-function createOmtOutput(settings: SettingsStore, state: AppState): OmtOutput {
+/**
+ * Network output (OMT and NDI). PPT_OMT_FAKE=1 swaps libomt for a recording fake
+ * (e2e, no native library); PPT_NDI_FAKE=1 does the same for NDI and
+ * PPT_NDI_FAKE=missing simulates an absent NDI runtime.
+ */
+function createNetOutput(settings: SettingsStore, state: AppState): NetOutput {
   const dump = !!process.env['PPT_OUTPUT_DUMP']
-  const omt = new OmtOutput(
-    settings.get().omt,
+  const ndiFake = process.env['PPT_NDI_FAKE']
+  const net = new NetOutput(
+    { omt: settings.get().omt, ndi: settings.get().ndi },
     () => state.state.canvas,
-    (s: OmtStatus) => broadcast(Broadcast.omtStatus, s),
-    { fake: process.env['PPT_OMT_FAKE'] === '1', debug: dump }
+    (id: 'omt' | 'ndi', s: NetStatus) =>
+      broadcast(id === 'omt' ? Broadcast.omtStatus : Broadcast.ndiStatus, s),
+    {
+      fake: process.env['PPT_OMT_FAKE'] === '1',
+      fakeNdi: ndiFake === 'missing' ? 'missing' : ndiFake === '1',
+      debug: dump
+    }
   )
   if (dump) {
-    Object.defineProperty(globalThis, '__pptOmt', { configurable: true, get: () => omt.debug })
+    Object.defineProperty(globalThis, '__pptOmt', { configurable: true, get: () => net.debug })
+    Object.defineProperty(globalThis, '__pptNet', {
+      configurable: true,
+      get: () => {
+        const d = net.debug
+        return {
+          windows: d.windowExists ? 1 : 0,
+          targets: (d.frames?.targets ?? []).map((t) => ({ id: t.id, frames: t.frames }))
+        }
+      }
+    })
   }
-  return omt
+  return net
 }
 
 function createWindow(onReady?: () => void): BrowserWindow {
@@ -617,7 +658,7 @@ Location: ${root}`
     }
   })
   const hdmi = createHdmiOutput(settings)
-  const omt = createOmtOutput(settings, state)
+  const net = createNetOutput(settings, state)
   // Quit waits (briefly) for the OMT worker to stop its sender before it is terminated.
   let omtDone = false
   let omtStopping = false
@@ -629,18 +670,18 @@ Location: ${root}`
       omtStopping = true
       // Hard cap: a blocked native call in the worker must never keep the app from quitting.
       const cap = new Promise<void>((r) => setTimeout(r, OMT_QUIT_CAP_MS))
-      void Promise.race([omt.shutdown(), cap]).finally(() => {
+      void Promise.race([net.shutdown(), cap]).finally(() => {
         omtDone = true
         app.quit()
       })
     }
   })
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state, settings, hdmi, omt)
+  registerIpc(lib, state, settings, hdmi, net)
 
   const startOutputs = (): void => {
     hdmi.start()
-    omt.start()
+    net.start()
   }
   hdmi.watchOperator(createWindow(startOutputs))
 

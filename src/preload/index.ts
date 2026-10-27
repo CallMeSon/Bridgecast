@@ -75,6 +75,10 @@ const api: Api = {
   setOmt: (o) => invoke(Invoke.omtSet, o),
   getOmtStatus: () => invoke(Invoke.omtGetStatus),
   onOmtStatus: (cb) => subscribe(Broadcast.omtStatus, cb),
+  setNdi: (n) => invoke(Invoke.ndiSet, n),
+  getNdiStatus: () => invoke(Invoke.ndiGetStatus),
+  onNdiStatus: (cb) => subscribe(Broadcast.ndiStatus, cb),
+  setNetworkFps: (fps) => invoke(Invoke.networkSetFps, fps),
   requestOmtAudioPort: () => ipcRenderer.send(Send.omtAudioPortRequest),
   reportOmtWarning: (w) => ipcRenderer.send(Send.omtAudioWarning, w),
   // File.path no longer exists in Electron; this is the supported replacement.
