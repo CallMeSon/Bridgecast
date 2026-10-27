@@ -12,6 +12,7 @@ import {
   type Canvas
 } from '../../../shared/canvas'
 import type { DisplayInfo } from '../../../shared/displays'
+import { OMT_RECEIVERS_CONFIRM } from '../../../shared/omt'
 import { errorMessage } from '../model'
 
 interface PickerProps {
@@ -221,6 +222,8 @@ export function CanvasPicker({
 interface SettingProps extends Omit<PickerProps, 'onChange'> {
   /** The show is visible to the audience: ask before changing (see needsCanvasConfirm). */
   confirm: boolean
+  /** OMT receivers are connected: the change also resets their picture, so ask even when nothing is on air. */
+  omtReceivers?: boolean
   /** The machine canvas that "Use default" applies; shown in the confirm. */
   defaultCanvas?: Canvas | null
   /** Saves the canvas; a rejection is shown under the picker. */
@@ -233,11 +236,13 @@ interface SettingProps extends Omit<PickerProps, 'onChange'> {
  * everything as it was. Shared by the output popover and the event dialog.
  */
 export function CanvasSetting({
-  confirm,
+  confirm: onAir,
+  omtReceivers = false,
   defaultCanvas,
   apply,
   ...picker
 }: SettingProps): React.JSX.Element {
+  const confirm = onAir || omtReceivers
   const [pending, setPending] = useState<{ canvas: Canvas | null } | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Bumped on Cancel so the picker forgets what was typed.
@@ -315,7 +320,10 @@ export function CanvasSetting({
         >
           <WarningCircleIcon className="ph" size={20} />
           <p>
-            <strong>{CANVAS_CHANGE_LIVE}</strong>
+            {onAir && <strong>{CANVAS_CHANGE_LIVE}</strong>}
+            {omtReceivers && (
+              <strong data-testid="canvas-confirm-omt">{OMT_RECEIVERS_CONFIRM}</strong>
+            )}
             <span>
               New canvas:{' '}
               <span className="num">

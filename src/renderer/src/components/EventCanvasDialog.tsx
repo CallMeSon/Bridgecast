@@ -5,6 +5,7 @@ import type { EventMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { pickDisplay, type DisplayInfo } from '../../../shared/displays'
 import { needsCanvasConfirm } from '../model'
+import { useOmtStatus } from '../omt'
 import { CanvasSetting } from './CanvasPicker'
 
 interface Props {
@@ -25,6 +26,7 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
   const box = useRef<HTMLDivElement>(null)
   const [hdmiDisplay, setHdmiDisplay] = useState<DisplayInfo | null>(null)
   const [machine, setMachine] = useState<Canvas | null>(null)
+  const omt = useOmtStatus()
 
   useEffect(() => {
     let alive = true
@@ -92,6 +94,7 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
           hdmiDisplay={hdmiDisplay}
           defaultCanvas={machine}
           confirm={needsCanvasConfirm(program)}
+          omtReceivers={(omt?.connections ?? 0) > 0}
           apply={async (c) => onSaved(await api.setEventCanvas(event.id, c))}
         />
       </section>

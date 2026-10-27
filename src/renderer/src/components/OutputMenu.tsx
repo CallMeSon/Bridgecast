@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { MonitorIcon, WarningIcon } from '@phosphor-icons/react'
+import { BroadcastIcon, MonitorIcon, WarningIcon } from '@phosphor-icons/react'
 import type { HdmiStatus } from '../../../shared/ipc'
 import { canvasLabel, type Canvas } from '../../../shared/canvas'
 import type { ProgramState } from '../../../shared/program'
 import { pickDisplay, type DisplayInfo } from '../../../shared/displays'
 import type { AudioSettings, HdmiSettings } from '../../../shared/settings'
+import { omtBadge, type OmtSettings } from '../../../shared/omt'
 import { hdmiBadge, needsCanvasConfirm } from '../model'
 import { HdmiSection } from './HdmiSection'
 import { AudioSection } from './AudioSection'
+import { useOmtStatus } from '../omt'
+import { OmtSection } from './OmtSection'
 import { CanvasSetting } from './CanvasPicker'
 
 /**
@@ -20,6 +23,8 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
   const [hdmi, setHdmi] = useState<HdmiSettings | null>(null)
   const [audio, setAudio] = useState<AudioSettings | null>(null)
   const [canvas, setCanvas] = useState<Canvas | null>(null)
+  const [omt, setOmt] = useState<OmtSettings | null>(null)
+  const omtStatus = useOmtStatus()
   const [status, setStatus] = useState<HdmiStatus | null>(null)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [open, setOpen] = useState(false)
@@ -36,6 +41,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
       setHdmi(s.hdmi)
       setAudio((cur) => cur ?? s.audio)
       setCanvas(s.canvas)
+      setOmt(s.omt)
     })
     // A status pushed before this resolves is newer; keep it.
     api.getHdmiStatus().then((s) => setStatus((cur) => cur ?? s))
@@ -49,6 +55,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
     api.getSettings().then((s) => {
       setHdmi(s.hdmi)
       setCanvas(s.canvas)
+      setOmt(s.omt)
     })
     api.listDisplays().then(setDisplays)
   }, [api, open])
@@ -74,7 +81,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
     }
   }, [open])
 
-  if (!hdmi || !audio) {
+  if (!hdmi || !audio || !omt) {
     return (
       <div className="output-menu">
         <span className="output-btn" data-tone="off">
@@ -88,6 +95,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
   const badge = hdmiBadge(status, hdmi)
   // The screen the output window is on: shown only while it really is showing.
   const target = badge.tone === 'ok' ? displays.find((d) => d.id === hdmi.displayId) : undefined
+  const omtTone = omtBadge(omtStatus)
   const StatusIcon = badge.tone === 'warn' || badge.tone === 'error' ? WarningIcon : MonitorIcon
 
   return (
@@ -103,6 +111,10 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
         <span className="ind" data-testid="hdmi-status" data-tone={badge.tone}>
           <StatusIcon size={16} />
           <span>{badge.text}</span>
+        </span>
+        <span className="ind" data-testid="omt-status" data-tone={omtTone.tone}>
+          {omtTone.tone === 'error' ? <WarningIcon size={16} /> : <BroadcastIcon size={16} />}
+          <span>{omtTone.text}</span>
         </span>
         <span
           className="canvas-tag"
@@ -135,6 +147,15 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
               setCanvas(s.canvas)
             }}
           />
+          <OmtSection
+            omt={omt}
+            status={omtStatus}
+            onSaved={(s) => {
+              setOmt(s.omt)
+              setAudio(s.audio)
+              setCanvas(s.canvas)
+            }}
+          />
           <AudioSection audio={audio} onSaved={(s) => setAudio(s.audio)} />
           {canvas && (
             <section
@@ -156,6 +177,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
                 allowDefault={false}
                 hdmiDisplay={pickDisplay(displays, hdmi.displayId)}
                 confirm={needsCanvasConfirm(program)}
+                omtReceivers={(omtStatus?.connections ?? 0) > 0}
                 apply={async (c) => {
                   // allowDefault is false: the picker never hands over null here.
                   if (c) setCanvas((await api.setDefaultCanvas(c)).canvas)

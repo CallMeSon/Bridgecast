@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_OMT, audioPlan, dropWarning, restartAllowed, sanitizeOmt } from './omt'
-import type { AudioRoute } from './omt'
+import {
+  DEFAULT_OMT,
+  NO_RECEIVERS_AFTER_MS,
+  audioPlan,
+  dropWarning,
+  noReceiversHint,
+  omtBadge,
+  restartAllowed,
+  sanitizeOmt
+} from './omt'
+import type { AudioRoute, OmtStatus } from './omt'
 
 describe('sanitizeOmt', () => {
   it('defaults for anything that is not an object', () => {
@@ -115,8 +124,52 @@ describe('audioPlan', () => {
       for (const net of [true, false])
         for (const route of ['local', 'omt', 'both'] as const) {
           const both =
-            audioPlan('hdmi', showing, net, route).local && audioPlan('omt', showing, net, route).local
+            audioPlan('hdmi', showing, net, route).local &&
+            audioPlan('omt', showing, net, route).local
           expect(both).toBe(false)
         }
+  })
+})
+
+describe('omtBadge', () => {
+  const st = (o: Partial<OmtStatus>): OmtStatus => ({
+    state: 'running',
+    connections: 0,
+    address: 'PC (PPT Share)',
+    ...o
+  })
+
+  it('no status or off is off', () => {
+    expect(omtBadge(null)).toEqual({ text: 'OMT off', tone: 'off' })
+    expect(omtBadge(st({ state: 'off' }))).toEqual({ text: 'OMT off', tone: 'off' })
+  })
+
+  it('running counts receivers', () => {
+    expect(omtBadge(st({ connections: 0 }))).toEqual({
+      text: 'OMT · no receivers',
+      tone: 'neutral'
+    })
+    expect(omtBadge(st({ connections: 1 }))).toEqual({ text: 'OMT · 1 receiver', tone: 'ok' })
+    expect(omtBadge(st({ connections: 2 }))).toEqual({ text: 'OMT · 2 receivers', tone: 'ok' })
+  })
+
+  it('starting is neutral, error is error', () => {
+    expect(omtBadge(st({ state: 'starting' })).tone).toBe('neutral')
+    expect(omtBadge(st({ state: 'error' }))).toEqual({ text: 'OMT error', tone: 'error' })
+  })
+})
+
+describe('noReceiversHint', () => {
+  const t0 = 1_000_000
+  it('is due only after 15 s without receivers while running', () => {
+    expect(NO_RECEIVERS_AFTER_MS).toBe(15_000)
+    expect(noReceiversHint('running', 0, t0, t0 + 14_999)).toBe(false)
+    expect(noReceiversHint('running', 0, t0, t0 + 15_000)).toBe(true)
+  })
+  it('never with a receiver, a different state or no start time', () => {
+    expect(noReceiversHint('running', 1, t0, t0 + 60_000)).toBe(false)
+    expect(noReceiversHint('starting', 0, t0, t0 + 60_000)).toBe(false)
+    expect(noReceiversHint('error', 0, t0, t0 + 60_000)).toBe(false)
+    expect(noReceiversHint('running', 0, null, t0 + 60_000)).toBe(false)
   })
 })

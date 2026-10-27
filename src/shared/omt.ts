@@ -91,3 +91,54 @@ export function audioPlan(
   const owner = role === 'hdmi' ? hdmiShowing : !hdmiShowing && networkRunning
   return { local: owner && route !== 'omt', tap: role === 'omt' && route !== 'local' }
 }
+
+// UI copy, shared by the components and their tests.
+// Error messages arrive in OmtStatus.message from main; this is the fallback.
+export const OMT_START_FAILED =
+  'OMT could not start. Close other apps that send OMT, then turn OMT off and on.'
+export const OMT_DROPS = 'OMT is dropping frames. Set the frame rate to 30.'
+export const OMT_NO_RECEIVERS =
+  "No receiver yet. If vMix or OBS can't find PPT Share, allow PPT Share in Windows Firewall (Private networks) or add the address manually."
+export const OMT_NO_SOUND = 'OMT sound is unavailable; sound plays on this PC only.'
+export const OMT_RECEIVERS_CONFIRM =
+  'Receivers will lose the OMT picture for about a second. Change it now?'
+
+export interface OmtBadge {
+  text: string
+  /** ok = receivers connected, neutral = on but nobody connected, off = gray, error = problem. */
+  tone: 'off' | 'neutral' | 'ok' | 'error'
+}
+
+/** Header OMT status: text always carries the state (the tone is only a second cue). */
+export function omtBadge(s: OmtStatus | null): OmtBadge {
+  if (!s || s.state === 'off') return { text: 'OMT off', tone: 'off' }
+  if (s.state === 'error') return { text: 'OMT error', tone: 'error' }
+  if (s.state === 'running' && s.connections > 0) {
+    return {
+      text: `OMT · ${s.connections} receiver${s.connections === 1 ? '' : 's'}`,
+      tone: 'ok'
+    }
+  }
+  if (s.state === 'starting') return { text: 'OMT starting…', tone: 'neutral' }
+  return { text: 'OMT · no receivers', tone: 'neutral' }
+}
+
+export const NO_RECEIVERS_AFTER_MS = 15_000
+
+/**
+ * True once a running sender has had no receiver for 15 s. `since` is when the
+ * current spell of "running with 0 connections" began (null when not in one).
+ */
+export function noReceiversHint(
+  state: OmtStatus['state'],
+  connections: number,
+  since: number | null,
+  now: number
+): boolean {
+  return (
+    state === 'running' &&
+    connections === 0 &&
+    since !== null &&
+    now - since >= NO_RECEIVERS_AFTER_MS
+  )
+}

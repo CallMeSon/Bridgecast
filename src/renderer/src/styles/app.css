@@ -499,6 +499,32 @@ button.output-btn:hover,
   width: 100%;
   min-width: 0;
 }
+.omt-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.omt-source .num {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font: 400 13px var(--font-mono);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.omt-source .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hint .ph,
+.hint svg {
+  vertical-align: -2px;
+}
 .canvas-confirm {
   display: grid;
   grid-template-columns: 20px 1fr;
@@ -1368,6 +1394,18 @@ kbd {
   font-weight: 550;
   color: var(--text-2);
   background: var(--bg);
+}
+.seg.fill {
+  display: flex;
+  width: 100%;
+}
+.seg.fill button {
+  flex: 1;
+  padding: 0 8px;
+}
+.seg button[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .seg button:first-child {
   border-radius: 2px 0 0 2px;

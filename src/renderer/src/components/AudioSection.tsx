@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AudioSettings, Settings } from '../../../shared/settings'
 import { errorMessage } from '../model'
+import type { AudioRoute } from '../../../shared/omt'
 import { pickSink, useAudioOutputs } from '../audio'
+import { Segmented } from './Segmented'
 import { Switch } from './Switch'
 import { VolumeSlider } from './VolumeSlider'
 import { useDebouncedSave } from './useDebouncedSave'
+
+const ROUTES: readonly { value: AudioRoute; label: string }[] = [
+  { value: 'local', label: 'Local device' },
+  { value: 'omt', label: 'OMT' },
+  { value: 'both', label: 'Both' }
+]
 
 interface Props {
   audio: AudioSettings
@@ -99,6 +107,23 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
           </p>
         )}
         <span className="hint">Sound of video slides plays on the HDMI output only.</span>
+      </div>
+
+      <div className="field">
+        <span className="row-label" id="audio-route-title">
+          Sound to
+        </span>
+        <Segmented<AudioRoute>
+          label="Sound to"
+          value={audio.route}
+          options={ROUTES}
+          disabled={busy}
+          testId="audio-route"
+          onChange={(route) => void saveAudio({ ...audio, masterVolume: volumeRef.current, route })}
+        />
+        <span className="hint">
+          Local device is the HDMI output (or this PC when HDMI is off). OMT sends it to receivers.
+        </span>
       </div>
 
       <VolumeSlider
