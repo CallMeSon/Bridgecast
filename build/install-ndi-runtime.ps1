@@ -17,7 +17,11 @@ function Get-NdiSearchDirs {
     $v = [Environment]::GetEnvironmentVariable($k)
     if ($v) { $dirs += $v }
   }
-  $root = Join-Path $env:ProgramFiles 'NDI'
+  # NSIS installers are 32-bit, so powershell.exe started from nsExec is the
+  # 32-bit one and $env:ProgramFiles points to "Program Files (x86)". The
+  # runtime lives in the 64-bit Program Files, which ProgramW6432 always names.
+  $pf = if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }
+  $root = Join-Path $pf 'NDI'
   $dirs += (Join-Path $root 'NDI 6 Runtime\v6')
   $dirs += (Join-Path $root 'NDI 6 Tools\Runtime')
   $dirs += (Join-Path $root 'NDI 5 Runtime')
