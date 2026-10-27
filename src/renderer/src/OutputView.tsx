@@ -252,6 +252,8 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
         generation: (id) => pages.generations[id] ?? 0,
         onFrame: (id) => void window.api.webFrame(id).catch(() => undefined),
         onEnded: (id) => void window.api.webEnded(id).catch(() => undefined),
+        // HOLD before a Reload, Back, Forward or new URL waits for this pause.
+        onPaused: (id) => void window.api.webHeld(id).catch(() => undefined),
         onFailed: (id, failed) =>
           void window.api.webCaptureFailed(id, failed).catch(() => undefined)
       }

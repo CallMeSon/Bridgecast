@@ -30,6 +30,8 @@ export interface StreamOptions {
   onFrame?: (id: string) => void
   onEnded?: (id: string) => void
   onFailed?: (id: string, failed: boolean) => void
+  /** The layer paused its stream (HOLD, Freeze). */
+  onPaused?: (id: string) => void
   /** Accessible name of a stream layer (the operator monitor). */
   label?: string
 }
@@ -373,6 +375,7 @@ export function SlideLayers({
               onFrame={streamCb(stream?.onFrame, l.spec.deckId)}
               onEnded={streamCb(stream?.onEnded, l.spec.deckId)}
               onFailed={(f) => stream?.onFailed?.(l.spec?.deckId ?? '', f)}
+              onPaused={streamCb(stream?.onPaused, l.spec.deckId)}
               label={stream?.label}
             />
           ) : l.spec?.kind === 'video' && !l.failed ? (

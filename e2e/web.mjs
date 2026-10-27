@@ -34,9 +34,13 @@ const PROBE_ID = 515151
 const fixture = fs.readFileSync(path.join(root, 'fixtures/web/index.html'))
 let release = null
 const slowGate = new Promise((r) => (release = r))
+// A second slow page, for Edit URL while live (HOLD first, Resume web only once ready).
+let release2 = null
+const gate2 = new Promise((r) => (release2 = r))
 const sockets = new Set()
 const server = http.createServer(async (req, res) => {
   if (req.url?.startsWith('/slow')) await slowGate
+  if (req.url?.startsWith('/gate2')) await gate2
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', connection: 'close' })
   res.end(fixture)
 })
@@ -122,6 +126,24 @@ const hdmiPx = (app) =>
     return [at(width * 0.03, height * 0.05), at(width * 0.97, height * 0.95)]
   }, HDMI_TITLE)
 const isBlack = (p) => Math.max(...p) <= 8
+/** The page window of a deck (by URL part): visible?, content size, full screen. */
+const hostWin = (app, part) =>
+  app.evaluate(({ BrowserWindow }, p) => {
+    const w = BrowserWindow.getAllWindows().find(
+      (x) => !x.isDestroyed() && x.webContents.getURL().includes(p)
+    )
+    return w
+      ? { visible: w.isVisible(), size: w.getContentSize(), fullScreen: w.isFullScreen() }
+      : null
+  }, part)
+/** The HDMI stream layer: the shown <video> (not an incoming one), poster and still. */
+const hdmiLayer = (app) =>
+  app.evaluate(async ({ BrowserWindow }, t) => {
+    const w = BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && x.getTitle() === t)
+    return w.webContents.executeJavaScript(
+      `(() => { const l = document.querySelector('.stream-layer'); const v = l?.querySelector('video:not([data-incoming])'); return { video: !!v, paused: !!v?.paused, poster: !!l?.querySelector('img'), still: l?.dataset.still === 'true' } })()`
+    )
+  }, HDMI_TITLE)
 // The fixture background is (32,64,128): blue dominates and it is not black.
 const isFixturePx = (px) => px.every((p) => p[2] > 90 && p[2] > p[0] + 40)
 async function waitPx(app, pred, what, timeout = 12_000) {
@@ -238,6 +260,26 @@ async function main() {
       'nothing on air changed after the popup and camera requests'
     )
 
+    // ---- HTML full screen (Canva Present calls requestFullscreen): the window stays hidden
+    await pageEval(app, '/slow', "document.getElementById('fullscreen').click()")
+    await sleep(800)
+    let hw = await hostWin(app, '/slow')
+    check(
+      hw && !hw.visible && !hw.fullScreen && hw.size[0] === 1920 && hw.size[1] === 1080,
+      `HTML full screen keeps the page window hidden at the canvas size (${JSON.stringify(hw)}, page: ${await pageEval(app, '/slow', 'window.__fullscreen')})`
+    )
+    await pageEval(app, '/slow', 'document.fullscreenElement && document.exitFullscreen()')
+    await sleep(500)
+    hw = await hostWin(app, '/slow')
+    check(
+      hw && !hw.visible && hw.size[0] === 1920 && hw.size[1] === 1080,
+      'leaving HTML full screen keeps the page window hidden at the canvas size'
+    )
+    check(
+      (await session(win)).state.shown?.web?.deckId === S.id,
+      'full screen changed nothing on air'
+    )
+
     // ---- Prepare input: refused live, accepted frozen
     const key = (type) => ({ kind: 'key', type, keyCode: 'ArrowRight', modifiers: [] })
     let ok = await win.evaluate(([d, i]) => window.api.webInput(d, i), [S.id, key('keyDown')])
@@ -304,6 +346,35 @@ async function main() {
     await waitState(win, (x) => x.shown?.web?.deckId === C.id, 'D to C')
     await waitPx(app, isFixturePx, 'output shows the page after D')
 
+    // ---- Edit URL while live: HOLD first, the output keeps the last frame, Resume web only once ready
+    await win.evaluate(([d, u]) => window.api.setWebUrl(d, u), [C.id, `${base}/gate2`])
+    st = (await session(win)).state
+    check(
+      st.webHold === true && st.shown?.web?.deckId === C.id,
+      'Edit URL while live goes to HOLD first'
+    )
+    await waitWeb(app, (d) => d[C.id]?.status === 'loading', 'the new address is loading')
+    let lay = await hdmiLayer(app)
+    check(
+      lay.video && lay.paused && !lay.poster,
+      `the output holds its stream (${JSON.stringify(lay)})`
+    )
+    await sleep(600)
+    check(
+      isFixturePx(await hdmiPx(app)),
+      'the output keeps the last frame while the new page loads'
+    )
+    st = await dispatch(win, { type: 'resumeWeb' })
+    check(st.webHold === true, 'Resume web is refused while the new page is not ready')
+    release2()
+    await waitWeb(app, (d) => d[C.id]?.status === 'ready', 'the new page is ready')
+    st = await dispatch(win, { type: 'resumeWeb' })
+    check(
+      st.webHold === false && st.shown?.web?.deckId === C.id,
+      'Resume web once the page is ready'
+    )
+    await waitPx(app, isFixturePx, 'output shows the page after Resume web')
+
     // ---- server stops, Reload while live: HOLD, output keeps the last frame
     for (const s of sockets) s.destroy()
     await new Promise((r) => server.close(r))
@@ -311,28 +382,36 @@ async function main() {
     await waitWeb(app, (d) => d[C.id].webHold === true, 'webHold after the page failed to load')
     await waitState(win, (s) => s.webHold === true, 'HOLD in the program state')
     check(true, 'server stopped + Reload while live: webHold true')
+    await waitWeb(app, (d) => d[C.id].status === 'error', 'the reload failed')
     await sleep(1500)
-    // The HDMI layer pauses its stream element (no poster) and keeps it on screen.
-    const layer = await app.evaluate(async ({ BrowserWindow }, t) => {
-      const w = BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && x.getTitle() === t)
-      return w.webContents.executeJavaScript(
-        `(() => { const v = document.querySelector('.stream-layer video'); return { paused: !!v?.paused, poster: !!document.querySelector('.stream-layer img') } })()`
-      )
-    }, HDMI_TITLE)
-    check(layer.paused && !layer.poster, 'HOLD pauses the stream and keeps it on the output')
-    // KNOWN ISSUE (not a failure here): in about 40% of xvfb runs the window shows black here,
-    // because the page's navigation to Chromium's error page sends a blank frame before the
-    // pause applies. See docs/superpowers/notes/2026-10-27-roadmap-handoff.md (known issues).
-    const held = await waitPx(app, isFixturePx, 'last frame', 4000).catch(() => null)
-    if (held) {
-      console.log(`ok - the output still shows the last frame (${JSON.stringify(held)})`)
-    } else {
-      console.warn(
-        `WARN - the output does not show the last frame (${JSON.stringify(await hdmiPx(app))}; known intermittent issue)`
-      )
+    // The HDMI layer pauses its shown stream element (no poster), shows the still, stays on screen.
+    lay = await hdmiLayer(app)
+    check(
+      lay.video && lay.paused && !lay.poster && lay.still,
+      `HOLD pauses the stream and keeps it on the output (${JSON.stringify(lay)})`
+    )
+    // Pixels: sampled several times over 2 s, every sample must be the page's last frame.
+    for (let i = 0; i < 5; i++) {
+      const px = await hdmiPx(app)
+      check(isFixturePx(px), `the output still shows the last frame (${JSON.stringify(px)})`)
+      await sleep(400)
     }
     await win.getByRole('button', { name: /Resume web/ }).waitFor({ timeout: 5000 })
     check(true, 'the HOLD warning offers Resume web')
+    st = await dispatch(win, { type: 'resumeWeb' })
+    check(st.webHold === true, 'Resume web is refused while the page has failed')
+
+    // ---- K or B after HOLD: the failed page never comes back by itself
+    await win.locator('body').click({ position: { x: 2, y: 2 } })
+    await win.keyboard.press('b')
+    st = await waitState(win, (s) => s.black, 'B on after HOLD')
+    check(st.black && !st.webHold, 'B after HOLD goes black and ends HOLD')
+    await win.keyboard.press('b')
+    await sleep(500)
+    st = (await session(win)).state
+    check(st.black === true, 'B off is refused while the page has failed (output stays black)')
+    await waitPx(app, (px) => px.every(isBlack), 'HDMI output stays black')
+    check(true, 'the HDMI output stays black, the failed page is not on air')
 
     // ---- switching event keeps the live page on air; taking a slide of it closes it
     await win.click('.event-btn')

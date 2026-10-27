@@ -27,18 +27,27 @@ export interface StreamLayerProps {
   onEnded?(): void
   /** The capture failed or ended and the poster shows (true), or it works again (false). */
   onFailed?(failed: boolean): void
+  /** The visible stream was paused (HOLD, Freeze): main may now navigate the page. */
+  onPaused?(): void
   /** Accessible name (the operator monitor); outputs have none. */
   label?: string
 }
 
 /**
  * A live capture in a slide layer (see StreamCapture): reveals on its first
- * frame, pauses for Freeze and HOLD, shows the poster when capture fails or
- * ends, captures again on a new `generation`, stops its tracks on unmount.
+ * frame, pauses for Freeze and HOLD and then shows the still of the last good
+ * frame (also when the track ends; the poster only when no frame ever came),
+ * captures again on a new `generation`, stops its tracks on unmount.
  */
 export function StreamLayer(props: StreamLayerProps): React.JSX.Element {
   const { source, id, poster, paused, audio, muted, generation = 0, label } = props
-  const [view, setView] = useState<CaptureView>({ entries: [], shownKey: null, poster: false })
+  const [view, setView] = useState<CaptureView>({
+    entries: [],
+    shownKey: null,
+    poster: false,
+    still: false
+  })
+  const stillRef = useRef<HTMLCanvasElement>(null)
   const latest = useRef(props)
   useEffect(() => {
     latest.current = props
@@ -62,8 +71,10 @@ export function StreamLayer(props: StreamLayerProps): React.JSX.Element {
       onReady: () => p().onReady(),
       onFrame: () => p().onFrame?.(),
       onEnded: () => p().onEnded?.(),
-      onFailed: (f) => p().onFailed?.(f)
+      onFailed: (f) => p().onFailed?.(f),
+      onPaused: () => p().onPaused?.()
     })
+    c.bindStill(stillRef.current)
     setCap(c)
     c.start()
     return () => {
@@ -94,6 +105,7 @@ export function StreamLayer(props: StreamLayerProps): React.JSX.Element {
       data-source={source}
       data-paused={String(paused)}
       data-poster={view.poster ? 'true' : undefined}
+      data-still={view.still ? 'true' : undefined}
       {...(label ? { role: 'img', 'aria-label': label } : {})}
     >
       {view.entries.map((e) => (
@@ -108,6 +120,8 @@ export function StreamLayer(props: StreamLayerProps): React.JSX.Element {
           data-incoming={e.key === view.shownKey ? undefined : 'true'}
         />
       ))}
+      {/* One canvas per layer: the last good frame, above the paused or ended <video>. */}
+      <canvas ref={stillRef} className="stream-still" data-shown={view.still ? '' : undefined} />
       {view.poster && <img src={poster} alt="" draggable={false} />}
     </div>
   )

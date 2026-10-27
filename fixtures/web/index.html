@@ -36,13 +36,15 @@
       <button id="tone">440 Hz tone</button>
       <button id="popup">window.open</button>
       <button id="camera">getUserMedia video</button>
+      <button id="fullscreen">requestFullscreen</button>
     </div>
     <input id="text" aria-label="Test input" />
     <script>
-      // Test hooks: window.__counter, window.__popup, window.__camera.
+      // Test hooks: window.__counter, window.__popup, window.__camera, window.__fullscreen.
       window.__counter = 0
       window.__popup = null
       window.__camera = null
+      window.__fullscreen = null
       const shown = document.getElementById('counter')
       const render = () => {
         shown.textContent = String(window.__counter)
@@ -67,6 +69,17 @@
       document.getElementById('popup').addEventListener('click', () => {
         const w = window.open('/popup')
         window.__popup = w ? 'opened' : 'blocked'
+      })
+      // Like Canva Present: the page asks for HTML full screen.
+      document.getElementById('fullscreen').addEventListener('click', () => {
+        document.documentElement
+          .requestFullscreen()
+          .then(() => {
+            window.__fullscreen = 'entered'
+          })
+          .catch((e) => {
+            window.__fullscreen = e.name
+          })
       })
       document.getElementById('camera').addEventListener('click', () => {
         navigator.mediaDevices

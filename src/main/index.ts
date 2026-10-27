@@ -67,6 +67,8 @@ import { sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web
 import { WebHost } from './web/web-host'
 import {
   frameSenderAllowed,
+  HeldAcks,
+  heldAckRoles,
   updateCaptureWarnings,
   isAppPageUrl,
   mergeDisableFeatures,
@@ -547,6 +549,9 @@ function registerIpc(
   })
 }
 
+/** HOLD before navigating waits at most this long for the outputs to pause their stream. */
+const HELD_ACK_TIMEOUT_MS = 1000
+
 /** web:* channels; every one refuses a caller that is not an app window. */
 function registerWebIpc(
   lib: Library,
@@ -591,26 +596,33 @@ function registerWebIpc(
     if (!given) web.nameFromTitle(deck.id)
     return deck
   })
-  appHandle(Invoke.webSetUrl, (_e, deckId, url) => {
+  // The page on air (not frozen): HOLD first, then navigate once the outputs hold their frame.
+  const acks = new HeldAcks()
+  web.waitHeld = (deckId) => acks.wait(deckId, heldAckRoles(outputsActive()), HELD_ACK_TIMEOUT_MS)
+  appHandle(Invoke.webHeld, (e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    acks.ack(deckId, roleOf(e.sender))
+  })
+  appHandle(Invoke.webSetUrl, async (_e, deckId, url) => {
     assertString(deckId, 'Deck ID')
     const deck = lib.setWebUrl(eventOfDeck(deckId), deckId, typeof url === 'string' ? url : '')
     if (deck.web) {
       try {
-        web.navigate(deckId, deck.web.url)
+        await web.navigate(deckId, deck.web.url)
       } catch {
         // No page open (deck of another event): it loads the new URL when its event opens.
       }
     }
     return deck
   })
-  appHandle(Invoke.webReload, (_e, deckId) => {
+  appHandle(Invoke.webReload, async (_e, deckId) => {
     assertString(deckId, 'Deck ID')
-    web.reload(deckId)
+    await web.reload(deckId)
   })
-  appHandle(Invoke.webNav, (_e, deckId, dir) => {
+  appHandle(Invoke.webNav, async (_e, deckId, dir) => {
     assertString(deckId, 'Deck ID')
-    if (dir === 'back') web.back(deckId)
-    else if (dir === 'forward') web.forward(deckId)
+    if (dir === 'back') await web.back(deckId)
+    else if (dir === 'forward') await web.forward(deckId)
     else throw new Error('The navigation is not valid. Use Back or Forward.')
   })
   appHandle(Invoke.webInput, (_e, deckId, input) => {
@@ -900,8 +912,13 @@ Location: ${root}`
     lib,
     state,
     () => state.state.canvas,
-    (deckId, status, message) =>
-      broadcast(Broadcast.webStatus, message ? { deckId, status, message } : { deckId, status }),
+    (deckId, status, message, warning) =>
+      broadcast(Broadcast.webStatus, {
+        deckId,
+        status,
+        ...(message ? { message } : {}),
+        ...(warning ? { warning } : {})
+      }),
     () => operator,
     is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
   )

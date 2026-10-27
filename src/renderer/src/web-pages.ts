@@ -9,6 +9,20 @@ export interface WebPages {
   versions: Record<string, number>
   /** Per page: bumped when it comes back from an error (capture again with a new source id). */
   generations: Record<string, number>
+  /** Per page: operator warning while it lasts (the page window is not the canvas size). */
+  warnings: Record<string, string>
+}
+
+/** Like mergeStatuses, for the warnings: touched pages keep their event value (or none). */
+export function mergeWarnings(
+  prev: Record<string, string>,
+  list: { deckId: string; warning?: string }[],
+  touched: ReadonlySet<string>
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const e of list) if (e.warning && !touched.has(e.deckId)) out[e.deckId] = e.warning
+  for (const id of touched) if (prev[id]) out[id] = prev[id]
+  return out
 }
 
 /**
@@ -32,7 +46,12 @@ export function mergeStatuses(
  * the list again (a closed page sends no status of its own).
  */
 export function useWebPages(): WebPages & { refresh(): void; bump(deckId: string): void } {
-  const [pages, setPages] = useState<WebPages>({ statuses: {}, versions: {}, generations: {} })
+  const [pages, setPages] = useState<WebPages>({
+    statuses: {},
+    versions: {},
+    generations: {},
+    warnings: {}
+  })
   const [tick, setTick] = useState(0)
   // Pages that sent a status event since the current list request began.
   const touched = useRef(new Set<string>())
@@ -41,19 +60,29 @@ export function useWebPages(): WebPages & { refresh(): void; bump(deckId: string
     touched.current = new Set()
     const off = api.onWebStatus((e) => {
       touched.current.add(e.deckId)
-      setPages((p) => ({
-        statuses: { ...p.statuses, [e.deckId]: e.status },
-        versions: { ...p.versions, [e.deckId]: (p.versions[e.deckId] ?? 0) + 1 },
-        generations: recaptureNeeded(p.statuses[e.deckId], e.status)
-          ? { ...p.generations, [e.deckId]: (p.generations[e.deckId] ?? 0) + 1 }
-          : p.generations
-      }))
+      setPages((p) => {
+        const warnings = { ...p.warnings }
+        if (e.warning) warnings[e.deckId] = e.warning
+        else delete warnings[e.deckId]
+        return {
+          warnings,
+          statuses: { ...p.statuses, [e.deckId]: e.status },
+          versions: { ...p.versions, [e.deckId]: (p.versions[e.deckId] ?? 0) + 1 },
+          generations: recaptureNeeded(p.statuses[e.deckId], e.status)
+            ? { ...p.generations, [e.deckId]: (p.generations[e.deckId] ?? 0) + 1 }
+            : p.generations
+        }
+      })
     })
     api
       .webStatuses()
       .then((list) => {
         // Newer event entries win over the list; pages the list lacks (closed) drop out.
-        setPages((p) => ({ ...p, statuses: mergeStatuses(p.statuses, list, touched.current) }))
+        setPages((p) => ({
+          ...p,
+          statuses: mergeStatuses(p.statuses, list, touched.current),
+          warnings: mergeWarnings(p.warnings, list, touched.current)
+        }))
       })
       .catch((e: unknown) => console.warn('[web] page statuses failed to load:', e))
     return off

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   StreamCapture,
+  STREAM_OPEN_TIMEOUT_MS,
   STREAM_PENDING_MS,
+  STILL_COPY_MS,
   type CaptureHost,
   type CaptureView
 } from './stream-capture'
@@ -31,15 +33,25 @@ const flush = async (): Promise<void> => {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type -- fakes
-function setup(opts: { paused?: boolean } = {}) {
+function setup(opts: { paused?: boolean; tap?: boolean } = {}) {
   const opened: ReturnType<typeof fakeStream>[] = []
   const frames = new Map<MediaStream, () => void>()
   let failOpen = false
+  let hangOpen = false
+  const hung: ((s: MediaStream) => void)[] = []
+  /** Per watched video: the callback for each presented frame. */
+  const presented = new Map<HTMLVideoElement, () => void>()
+  const copies: HTMLVideoElement[] = []
   let paused = opts.paused ?? false
   let view: CaptureView = { entries: [], shownKey: null, poster: false }
   const host = {
     open: vi.fn(() => {
       if (failOpen) return Promise.reject(new Error('Web page not open'))
+      if (hangOpen) {
+        const f = fakeStream(`h${hung.length + 1}`)
+        opened.push(f)
+        return new Promise<MediaStream>((resolve) => hung.push(() => resolve(f.stream)))
+      }
       const f = fakeStream(`s${opened.length + 1}`)
       opened.push(f)
       return Promise.resolve(f.stream)
@@ -53,6 +65,21 @@ function setup(opts: { paused?: boolean } = {}) {
     onFrame: vi.fn(),
     onEnded: vi.fn(),
     onFailed: vi.fn(),
+    onPaused: vi.fn(),
+    ...(opts.tap
+      ? {
+          tap: {
+            watch: (v: HTMLVideoElement, cb: () => void) => {
+              presented.set(v, cb)
+              return () => presented.delete(v)
+            },
+            copy: (v: HTMLVideoElement) => {
+              copies.push(v)
+              return true
+            }
+          }
+        }
+      : {}),
     play: (_v: HTMLVideoElement, s: MediaStream) =>
       new Promise<void>((resolve) => frames.set(s, resolve))
   } satisfies CaptureHost
@@ -82,7 +109,17 @@ function setup(opts: { paused?: boolean } = {}) {
     },
     failOpen: (f: boolean) => {
       failOpen = f
-    }
+    },
+    hangOpen: (h: boolean) => {
+      hangOpen = h
+    },
+    resolveHung: async (i: number) => {
+      hung[i]?.(null as unknown as MediaStream)
+      await flush()
+    },
+    /** A new frame is presented on the visible video. */
+    present: (key: number) => presented.get(videos.get(key)!)?.(),
+    copies
   }
 }
 
@@ -214,5 +251,93 @@ describe('StreamCapture', () => {
     t.render()
     await t.frame(2)
     expect(t.view().shownKey).toBe(3)
+  })
+
+  it('an open that never answers counts as failed and is retried; a late stream is stopped', async () => {
+    const t = setup()
+    t.hangOpen(true)
+    t.c.start()
+    await flush()
+    await vi.advanceTimersByTimeAsync(STREAM_OPEN_TIMEOUT_MS)
+    expect(t.host.onFailed).toHaveBeenLastCalledWith(true)
+    t.hangOpen(false)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(t.host.open).toHaveBeenCalledTimes(2)
+    await t.resolveHung(0)
+    expect(t.opened[0].track.stop).toHaveBeenCalled()
+    expect(t.view().entries.map((e) => e.key)).toEqual([1])
+  })
+
+  it('an ended capture is removed and its <video> released', async () => {
+    const t = setup()
+    t.c.start()
+    await flush()
+    t.render()
+    await t.frame(0)
+    const v = t.videos.get(1)!
+    v.srcObject = t.opened[0].stream
+    t.opened[0].end()
+    expect(t.view().entries).toEqual([])
+    expect(v.pause).toHaveBeenCalled()
+    expect(v.srcObject).toBeNull()
+  })
+
+  it('a superseded capture without a frame releases its <video>', async () => {
+    const t = setup()
+    t.c.start()
+    await flush()
+    t.render()
+    await t.frame(0)
+    t.c.capture()
+    await flush()
+    t.render()
+    const v = t.videos.get(2)!
+    v.srcObject = t.opened[1].stream
+    t.c.capture()
+    await flush()
+    expect(t.view().entries.map((e) => e.key)).toEqual([1, 3])
+    expect(v.srcObject).toBeNull()
+  })
+
+  it('keeps a still of the last frame while playing and shows it while paused (HOLD, Freeze)', async () => {
+    const t = setup({ tap: true })
+    t.c.start()
+    await flush()
+    t.render()
+    await t.frame(0)
+    // The first frame is copied at once (a still page sends only one).
+    expect(t.copies).toHaveLength(1)
+    expect(t.view().still).toBe(false)
+    t.present(1)
+    expect(t.copies).toHaveLength(1) // throttled
+    await vi.advanceTimersByTimeAsync(STILL_COPY_MS)
+    t.present(1)
+    expect(t.copies).toHaveLength(2)
+    t.setPaused(true)
+    expect(t.host.onPaused).toHaveBeenCalledTimes(1)
+    expect(t.view().still).toBe(true)
+    expect(t.view().poster).toBe(false)
+    await vi.advanceTimersByTimeAsync(STILL_COPY_MS)
+    t.present(1) // a late frame while paused is not copied
+    expect(t.copies).toHaveLength(2)
+    t.setPaused(false)
+    expect(t.view().still).toBe(false)
+  })
+
+  it('an ended track shows the last frame still instead of the poster', async () => {
+    const t = setup({ tap: true })
+    t.c.start()
+    await flush()
+    t.render()
+    await t.frame(0)
+    t.opened[0].end()
+    expect(t.view().still).toBe(true)
+    expect(t.view().poster).toBe(false)
+    expect(t.host.onFailed).toHaveBeenLastCalledWith(true)
+    await vi.advanceTimersByTimeAsync(1000)
+    t.render()
+    await t.frame(1)
+    expect(t.view().still).toBe(false)
+    expect(t.view().shownKey).toBe(2)
   })
 })

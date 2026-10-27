@@ -119,6 +119,7 @@ function DeckMenu({
   canDown,
   fit,
   web,
+  holdsFirst = false,
   onPrepare,
   onEditUrl,
   onReload,
@@ -136,6 +137,8 @@ function DeckMenu({
   fit: DeckFit
   /** A web deck: Prepare, Edit URL and Reload instead of the Fit items. */
   web: boolean
+  /** The web deck is on air and not frozen: Edit URL and Reload put the output on HOLD first. */
+  holdsFirst?: boolean
   onPrepare(): void
   onEditUrl(): void
   onReload(): void
@@ -170,10 +173,12 @@ function DeckMenu({
           <button role="menuitem" onClick={onEditUrl}>
             <LinkIcon className="chk" size={16} />
             Edit URL
+            {holdsFirst && <span className="menu-note">HOLD first</span>}
           </button>
           <button role="menuitem" onClick={onReload}>
             <ArrowsClockwiseIcon className="chk" size={16} />
             Reload
+            {holdsFirst && <span className="menu-note">HOLD first</span>}
           </button>
           <hr />
         </>
@@ -842,6 +847,7 @@ export function Library(p: Props): React.JSX.Element {
           canDown={menuIndex >= 0 && menuIndex < items.length - 1}
           fit={sanitizeFit(deckById.get(menu.deckId)?.fit)}
           web={deckById.get(menu.deckId)?.source === 'web'}
+          holdsFirst={p.live?.deckId === menu.deckId}
           onPrepare={() => {
             const id = menu.deckId
             setMenu(null)

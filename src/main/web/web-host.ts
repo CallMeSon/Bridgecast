@@ -11,11 +11,18 @@ import { webDomain, type WebStatus } from '../../shared/web'
 import {
   applyWebSession,
   electronKeyName,
+  frameNavigationAllowed,
   navigationAllowed,
   popupAllowed,
   validatePrepareInput
 } from './policy'
-import { failLoadIsError, syncPlan, webDeckName } from './host-rules'
+import {
+  failLoadIsError,
+  holdBeforeNavigate,
+  pageSizeWarning,
+  syncPlan,
+  webDeckName
+} from './host-rules'
 
 export type { WebStatus }
 
@@ -28,6 +35,8 @@ const CRASH_RELOAD_MS = 1000
 /** capturePage fails right after a load (no frame composited yet): retry this often. */
 const SNAPSHOT_TRIES = 4
 const SNAPSHOT_RETRY_MS = 500
+/** Without a way to hear back from the outputs, HOLD before navigating waits this long. */
+const HOLD_SETTLE_MS = 300
 
 export const SIGN_OUT_LIVE = 'Take another deck first, then sign out.'
 const NOT_OPEN = 'The web page is not open. Reload the deck, then try again.'
@@ -58,6 +67,8 @@ interface Page {
   autoName: boolean
   /** The content size matches the canvas (a window can be clamped to the screen). */
   sizeOk: boolean
+  /** Operator warning about the page window (its size), sent with its status. */
+  warning?: string
 }
 
 /**
@@ -73,12 +84,18 @@ export class WebHost {
   /** The web deck on air at the last syncEvent, to snapshot it when it leaves. */
   private onAir: string | null = null
   private closed = false
+  /**
+   * HOLD before navigating a live page waits for this: the outputs report that their
+   * stream is paused (`web:held`), or a timeout. Set by main.
+   */
+  waitHeld: (deckId: string) => Promise<unknown> = () =>
+    new Promise((r) => setTimeout(r, HOLD_SETTLE_MS))
 
   constructor(
     private lib: Library,
     private state: AppState,
     private canvas: () => Canvas,
-    private onStatus: (deckId: string, s: WebStatus, message?: string) => void,
+    private onStatus: (deckId: string, s: WebStatus, message?: string, warning?: string) => void,
     /** Where popups (sign-in windows) open: the operator window's display. */
     private operatorWindow: () => BrowserWindow | null = () => null,
     /** The dev server URL in development: its origin counts as an app window for tab capture. */
@@ -136,35 +153,54 @@ export class WebHost {
   }
 
   /** Every open page's current status. */
-  statuses(): { deckId: string; status: WebStatus; message?: string }[] {
-    return [...this.pages.values()].map((p) =>
-      p.failed
-        ? { deckId: p.deckId, status: p.status, message: p.failed }
-        : {
-            deckId: p.deckId,
-            status: p.status
-          }
-    )
+  statuses(): { deckId: string; status: WebStatus; message?: string; warning?: string }[] {
+    return [...this.pages.values()].map((p) => ({
+      deckId: p.deckId,
+      status: p.status,
+      ...(p.failed ? { message: p.failed } : {}),
+      ...(p.warning ? { warning: p.warning } : {})
+    }))
   }
 
-  reload(deckId: string): void {
+  /**
+   * Reload, Back, Forward and a new URL on the page on air (not frozen, not held):
+   * HOLD first, and navigate only once the outputs hold their last frame, so the
+   * audience never sees the next document (blank, error page) before the ready gate.
+   * HOLD then ends only through Resume web (or another take, K, B).
+   */
+  private async holdFirst(deckId: string): Promise<void> {
+    const s = this.state.state
+    if (!holdBeforeNavigate({ live: this.live(deckId), frozen: s.frozen, held: s.webHold })) return
+    this.state.setWebHold(true)
+    await this.waitHeld(deckId)
+  }
+
+  async reload(deckId: string): Promise<void> {
+    this.page(deckId)
+    await this.holdFirst(deckId)
     const p = this.page(deckId)
     this.clearCrashReload(p)
     p.win.webContents.reload()
   }
 
-  navigate(deckId: string, url: string): void {
+  async navigate(deckId: string, url: string): Promise<void> {
+    this.page(deckId)
+    await this.holdFirst(deckId)
     const p = this.page(deckId)
     this.clearCrashReload(p)
     this.load(p, url)
   }
 
-  back(deckId: string): void {
+  async back(deckId: string): Promise<void> {
+    if (!this.page(deckId).win.webContents.navigationHistory.canGoBack()) return
+    await this.holdFirst(deckId)
     const h = this.page(deckId).win.webContents.navigationHistory
     if (h.canGoBack()) h.goBack()
   }
 
-  forward(deckId: string): void {
+  async forward(deckId: string): Promise<void> {
+    if (!this.page(deckId).win.webContents.navigationHistory.canGoForward()) return
+    await this.holdFirst(deckId)
     const h = this.page(deckId).win.webContents.navigationHistory
     if (h.canGoForward()) h.goForward()
   }
@@ -351,8 +387,19 @@ export class WebHost {
     // Its sound only reaches the audience through the outputs (tab capture taps it before the mute).
     wc.setAudioMuted(true)
     win.on('page-title-updated', (e) => e.preventDefault())
-    // Never really fullscreen: the page already fills a canvas-sized viewport.
-    win.on('enter-full-screen', () => win.setFullScreen(false))
+    // Never really fullscreen: the page already fills a canvas-sized viewport. HTML
+    // full screen (Canva Present calls requestFullscreen) keeps the window hidden
+    // and its content size at the canvas.
+    const keepWindow = (): void => {
+      if (win.isDestroyed()) return
+      if (win.isFullScreen()) win.setFullScreen(false)
+      if (win.isVisible()) win.hide()
+      this.fitSize(p)
+    }
+    win.on('enter-full-screen', keepWindow)
+    win.on('leave-full-screen', keepWindow)
+    win.on('enter-html-full-screen', keepWindow)
+    win.on('leave-html-full-screen', keepWindow)
 
     wc.on('did-start-navigation', (details) => {
       if (!details.isMainFrame || details.isSameDocument) return
@@ -406,18 +453,20 @@ export class WebHost {
       for (const w of p.popups) if (!w.isDestroyed()) w.destroy()
       if (this.pages.get(deckId) === p) this.pages.delete(deckId)
     })
-    this.onStatus(deckId, p.status)
+    this.onStatus(deckId, p.status, undefined, p.warning)
     this.load(p, url)
   }
 
   /** Navigation, popups and new windows of a page or one of its popups. */
   private guardContents(p: Page, wc: WebContents): void {
-    const block = (e: Electron.Event, url: string): void => {
-      if (!navigationAllowed(url)) e.preventDefault()
+    // Main frame: web pages only. Subframes may also hold about:srcdoc, blob: and data:
+    // documents (embeds, widgets); external protocols stay blocked everywhere.
+    const block = (e: Electron.Event, url: string, isMainFrame: boolean): void => {
+      if (!frameNavigationAllowed(url, isMainFrame)) e.preventDefault()
     }
-    wc.on('will-navigate', (e) => block(e, e.url))
-    wc.on('will-frame-navigate', (e) => block(e, e.url))
-    wc.on('will-redirect', (e) => block(e, e.url))
+    wc.on('will-navigate', (e) => block(e, e.url, true))
+    wc.on('will-frame-navigate', (e) => block(e, e.url, e.isMainFrame))
+    wc.on('will-redirect', (e) => block(e, e.url, e.isMainFrame))
     wc.setWindowOpenHandler((details) => {
       if (!popupAllowed(this.live(p.deckId)) || !navigationAllowed(details.url)) {
         return { action: 'deny' }
@@ -467,10 +516,14 @@ export class WebHost {
     if (p.win.isDestroyed()) return
     const c = this.canvas()
     p.win.setContentSize(c.width, c.height)
-    const [w, h] = p.win.getContentSize()
-    p.sizeOk = w === c.width && h === c.height
-    if (!p.sizeOk) {
-      console.warn(`[web] page window is ${w}x${h}, the canvas is ${c.width}x${c.height}`)
+    const size = p.win.getContentSize()
+    const warning = pageSizeWarning(size, c)
+    p.sizeOk = warning === undefined
+    if (!p.sizeOk) console.warn(`[web] ${warning}`)
+    if (warning !== p.warning) {
+      p.warning = warning
+      // Same channel as the load state: the operator sees the warning while it lasts.
+      this.onStatus(p.deckId, p.status, p.failed ?? undefined, p.warning)
     }
   }
 
@@ -478,7 +531,7 @@ export class WebHost {
     const status: WebStatus = p.failed ? 'error' : p.loaded && p.frameSeen ? 'ready' : 'loading'
     if (status === p.status && status !== 'error') return
     p.status = status
-    this.onStatus(p.deckId, status, p.failed ?? undefined)
+    this.onStatus(p.deckId, status, p.failed ?? undefined, p.warning)
   }
 
   /** HOLD (only main sets it) when the page is on air; never ends by itself. */

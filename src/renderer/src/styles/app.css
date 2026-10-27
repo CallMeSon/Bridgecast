@@ -151,6 +151,13 @@ header > .event {
 .menu button kbd {
   margin-left: auto;
 }
+/* Short consequence of a menu item (Reload on air: HOLD first). */
+.menu button .menu-note {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 12px;
+  color: var(--text-3);
+}
 /* Name of a group of choices inside a menu (Display mode); the checked one is bold and ticked. */
 .menu .menu-label {
   display: block;

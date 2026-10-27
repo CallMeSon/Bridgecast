@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeStatuses } from './web-pages'
+import { mergeStatuses, mergeWarnings } from './web-pages'
 
 describe('mergeStatuses', () => {
   it('takes the list when no event came first', () => {
@@ -27,5 +27,25 @@ describe('mergeStatuses', () => {
       { deckId: 'c', status: 'loading' as const }
     ]
     expect(mergeStatuses(prev, list, new Set(['b']))).toEqual({ b: 'ready', c: 'loading' })
+  })
+})
+
+describe('mergeWarnings', () => {
+  it('takes warnings from the list, keeps newer event values and drops pages without one', () => {
+    const prev = { a: 'old a', b: 'event b' }
+    const list = [
+      { deckId: 'a', warning: 'list a' },
+      { deckId: 'b' },
+      { deckId: 'c', warning: 'list c' },
+      { deckId: 'd' }
+    ]
+    expect(mergeWarnings(prev, list, new Set(['b']))).toEqual({
+      a: 'list a',
+      b: 'event b',
+      c: 'list c'
+    })
+  })
+  it('a touched page whose event cleared the warning stays without one', () => {
+    expect(mergeWarnings({}, [{ deckId: 'a', warning: 'x' }], new Set(['a']))).toEqual({})
   })
 })

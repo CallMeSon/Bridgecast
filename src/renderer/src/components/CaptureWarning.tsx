@@ -6,11 +6,14 @@ import { captureWarningText, type WebCaptureWarning } from '../../../shared/web'
  * (spec 6). Persistent while it lasts; ink, weight and an icon, never red.
  */
 export function CaptureWarning({
-  warnings
+  warnings,
+  extra = []
 }: {
   warnings: WebCaptureWarning[]
+  /** Other web page warnings (a page window smaller than the canvas). */
+  extra?: string[]
 }): React.JSX.Element | null {
-  if (warnings.length === 0) return null
+  if (warnings.length === 0 && extra.length === 0) return null
   const outputs = [...new Set(warnings.map((w) => w.output))].sort()
   return (
     <div className="action-error" role="alert" data-testid="capture-warning">
@@ -18,6 +21,9 @@ export function CaptureWarning({
       <div className="txt">
         {outputs.map((o) => (
           <strong key={o}>{captureWarningText(o)}</strong>
+        ))}
+        {[...new Set(extra)].map((t) => (
+          <strong key={t}>{t}</strong>
         ))}
       </div>
     </div>

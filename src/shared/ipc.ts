@@ -49,6 +49,7 @@ export const Invoke = {
   webSourceId: 'web:sourceId',
   webFrame: 'web:frame',
   webEnded: 'web:ended',
+  webHeld: 'web:held',
   webOpenPrepare: 'web:openPrepare',
   webSignOut: 'web:signOut',
   webStatuses: 'web:statuses',
@@ -124,6 +125,8 @@ export interface WebStatusEvent {
   status: WebStatus
   /** User-facing message with the fix, for `error`. */
   message?: string
+  /** User-facing warning while the page works (its window is not the canvas size). */
+  warning?: string
 }
 
 export interface ImportRequest {
@@ -199,6 +202,8 @@ export interface InvokeMap {
   'web:frame': { args: [deckId: string]; result: void }
   /** An output's capture track of the page ended (HOLD while the deck is on air). */
   'web:ended': { args: [deckId: string]; result: void }
+  /** The calling window paused its stream of the page (HOLD before Reload, Back, Forward, a new URL). */
+  'web:held': { args: [deckId: string]; result: void }
   'web:openPrepare': { args: [deckId: string]; result: void }
   /** Clears the web profile and reloads every page; refused while a web deck is on air. */
   'web:signOut': { args: []; result: void }
@@ -321,6 +326,8 @@ export interface Api {
   webFrame(deckId: string): Promise<void>
   /** Output only: the page's capture track ended. */
   webEnded(deckId: string): Promise<void>
+  /** Output or operator monitor: the stream of the page is paused (HOLD). */
+  webHeld(deckId: string): Promise<void>
   openPrepare(deckId: string): Promise<void>
   signOutWeb(): Promise<void>
   webStatuses(): Promise<WebStatusEvent[]>

@@ -92,6 +92,7 @@ const api: Api = {
   webSourceId: (deckId) => invoke(Invoke.webSourceId, deckId),
   webFrame: (deckId) => invoke(Invoke.webFrame, deckId),
   webEnded: (deckId) => invoke(Invoke.webEnded, deckId),
+  webHeld: (deckId) => invoke(Invoke.webHeld, deckId),
   openPrepare: (deckId) => invoke(Invoke.webOpenPrepare, deckId),
   signOutWeb: () => invoke(Invoke.webSignOut),
   webStatuses: () => invoke(Invoke.webStatuses),

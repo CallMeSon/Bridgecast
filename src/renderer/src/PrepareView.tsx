@@ -299,7 +299,7 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
           type="button"
           className="btn sm prepare-icon"
           aria-label="Reload"
-          title="Reload"
+          title={live ? 'Reload (on air: the output goes to HOLD first)' : 'Reload'}
           onClick={() => run(api.reloadWeb(deckId))}
         >
           <ArrowClockwiseIcon size={16} weight="bold" aria-hidden="true" />

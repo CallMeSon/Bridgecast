@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   updateCaptureWarnings,
   failLoadIsError,
   frameSenderAllowed,
+  HeldAcks,
+  heldAckRoles,
+  holdBeforeNavigate,
+  pageSizeWarning,
   isAppPageUrl,
   mergeDisableFeatures,
   syncPlan,
@@ -155,5 +159,73 @@ describe('updateCaptureWarnings', () => {
   })
   it('a report from an inactive output is not kept', () => {
     expect(updateCaptureWarnings([], 'hdmi', 'a', true, { hdmi: false, omt: false })).toEqual([])
+  })
+})
+
+describe('holdBeforeNavigate', () => {
+  it('holds first only for the live, unfrozen page that is not held yet', () => {
+    expect(holdBeforeNavigate({ live: true, frozen: false, held: false })).toBe(true)
+    expect(holdBeforeNavigate({ live: true, frozen: true, held: false })).toBe(false)
+    expect(holdBeforeNavigate({ live: true, frozen: false, held: true })).toBe(false)
+    expect(holdBeforeNavigate({ live: false, frozen: false, held: false })).toBe(false)
+  })
+})
+
+describe('heldAckRoles', () => {
+  it('waits for the active outputs, else the operator window', () => {
+    expect(heldAckRoles({ hdmi: true, omt: true })).toEqual(['hdmi', 'omt'])
+    expect(heldAckRoles({ hdmi: false, omt: true })).toEqual(['omt'])
+    expect(heldAckRoles({ hdmi: false, omt: false })).toEqual(['operator'])
+  })
+})
+
+describe('HeldAcks', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('resolves once every expected window has paused the page', async () => {
+    const acks = new HeldAcks()
+    const done = vi.fn()
+    void acks.wait('w', ['hdmi', 'omt'], 1000).then(done)
+    acks.ack('w', 'hdmi')
+    await Promise.resolve()
+    expect(done).not.toHaveBeenCalled()
+    acks.ack('other', 'omt') // another deck does not count
+    acks.ack('w', 'prepare') // a window not waited for does not count
+    await Promise.resolve()
+    expect(done).not.toHaveBeenCalled()
+    acks.ack('w', 'omt')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(done).toHaveBeenCalledWith('paused')
+  })
+
+  it('resolves after the timeout when a window never answers', async () => {
+    const acks = new HeldAcks()
+    const done = vi.fn()
+    void acks.wait('w', ['hdmi'], 300).then(done)
+    await vi.advanceTimersByTimeAsync(299)
+    expect(done).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(done).toHaveBeenCalledWith('timeout')
+  })
+
+  it('an ack before the wait started does not count', async () => {
+    const acks = new HeldAcks()
+    acks.ack('w', 'hdmi')
+    const done = vi.fn()
+    void acks.wait('w', ['hdmi'], 300).then(done)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(done).not.toHaveBeenCalled()
+  })
+})
+
+describe('pageSizeWarning', () => {
+  it('is empty when the page has the canvas size', () => {
+    expect(pageSizeWarning([1920, 1080], { width: 1920, height: 1080 })).toBeUndefined()
+  })
+  it('names both sizes when the window was clamped', () => {
+    expect(pageSizeWarning([2560, 1080], { width: 3840, height: 1080 })).toBe(
+      'The web page is 2560x1080 on this PC, not the canvas size 3840x1080. The output shows it stretched. Use a smaller canvas, or check the display settings.'
+    )
   })
 })

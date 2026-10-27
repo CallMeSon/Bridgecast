@@ -566,6 +566,8 @@ function App(): React.JSX.Element {
       // Main counts these only while no output is active.
       onFrame: (id) => void api.webFrame(id).catch(() => undefined),
       onEnded: (id) => void api.webEnded(id).catch(() => undefined),
+      // Main waits for this only while no output is active.
+      onPaused: (id) => void api.webHeld(id).catch(() => undefined),
       label: 'Web page on Program'
     }),
     [api, program.canvas, pages.generations]
@@ -663,7 +665,10 @@ function App(): React.JSX.Element {
               onResume={() => dispatch({ type: 'resumeWeb' })}
             />
           )}
-          <CaptureWarning warnings={visibleCaptureWarnings(captureWarnings, program)} />
+          <CaptureWarning
+            warnings={visibleCaptureWarnings(captureWarnings, program)}
+            extra={Object.values(pages.warnings)}
+          />
           <Program
             state={program}
             deck={deck}

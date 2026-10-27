@@ -4,17 +4,34 @@ import { playFirstFrame, stopStream } from './stream'
 export const STREAM_PENDING_MS = 3000
 /** Waits before capturing again after a failure or an ended track (then stays at the last). */
 export const STREAM_RETRY_MS = [1000, 2000, 4000, 5000]
+/** Opening a capture (source id + getUserMedia) that takes longer counts as failed. */
+export const STREAM_OPEN_TIMEOUT_MS = 5000
+/** The still of the last frame is refreshed at most this often while the stream plays. */
+export const STILL_COPY_MS = 150
 
 export interface CaptureEntry {
   key: number
   stream: MediaStream
 }
 
-/** What the layer renders: one <video> per entry, `shownKey` visible, the poster on top when set. */
+/**
+ * What the layer renders: one <video> per entry, `shownKey` visible; on top, the
+ * still of the last frame (`still`: paused, or the visible track ended) or else the
+ * poster (`poster`: no frame at all).
+ */
 export interface CaptureView {
   entries: CaptureEntry[]
   shownKey: number | null
   poster: boolean
+  still?: boolean
+}
+
+/** How the still of the last good frame is taken (tests pass a fake). */
+export interface FrameTap {
+  /** Calls `cb` for each frame `v` presents until the returned function is called. */
+  watch(v: HTMLVideoElement, cb: () => void): () => void
+  /** Copies the frame `v` shows now into the still; false when nothing could be copied. */
+  copy(v: HTMLVideoElement): boolean
 }
 
 /** The layer's side of a capture: how to open it, its sound, and what it reports. */
@@ -29,6 +46,10 @@ export interface CaptureHost {
   onFrame(): void
   onEnded(): void
   onFailed(failed: boolean): void
+  /** The layer has paused its visible stream (HOLD, Freeze). */
+  onPaused?(): void
+  /** Still of the last frame; default: the canvas given to `bindStill`. */
+  tap?: FrameTap
   /** Plays a stream in a <video> and resolves on its first frame (tests pass a fake). */
   play?(v: HTMLVideoElement, stream: MediaStream): Promise<void>
 }
@@ -56,8 +77,27 @@ export class StreamCapture {
   private pending: ReturnType<typeof setTimeout> | null = null
   /** Per capture: no first frame in time means capture again (seen after a page crash reload). */
   private readonly frameTimers = new Map<number, ReturnType<typeof setTimeout>>()
+  private readonly openTimers = new Set<ReturnType<typeof setTimeout>>()
+  /** The still canvas (one per layer, capture size) and whether it holds a frame. */
+  private canvas: HTMLCanvasElement | null = null
+  private hasStill = false
+  private lastCopy = -Infinity
+  private unwatch: (() => void) | null = null
+  /** The visible capture's track ended (its <video> is gone). */
+  private shownGone = false
+  private readonly tap: FrameTap
 
-  constructor(private readonly host: CaptureHost) {}
+  constructor(private readonly host: CaptureHost) {
+    this.tap = host.tap ?? {
+      watch: (v, cb) => watchFrames(v, cb),
+      copy: (v) => this.copyToCanvas(v)
+    }
+  }
+
+  /** The layer's still canvas (null when it unmounts). */
+  bindStill(c: HTMLCanvasElement | null): void {
+    this.canvas = c
+  }
 
   /** First capture, with the pending timeout that falls back to the poster. */
   start(): void {
@@ -77,9 +117,26 @@ export class StreamCapture {
   capture(): void {
     if (!this.alive) return
     this.clearRetry()
+    // A source id or getUserMedia that never answers must not stop the retries.
+    let settled = false
+    const timer = setTimeout(() => {
+      this.openTimers.delete(timer)
+      if (settled || !this.alive) return
+      settled = true
+      console.warn(`[stream] capture did not open within ${STREAM_OPEN_TIMEOUT_MS} ms`)
+      this.failure()
+    }, STREAM_OPEN_TIMEOUT_MS)
+    this.openTimers.add(timer)
+    const settle = (): boolean => {
+      clearTimeout(timer)
+      this.openTimers.delete(timer)
+      if (settled) return false
+      settled = true
+      return true
+    }
     this.host.open().then(
       (stream) => {
-        if (!this.alive) {
+        if (!settle() || !this.alive) {
           stopStream(stream)
           return
         }
@@ -87,11 +144,9 @@ export class StreamCapture {
         const key = ++this.seq
         stream.getVideoTracks()[0]?.addEventListener('ended', () => this.ended(key))
         // Earlier captures that never got a frame are superseded.
-        this.entries = this.entries.filter((e) => {
-          if (e.key === this.shown || this.framed.has(e.key)) return true
-          stopStream(e.stream)
-          return false
-        })
+        for (const e of [...this.entries]) {
+          if (e.key !== this.shown && !this.framed.has(e.key)) this.drop(e.key)
+        }
         this.entries.push({ key, stream })
         this.frameTimers.set(
           key,
@@ -100,7 +155,7 @@ export class StreamCapture {
         this.emit()
       },
       (err: unknown) => {
-        if (!this.alive) return
+        if (!settle() || !this.alive) return
         console.warn('[stream] capture failed:', err)
         this.failure()
       }
@@ -134,6 +189,8 @@ export class StreamCapture {
       }
     }
     this.applyPause()
+    this.emit()
+    if (paused) this.host.onPaused?.()
   }
 
   /** Sound follows the visible stream (call again when muting changes). */
@@ -148,15 +205,72 @@ export class StreamCapture {
     this.pending = null
     this.frameTimers.forEach(clearTimeout)
     this.frameTimers.clear()
+    this.openTimers.forEach(clearTimeout)
+    this.openTimers.clear()
+    this.unwatch?.()
+    this.unwatch = null
     this.host.sound(null)
     for (const e of this.entries) stopStream(e.stream)
-    for (const v of this.videos.values()) {
-      v.pause()
-      v.srcObject = null
-    }
+    for (const v of this.videos.values()) release(v)
     this.entries = []
     this.videos.clear()
+    // The still holds a full frame: give its memory back.
+    if (this.canvas) {
+      this.canvas.width = 0
+      this.canvas.height = 0
+    }
+    this.hasStill = false
     if (this.failed) this.host.onFailed(false)
+  }
+
+  /** Stops a capture and releases its <video> (no stream stays attached). */
+  private drop(key: number): void {
+    const e = this.entries.find((x) => x.key === key)
+    if (e) stopStream(e.stream)
+    this.entries = this.entries.filter((x) => x.key !== key)
+    const v = this.videos.get(key)
+    if (v) release(v)
+    this.videos.delete(key)
+    this.framed.delete(key)
+    this.started.delete(key)
+    const t = this.frameTimers.get(key)
+    if (t) clearTimeout(t)
+    this.frameTimers.delete(key)
+  }
+
+  /** Keeps the still current while the stream plays (never while paused). */
+  private watchShown(): void {
+    this.unwatch?.()
+    this.unwatch = null
+    const v = this.shown !== null ? this.videos.get(this.shown) : undefined
+    if (!v) return
+    this.copyNow(v)
+    this.unwatch = this.tap.watch(v, () => {
+      if (this.host.paused() || Date.now() - this.lastCopy < STILL_COPY_MS) return
+      this.copyNow(v)
+    })
+  }
+
+  private copyNow(v: HTMLVideoElement): void {
+    try {
+      if (this.tap.copy(v)) {
+        this.hasStill = true
+        this.lastCopy = Date.now()
+      }
+    } catch (e) {
+      console.warn('[stream] could not keep the last frame:', e)
+    }
+  }
+
+  private copyToCanvas(v: HTMLVideoElement): boolean {
+    const c = this.canvas
+    if (!c || !v.videoWidth || !v.videoHeight) return false
+    if (c.width !== v.videoWidth) c.width = v.videoWidth
+    if (c.height !== v.videoHeight) c.height = v.videoHeight
+    const ctx = c.getContext('2d')
+    if (!ctx) return false
+    ctx.drawImage(v, 0, 0, c.width, c.height)
+    return true
   }
 
   /** A capture that never delivered a frame is dropped and replaced by a new one. */
@@ -166,8 +280,7 @@ export class StreamCapture {
     const e = this.entries.find((x) => x.key === key)
     if (!e) return
     console.warn('[stream] capture has no frame, capturing again')
-    stopStream(e.stream)
-    this.entries = this.entries.filter((x) => x.key !== key)
+    this.drop(key)
     this.emit()
     this.scheduleRetry()
   }
@@ -183,17 +296,14 @@ export class StreamCapture {
   }
 
   private promote(key: number): void {
-    this.entries = this.entries.filter((e) => {
-      if (e.key >= key) return true
-      stopStream(e.stream)
-      this.videos.delete(e.key)
-      return false
-    })
+    for (const e of [...this.entries]) if (e.key < key) this.drop(e.key)
     this.shown = key
+    this.shownGone = false
     this.poster = false
     this.setFailed(false)
     this.syncSound()
     this.applyPause()
+    this.watchShown()
     this.markReady()
     this.emit()
   }
@@ -208,14 +318,19 @@ export class StreamCapture {
   private ended(key: number): void {
     if (!this.alive) return
     this.host.onEnded()
-    const e = this.entries.find((x) => x.key === key)
-    if (e) stopStream(e.stream)
     if (key === this.shown) {
-      // An ended track goes black: the poster covers it until a new capture has a frame.
+      this.unwatch?.()
+      this.unwatch = null
+    }
+    this.drop(key)
+    if (key === this.shown) {
+      // An ended track goes black: the still of the last frame (else the poster) covers
+      // it until a new capture has a frame.
+      this.shownGone = true
       this.poster = true
       this.setFailed(true)
-      this.emit()
     }
+    this.emit()
     this.scheduleRetry()
   }
 
@@ -258,6 +373,34 @@ export class StreamCapture {
 
   private emit(): void {
     if (!this.alive) return
-    this.host.onView({ entries: [...this.entries], shownKey: this.shown, poster: this.poster })
+    const still = this.hasStill && (this.shownGone || this.host.paused())
+    this.host.onView({
+      entries: [...this.entries],
+      shownKey: this.shown,
+      poster: this.poster && !still,
+      still
+    })
+  }
+}
+
+function release(v: HTMLVideoElement): void {
+  v.pause()
+  v.srcObject = null
+}
+
+/** requestVideoFrameCallback loop on `v` (nothing without the API). */
+function watchFrames(v: HTMLVideoElement, cb: () => void): () => void {
+  if (!v.requestVideoFrameCallback) return () => undefined
+  let id = 0
+  let on = true
+  const next = (): void => {
+    if (!on) return
+    cb()
+    id = v.requestVideoFrameCallback(next)
+  }
+  id = v.requestVideoFrameCallback(next)
+  return () => {
+    on = false
+    v.cancelVideoFrameCallback?.(id)
   }
 }

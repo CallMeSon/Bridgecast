@@ -121,3 +121,66 @@ export function updateCaptureWarnings(
   }
   return next.filter((w) => outputsActive[w.output])
 }
+
+/**
+ * Reload, Back, Forward or a new URL for a web page: hold the output first (HOLD,
+ * so no frame of the page's next document reaches the audience before the ready
+ * gate) when the page is on air, not frozen and not held yet. Otherwise navigate.
+ */
+export function holdBeforeNavigate(s: { live: boolean; frozen: boolean; held: boolean }): boolean {
+  return s.live && !s.frozen && !s.held
+}
+
+/** The windows whose pause a HOLD before navigating waits for: active outputs, else the operator. */
+export function heldAckRoles(outputsActive: { hdmi: boolean; omt: boolean }): AppWindowRole[] {
+  return (['hdmi', 'omt', 'operator'] as const).filter((r) => frameSenderAllowed(r, outputsActive))
+}
+
+/**
+ * Waits until the given windows report that they paused a deck's stream
+ * (`web:held`), or until a timeout (a window that shows no stream never answers).
+ */
+export class HeldAcks {
+  private waits: { deckId: string; left: Set<AppWindowRole>; done(): void }[] = []
+
+  wait(deckId: string, roles: AppWindowRole[], timeoutMs: number): Promise<'paused' | 'timeout'> {
+    return new Promise((resolve) => {
+      if (roles.length === 0) {
+        resolve('paused')
+        return
+      }
+      const entry = {
+        deckId,
+        left: new Set(roles),
+        done: () => {
+          clearTimeout(timer)
+          this.waits = this.waits.filter((w) => w !== entry)
+          resolve('paused')
+        }
+      }
+      const timer = setTimeout(() => {
+        this.waits = this.waits.filter((w) => w !== entry)
+        resolve('timeout')
+      }, timeoutMs)
+      this.waits.push(entry)
+    })
+  }
+
+  ack(deckId: string, role: AppWindowRole): void {
+    for (const w of [...this.waits]) {
+      if (w.deckId !== deckId) continue
+      w.left.delete(role)
+      if (w.left.size === 0) w.done()
+    }
+  }
+}
+
+/** Operator warning when a page window could not get the canvas size (clamped to the screen). */
+export function pageSizeWarning(
+  actual: number[],
+  canvas: { width: number; height: number }
+): string | undefined {
+  const [w, h] = actual
+  if (w === canvas.width && h === canvas.height) return undefined
+  return `The web page is ${w}x${h} on this PC, not the canvas size ${canvas.width}x${canvas.height}. The output shows it stretched. Use a smaller canvas, or check the display settings.`
+}
