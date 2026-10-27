@@ -1,3 +1,4 @@
+import { sanitizeVolume } from './audio-levels'
 import { DEFAULT_CANVAS, sanitizeCanvas, type Canvas } from './canvas'
 
 /**
@@ -10,12 +11,15 @@ export interface HdmiSettings {
 }
 
 /**
- * Sound of video slides, played by the HDMI output window only. `deviceId` is a
- * `MediaDeviceInfo.deviceId` of an audio output; null = the Windows default.
+ * Sound of the HDMI output window (video slides and every other output sound).
+ * `deviceId` is a `MediaDeviceInfo.deviceId` of an audio output; null = the
+ * Windows default. `masterVolume` (0–100) applies to every output sound, on top
+ * of each deck's own volume.
  */
 export interface AudioSettings {
   deviceId: string | null
   muted: boolean
+  masterVolume: number
 }
 
 export interface Settings {
@@ -34,7 +38,8 @@ export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
 
 export const DEFAULT_AUDIO: Readonly<AudioSettings> = Object.freeze({
   deviceId: null,
-  muted: false
+  muted: false,
+  masterVolume: 100
 })
 
 /** Longest device id kept (real ids are about 64 characters). */
@@ -52,7 +57,7 @@ export function sanitizeHdmi(raw: unknown): HdmiSettings {
   }
 }
 
-/** Any parsed JSON → valid AudioSettings (an empty or over-long deviceId becomes null). */
+/** Any parsed JSON → valid AudioSettings (an empty or over-long deviceId becomes null, masterVolume is 0–100). */
 export function sanitizeAudio(raw: unknown): AudioSettings {
   const a = isObject(raw) ? raw : {}
   return {
@@ -60,7 +65,8 @@ export function sanitizeAudio(raw: unknown): AudioSettings {
       typeof a.deviceId === 'string' && a.deviceId.length > 0 && a.deviceId.length <= MAX_DEVICE_ID
         ? a.deviceId
         : DEFAULT_AUDIO.deviceId,
-    muted: typeof a.muted === 'boolean' ? a.muted : DEFAULT_AUDIO.muted
+    muted: typeof a.muted === 'boolean' ? a.muted : DEFAULT_AUDIO.muted,
+    masterVolume: sanitizeVolume(a.masterVolume, DEFAULT_AUDIO.masterVolume)
   }
 }
 
