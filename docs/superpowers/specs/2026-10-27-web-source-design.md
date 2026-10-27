@@ -26,7 +26,7 @@ Di luar cakupan: halaman web sebagai overlay di atas deck (seperti KV), profil b
 - **Ready gate**: deck web hanya bisa di-take setelah `did-finish-load` dan frame pertama tab capture diterima oleh jendela HDMI atau OMT yang aktif (atau, tanpa output aktif, oleh preview operator). Sebelum itu take ditolak dan Up next menampilkan *"Web page not ready"*.
 - **HOLD**: `ProgramState.webHold: boolean`. Saat true, output menahan frame terakhir (elemen `<video>` dijeda, bukan dihapus). Tally `HOLD` dengan bentuk dan teks sendiri. Hilang saat operator memilih deck lain, menekan K atau B, atau menekan **Resume web** (aktif hanya bila halaman sudah pulih). Output tidak pernah kembali ke halaman secara otomatis.
 - **Freeze** di deck web: output menahan frame (video dijeda); halaman tetap hidup dan input Prepare dibuka. Unfreeze melanjutkan stream live dari keadaan halaman saat itu.
-- Siklus hidup: setiap deck web di event yang terbuka punya halaman yang hidup terus. Menghapus deck menutup halamannya; membuka event lain menutup semua halaman event lama.
+- Siklus hidup: setiap deck web di event yang terbuka punya halaman yang hidup terus. Menghapus deck menutup halamannya (deck yang sedang tayang: output menjadi hitam, sesuai aturan hapus deck yang ada). Membuka event lain menutup semua halaman event lama, kecuali halaman yang sedang tayang (aturan yang ada: ganti event tidak mengubah output); halaman itu ditutup setelah turun dari live.
 
 ## 2. Host halaman dan keamanan
 `src/main/web/web-host.ts` (`WebHost`), satu jendela tersembunyi per deck web:
