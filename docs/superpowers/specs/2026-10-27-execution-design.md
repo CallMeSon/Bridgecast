@@ -10,7 +10,7 @@ Spec ini bukan desain fitur. Tiap plan sudah punya spec fiturnya sendiri. Spec i
 - **`canva-import`** berjalan paralel dan independen, kapan pun kredensial Canva siap. Ia tidak masuk rantai utama dan tidak menahan plan lain.
 - **`canvas-audio-levels` sudah selesai** (commit `56b3ea9` sampai `9947cec`). Tidak dieksekusi lagi.
 - **NDI kembali, dengan pendekatan A:** satu pengirim jaringan dengan backend yang bisa dipilih. Window offscreen, frame clock, worker, dan tap audio dipakai bersama OMT dan NDI. Keputusan 2026-10-08 yang mencoret NDI karena lisensi SDK dibalik atas permintaan pengguna; lihat bagian 4 untuk cara lisensinya ditangani.
-- **Eksekusi:** subagent `model: sonnet`, `effort: high`; naik ke `opus` bila sulit atau gagal review; berhenti dan lapor bila satu task gagal lebih dari 3 kali.
+- **Eksekusi:** subagent `model: sonnet`, `effort: medium`; naik ke `opus` bila sulit atau gagal review; berhenti dan lapor bila satu task gagal lebih dari 3 kali.
 - **Sumber NDI:** repo `~/work/stagecast` (`src/Stagecast.Rendering/Ndi/NdiNative.cs`, `NdiOutput.cs`, `NdiProbe.cs`), hanya dibaca sebagai acuan layout struct dan urutan panggilan. Kodenya C#, jadi ditulis ulang sebagai binding `koffi`, bukan disalin.
 
 Di luar cakupan (YAGNI): menerima NDI atau OMT, lebih dari satu sender per protokol, NDI dengan isi berbeda dari OMT atau HDMI, membundel runtime NDI, Wayland, mengubah plan selain yang disebut di bagian 4.
@@ -56,7 +56,7 @@ Satu plan berjalan pada satu waktu di rantai utama, karena semuanya menyentuh `s
 ## 3. Protokol eksekusi tiap plan
 
 - Skill: `superpowers:subagent-driven-development`. Satu subagent baru per task, dengan teks task lengkap, bukan "baca plan".
-- Dispatch: `model: sonnet`, `effort: high`. Naik ke `opus` bila (a) task ditandai sulit di plan, (b) Sonnet gagal review dua kali, atau (c) Sonnet melapor buntu.
+- Dispatch: `model: sonnet`, `effort: medium`. Naik ke `opus` bila (a) task ditandai sulit di plan, (b) Sonnet gagal review dua kali, atau (c) Sonnet melapor buntu.
 - Konteks wajib di prompt subagent: file yang boleh disentuh, `Consumes`/`Produces` dari plan, Global Constraints plan, dan aturan di bawah.
 - Task UI memuat `impeccable:impeccable` dan mengikuti `DESIGN.md` dan `PRODUCT.md`. Task yang menyentuh Electron, `koffi`, pdf.js, Web Audio, `desktopCapturer`, Vitest, atau Playwright mengecek Context7 dulu.
 - TDD sesuai langkah di plan: tes gagal dulu, lalu implementasi, lalu hijau.
