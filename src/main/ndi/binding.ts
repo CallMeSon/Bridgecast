@@ -68,7 +68,7 @@ function defineStructs(koffi: Koffi): void {
   if (structsDefined) return // koffi rejects a second definition of a named type
   koffi.struct('NDIlib_send_create_t', NDI_SEND_CREATE_FIELDS)
   koffi.struct('NDIlib_video_frame_v2_t', NDI_VIDEO_FRAME_FIELDS)
-  koffi.struct('NDIlib_audio_frame_v3_t', NDI_AUDIO_FRAME_FIELDS)
+  koffi.struct('NDIlib_audio_frame_v2_t', NDI_AUDIO_FRAME_FIELDS)
   structsDefined = true
 }
 
@@ -112,7 +112,7 @@ export function loadNdi(
         'void NDIlib_send_send_video_v2(void *inst, _In_ NDIlib_video_frame_v2_t *f)'
       ),
       sendAudio: lib.func(
-        'void NDIlib_send_send_audio_v2(void *inst, _In_ NDIlib_audio_frame_v3_t *f)'
+        'void NDIlib_send_send_audio_v2(void *inst, _In_ NDIlib_audio_frame_v2_t *f)'
       ),
       connections: lib.func('int NDIlib_send_get_no_connections(void *inst, uint32_t timeout_ms)')
     }
@@ -162,6 +162,8 @@ export function loadNdi(
       })
     },
     sendAudio(h, a) {
+      if (a.data.byteLength < a.samples * a.channels * 4)
+        throw new Error('audio buffer too short for samples*channels*4')
       const data = Buffer.from(a.data.buffer, a.data.byteOffset, a.data.byteLength)
       fns.sendAudio(get(h), {
         SampleRate: a.sampleRate,

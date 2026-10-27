@@ -89,7 +89,14 @@ describe('loadNdi', () => {
 
   it('throws missing when NDIlib_initialize returns false', () => {
     const koffi = { load: () => ({ func: () => () => false }), struct: () => ({}) }
-    expect(() => loadNdi([runtimeDir()], () => koffi as never)).toThrow(/initialize/)
+    try {
+      loadNdi([runtimeDir()], () => koffi as never)
+      expect.unreachable()
+    } catch (e) {
+      expect(e).toBeInstanceOf(NdiLoadError)
+      expect((e as NdiLoadError).kind).toBe('missing')
+      expect((e as Error).message).toMatch(/initialize/)
+    }
   })
 
   it('sends BGRX progressive frames with synthesized timecode', () => {
@@ -123,5 +130,28 @@ describe('loadNdi', () => {
       PictureAspectRatio: 2
     })
     expect(b.videoStats(h)).toEqual({ frames: 0, dropped: 0 })
+  })
+
+  it('does not call native with an audio buffer that is too short', () => {
+    const calls: unknown[] = []
+    const koffi = {
+      address: () => 7n,
+      load: () => ({
+        func: (sig: string) => {
+          if (sig.includes('send_audio')) return (...a: unknown[]) => calls.push(a)
+          if (sig.includes('NDIlib_send_create')) return () => ({})
+          return () => true
+        }
+      }),
+      struct: () => ({})
+    }
+    const b = loadNdi([runtimeDir()], () => koffi as never)
+    const h = b.create('PPT')
+    expect(() =>
+      b.sendAudio(h, { sampleRate: 48000, channels: 2, samples: 480, data: new Float32Array(10) })
+    ).toThrow(/too short/)
+    expect(calls).toHaveLength(0)
+    b.sendAudio(h, { sampleRate: 48000, channels: 2, samples: 4, data: new Float32Array(8) })
+    expect(calls).toHaveLength(1)
   })
 })

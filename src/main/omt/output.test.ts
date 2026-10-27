@@ -716,4 +716,34 @@ describe('NetController with OMT and NDI', () => {
     expect(t.out.status('omt').message).toMatch(/^OMT could not start/)
     expect(t.out.status('ndi').message).toMatch(/^NDI could not start/)
   })
+
+  const giveUp = (t: ReturnType<typeof setup>): void => {
+    for (let i = 0; i < 3; i++) {
+      t.tick(1000)
+      t.workers.at(-1)!.emit('error', new Error('x'))
+      t.fire(1000)
+    }
+  }
+
+  it('after give-up a target switched off goes to off', () => {
+    const t = setup({ enabled: true }, undefined, { enabled: true })
+    t.out.start()
+    giveUp(t)
+    expect(t.out.status('ndi').state).toBe('error')
+    t.out.apply(cfg({ enabled: true }, { enabled: false }))
+    expect(t.out.status('ndi').state).toBe('off')
+    expect(t.out.status('omt').state).toBe('error')
+  })
+
+  it('after give-up, switching a target on starts fresh', () => {
+    const t = setup({ enabled: true }, undefined, { enabled: false })
+    t.out.start()
+    giveUp(t)
+    expect(t.out.status('omt').state).toBe('error')
+    const starts = t.workers.length
+    t.out.apply(cfg({ enabled: true }, { enabled: true }))
+    expect(t.workers.length).toBe(starts + 1)
+    expect(t.out.status('ndi').state).toBe('starting')
+    expect(t.out.status('omt').state).toBe('starting')
+  })
 })

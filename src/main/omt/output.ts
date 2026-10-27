@@ -156,12 +156,23 @@ export class NetController {
       this.enable()
       return
     }
-    if (this.gaveUp) return
+    let switchedOn = false
     for (const id of IDS) {
       if (!next[id].enabled) {
         this.setStatus(id, OFF)
         this.cancelWait(id)
-      } else if (!prev[id].enabled) this.setStatus(id, STARTING)
+      } else if (!prev[id].enabled) {
+        this.setStatus(id, STARTING)
+        switchedOn = true
+      }
+    }
+    if (this.gaveUp) {
+      // After give-up, switching a protocol on is the operator's retry: start fresh.
+      if (switchedOn) {
+        this.disable()
+        this.enable()
+      }
+      return
     }
     if (prev.omt.fps !== next.omt.fps) {
       this.win?.setFrameRate(next.omt.fps)
