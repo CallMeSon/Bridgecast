@@ -48,6 +48,8 @@ export interface OmtWindowLike {
   /** Forces a new paint (offscreen only paints on change). */
   invalidate(): void
   destroy(): void
+  /** id of the window's webContents (tells its IPC calls apart); absent in fakes. */
+  readonly webContentsId?: number
 }
 
 export interface OmtDeps {
@@ -194,6 +196,16 @@ export class NetController {
 
   status(id: NetId): NetStatus {
     return this.st[id]
+  }
+
+  /** True when `webContentsId` is the network output window (there is one while a target is on). */
+  ownsWebContents(webContentsId: number): boolean {
+    return this.win?.webContentsId === webContentsId
+  }
+
+  /** The network output window exists, so it shows the program. */
+  get windowActive(): boolean {
+    return this.win !== null
   }
 
   get debug(): OmtDebug {

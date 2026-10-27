@@ -113,11 +113,13 @@ export class WebHost {
     const left = this.onAir !== null && this.onAir !== shownDeckId ? this.onAir : null
     this.onAir = shownDeckId
     const plan = syncPlan(this.pages.keys(), decks, shownDeckId)
+    // A deck removed from the library gets no snapshot: its window closes at once.
+    const snap = left !== null && this.inLibrary(left) ? left : null
     for (const id of plan.close) {
-      if (id === left) void this.snapshot(id).finally(() => this.close(id))
+      if (id === snap) void this.snapshot(id).finally(() => this.close(id))
       else this.close(id)
     }
-    if (left && !plan.close.includes(left)) void this.snapshot(left)
+    if (snap && !plan.close.includes(snap)) void this.snapshot(snap)
     for (const { deckId, url } of plan.open) this.open(deckId, url)
   }
 
@@ -167,24 +169,29 @@ export class WebHost {
     if (h.canGoForward()) h.goForward()
   }
 
-  /** Next/Prev on air: exactly one keyDown and one keyUp (no char, no repeat). */
+  /**
+   * Next/Prev on air: exactly one keyDown and one keyUp (no char, no repeat). The
+   * hidden page is never focused: that could take the keyboard away from the
+   * operator window, and sendInputEvent reaches the page without focus.
+   */
   key(deckId: string, key: 'ArrowRight' | 'ArrowLeft'): void {
     const p = this.pages.get(deckId)
     if (!p || p.win.isDestroyed()) return
     const wc = p.win.webContents
     const keyCode = electronKeyName(key)
-    wc.focus()
     wc.sendInputEvent({ type: 'keyDown', keyCode })
     wc.sendInputEvent({ type: 'keyUp', keyCode })
   }
 
-  /** Sends one already validated input event to the page. */
+  /**
+   * Sends one already validated input event to the page, without focusing it
+   * (typing into a clicked field works without focus, and the Prepare window keeps
+   * the keyboard).
+   */
   input(deckId: string, ev: Electron.InputEvent): void {
     const p = this.pages.get(deckId)
     if (!p || p.win.isDestroyed()) return
-    const wc = p.win.webContents
-    if (ev.type === 'keyDown' || ev.type === 'char') wc.focus()
-    wc.sendInputEvent(ev as Electron.MouseInputEvent)
+    p.win.webContents.sendInputEvent(ev as Electron.MouseInputEvent)
   }
 
   /**
@@ -287,6 +294,15 @@ export class WebHost {
       }
     }
     return out
+  }
+
+  private inLibrary(deckId: string): boolean {
+    try {
+      this.lib.getDeck(deckId)
+      return true
+    } catch {
+      return false
+    }
   }
 
   private page(deckId: string): Page {

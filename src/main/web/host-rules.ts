@@ -77,3 +77,27 @@ const ERR_ABORTED = -3
 export function failLoadIsError(errorCode: number, isMainFrame: boolean): boolean {
   return isMainFrame && errorCode !== ERR_ABORTED
 }
+
+/** Which app window a web IPC call comes from. */
+export type AppWindowRole = 'hdmi' | 'omt' | 'operator' | 'prepare'
+
+/**
+ * Ready gate and capture-ended reports: they count only from a window that puts
+ * the page on air, i.e. the active HDMI or OMT output, or the operator preview
+ * when no output is active. A Prepare preview never counts.
+ */
+export function frameSenderAllowed(
+  role: AppWindowRole,
+  outputsActive: { hdmi: boolean; omt: boolean }
+): boolean {
+  switch (role) {
+    case 'hdmi':
+      return outputsActive.hdmi
+    case 'omt':
+      return outputsActive.omt
+    case 'operator':
+      return !outputsActive.hdmi && !outputsActive.omt
+    default:
+      return false
+  }
+}

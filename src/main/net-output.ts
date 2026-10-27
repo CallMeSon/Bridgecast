@@ -105,6 +105,7 @@ function createOmtWindow(
     invalidate: () => {
       if (!win.isDestroyed()) wc.invalidate()
     },
+    webContentsId: wc.id,
     destroy: () => {
       feed.close()
       if (!win.isDestroyed()) win.destroy()

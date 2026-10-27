@@ -220,7 +220,10 @@ export class Library {
       fs.rmSync(tmp, { force: true })
       throw err
     }
-    fs.rmSync(this.thumbPath(deckId, file), { force: true })
+    // Drop the old thumbnail and any finished job for it, so the next request makes a new one.
+    const thumb = this.thumbPath(deckId, file)
+    this.thumbJobs.delete(thumb)
+    fs.rmSync(thumb, { force: true })
     void this.ensureThumb(deckId, file)
   }
 
@@ -642,8 +645,12 @@ export class Library {
           return false
         }
       })()
-      this.thumbJobs.set(dest, job)
-      void job.then(() => this.thumbJobs.delete(dest))
+      const mine = job
+      this.thumbJobs.set(dest, mine)
+      // Only forget this job: a newer one for the same file (snapshot replaced) stays.
+      void mine.then(() => {
+        if (this.thumbJobs.get(dest) === mine) this.thumbJobs.delete(dest)
+      })
     }
     return job
   }

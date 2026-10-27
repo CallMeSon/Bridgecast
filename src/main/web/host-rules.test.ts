@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   failLoadIsError,
+  frameSenderAllowed,
   isAppPageUrl,
   mergeDisableFeatures,
   syncPlan,
@@ -101,5 +102,27 @@ describe('failLoadIsError', () => {
     expect(failLoadIsError(-106, true)).toBe(true)
     expect(failLoadIsError(-3, true)).toBe(false)
     expect(failLoadIsError(-106, false)).toBe(false)
+  })
+})
+
+describe('frameSenderAllowed', () => {
+  const none = { hdmi: false, omt: false }
+  it('takes the frame from an active output window', () => {
+    expect(frameSenderAllowed('hdmi', { hdmi: true, omt: false })).toBe(true)
+    expect(frameSenderAllowed('omt', { hdmi: false, omt: true })).toBe(true)
+    expect(frameSenderAllowed('omt', { hdmi: true, omt: true })).toBe(true)
+  })
+  it('refuses an output window that is not active', () => {
+    expect(frameSenderAllowed('hdmi', { hdmi: false, omt: true })).toBe(false)
+    expect(frameSenderAllowed('omt', none)).toBe(false)
+  })
+  it('takes the operator preview only when no output is active', () => {
+    expect(frameSenderAllowed('operator', none)).toBe(true)
+    expect(frameSenderAllowed('operator', { hdmi: true, omt: false })).toBe(false)
+    expect(frameSenderAllowed('operator', { hdmi: false, omt: true })).toBe(false)
+  })
+  it('never takes a Prepare window', () => {
+    expect(frameSenderAllowed('prepare', none)).toBe(false)
+    expect(frameSenderAllowed('prepare', { hdmi: true, omt: true })).toBe(false)
   })
 })

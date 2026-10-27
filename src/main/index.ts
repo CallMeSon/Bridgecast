@@ -65,7 +65,13 @@ import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
 import { sanitizeWebUrl, webDomain } from '../shared/web'
 import { WebHost } from './web/web-host'
-import { isAppPageUrl, mergeDisableFeatures, webDeckName } from './web/host-rules'
+import {
+  frameSenderAllowed,
+  isAppPageUrl,
+  mergeDisableFeatures,
+  webDeckName,
+  type AppWindowRole
+} from './web/host-rules'
 import { openPrepareWindow } from './web/prepare-window'
 
 /** Longest the app waits for the OMT worker to stop before it quits anyway. */
@@ -149,7 +155,9 @@ function appHandle<C extends InvokeChannel>(
 /** Black PNG at the canvas size: a new web deck's first snapshot until its page has loaded. */
 function placeholderSnapshot(dir: string, width: number, height: number): string {
   const file = join(dir, '001.png')
-  const img = nativeImage.createFromBuffer(Buffer.alloc(width * height * 4), { width, height })
+  // BGRA, opaque black.
+  const pixels = Buffer.alloc(width * height * 4).fill(Buffer.from([0, 0, 0, 0xff]))
+  const img = nativeImage.createFromBuffer(pixels, { width, height })
   fs.writeFileSync(file, img.toPNG())
   return file
 }
@@ -251,7 +259,8 @@ function registerIpc(
   hdmi: HdmiOutput,
   net: NetOutput,
   web: WebHost,
-  syncWeb: () => void
+  syncWeb: () => void,
+  operatorWindow: () => BrowserWindow | null
 ): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
@@ -468,7 +477,19 @@ function registerIpc(
     syncWeb()
   })
 
-  registerWebIpc(lib, state, web, syncWeb)
+  registerWebIpc(
+    lib,
+    state,
+    web,
+    syncWeb,
+    (wc) => {
+      if (hdmi.ownsWebContents(wc)) return 'hdmi'
+      if (net.ownsWebContents(wc.id)) return 'omt'
+      // Any other app window is a Prepare window.
+      return operatorWindow()?.webContents === wc ? 'operator' : 'prepare'
+    },
+    () => ({ hdmi: hdmi.getStatus().state === 'showing', omt: net.windowActive })
+  )
 
   handle(Invoke.settingsGet, () => settings.get())
 
@@ -519,7 +540,18 @@ function registerIpc(
 }
 
 /** web:* channels; every one refuses a caller that is not an app window. */
-function registerWebIpc(lib: Library, state: AppState, web: WebHost, syncWeb: () => void): void {
+function registerWebIpc(
+  lib: Library,
+  state: AppState,
+  web: WebHost,
+  syncWeb: () => void,
+  roleOf: (wc: Electron.WebContents) => AppWindowRole,
+  outputsActive: () => { hdmi: boolean; omt: boolean }
+): void {
+  // Ready gate and capture-ended reports only count from a window that puts the page on air.
+  const onAirSender = (e: IpcMainInvokeEvent): boolean =>
+    frameSenderAllowed(roleOf(e.sender), outputsActive())
+
   const eventOfDeck = (deckId: string): string => {
     const ev = lib.listEvents().find((e) => e.deckIds.includes(deckId))
     if (!ev) throw new Error('Deck not found. Reload the deck list, then choose a deck from it.')
@@ -580,13 +612,14 @@ function registerWebIpc(lib: Library, state: AppState, web: WebHost, syncWeb: ()
     assertString(deckId, 'Deck ID')
     return web.sourceIdFor(deckId, e.sender)
   })
-  appHandle(Invoke.webFrame, (_e, deckId) => {
+  // A report from another window (Prepare, or the operator preview while an output is on) is ignored.
+  appHandle(Invoke.webFrame, (e, deckId) => {
     assertString(deckId, 'Deck ID')
-    web.frameSeen(deckId)
+    if (onAirSender(e)) web.frameSeen(deckId)
   })
-  appHandle(Invoke.webEnded, (_e, deckId) => {
+  appHandle(Invoke.webEnded, (e, deckId) => {
     assertString(deckId, 'Deck ID')
-    web.captureEnded(deckId)
+    if (onAirSender(e)) web.captureEnded(deckId)
   })
   appHandle(Invoke.webOpenPrepare, (_e, deckId) => {
     assertString(deckId, 'Deck ID')
@@ -872,7 +905,7 @@ Location: ${root}`
     }
   })
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state, settings, hdmi, net, host, syncWeb)
+  registerIpc(lib, state, settings, hdmi, net, host, syncWeb, () => operator)
 
   const startOutputs = (): void => {
     hdmi.start()

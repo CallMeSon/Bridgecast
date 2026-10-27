@@ -156,6 +156,11 @@ export class HdmiOutput {
     return this.status
   }
 
+  /** True when `wc` is the HDMI output window's renderer. */
+  ownsWebContents(wc: Electron.WebContents): boolean {
+    return !!this.win && !this.win.isDestroyed() && this.win.webContents === wc
+  }
+
   /** A display was added, removed or changed (also used by the e2e fake displays). */
   readonly onScreen = (): void => {
     if (this.quitting) return

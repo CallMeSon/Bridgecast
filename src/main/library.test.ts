@@ -580,6 +580,19 @@ describe('Library', () => {
       expect(fs.readdirSync(dir).filter((f) => f.endsWith('.tmp'))).toEqual([])
     })
 
+    it('updateWebSnapshot right after a thumbnail request still makes a fresh thumbnail', async () => {
+      const lib = new Library(root, fakeThumb)
+      const ev = lib.createEvent('E')
+      const d = lib.addWebDeck(ev.id, webInput())
+      const first = lib.thumbFilePath(d.id, '001.png')
+      lib.updateWebSnapshot(d.id, snapshot('snap-2'))
+      const second = lib.thumbFilePath(d.id, '001.png')
+      await first
+      const thumb = await second
+      expect(thumb).toBe(path.join(root, 'decks', d.id, 'thumbs', '001.jpg'))
+      expect(fs.readFileSync(thumb, 'utf8')).toBe('thumb-of-snap-2')
+    })
+
     it('updateWebSnapshot refuses a deck that is not a web deck', () => {
       const lib = new Library(root)
       const pdf = lib.addDeck(lib.createEvent('E').id, deckInput(1))
