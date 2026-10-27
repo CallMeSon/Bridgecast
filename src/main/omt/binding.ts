@@ -1,7 +1,8 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
-import koffi from 'koffi'
+import { createRequire } from 'module'
+import type KoffiModule from 'koffi'
 import type { SenderBinding } from '../net/sender-binding'
 
 export class OmtLoadError extends Error {
@@ -74,8 +75,14 @@ const STATS_FIELDS = Object.fromEntries(
   ].map((k) => [k, 'int64_t'])
 )
 
+type Koffi = typeof KoffiModule
+
+// koffi is required lazily so a failed native load becomes an OmtLoadError
+// inside loadLibomt instead of breaking the import of this module.
+const defaultKoffi = (): Koffi => createRequire(__filename)('koffi') as Koffi
+
 let structsDefined = false
-function defineStructs(): void {
+function defineStructs(koffi: Koffi): void {
   if (structsDefined) return // koffi rejects a second definition of a named type
   koffi.struct('OMTMediaFrame', FRAME_FIELDS)
   koffi.struct('OMTStatistics', STATS_FIELDS)
@@ -91,7 +98,7 @@ function defineStructs(): void {
  * blocks for about 1/fps per call. sendVideo/sendAudio call it synchronously;
  * pacing is decided by the caller (the output worker).
  */
-export function loadLibomt(dir: string): SenderBinding {
+export function loadLibomt(dir: string, loadKoffi: () => Koffi = defaultKoffi): SenderBinding {
   let fns: {
     create: (name: string, quality: number) => unknown
     send: (inst: unknown, frame: object) => number
@@ -101,9 +108,10 @@ export function loadLibomt(dir: string): SenderBinding {
     destroy: (inst: unknown) => void
   }
   try {
+    const koffi = loadKoffi()
     const lib = koffi.load(join(dir, libName('libomt')))
     if (!existsSync(join(dir, libName('libvmx')))) throw new Error(`${libName('libvmx')} missing`)
-    defineStructs()
+    defineStructs(koffi)
     fns = {
       create: lib.func('void *omt_send_create(const char *name, int quality)'),
       send: lib.func('int omt_send(void *inst, _In_ OMTMediaFrame *frame)'),
@@ -133,6 +141,8 @@ export function loadLibomt(dir: string): SenderBinding {
       return h
     },
     sendVideo(h, f) {
+      if (f.data.byteLength < f.width * 4 * f.height)
+        throw new Error('video buffer too short for width*4*height')
       const data = Buffer.from(f.data)
       fns.send(get(h), {
         Type: OMT_FRAME_VIDEO,

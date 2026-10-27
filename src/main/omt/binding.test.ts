@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const electron = vi.hoisted(() => ({ app: { isPackaged: false } }))
@@ -30,9 +33,34 @@ describe('libomtDir', () => {
   })
 })
 
+function fakeDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'omt-'))
+  for (const f of ['libvmx.so', 'libvmx.dll', 'libvmx.dylib']) writeFileSync(join(dir, f), '')
+  return dir
+}
+
 describe('loadLibomt', () => {
   it('throws OmtLoadError when the library is missing', () => {
     expect(() => loadLibomt('/nonexistent')).toThrow(OmtLoadError)
+  })
+
+  it('throws OmtLoadError when koffi itself fails to load', () => {
+    const boom = (): never => {
+      throw new Error('native module not found')
+    }
+    expect(() => loadLibomt(fakeDir(), boom)).toThrow(OmtLoadError)
+  })
+
+  it('rejects a video buffer shorter than width*4*height', () => {
+    const koffi = {
+      load: () => ({ func: () => () => ({}) }),
+      struct: () => ({})
+    }
+    const b = loadLibomt(fakeDir(), () => koffi as never)
+    const h = b.create('x')
+    expect(() =>
+      b.sendVideo(h, { width: 4, height: 2, fps: 30, data: new ArrayBuffer(31) })
+    ).toThrow(/short/)
   })
 })
 
