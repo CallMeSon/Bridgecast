@@ -45,7 +45,7 @@ Di luar cakupan: halaman web sebagai overlay di atas deck (seperti KV), profil b
   - Output HDMI dan OMT: video + audio, `maxWidth/maxHeight` = Canvas, `maxFrameRate` = fps OMT (30 bila OMT off).
   - Operator dan Prepare: video saja, `maxFrameRate: 30`.
 - Di output, audio stream lewat `MediaStreamAudioSourceNode → GainNode` (level deck × master dari spec fondasi) lalu ke route (lokal, OMT, keduanya) seperti audio video slide. Aturan "tepat satu jendela bersuara lokal" dari spec OMT berlaku.
-- Output memutar stream di `<video>` yang mengisi stage (tanpa Fit/Fill/Stretch).
+- Output memutar stream di `<video>` yang mengisi stage (tanpa Fit/Fill/Stretch), lewat komponen baru **`StreamLayer`** di `#/output`. Komponen ini juga dipakai deck PPT native (`2026-10-27-native-slideshow-design.md`), jadi dibuat umum: menerima `MediaStream`, mendukung Cut/Fade dengan layer lain, jeda untuk Freeze dan HOLD, dan melaporkan frame pertama untuk ready gate.
 
 ## 4. Input operator
 - Preview di jendela Prepare menangkap mouse (move, down, up, klik ganda), wheel, dan keyboard (keyDown, char, keyUp). Koordinat dinormalisasi 0–1 terhadap preview dan dikirim ke main; main memvalidasi (angka 0–1, deck ada, deck tidak live atau sedang frozen) lalu mengubahnya ke piksel Canvas dan memanggil `sendInputEvent`.
