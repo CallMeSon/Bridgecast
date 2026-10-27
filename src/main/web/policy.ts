@@ -172,21 +172,16 @@ export function validatePrepareInput(
 
 /**
  * Applies the web source policy to the `persist:web` session: Chrome UA, deny-by-default
- * permissions (nothing at all for a live page), and every download cancelled.
+ * permissions (fullscreen and sanitized clipboard writes are allowed, also while live) and
+ * every download cancelled. The live rule applies to popups (popupAllowed) and input only.
  * Covered by the Task 8 end-to-end check, not by unit tests.
  */
-export function applyWebSession(
-  ses: Session,
-  electronUa: string,
-  isLive: (webContentsId: number) => boolean
-): void {
+export function applyWebSession(ses: Session, electronUa: string): void {
   ses.setUserAgent(chromeUserAgent(electronUa))
-  ses.setPermissionRequestHandler((wc, permission, callback) => {
-    callback(permissionAllowed(permission) && !(wc && isLive(wc.id)))
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permissionAllowed(permission))
   })
-  ses.setPermissionCheckHandler((wc, permission) => {
-    return permissionAllowed(permission) && !(wc && isLive(wc.id))
-  })
+  ses.setPermissionCheckHandler((_wc, permission) => permissionAllowed(permission))
   ses.on('will-download', (event) => {
     event.preventDefault()
   })
