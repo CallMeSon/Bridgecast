@@ -36,6 +36,31 @@ export function sanitizeOmt(raw: unknown): OmtSettings {
   }
 }
 
+/** NDI network output, configured in settings. */
+export interface NdiSettings {
+  enabled: boolean
+  /** Source name receivers see (1–64 printable characters). */
+  name: string
+}
+
+export const DEFAULT_NDI: Readonly<NdiSettings> = Object.freeze({
+  enabled: false,
+  name: 'PPT Share'
+})
+
+/** Any parsed JSON → valid NdiSettings (empty name → default, control characters removed, 64 characters at most). */
+export function sanitizeNdi(raw: unknown): NdiSettings {
+  const o = isObject(raw) ? raw : {}
+  const name =
+    typeof o.name === 'string'
+      ? o.name.replace(CONTROL_CHARS, '').trim().slice(0, MAX_NAME).trim()
+      : ''
+  return {
+    enabled: typeof o.enabled === 'boolean' ? o.enabled : DEFAULT_NDI.enabled,
+    name: name.length > 0 ? name : DEFAULT_NDI.name
+  }
+}
+
 /** Live state of the OMT sender, shown in the UI. */
 export interface OmtStatus {
   state: 'off' | 'starting' | 'running' | 'error'
@@ -43,6 +68,15 @@ export interface OmtStatus {
   address: string | null
   message?: string
   warning?: 'drops' | 'no-receivers' | 'no-sound'
+}
+
+/** Live state of a network sender; NDI uses the same shape (warning 'drops' never occurs for NDI). */
+export type NetStatus = OmtStatus
+export type NdiStatus = NetStatus
+
+/** True when any network output is switched on. */
+export function networkOn(s: { omt: OmtSettings; ndi: NdiSettings }): boolean {
+  return s.omt.enabled || s.ndi.enabled
 }
 
 const RESTART_WINDOW_MS = 60_000
@@ -105,6 +139,20 @@ export const OMT_NO_SOUND = 'OMT sound is unavailable; sound plays on this PC on
 export const OMT_RECEIVERS_NOTICE = 'Receivers will lose the OMT picture for about a second.'
 export const OMT_RECEIVERS_CONFIRM = `${OMT_RECEIVERS_NOTICE} Change it now?`
 
+export const NDI_COPY = {
+  missing:
+    'NDI could not start: the NDI Runtime is not installed. Install it from ndi.video, then turn NDI off and on.',
+  tooOld:
+    'NDI could not start: the installed NDI Runtime is too old. Install NDI 6 from ndi.video.',
+  createFailed:
+    'NDI could not start. The source name may already be in use, or the network is unavailable. Change the name or turn NDI off and on.',
+  noReceivers: 'No receiver yet. In vMix or OBS, pick the NDI source shown above.',
+  noSound: 'NDI sound is unavailable; sound plays on this PC only.'
+} as const
+
+export const NETWORK_CHANGE_CONFIRM =
+  'Receivers will lose the network picture for about a second. Change it now?'
+
 /** The one question for a canvas change, or null when nothing on air or on the network is affected. */
 export function canvasChangeConfirm(onAir: boolean, receivers: boolean): string | null {
   if (onAir && receivers) return `${CANVAS_LIVE_NOTICE} ${OMT_RECEIVERS_NOTICE} Change it now?`
@@ -130,6 +178,20 @@ export function omtBadge(s: OmtStatus | null): OmtBadge {
   }
   if (s.state === 'starting') return { text: 'OMT starting…', tone: 'neutral' }
   return { text: 'OMT · no receivers', tone: 'neutral' }
+}
+
+/** Header NDI status: same rules as omtBadge. */
+export function ndiBadge(s: NdiStatus | null): OmtBadge {
+  if (!s || s.state === 'off') return { text: 'NDI off', tone: 'off' }
+  if (s.state === 'error') return { text: 'NDI error', tone: 'error' }
+  if (s.state === 'running' && s.connections > 0) {
+    return {
+      text: `NDI · ${s.connections} receiver${s.connections === 1 ? '' : 's'}`,
+      tone: 'ok'
+    }
+  }
+  if (s.state === 'starting') return { text: 'NDI starting…', tone: 'neutral' }
+  return { text: 'NDI · no receivers', tone: 'neutral' }
 }
 
 export const NO_RECEIVERS_AFTER_MS = 15_000

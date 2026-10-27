@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_NDI,
   DEFAULT_OMT,
+  NDI_COPY,
+  NETWORK_CHANGE_CONFIRM,
   NO_RECEIVERS_AFTER_MS,
   OMT_RECEIVERS_CONFIRM,
   OMT_RECEIVERS_NOTICE,
@@ -8,12 +11,15 @@ import {
   audioPlan,
   dropWarning,
   noReceiversHint,
+  ndiBadge,
+  networkOn,
   omtBadge,
+  sanitizeNdi,
   restartAllowed,
   sanitizeOmt
 } from './omt'
 import { CANVAS_CHANGE_LIVE } from './canvas'
-import type { AudioRoute, OmtStatus } from './omt'
+import type { AudioRoute, NdiStatus, OmtStatus } from './omt'
 
 describe('sanitizeOmt', () => {
   it('defaults for anything that is not an object', () => {
@@ -195,5 +201,79 @@ describe('canvasChangeConfirm', () => {
     expect(t.endsWith('Change it now?')).toBe(true)
     expect(t).toContain('what the audience sees.')
     expect(t).toContain(OMT_RECEIVERS_NOTICE)
+  })
+})
+
+describe('sanitizeNdi', () => {
+  it('defaults for anything that is not an object', () => {
+    expect(DEFAULT_NDI).toEqual({ enabled: false, name: 'PPT Share' })
+    for (const raw of [undefined, null, 'x', 7, []]) expect(sanitizeNdi(raw)).toEqual(DEFAULT_NDI)
+  })
+  it('keeps valid values and trims', () => {
+    expect(sanitizeNdi({ enabled: true, name: '  Sala 1 ' })).toEqual({
+      enabled: true,
+      name: 'Sala 1'
+    })
+  })
+  it('blank, wrong-typed or control-only names fall back', () => {
+    expect(sanitizeNdi({ name: '  ' }).name).toBe('PPT Share')
+    expect(sanitizeNdi({ name: 5 }).name).toBe('PPT Share')
+    expect(sanitizeNdi({ name: '\u0007' }).name).toBe('PPT Share')
+    expect(sanitizeNdi({ enabled: 'yes' }).enabled).toBe(false)
+  })
+  it('cuts to 64 characters', () => {
+    expect(sanitizeNdi({ name: 'a'.repeat(80) }).name).toBe('a'.repeat(64))
+  })
+  it('removes control characters', () => {
+    expect(sanitizeNdi({ name: '\u0007x' }).name).toBe('x')
+  })
+})
+
+describe('ndiBadge', () => {
+  const st = (state: NdiStatus['state'], connections = 0): NdiStatus => ({
+    state,
+    connections,
+    address: null
+  })
+  it('off for null and off', () => {
+    expect(ndiBadge(null)).toEqual({ text: 'NDI off', tone: 'off' })
+    expect(ndiBadge(st('off'))).toEqual({ text: 'NDI off', tone: 'off' })
+  })
+  it('running with receivers', () => {
+    expect(ndiBadge(st('running', 0))).toEqual({ text: 'NDI · no receivers', tone: 'neutral' })
+    expect(ndiBadge(st('running', 1))).toEqual({ text: 'NDI · 1 receiver', tone: 'ok' })
+    expect(ndiBadge(st('running', 2))).toEqual({ text: 'NDI · 2 receivers', tone: 'ok' })
+  })
+  it('error', () => {
+    expect(ndiBadge(st('error'))).toEqual({ text: 'NDI error', tone: 'error' })
+  })
+})
+
+describe('NDI copy', () => {
+  it('uses the exact strings', () => {
+    expect(NDI_COPY).toEqual({
+      missing:
+        'NDI could not start: the NDI Runtime is not installed. Install it from ndi.video, then turn NDI off and on.',
+      tooOld:
+        'NDI could not start: the installed NDI Runtime is too old. Install NDI 6 from ndi.video.',
+      createFailed:
+        'NDI could not start. The source name may already be in use, or the network is unavailable. Change the name or turn NDI off and on.',
+      noReceivers: 'No receiver yet. In vMix or OBS, pick the NDI source shown above.',
+      noSound: 'NDI sound is unavailable; sound plays on this PC only.'
+    })
+    expect(NETWORK_CHANGE_CONFIRM).toBe(
+      'Receivers will lose the network picture for about a second. Change it now?'
+    )
+  })
+})
+
+describe('networkOn', () => {
+  it('is true when either protocol is enabled', () => {
+    const o = (enabled: boolean) => ({ ...DEFAULT_OMT, enabled })
+    const n = (enabled: boolean) => ({ ...DEFAULT_NDI, enabled })
+    expect(networkOn({ omt: o(false), ndi: n(false) })).toBe(false)
+    expect(networkOn({ omt: o(true), ndi: n(false) })).toBe(true)
+    expect(networkOn({ omt: o(false), ndi: n(true) })).toBe(true)
+    expect(networkOn({ omt: o(true), ndi: n(true) })).toBe(true)
   })
 })

@@ -4,6 +4,7 @@ import * as os from 'os'
 import { join } from 'path'
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings'
 import { sanitizeAudio, sanitizeSettings } from '../shared/settings'
+import { DEFAULT_NDI } from '../shared/omt'
 
 let dir: string
 let file: string
@@ -21,7 +22,8 @@ describe('loadSettings / saveSettings', () => {
       autoAdvance: false,
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
-      omt: { enabled: false, name: 'PPT Share', fps: 30 }
+      omt: { enabled: false, name: 'PPT Share', fps: 30 },
+      ndi: { enabled: false, name: 'PPT Share' }
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
   })
@@ -32,7 +34,8 @@ describe('loadSettings / saveSettings', () => {
       autoAdvance: true,
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
-      omt: { enabled: true, name: 'Aula', fps: 60 as const }
+      omt: { enabled: true, name: 'Aula', fps: 60 as const },
+      ndi: { enabled: true, name: 'Sala NDI' }
     }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
@@ -67,7 +70,7 @@ describe('loadSettings / saveSettings', () => {
 })
 
 describe('hdmi settings', () => {
-  it('an old settings file with ndi and without hdmi loads with the hdmi defaults', () => {
+  it('an old settings file with ndi and without hdmi loads with the hdmi defaults and keeps ndi enabled/name', () => {
     const ndi = { enabled: false, name: 'Aula', width: 1920, height: 1080, fps: 60 }
     fs.writeFileSync(file, JSON.stringify({ ndi }))
     expect(loadSettings(file)).toEqual({
@@ -75,11 +78,12 @@ describe('hdmi settings', () => {
       autoAdvance: false,
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
-      omt: { enabled: false, name: 'PPT Share', fps: 30 }
+      omt: { enabled: false, name: 'PPT Share', fps: 30 },
+      ndi: { enabled: false, name: 'Aula' }
     })
   })
 
-  it('an old settings file keeps its hdmi values and drops ndi', () => {
+  it('an old settings file keeps its hdmi values and only the ndi enabled/name', () => {
     const ndi = { enabled: true, name: 'PPT Share', width: 1920, height: 1080, fps: 30 }
     fs.writeFileSync(file, JSON.stringify({ ndi, hdmi: { enabled: true, displayId: 7 } }))
     expect(loadSettings(file)).toEqual({
@@ -87,7 +91,8 @@ describe('hdmi settings', () => {
       autoAdvance: false,
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
-      omt: { enabled: false, name: 'PPT Share', fps: 30 }
+      omt: { enabled: false, name: 'PPT Share', fps: 30 },
+      ndi: { enabled: true, name: 'PPT Share' }
     })
   })
 
@@ -278,5 +283,25 @@ describe('omt setting', () => {
   it('does not share the default omt object with callers', () => {
     loadSettings(file).omt.name = 'X'
     expect(loadSettings(file).omt.name).toBe('PPT Share')
+  })
+})
+
+describe('ndi setting', () => {
+  it('a settings file without ndi loads the defaults', () => {
+    fs.writeFileSync(file, JSON.stringify({ omt: { enabled: true } }))
+    expect(loadSettings(file).ndi).toEqual(DEFAULT_NDI)
+    expect(loadSettings(file).ndi).toEqual({ enabled: false, name: 'PPT Share' })
+  })
+
+  it('does not share the default ndi object with callers', () => {
+    loadSettings(file).ndi.name = 'X'
+    expect(loadSettings(file).ndi.name).toBe('PPT Share')
+  })
+
+  it('sanitizes the name when loading', () => {
+    expect(sanitizeSettings({ ndi: { enabled: true, name: '  ' } }).ndi).toEqual({
+      enabled: true,
+      name: 'PPT Share'
+    })
   })
 })

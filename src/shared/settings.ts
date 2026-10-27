@@ -1,6 +1,12 @@
 import { sanitizeVolume } from './audio-levels'
 import { DEFAULT_CANVAS, sanitizeCanvas, type Canvas } from './canvas'
-import { sanitizeOmt, type AudioRoute, type OmtSettings } from './omt'
+import {
+  sanitizeNdi,
+  sanitizeOmt,
+  type AudioRoute,
+  type NdiSettings,
+  type OmtSettings
+} from './omt'
 
 /**
  * Program fullscreen on a second display (HDMI, Windows "Extend"). `displayId`
@@ -33,6 +39,8 @@ export interface Settings {
   canvas: Canvas
   /** OMT network output. */
   omt: OmtSettings
+  /** NDI network output. */
+  ndi: NdiSettings
 }
 
 export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
@@ -82,7 +90,7 @@ export function sanitizeAudio(raw: unknown): AudioSettings {
 
 /**
  * Any parsed JSON → valid Settings; each invalid field falls back to its
- * default. Unknown keys (e.g. `ndi` from older versions) are dropped.
+ * default. Unknown keys are dropped.
  */
 export function sanitizeSettings(raw: unknown): Settings {
   const r = isObject(raw) ? raw : {}
@@ -91,6 +99,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     autoAdvance: typeof r.autoAdvance === 'boolean' ? r.autoAdvance : false,
     audio: sanitizeAudio(r.audio),
     canvas: sanitizeCanvas(r.canvas) ?? { ...DEFAULT_CANVAS },
-    omt: sanitizeOmt(r.omt)
+    omt: sanitizeOmt(r.omt),
+    ndi: sanitizeNdi(r.ndi)
   }
 }
