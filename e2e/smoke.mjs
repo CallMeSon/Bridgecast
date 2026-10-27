@@ -1720,7 +1720,8 @@ async function videoChecks(win, tally) {
     const optValue = await devSel.locator('option').nth(1).getAttribute('value')
     // `since` is how many context calls existed before the step, so a record from an
     // earlier step cannot satisfy it. The elements' own sinkId is accepted only when
-    // the context has no usable route (no setSinkId, or it refused the device).
+    // the context has no setSinkId at all. A refusal is not a route: elements in the
+    // graph play through the context, so the next setSink must succeed on it.
     const sinkOf = () =>
       hdmiJs(`({
         hasCtx: !!window.__sinkCalls,
@@ -1734,9 +1735,9 @@ async function videoChecks(win, tally) {
         got = await sinkOf()
         const fresh = got.calls.slice(since)
         const viaCtx = fresh.some((c) => c.id === want && c.ok === true)
-        const ctxRefused = !got.hasCtx || fresh.some((c) => c.ok === false)
-        const viaVideos = got.videos.length > 0 && got.videos.every((x) => x === want)
-        if (viaCtx || (ctxRefused && viaVideos)) {
+        const viaVideos =
+          !got.hasCtx && got.videos.length > 0 && got.videos.every((x) => x === want)
+        if (viaCtx || viaVideos) {
           return { via: viaCtx ? 'context' : 'videos', ...got }
         }
         await sleep(100)
@@ -2261,6 +2262,21 @@ async function canvasAndLevelsChecks(win, tally) {
   check(
     (await sameVideo()) && (await session()).state.take === takeBefore,
     'volumes back to 100: output gain 1.00, same <video> and take'
+  )
+
+  // 4. Fit of the live video slide: Fill reaches the video layer, and it is the
+  //    same <video> (not replayed) with the same take; then back to Fit.
+  await win.evaluate(([e, d]) => window.api.setDeckFit(e, d, 'fill'), [eventId, vId])
+  await waitOut(OUT_FIT, 'fill', 'Fill reaches the live video layer')
+  check(
+    (await sameVideo()) && (await session()).state.take === takeBefore,
+    `live video slide: Fill sets data-fit="fill" on the video layer, same <video> and take ${takeBefore} (no replay)`
+  )
+  await win.evaluate(([e, d]) => window.api.setDeckFit(e, d, 'fit'), [eventId, vId])
+  await waitOut(OUT_FIT, 'fit', 'Fit again on the video layer')
+  check(
+    (await sameVideo()) && (await session()).state.take === takeBefore,
+    'live video slide: back to Fit, still the same <video> and take'
   )
 
   // Back to the state the next checks expect: the noise deck on 3 / 4, no video deck.
