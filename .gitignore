@@ -13,3 +13,4 @@ out
 .eslintcache
 *.log*
 .claude/worktrees/
+*.tsbuildinfo
