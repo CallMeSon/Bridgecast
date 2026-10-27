@@ -78,7 +78,7 @@ Program, Up next, Controls:
 Pesan berbahasa Inggris, menyebut masalah dan cara mengatasinya.
 - URL tidak valid: *"Enter a web address that starts with https://."*
 - Gagal dimuat (tidak live): chip `Error`; Prepare menampilkan *"Could not open <domain>. Check the internet connection, then Reload."* Deck lain tidak terpengaruh.
-- Saat live, pemicu **HOLD**: `did-fail-load` pada main frame, `render-process-gone`, `unresponsive` lebih dari 5 detik, offline (`net.isOnline()` diperiksa tiap 2 detik selama deck web live), track capture `ended`. Renderer yang crash dimuat ulang di belakang layar; HOLD tetap sampai operator bertindak.
+- Saat live, pemicu **HOLD**: `did-fail-load` pada main frame, `render-process-gone`, `unresponsive` lebih dari 5 detik, track capture `ended`. Semuanya berbasis event; tidak ada pemeriksaan koneksi internet berkala (keputusan pengguna 2026-10-27, menghemat resource). Akibatnya, internet yang putus setelah halaman termuat tidak memicu HOLD selama halaman tidak gagal atau crash; halaman yang sudah termuat (mis. Canva present) tetap tampil apa adanya. Renderer yang crash dimuat ulang di belakang layar; HOLD tetap sampai operator bertindak.
 - Capture gagal di satu output: output itu menampilkan snapshot (`file`) deck, tidak pernah hitam; operator mendapat peringatan *"The web page cannot be shown on <HDMI|OMT>. It shows the last snapshot."*
 - App dibuka offline: deck web `Error`; deck lain jalan normal.
 - Login Google diblokir di browser embedded: tidak bisa dideteksi; dicatat di `docs/test-checklist.md` dengan saran login Canva lewat email.
@@ -111,7 +111,7 @@ Halaman uji lokal `fixtures/web/index.html` disajikan server HTTP lokal: penghit
 - Input Prepare ditolak saat live, diterima saat frozen.
 
 ### Uji lapangan (`docs/test-checklist.md`)
-Canva present dari link view dan dari akun; clicker menggerakkan Canva; YouTube dengan audio ke Local/OMT/Both; Canvas tidak biasa (mis. 3840×1080); internet dicabut saat live → HOLD; Sign out of all websites.
+Canva present dari link view dan dari akun; clicker menggerakkan Canva; YouTube dengan audio ke Local/OMT/Both; Canvas tidak biasa (mis. 3840×1080); internet dicabut saat live lalu Reload → HOLD (tanpa Reload, halaman yang sudah termuat tetap tampil); Sign out of all websites.
 
 ### Dokumen
 - `PRODUCT.md`: deck web, pengecualian offline, tombol D/Shift+D, HOLD.
