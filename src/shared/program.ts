@@ -1,5 +1,7 @@
 import type { DeckMeta, SectionMeta } from './types'
 import { segmentsOf } from './sections'
+import { DEFAULT_CANVAS, sanitizeFit, type DeckFit, type ResolvedCanvas } from './canvas'
+import { DEFAULT_DECK_AUDIO, sanitizeDeckAudio, type DeckAudio } from './audio-levels'
 
 /**
  * The slide on the output. `file` is the slide's image in its deck and never
@@ -13,6 +15,13 @@ export interface ShownSlide {
   file: string
   /** The slide's MP4 in its deck, when it is a video slide. */
   video?: string
+  /**
+   * How the slide's deck fills the canvas and how loud its video plays. Copied
+   * from the deck when the slide goes live and refreshed by `locateShown`, so
+   * changing them never changes `take`. Absent on state from before they existed.
+   */
+  fit?: DeckFit
+  audio?: DeckAudio
 }
 
 export interface ProgramState {
@@ -43,6 +52,11 @@ export interface ProgramState {
    * slide replays on a repeated take. Not changed by freeze, black, KV, etc.
    */
   take: number
+  /**
+   * The canvas of the active event (its override, else the machine default).
+   * Set by main, never by the reducer.
+   */
+  canvas: ResolvedCanvas
 }
 
 export type Action =
@@ -59,7 +73,7 @@ export type Action =
   | { type: 'prevSection' }
   | { type: 'selectSection'; sectionId: string }
 
-type DeckLike = Pick<DeckMeta, 'id' | 'slides'>
+type DeckLike = Pick<DeckMeta, 'id' | 'slides' | 'fit' | 'audio'>
 
 /**
  * The KV image is on the output: not black, there is a KV, and it was pressed
@@ -79,13 +93,20 @@ export const initialState: ProgramState = {
   kvUrl: null,
   transition: 'cut',
   autoAdvance: false,
-  take: 0
+  take: 0,
+  canvas: { ...DEFAULT_CANVAS, origin: 'default' }
 }
 
 /** Move the operator position (index must exist in deck); `shown` follows unless frozen. */
 function moveTo(state: ProgramState, deck: DeckLike, index: number): ProgramState {
   const slide = deck.slides[index]
-  const shown: ShownSlide = { deckId: deck.id, index, file: slide.file }
+  const shown: ShownSlide = {
+    deckId: deck.id,
+    index,
+    file: slide.file,
+    fit: sanitizeFit(deck.fit),
+    audio: sanitizeDeckAudio(deck.audio)
+  }
   if (slide.video) shown.video = slide.video
   return {
     ...state,
@@ -162,17 +183,33 @@ function jumpSection(
 
 /**
  * Where `shown` is now in its deck: the same slide file, at whatever index it
- * has after a reorder; null when the deck or that slide is gone. Returns the
- * same object when nothing changed.
+ * has after a reorder, with the deck's current fit and audio; null when the deck
+ * or that slide is gone. Returns the same object when nothing changed, and never
+ * touches `take` (it is not part of `shown`), so a fit or volume change does not
+ * replay a video slide.
  */
 export function locateShown(
   shown: ShownSlide | null,
   deck: DeckLike | undefined
 ): ShownSlide | null {
   if (!shown || !deck || deck.id !== shown.deckId) return null
-  if (deck.slides[shown.index]?.file === shown.file) return shown
-  const index = deck.slides.findIndex((s) => s.file === shown.file)
-  return index < 0 ? null : { ...shown, index }
+  const index =
+    deck.slides[shown.index]?.file === shown.file
+      ? shown.index
+      : deck.slides.findIndex((s) => s.file === shown.file)
+  if (index < 0) return null
+  const fit = sanitizeFit(deck.fit)
+  const audio = sanitizeDeckAudio(deck.audio)
+  const had = shown.audio ?? DEFAULT_DECK_AUDIO
+  if (
+    index === shown.index &&
+    (shown.fit ?? 'fit') === fit &&
+    had.volume === audio.volume &&
+    had.muted === audio.muted
+  ) {
+    return shown
+  }
+  return { ...shown, index, fit, audio }
 }
 
 function isPermutation(order: number[], n: number): boolean {

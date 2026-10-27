@@ -526,7 +526,7 @@ Location: ${root}`
     return
   }
   const settings = new SettingsStore(join(root, 'settings.json'))
-  const state = new AppState(lib, settings.get().autoAdvance)
+  const state = new AppState(lib, settings.get().autoAdvance, () => settings.get().canvas)
   // The auto advance toggle is part of the program state; keep it saved.
   state.onChange((s) => {
     if (s.autoAdvance === settings.get().autoAdvance) return

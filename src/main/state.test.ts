@@ -60,7 +60,7 @@ describe('AppState', () => {
     app.dispatch({ type: 'selectDeck', deckId: da })
     app.dispatch({ type: 'next' })
     const shown = app.state.shown
-    expect(shown).toEqual({ deckId: da, index: 1, file: '002.png' })
+    expect(shown).toMatchObject({ deckId: da, index: 1, file: '002.png' })
 
     const s = app.setEvent(b.id)
     expect(s.shown).toEqual(shown)
@@ -76,7 +76,7 @@ describe('AppState', () => {
     const app = new AppState(lib)
     app.dispatch({ type: 'selectDeck', deckId: da })
     const s = app.setEvent(b.id)
-    expect(s.shown).toEqual({ deckId: da, index: 0, file: '001.png' })
+    expect(s.shown).toMatchObject({ deckId: da, index: 0, file: '001.png' })
     expect(s.deckId).toBeNull()
   })
 
@@ -129,7 +129,7 @@ describe('AppState', () => {
     app.dispatch({ type: 'selectDeck', deckId: da })
     app.setEvent(b.id)
     const s = app.dispatch({ type: 'next' })
-    expect(s.shown).toEqual({ deckId: db, index: 0, file: '001.png' })
+    expect(s.shown).toMatchObject({ deckId: db, index: 0, file: '001.png' })
   })
 
   it('does not call onChange when the state does not change', () => {
@@ -232,7 +232,7 @@ describe('AppState', () => {
     app.dispatch({ type: 'selectDeck', deckId: da })
     app.setEvent(b.id)
     const s = app.reorderSlides(da, [2, 1, 0])
-    expect(s.shown).toEqual({ deckId: da, index: 2, file: '001.png' })
+    expect(s.shown).toMatchObject({ deckId: da, index: 2, file: '001.png' })
   })
 
   it('reorderSlides rejects an invalid order and changes nothing', () => {
@@ -506,5 +506,99 @@ describe('AppState sections', () => {
     app.reorder(a.id, [{ deck: d2 }, { section: sectionId }, { deck: d3 }, { deck: d1 }])
     const end = app.state
     expect(app.dispatch({ type: 'next' })).toBe(end)
+  })
+
+  describe('canvas, fit and deck audio', () => {
+    it('a fresh state has the default canvas', () => {
+      const lib = new Library(root)
+      lib.createEvent('A')
+      const app = new AppState(lib)
+      expect(app.state.canvas).toEqual({ width: 1920, height: 1080, origin: 'default' })
+    })
+
+    it('an event canvas override is the canvas while that event is active', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      lib.setEventCanvas(b.id, { width: 3840, height: 1080 })
+      const app = new AppState(lib)
+      expect(app.state.canvas.origin).toBe('default')
+      expect(app.setEvent(b.id).canvas).toEqual({ width: 3840, height: 1080, origin: 'event' })
+      expect(app.setEvent(a.id).canvas).toEqual({ width: 1920, height: 1080, origin: 'default' })
+    })
+
+    it('switching to an event without override goes back to default while a slide of the first is shown', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      lib.setEventCanvas(a.id, { width: 3840, height: 1080 })
+      const da = addDeck(lib, a.id, 2, 'a')
+      const app = new AppState(lib)
+      expect(app.state.canvas.origin).toBe('event')
+      app.dispatch({ type: 'selectDeck', deckId: da })
+      expect(app.state.canvas.origin).toBe('event')
+      const s = app.setEvent(b.id)
+      expect(s.shown?.deckId).toBe(da)
+      expect(s.canvas).toEqual({ width: 1920, height: 1080, origin: 'default' })
+    })
+
+    it('a changed machine canvas plus refresh emits a new state', () => {
+      const lib = new Library(root)
+      lib.createEvent('A')
+      let machine = { width: 1920, height: 1080 }
+      const app = new AppState(lib, false, () => machine)
+      const cb = vi.fn()
+      app.onChange(cb)
+      app.refresh()
+      expect(cb).not.toHaveBeenCalled()
+      machine = { width: 1280, height: 720 }
+      app.refresh()
+      expect(cb).toHaveBeenCalledTimes(1)
+      expect(app.state.canvas).toEqual({ width: 1280, height: 720, origin: 'default' })
+    })
+
+    it('a dispatch after the machine canvas changed carries the new canvas', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const d = addDeck(lib, a.id, 2)
+      let machine = { width: 1920, height: 1080 }
+      const app = new AppState(lib, false, () => machine)
+      machine = { width: 1280, height: 720 }
+      app.dispatch({ type: 'selectDeck', deckId: d })
+      expect(app.state.canvas.width).toBe(1280)
+    })
+
+    it('setDeckAudio on the live deck plus refresh emits the new audio with the same take', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const d = addDeck(lib, a.id, 2)
+      const app = new AppState(lib)
+      app.dispatch({ type: 'selectDeck', deckId: d })
+      const take = app.state.take
+      const cb = vi.fn()
+      app.onChange(cb)
+      lib.setDeckAudio(a.id, d, { volume: 30, muted: true })
+      app.refresh()
+      expect(cb).toHaveBeenCalledTimes(1)
+      expect(app.state.shown?.audio).toEqual({ volume: 30, muted: true })
+      expect(app.state.take).toBe(take)
+    })
+
+    it('setDeckFit on the live deck plus refresh emits the new fit with the same take; a second refresh is silent', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const d = addDeck(lib, a.id, 2)
+      const app = new AppState(lib)
+      app.dispatch({ type: 'selectDeck', deckId: d })
+      const take = app.state.take
+      const cb = vi.fn()
+      app.onChange(cb)
+      lib.setDeckFit(a.id, d, 'fill')
+      app.refresh()
+      expect(app.state.shown?.fit).toBe('fill')
+      expect(app.state.take).toBe(take)
+      app.refresh()
+      expect(cb).toHaveBeenCalledTimes(1)
+    })
   })
 })

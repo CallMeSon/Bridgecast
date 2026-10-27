@@ -2,6 +2,7 @@ import type { Library } from './library'
 import type { DeckMeta, EventMeta, SectionMeta } from '../shared/types'
 import type { OrderItem } from '../shared/sections'
 import { kvImageUrl } from '../shared/ipc'
+import { DEFAULT_CANVAS, resolveCanvas, type Canvas } from '../shared/canvas'
 import {
   followSlideOrder,
   initialState,
@@ -26,6 +27,12 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.transition === b.transition &&
     a.autoAdvance === b.autoAdvance &&
     a.take === b.take &&
+    a.canvas.width === b.canvas.width &&
+    a.canvas.height === b.canvas.height &&
+    a.canvas.origin === b.canvas.origin &&
+    a.shown?.fit === b.shown?.fit &&
+    a.shown?.audio?.volume === b.shown?.audio?.volume &&
+    a.shown?.audio?.muted === b.shown?.audio?.muted &&
     a.shown?.video === b.shown?.video &&
     a.shown?.deckId === b.shown?.deckId &&
     a.shown?.index === b.shown?.index &&
@@ -44,10 +51,15 @@ export class AppState {
   private listeners: ((s: ProgramState) => void)[] = []
   private positions = new Map<string, Position>()
 
-  /** @param autoAdvance saved setting (settings.json) restored at start. */
+  /**
+   * @param autoAdvance saved setting (settings.json) restored at start.
+   * @param machineCanvas the machine default canvas, read each time so a changed
+   *   setting applies on the next `refresh()`.
+   */
   constructor(
     private lib: Library,
-    autoAdvance = false
+    autoAdvance = false,
+    private machineCanvas: () => Canvas = () => DEFAULT_CANVAS
   ) {
     this.activeEvent = lib.listEvents()[0]?.id ?? null
     this.current = this.normalize({ ...initialState, autoAdvance })
@@ -189,6 +201,12 @@ export class AppState {
     return ev?.kv ? kvImageUrl(ev.id, ev.kv) : null
   }
 
+  /** The active event's canvas override, else the machine default. */
+  private activeCanvas(): ProgramState['canvas'] {
+    const ev = this.lib.listEvents().find((e) => e.id === this.activeEvent)
+    return resolveCanvas(ev?.canvas, this.machineCanvas())
+  }
+
   private normalize(s: ProgramState): ProgramState {
     // Position is reconciled against the active event only; if no valid deck,
     // reconcile moves it to the first ready deck at index 0 (no selectDeck, so
@@ -198,14 +216,27 @@ export class AppState {
     // The KV on air keeps its image when the event changes; otherwise the
     // active event's KV is applied.
     const kvUrl = kvOnAir(s) ? s.kvUrl : this.activeKvUrl()
-    return { ...pos, shown: this.locate(s), kvUrl, kv: s.kv && kvUrl !== null }
+    return {
+      ...pos,
+      shown: this.locate(s),
+      kvUrl,
+      kv: s.kv && kvUrl !== null,
+      canvas: this.activeCanvas()
+    }
   }
 
-  /** After a dispatch: once the KV is no longer on air, apply the active event's KV. */
+  /**
+   * After a dispatch: once the KV is no longer on air, apply the active event's
+   * KV. The canvas is re-resolved too, so it is right even if the machine
+   * default changed since the last `refresh()`.
+   */
   private normalizeKv(s: ProgramState): ProgramState {
-    if (kvOnAir(s)) return s
+    const withCanvas = { ...s, canvas: this.activeCanvas() }
+    if (kvOnAir(withCanvas)) return withCanvas
     const kvUrl = this.activeKvUrl()
-    return kvUrl === s.kvUrl ? s : { ...s, kvUrl, kv: s.kv && kvUrl !== null }
+    return kvUrl === withCanvas.kvUrl
+      ? withCanvas
+      : { ...withCanvas, kvUrl, kv: withCanvas.kv && kvUrl !== null }
   }
 
   private commit(next: ProgramState): ProgramState {

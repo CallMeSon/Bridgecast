@@ -5,6 +5,7 @@ import {
   followSlideOrder,
   initialState,
   kvOnAir,
+  locateShown,
   pendingTake,
   segmentOfDeck,
   type ProgramState,
@@ -13,11 +14,16 @@ import {
 
 const s = (n: number): { file: string; notes: string }[] =>
   Array.from({ length: n }, (_, i) => ({ file: `${i}.png`, notes: '' }))
-/** Slide files are named after their original index (`0.png`, `1.png`, …). */
+/**
+ * Slide files are named after their original index (`0.png`, `1.png`, …). Carries
+ * the deck defaults, which is what `moveTo` puts on a slide of a plain deck.
+ */
 const sh = (deckId: string, index: number, file = `${index}.png`): ShownSlide => ({
   deckId,
   index,
-  file
+  file,
+  fit: 'fit',
+  audio: { volume: 100, muted: false }
 })
 const decks = [
   { id: 'A', slides: s(3) },
@@ -43,7 +49,8 @@ describe('initialState', () => {
       kvUrl: null,
       transition: 'cut',
       autoAdvance: false,
-      take: 0
+      take: 0,
+      canvas: { width: 1920, height: 1080, origin: 'default' }
     })
   })
 })
@@ -452,7 +459,7 @@ describe('take and video', () => {
     const r = reduce(initialState, { type: 'selectDeck', deckId: 'V' }, vd)
     expect(r.shown?.video).toBe('001.mp4')
     const n = reduce(r, { type: 'next' }, vd)
-    expect(n.shown).toEqual({ deckId: 'V', index: 1, file: '002.png' })
+    expect(n.shown).toMatchObject({ deckId: 'V', index: 1, file: '002.png' })
     expect('video' in n.shown!).toBe(false)
   })
   it('reconcile and followSlideOrder keep take and video', () => {
@@ -478,7 +485,7 @@ describe('take and video', () => {
     const reordered = [{ id: 'V', slides: [vd[0].slides[1], vd[0].slides[0]] }]
     const r = reconcile(st, reordered)
     expect(r.take).toBe(7)
-    expect(r.shown).toEqual({ deckId: 'V', index: 0, file: '002.png', video: '002.mp4' })
+    expect(r.shown).toMatchObject({ deckId: 'V', index: 0, file: '002.png', video: '002.mp4' })
   })
 })
 
@@ -627,5 +634,70 @@ describe('sections', () => {
     expect(segmentOfDeck(sd, s1, null)).toBe(-1)
     expect(segmentOfDeck(sd, s1, 'nope')).toBe(-1)
     expect(segmentOfDeck(sd, [], 'B')).toBe(0)
+  })
+})
+
+describe('fit and deck audio on shown', () => {
+  const plain = { id: 'D', slides: s(3) }
+  const styled = {
+    id: 'D',
+    slides: s(3),
+    fit: 'fill' as const,
+    audio: { volume: 40, muted: false }
+  }
+
+  it('next onto a deck with fit and audio puts both on shown', () => {
+    const r = reduce({ ...initialState, deckId: 'D', index: 0 }, { type: 'next' }, [styled])
+    expect(r.shown?.fit).toBe('fill')
+    expect(r.shown?.audio).toEqual({ volume: 40, muted: false })
+  })
+
+  it('a deck without fit and audio gives the defaults', () => {
+    const r = reduce({ ...initialState, deckId: 'D', index: 0 }, { type: 'next' }, [plain])
+    expect(r.shown?.fit).toBe('fit')
+    expect(r.shown?.audio).toEqual({ volume: 100, muted: false })
+  })
+
+  it('reconcile after the live deck changed fit gives the new fit with the same take', () => {
+    const live: ProgramState = {
+      ...initialState,
+      deckId: 'D',
+      index: 1,
+      take: 9,
+      shown: sh('D', 1)
+    }
+    const r = reconcile(live, [{ ...plain, fit: 'stretch' }])
+    expect(r.shown?.fit).toBe('stretch')
+    expect(r.take).toBe(9)
+  })
+
+  it('reconcile after the live deck changed volume or mute keeps take', () => {
+    const live: ProgramState = {
+      ...initialState,
+      deckId: 'D',
+      index: 1,
+      take: 9,
+      shown: sh('D', 1)
+    }
+    const r = reconcile(live, [{ ...plain, audio: { volume: 20, muted: true } }])
+    expect(r.shown?.audio).toEqual({ volume: 20, muted: true })
+    expect(r.take).toBe(9)
+  })
+
+  it('locateShown returns the identical object when nothing changed', () => {
+    const shown = { ...sh('D', 1), fit: 'fill' as const, audio: { volume: 40, muted: false } }
+    expect(locateShown(shown, styled)).toBe(shown)
+  })
+
+  it('locateShown returns the identical old-style shown on a deck without fit and audio', () => {
+    const old: ShownSlide = { deckId: 'D', index: 1, file: '1.png' }
+    expect(locateShown(old, plain)).toBe(old)
+  })
+
+  it('locateShown returns a new object when only the muted flag changed', () => {
+    const shown = sh('D', 1)
+    const r = locateShown(shown, { ...plain, audio: { volume: 100, muted: true } })
+    expect(r).not.toBe(shown)
+    expect(r?.audio?.muted).toBe(true)
   })
 })
