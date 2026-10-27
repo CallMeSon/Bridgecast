@@ -602,3 +602,143 @@ describe('AppState sections', () => {
     })
   })
 })
+
+describe('AppState web decks', () => {
+  function addWeb(lib: Library, eventId: string, name = 'Web'): string {
+    const p = path.join(src, `${name}-snap.png`)
+    fs.writeFileSync(p, 'snap')
+    return lib.addWebDeck(eventId, {
+      name,
+      url: 'https://example.com/',
+      snapshotPath: p,
+      width: 1920,
+      height: 1080
+    }).id
+  }
+
+  it('Next on a live web deck forwards ArrowRight once and keeps the same state', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    addDeck(lib, a.id, 2)
+    const forward = vi.fn()
+    const app = new AppState(lib, false, undefined, () => true, forward)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    expect(app.state.shown).toMatchObject({ deckId: w, web: { deckId: w } })
+    const before = app.state
+    const cb = vi.fn()
+    app.onChange(cb)
+    expect(app.dispatch({ type: 'next' })).toBe(before)
+    expect(forward).toHaveBeenCalledTimes(1)
+    expect(forward).toHaveBeenCalledWith(w, 'ArrowRight')
+    expect(app.dispatch({ type: 'prev' })).toBe(before)
+    expect(forward).toHaveBeenLastCalledWith(w, 'ArrowLeft')
+    expect(forward).toHaveBeenCalledTimes(2)
+    expect(cb).not.toHaveBeenCalled()
+  })
+
+  it('Next on a frozen web deck does not forward a key', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    const forward = vi.fn()
+    const app = new AppState(lib, false, undefined, () => true, forward)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    app.dispatch({ type: 'toggleFreeze' })
+    app.dispatch({ type: 'next' })
+    expect(forward).not.toHaveBeenCalled()
+  })
+
+  it('taking a web deck that is not ready is refused; once ready it goes live', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 2)
+    const w = addWeb(lib, a.id)
+    let ready = false
+    const app = new AppState(lib, false, undefined, (id) => id === w && ready)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    const before = app.state
+    expect(app.dispatch({ type: 'selectDeck', deckId: w })).toBe(before)
+    expect(app.dispatch({ type: 'nextDeck' })).toBe(before)
+    expect(app.state.shown?.deckId).toBe(d)
+    ready = true
+    expect(app.dispatch({ type: 'nextDeck' }).shown).toMatchObject({ deckId: w })
+  })
+
+  it('a frozen preview move onto a not-ready web deck is allowed (nothing goes on air)', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 2)
+    const w = addWeb(lib, a.id)
+    const app = new AppState(lib, false, undefined, () => false)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    app.dispatch({ type: 'toggleFreeze' })
+    const s = app.dispatch({ type: 'selectDeck', deckId: w })
+    expect(s.deckId).toBe(w)
+    expect(s.shown?.deckId).toBe(d)
+  })
+
+  it('setWebHold(true) on a live web deck, then toggleKv clears it', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    const kv = path.join(src, 'kv.png')
+    fs.writeFileSync(kv, 'kv')
+    lib.setKv(a.id, kv)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    const cb = vi.fn()
+    app.onChange(cb)
+    expect(app.setWebHold(true).webHold).toBe(true)
+    expect(cb).toHaveBeenCalledTimes(1)
+    expect(app.dispatch({ type: 'toggleKv' }).webHold).toBe(false)
+  })
+
+  it('setWebHold(true) without a web deck on air does nothing', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 2)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    const before = app.state
+    expect(app.setWebHold(true)).toBe(before)
+  })
+
+  it('resumeWeb is refused while the live page is not ready', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    let ready = true
+    const app = new AppState(lib, false, undefined, () => ready)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    app.setWebHold(true)
+    ready = false
+    expect(app.dispatch({ type: 'resumeWeb' }).webHold).toBe(true)
+    ready = true
+    expect(app.dispatch({ type: 'resumeWeb' }).webHold).toBe(false)
+  })
+
+  it('removing the live web deck drops shown and the hold', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    app.setWebHold(true)
+    const s = app.removeDeck(a.id, w)
+    expect(s.shown).toBeNull()
+    expect(s.webHold).toBe(false)
+  })
+
+  it('switching events keeps the live web deck on air', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const b = lib.createEvent('B')
+    const w = addWeb(lib, a.id)
+    addDeck(lib, b.id, 1)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    const s = app.setEvent(b.id)
+    expect(s.shown).toMatchObject({ deckId: w, web: { deckId: w } })
+  })
+})

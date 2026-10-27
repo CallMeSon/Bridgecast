@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  appTabCapture,
   chromeUserAgent,
   electronKeyName,
   navigationAllowed,
@@ -187,5 +188,19 @@ describe('validatePrepareInput', () => {
     expect(validatePrepareInput({ ...k, type: 'keyPress' }, canvas, idle)).toBeNull()
     expect(validatePrepareInput({ ...k, modifiers: ['hyper'] }, canvas, idle)).toBeNull()
     expect(validatePrepareInput({ ...k, modifiers: 'shift' }, canvas, idle)).toBeNull()
+  })
+})
+
+describe('appTabCapture', () => {
+  const DEV = 'http://localhost:5173'
+  it('allows display-capture asked by an app window (file: or dev server origin)', () => {
+    expect(appTabCapture('display-capture', 'file:///', undefined)).toBe(true)
+    expect(appTabCapture('display-capture', 'http://localhost:5173', DEV)).toBe(true)
+  })
+  it('refuses a page asking for screen capture, other permissions and a missing origin', () => {
+    expect(appTabCapture('display-capture', 'https://www.canva.com', DEV)).toBe(false)
+    expect(appTabCapture('display-capture', 'http://localhost:5173', undefined)).toBe(false)
+    expect(appTabCapture('display-capture', undefined, undefined)).toBe(false)
+    expect(appTabCapture('media', 'file:///', undefined)).toBe(false)
   })
 })

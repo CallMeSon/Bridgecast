@@ -6,6 +6,7 @@ import type { AudioSettings, HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
 import type { DeckAudio } from './audio-levels'
+import type { PrepareInput, WebStatus } from './web'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
 export const Invoke = {
@@ -39,7 +40,18 @@ export const Invoke = {
   omtGetStatus: 'omt:getStatus',
   ndiSet: 'ndi:set',
   ndiGetStatus: 'ndi:getStatus',
-  networkSetFps: 'network:setFps'
+  networkSetFps: 'network:setFps',
+  webAdd: 'web:add',
+  webSetUrl: 'web:setUrl',
+  webReload: 'web:reload',
+  webNav: 'web:nav',
+  webInput: 'web:input',
+  webSourceId: 'web:sourceId',
+  webFrame: 'web:frame',
+  webEnded: 'web:ended',
+  webOpenPrepare: 'web:openPrepare',
+  webSignOut: 'web:signOut',
+  webStatuses: 'web:statuses'
 } as const
 
 /**
@@ -67,7 +79,8 @@ export const Broadcast = {
   hdmiStatus: 'hdmi:status',
   audioSettings: 'audio:settings',
   omtStatus: 'omt:status',
-  ndiStatus: 'ndi:status'
+  ndiStatus: 'ndi:status',
+  webStatus: 'web:status'
 } as const
 
 /** Main → OMT output window: carries the MessagePort the window sends program sound on. */
@@ -98,6 +111,14 @@ export interface RenderedDeck {
   height: number
   pages: Uint8Array[]
   notes?: string[]
+}
+
+/** Load state of one web deck's page, broadcast as `web:status`. */
+export interface WebStatusEvent {
+  deckId: string
+  status: WebStatus
+  /** User-facing message with the fix, for `error`. */
+  message?: string
 }
 
 export interface ImportRequest {
@@ -156,6 +177,28 @@ export interface InvokeMap {
   'ndi:getStatus': { args: []; result: NdiStatus }
   /** Saves `omt.fps` (30 or 60, anything else becomes 30) without touching `omt.enabled`; restarts the running targets. */
   'network:setFps': { args: [fps: 30 | 60]; result: Settings }
+  /**
+   * Adds a web deck (URL checked with `sanitizeWebUrl`); without a name the deck
+   * is named after the domain, then after the page title once it has loaded.
+   */
+  'web:add': { args: [eventId: string, url: string, name?: string]; result: DeckMeta }
+  /** Changes a web deck's page and loads it. */
+  'web:setUrl': { args: [deckId: string, url: string]; result: DeckMeta }
+  'web:reload': { args: [deckId: string]; result: void }
+  'web:nav': { args: [deckId: string, dir: 'back' | 'forward']; result: void }
+  /** Prepare input; false when refused (deck on air and not frozen, or not valid). */
+  'web:input': { args: [deckId: string, input: PrepareInput]; result: boolean }
+  /** Capture id of the deck's page for the calling window (valid 10 s, `chromeMediaSource: 'tab'`). */
+  'web:sourceId': { args: [deckId: string]; result: string }
+  /** The calling window received the first captured frame of the page (ready gate). */
+  'web:frame': { args: [deckId: string]; result: void }
+  /** An output's capture track of the page ended (HOLD while the deck is on air). */
+  'web:ended': { args: [deckId: string]; result: void }
+  'web:openPrepare': { args: [deckId: string]; result: void }
+  /** Clears the web profile and reloads every page; refused while a web deck is on air. */
+  'web:signOut': { args: []; result: void }
+  /** Current load state of every open page (later changes arrive as `web:status`). */
+  'web:statuses': { args: []; result: WebStatusEvent[] }
 }
 
 export interface BroadcastMap {
@@ -166,6 +209,7 @@ export interface BroadcastMap {
   'audio:settings': AudioSettings
   'omt:status': OmtStatus
   'ndi:status': NdiStatus
+  'web:status': WebStatusEvent
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -254,5 +298,19 @@ export interface Api {
   requestOmtAudioPort(): void
   /** OMT output window only: its sound tap could not be loaded; main shows it as OmtStatus.warning. */
   reportOmtWarning(w: 'no-sound'): void
+  addWebDeck(eventId: string, url: string, name?: string): Promise<DeckMeta>
+  setWebUrl(deckId: string, url: string): Promise<DeckMeta>
+  reloadWeb(deckId: string): Promise<void>
+  navWeb(deckId: string, dir: 'back' | 'forward'): Promise<void>
+  webInput(deckId: string, input: PrepareInput): Promise<boolean>
+  webSourceId(deckId: string): Promise<string>
+  /** Ready gate: report the first frame of the page's capture. */
+  webFrame(deckId: string): Promise<void>
+  /** Output only: the page's capture track ended. */
+  webEnded(deckId: string): Promise<void>
+  openPrepare(deckId: string): Promise<void>
+  signOutWeb(): Promise<void>
+  webStatuses(): Promise<WebStatusEvent[]>
+  onWebStatus(cb: (s: WebStatusEvent) => void): () => void
   pathForFile(file: File): string
 }

@@ -497,6 +497,106 @@ describe('Library', () => {
     })
   })
 
+  describe('web decks', () => {
+    const fakeThumb = (s: string, d: string): void =>
+      fs.writeFileSync(d, `thumb-of-${fs.readFileSync(s, 'utf8')}`)
+    const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 50))
+    const snapshot = (text: string): string => {
+      const p = path.join(src, `snap-${randomUUID()}.png`)
+      fs.writeFileSync(p, text)
+      return p
+    }
+    const webInput = (
+      url = 'https://www.canva.com/design/abc/view'
+    ): Parameters<Library['addWebDeck']>[1] => ({
+      name: 'Canva',
+      url,
+      snapshotPath: snapshot('snap-1'),
+      width: 1920,
+      height: 1080
+    })
+
+    it('addWebDeck stores one slide (the snapshot), source web and the URL', async () => {
+      const lib = new Library(root, fakeThumb)
+      const ev = lib.createEvent('E')
+      const d = lib.addWebDeck(ev.id, webInput())
+      expect(d).toMatchObject({
+        name: 'Canva',
+        source: 'web',
+        width: 1920,
+        height: 1080,
+        web: { url: 'https://www.canva.com/design/abc/view' },
+        slides: [{ file: '001.png', notes: '' }]
+      })
+      const dir = path.join(root, 'decks', d.id)
+      expect(fs.readFileSync(path.join(dir, '001.png'), 'utf8')).toBe('snap-1')
+      expect(JSON.parse(fs.readFileSync(path.join(dir, 'deck.json'), 'utf8'))).toEqual(d)
+      expect(lib.getDecks(ev.id)).toEqual([d])
+      expect(lib.listEvents()[0].deckIds).toEqual([d.id])
+      await flush()
+      expect(fs.readFileSync(path.join(dir, 'thumbs', '001.jpg'), 'utf8')).toBe('thumb-of-snap-1')
+    })
+
+    it('addWebDeck refuses a URL that is not a web address', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      for (const bad of ['javascript:alert(1)', 'file:///C:/x.html', '']) {
+        expect(() => lib.addWebDeck(ev.id, webInput(bad))).toThrow(
+          'Enter a web address that starts with https://.'
+        )
+      }
+      expect(lib.getDecks(ev.id)).toEqual([])
+    })
+
+    it('setWebUrl changes the URL of a web deck only', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const d = lib.addWebDeck(ev.id, webInput())
+      const next = lib.setWebUrl(ev.id, d.id, 'example.com/page')
+      expect(next.web).toEqual({ url: 'https://example.com/page' })
+      expect(lib.getDeck(d.id).web).toEqual({ url: 'https://example.com/page' })
+      expect(() => lib.setWebUrl(ev.id, d.id, 'mailto:a@b.c')).toThrow(
+        'Enter a web address that starts with https://.'
+      )
+      expect(lib.getDeck(d.id).web).toEqual({ url: 'https://example.com/page' })
+      const pdf = lib.addDeck(ev.id, deckInput(1))
+      expect(() => lib.setWebUrl(ev.id, pdf.id, 'https://example.com')).toThrow(/not a web page/)
+      expect(() => lib.setWebUrl(lib.createEvent('F').id, d.id, 'https://x.com')).toThrow(
+        /not found in this event/
+      )
+    })
+
+    it('updateWebSnapshot replaces 001.png and its thumbnail', async () => {
+      const lib = new Library(root, fakeThumb)
+      const ev = lib.createEvent('E')
+      const d = lib.addWebDeck(ev.id, webInput())
+      await flush()
+      lib.updateWebSnapshot(d.id, snapshot('snap-2'))
+      const dir = path.join(root, 'decks', d.id)
+      expect(fs.readFileSync(path.join(dir, '001.png'), 'utf8')).toBe('snap-2')
+      const thumb = await lib.thumbFilePath(d.id, '001.png')
+      expect(fs.readFileSync(thumb, 'utf8')).toBe('thumb-of-snap-2')
+      expect(lib.getDeck(d.id).slides).toEqual([{ file: '001.png', notes: '' }])
+      expect(fs.readdirSync(dir).filter((f) => f.endsWith('.tmp'))).toEqual([])
+    })
+
+    it('updateWebSnapshot refuses a deck that is not a web deck', () => {
+      const lib = new Library(root)
+      const pdf = lib.addDeck(lib.createEvent('E').id, deckInput(1))
+      expect(() => lib.updateWebSnapshot(pdf.id, snapshot('x'))).toThrow(/not a web page/)
+      expect(fs.readFileSync(path.join(root, 'decks', pdf.id, '001.png'), 'utf8')).toBe('png-0')
+    })
+
+    it('a damaged web field is dropped when read', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const d = lib.addWebDeck(ev.id, webInput())
+      const file = path.join(root, 'decks', d.id, 'deck.json')
+      fs.writeFileSync(file, JSON.stringify({ ...d, web: { url: 42 } }))
+      expect(lib.getDeck(d.id).web).toBeUndefined()
+    })
+  })
+
   describe('video slides', () => {
     it('stores a video next to its poster and only marks that slide', () => {
       const lib = new Library(root)

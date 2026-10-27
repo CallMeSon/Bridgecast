@@ -10,6 +10,7 @@ import {
   locateShown,
   reconcile,
   reduce,
+  webKey,
   type Action,
   type ProgramState
 } from '../shared/program'
@@ -27,6 +28,7 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.transition === b.transition &&
     a.autoAdvance === b.autoAdvance &&
     a.take === b.take &&
+    a.webHold === b.webHold &&
     a.canvas.width === b.canvas.width &&
     a.canvas.height === b.canvas.height &&
     a.canvas.origin === b.canvas.origin &&
@@ -36,7 +38,8 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.shown?.video === b.shown?.video &&
     a.shown?.deckId === b.shown?.deckId &&
     a.shown?.index === b.shown?.index &&
-    a.shown?.file === b.shown?.file
+    a.shown?.file === b.shown?.file &&
+    a.shown?.web?.deckId === b.shown?.web?.deckId
   )
 }
 
@@ -55,11 +58,16 @@ export class AppState {
    * @param autoAdvance saved setting (settings.json) restored at start.
    * @param machineCanvas the machine default canvas, read each time so a changed
    *   setting applies on the next `refresh()`.
+   * @param webReady ready gate of a web deck (page loaded and a first capture
+   *   frame seen); a take that would put a not-ready web deck on air is refused.
+   * @param forwardKey sends Next/Prev to the live web page as one arrow key.
    */
   constructor(
     private lib: Library,
     autoAdvance = false,
-    private machineCanvas: () => Canvas = () => DEFAULT_CANVAS
+    private machineCanvas: () => Canvas = () => DEFAULT_CANVAS,
+    private webReady: (deckId: string) => boolean = () => true,
+    private forwardKey: (deckId: string, key: 'ArrowRight' | 'ArrowLeft') => void = () => {}
   ) {
     this.activeEvent = lib.listEvents()[0]?.id ?? null
     this.current = this.normalize({ ...initialState, autoAdvance })
@@ -87,9 +95,34 @@ export class AppState {
   }
 
   dispatch(a: Action): ProgramState {
+    const decks = this.decks()
+    // A live web page owns Next/Prev: one press is one arrow key, the position never moves.
+    const key = webKey(this.current, decks, a)
+    if (key && this.current.shown) {
+      this.forwardKey(this.current.shown.deckId, key)
+      return this.current
+    }
     // Actions arrive over IPC; an unknown type makes reduce return undefined.
-    const next = reduce(this.current, a, this.decks(), this.sections()) as ProgramState | undefined
-    return next ? this.commit(this.normalizeKv(next)) : this.current
+    const next = reduce(this.current, a, decks, this.sections()) as ProgramState | undefined
+    if (!next) return this.current
+    // Ready gate: a web page goes on air only once it is loaded and a frame was captured.
+    const web = next.shown?.web
+    if (web && next.shown !== this.current.shown && !this.webReady(web.deckId)) {
+      return this.current
+    }
+    // Resume web only once the page has recovered.
+    const held = this.current.shown?.web
+    if (a.type === 'resumeWeb' && held && !this.webReady(held.deckId)) return this.current
+    return this.commit(this.normalizeKv(next))
+  }
+
+  /**
+   * HOLD: the live web page failed; the output keeps its last good frame. Only
+   * main sets it, and only while a web deck is on air; it never ends by itself.
+   */
+  setWebHold(on: boolean): ProgramState {
+    if (on && !this.current.shown?.web) return this.current
+    return this.commit({ ...this.current, webHold: on })
   }
 
   /** Switch the active event. `shown` is never changed here (spec: output stays until the operator picks a slide). */
@@ -216,9 +249,12 @@ export class AppState {
     // The KV on air keeps its image when the event changes; otherwise the
     // active event's KV is applied.
     const kvUrl = kvOnAir(s) ? s.kvUrl : this.activeKvUrl()
+    const shown = this.locate(s)
     return {
       ...pos,
-      shown: this.locate(s),
+      shown,
+      // A hold belongs to a web page on air; it goes when that page leaves the output.
+      webHold: s.webHold && !!shown?.web,
       kvUrl,
       kv: s.kv && kvUrl !== null,
       canvas: this.activeCanvas()

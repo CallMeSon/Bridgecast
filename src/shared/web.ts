@@ -42,3 +42,25 @@ export function webDomain(url: string): string {
     return url
   }
 }
+
+/** Load state of a web deck's page (`web:status`). */
+export type WebStatus = 'loading' | 'ready' | 'error'
+
+/** One input event from the Prepare preview, coordinates 0 to 1 of the preview (checked in main). */
+export type PrepareInput =
+  | {
+      kind: 'mouse'
+      type: 'mouseDown' | 'mouseUp' | 'mouseMove'
+      x: number
+      y: number
+      button: 'left' | 'right' | 'middle'
+      clickCount: number
+    }
+  | { kind: 'wheel'; x: number; y: number; deltaX: number; deltaY: number }
+  | {
+      kind: 'key'
+      type: 'keyDown' | 'keyUp' | 'char'
+      /** DOM `KeyboardEvent.key` style name or a single character. */
+      keyCode: string
+      modifiers: string[]
+    }

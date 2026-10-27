@@ -30,6 +30,12 @@ describe('permissionAllowed', () => {
     expect(permissionAllowed('speaker-selection', 'https://example.com', DEV)).toBe(false)
   })
 
+  it('allows display-capture (tab capture of a web deck page) for own origins only', () => {
+    expect(permissionAllowed('display-capture', 'file:///', undefined)).toBe(true)
+    expect(permissionAllowed('display-capture', 'http://localhost:5173/', DEV)).toBe(true)
+    expect(permissionAllowed('display-capture', 'https://example.com', DEV)).toBe(false)
+  })
+
   it('refuses every other permission, even for own origins', () => {
     for (const p of ['geolocation', 'notifications', 'clipboard-read', 'openExternal']) {
       expect(permissionAllowed(p, 'file:///', undefined)).toBe(false)

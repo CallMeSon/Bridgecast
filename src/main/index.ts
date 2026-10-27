@@ -1,4 +1,14 @@
-import { app, shell, BrowserWindow, dialog, ipcMain, protocol, session } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeImage,
+  protocol,
+  session,
+  type IpcMainInvokeEvent
+} from 'electron'
 import * as path from 'path'
 import { join } from 'path'
 import * as fs from 'fs'
@@ -53,6 +63,10 @@ import {
 } from '../shared/ipc'
 import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
+import { sanitizeWebUrl, webDomain } from '../shared/web'
+import { WebHost } from './web/web-host'
+import { isAppPageUrl, mergeDisableFeatures, webDeckName } from './web/host-rules'
+import { openPrepareWindow } from './web/prepare-window'
 
 /** Longest the app waits for the OMT worker to stop before it quits anyway. */
 const OMT_QUIT_CAP_MS = 3000
@@ -60,6 +74,16 @@ const IMPORT_WIDTH = 1920
 const PPTX_RE = /\.pptx?$/i
 /** Upper bound for one import request (a drop of a whole folder's worth of files). */
 const MAX_FILES = 200
+
+// Hidden web deck pages must keep painting on Windows when covered or minimised
+// (merged with any features already disabled on the command line).
+app.commandLine.appendSwitch(
+  'disable-features',
+  mergeDisableFeatures(
+    app.commandLine.getSwitchValue('disable-features'),
+    'CalculateNativeWinOcclusion'
+  )
+)
 
 // Must run before `ready`: lets <img src="slide://..."> load under the CSP.
 protocol.registerSchemesAsPrivileged([
@@ -76,9 +100,12 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
+/** Set once the web host exists: web deck pages and their popups never get app broadcasts. */
+let isWebPage: (wc: Electron.WebContents) => boolean = () => false
+
 function broadcast<C extends keyof BroadcastMap>(channel: C, payload: BroadcastMap[C]): void {
   for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.isDestroyed()) w.webContents.send(channel, payload)
+    if (!w.isDestroyed() && !isWebPage(w.webContents)) w.webContents.send(channel, payload)
   }
 }
 
@@ -87,6 +114,44 @@ function handle<C extends InvokeChannel>(
   fn: (...args: InvokeMap[C]['args']) => InvokeMap[C]['result'] | Promise<InvokeMap[C]['result']>
 ): void {
   ipcMain.handle(channel, (_e, ...args) => fn(...(args as InvokeMap[C]['args'])))
+}
+
+const NOT_APP_WINDOW = 'This window cannot control web pages.'
+
+/**
+ * True when an IPC call comes from one of the app's own windows (operator, HDMI,
+ * OMT, Prepare): the app renderer page in its top frame. A web deck page has no
+ * preload and cannot reach IPC; this check refuses it even if it could.
+ */
+function fromAppWindow(e: IpcMainInvokeEvent): boolean {
+  const frame = e.senderFrame
+  if (!frame || frame.parent !== null) return false
+  return isAppPageUrl(frame.url, {
+    file: join(__dirname, '../renderer/index.html'),
+    dev: is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  })
+}
+
+/** `handle` for the web:* channels: refused unless the caller is an app window. */
+function appHandle<C extends InvokeChannel>(
+  channel: C,
+  fn: (
+    e: IpcMainInvokeEvent,
+    ...args: InvokeMap[C]['args']
+  ) => InvokeMap[C]['result'] | Promise<InvokeMap[C]['result']>
+): void {
+  ipcMain.handle(channel, (e, ...args) => {
+    if (!fromAppWindow(e)) throw new Error(NOT_APP_WINDOW)
+    return fn(e, ...(args as InvokeMap[C]['args']))
+  })
+}
+
+/** Black PNG at the canvas size: a new web deck's first snapshot until its page has loaded. */
+function placeholderSnapshot(dir: string, width: number, height: number): string {
+  const file = join(dir, '001.png')
+  const img = nativeImage.createFromBuffer(Buffer.alloc(width * height * 4), { width, height })
+  fs.writeFileSync(file, img.toPNG())
+  return file
 }
 
 function assertString(v: unknown, what: string): asserts v is string {
@@ -184,7 +249,9 @@ function registerIpc(
   state: AppState,
   settings: SettingsStore,
   hdmi: HdmiOutput,
-  net: NetOutput
+  net: NetOutput,
+  web: WebHost,
+  syncWeb: () => void
 ): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
@@ -195,7 +262,9 @@ function registerIpc(
   })
   handle(Invoke.eventsSelect, (eventId) => {
     assertString(eventId, 'Event ID')
-    return state.setEvent(eventId)
+    const s = state.setEvent(eventId)
+    syncWeb()
+    return s
   })
   handle(Invoke.decksList, (eventId) => {
     assertString(eventId, 'Event ID')
@@ -396,7 +465,10 @@ function registerIpc(
     assertString(eventId, 'Event ID')
     assertString(deckId, 'Deck ID')
     state.removeDeck(eventId, deckId)
+    syncWeb()
   })
+
+  registerWebIpc(lib, state, web, syncWeb)
 
   handle(Invoke.settingsGet, () => settings.get())
 
@@ -444,6 +516,84 @@ function registerIpc(
     // The Canvas may differ (event override, machine default): the OMT frame size follows it.
     net.canvasChanged()
   })
+}
+
+/** web:* channels; every one refuses a caller that is not an app window. */
+function registerWebIpc(lib: Library, state: AppState, web: WebHost, syncWeb: () => void): void {
+  const eventOfDeck = (deckId: string): string => {
+    const ev = lib.listEvents().find((e) => e.deckIds.includes(deckId))
+    if (!ev) throw new Error('Deck not found. Reload the deck list, then choose a deck from it.')
+    return ev.id
+  }
+
+  appHandle(Invoke.webAdd, (_e, eventId, url, name) => {
+    assertString(eventId, 'Event ID')
+    const clean = sanitizeWebUrl(typeof url === 'string' ? url : '')
+    if ('error' in clean) throw new Error(clean.error)
+    const given = typeof name === 'string' ? name.trim() : ''
+    const canvas = state.state.canvas
+    const dir = tempDir()
+    let deck
+    try {
+      deck = lib.addWebDeck(eventId, {
+        name: given ? webDeckName(given, clean.url) : webDomain(clean.url),
+        url: clean.url,
+        snapshotPath: placeholderSnapshot(dir, canvas.width, canvas.height),
+        width: canvas.width,
+        height: canvas.height
+      })
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+    state.refresh()
+    syncWeb()
+    if (!given) web.nameFromTitle(deck.id)
+    return deck
+  })
+  appHandle(Invoke.webSetUrl, (_e, deckId, url) => {
+    assertString(deckId, 'Deck ID')
+    const deck = lib.setWebUrl(eventOfDeck(deckId), deckId, typeof url === 'string' ? url : '')
+    if (deck.web) {
+      try {
+        web.navigate(deckId, deck.web.url)
+      } catch {
+        // No page open (deck of another event): it loads the new URL when its event opens.
+      }
+    }
+    return deck
+  })
+  appHandle(Invoke.webReload, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    web.reload(deckId)
+  })
+  appHandle(Invoke.webNav, (_e, deckId, dir) => {
+    assertString(deckId, 'Deck ID')
+    if (dir === 'back') web.back(deckId)
+    else if (dir === 'forward') web.forward(deckId)
+    else throw new Error('The navigation is not valid. Use Back or Forward.')
+  })
+  appHandle(Invoke.webInput, (_e, deckId, input) => {
+    assertString(deckId, 'Deck ID')
+    return web.prepareInput(deckId, input)
+  })
+  appHandle(Invoke.webSourceId, (e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    return web.sourceIdFor(deckId, e.sender)
+  })
+  appHandle(Invoke.webFrame, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    web.frameSeen(deckId)
+  })
+  appHandle(Invoke.webEnded, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    web.captureEnded(deckId)
+  })
+  appHandle(Invoke.webOpenPrepare, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    openPrepareWindow(deckId)
+  })
+  appHandle(Invoke.webSignOut, () => web.signOut())
+  appHandle(Invoke.webStatuses, () => web.statuses())
 }
 
 /** settings.json: loaded once, saved atomically on every change. */
@@ -651,7 +801,15 @@ Location: ${root}`
     return
   }
   const settings = new SettingsStore(join(root, 'settings.json'))
-  const state = new AppState(lib, settings.get().autoAdvance, () => settings.get().canvas)
+  // The web host needs the state and the state needs the host (ready gate, arrow keys).
+  let web: WebHost | null = null
+  const state = new AppState(
+    lib,
+    settings.get().autoAdvance,
+    () => settings.get().canvas,
+    (deckId) => web?.webReady(deckId) ?? false,
+    (deckId, key) => web?.key(deckId, key)
+  )
   // The auto advance toggle is part of the program state; keep it saved.
   state.onChange((s) => {
     if (s.autoAdvance === settings.get().autoAdvance) return
@@ -663,11 +821,44 @@ Location: ${root}`
   })
   const hdmi = createHdmiOutput(settings)
   const net = createNetOutput(settings, state)
+  let operator: BrowserWindow | null = null
+  const host = new WebHost(
+    lib,
+    state,
+    () => state.state.canvas,
+    (deckId, status, message) =>
+      broadcast(Broadcast.webStatus, message ? { deckId, status, message } : { deckId, status }),
+    () => operator,
+    is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  )
+  web = host
+  isWebPage = (wc) => host.owns(wc)
+  // Pages follow the open event's web decks; the one on air stays until it leaves air.
+  const syncWeb = (): void => {
+    try {
+      host.syncEvent(state.decks(), state.state.shown?.web?.deckId ?? null)
+    } catch (err) {
+      console.error('[web] pages could not follow the deck list:', err)
+    }
+  }
+  let canvasSize = `${state.state.canvas.width}x${state.state.canvas.height}`
+  state.onChange((s) => {
+    syncWeb()
+    const size = `${s.canvas.width}x${s.canvas.height}`
+    if (size !== canvasSize) {
+      canvasSize = size
+      host.resize()
+    }
+  })
+  if (process.env['PPT_OUTPUT_DUMP']) {
+    Object.defineProperty(globalThis, '__pptWeb', { configurable: true, get: () => host.debug() })
+  }
   // Quit waits (briefly) for the OMT worker to stop its sender before it is terminated.
   let omtDone = false
   let omtStopping = false
   app.on('before-quit', (e) => {
     hdmi.shutdown()
+    host.shutdown()
     if (omtDone) return
     e.preventDefault()
     if (!omtStopping) {
@@ -681,16 +872,21 @@ Location: ${root}`
     }
   })
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state, settings, hdmi, net)
+  registerIpc(lib, state, settings, hdmi, net, host, syncWeb)
 
   const startOutputs = (): void => {
     hdmi.start()
     net.start()
+    syncWeb()
   }
-  hdmi.watchOperator(createWindow(startOutputs))
+  operator = createWindow(startOutputs)
+  hdmi.watchOperator(operator)
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) hdmi.watchOperator(createWindow(startOutputs))
+    if (BrowserWindow.getAllWindows().length === 0) {
+      operator = createWindow(startOutputs)
+      hdmi.watchOperator(operator)
+    }
   })
 })
 

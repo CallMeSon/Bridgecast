@@ -13,6 +13,7 @@ import {
 import { CANVAS_INVALID, isDeckFit, sanitizeCanvas } from '../shared/canvas'
 import { sanitizeDeckAudio } from '../shared/audio-levels'
 import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections'
+import { sanitizeWebUrl } from '../shared/web'
 import { thumbFileName } from './slide-protocol'
 import { writeThumbnail } from './thumbnail'
 
@@ -22,6 +23,24 @@ type DeckInput = {
   width: number
   height: number
   slides: { pngPath: string; notes: string; videoPath?: string }[]
+}
+
+type WebDeckInput = {
+  name: string
+  url: string
+  /** PNG of the page (or a placeholder) stored as the deck's one slide. */
+  snapshotPath: string
+  width: number
+  height: number
+}
+
+const NOT_WEB = 'This deck is not a web page. Choose a web deck from the list.'
+
+/** The cleaned URL, or the user-facing error (`sanitizeWebUrl`) thrown. */
+function cleanWebUrl(url: unknown): string {
+  const res = sanitizeWebUrl(typeof url === 'string' ? url : '')
+  if ('error' in res) throw new Error(res.error)
+  return res.url
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -113,12 +132,20 @@ export class Library {
       throw new Error('Deck not found. Reload the deck list, or import the deck again.')
     const deck = JSON.parse(fs.readFileSync(file, 'utf8')) as DeckMeta
     // Fields added after the first release: keep only valid values, never throw on old or damaged files.
-    const { fit, audio } = deck
+    const { fit, audio, web } = deck
     delete deck.fit
     delete deck.audio
+    delete deck.web
     if (isDeckFit(fit)) deck.fit = fit
     if (typeof audio === 'object' && audio !== null && !Array.isArray(audio)) {
       deck.audio = sanitizeDeckAudio(audio)
+    }
+    if (
+      typeof web === 'object' &&
+      web !== null &&
+      typeof (web as { url?: unknown }).url === 'string'
+    ) {
+      deck.web = { url: (web as { url: string }).url }
     }
     return deck
   }
@@ -145,6 +172,63 @@ export class Library {
   }
 
   addDeck(eventId: string, d: DeckInput): DeckMeta {
+    return this.storeDeck(eventId, d)
+  }
+
+  /**
+   * Adds a web deck: one slide `001.png` (the page snapshot, refreshed later by
+   * `updateWebSnapshot`) and the page URL, cleaned by `sanitizeWebUrl`.
+   */
+  addWebDeck(eventId: string, d: WebDeckInput): DeckMeta {
+    const url = cleanWebUrl(d.url)
+    return this.storeDeck(
+      eventId,
+      {
+        name: d.name,
+        source: 'web',
+        width: d.width,
+        height: d.height,
+        slides: [{ pngPath: d.snapshotPath, notes: '' }]
+      },
+      { url }
+    )
+  }
+
+  /** Changes the page of a web deck; the URL is cleaned like a new one. */
+  setWebUrl(eventId: string, deckId: string, url: string): DeckMeta {
+    const current = this.deckInEvent(eventId, deckId)
+    if (current.source !== 'web') throw new Error(NOT_WEB)
+    const deck = { ...current, web: { url: cleanWebUrl(url) } }
+    this.writeDeck(deck)
+    return deck
+  }
+
+  /**
+   * Replaces the snapshot (`001.png`) of a web deck and its thumbnail. The file
+   * name stays, so a renderer showing it must reload the image itself.
+   */
+  updateWebSnapshot(deckId: string, pngPath: string): void {
+    const deck = this.readDeck(deckId)
+    if (deck.source !== 'web' || !deck.slides[0]) throw new Error(NOT_WEB)
+    const dir = this.deckDir(deckId)
+    const file = deck.slides[0].file
+    const tmp = path.join(dir, `${file}.${randomUUID()}.tmp`)
+    try {
+      fs.copyFileSync(pngPath, tmp)
+      fs.renameSync(tmp, path.join(dir, file))
+    } catch (err) {
+      fs.rmSync(tmp, { force: true })
+      throw err
+    }
+    fs.rmSync(this.thumbPath(deckId, file), { force: true })
+    void this.ensureThumb(deckId, file)
+  }
+
+  private storeDeck(
+    eventId: string,
+    d: Omit<DeckInput, 'source'> & { source: DeckMeta['source'] },
+    web?: { url: string }
+  ): DeckMeta {
     const ev = this.findEvent(eventId)
     const id = randomUUID()
     const dir = this.deckDir(id)
@@ -167,6 +251,7 @@ export class Library {
         height: d.height,
         slides
       }
+      if (web) deck.web = web
       this.writeDeck(deck)
       ev.deckIds.push(id)
       this.saveEvents()

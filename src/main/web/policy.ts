@@ -1,5 +1,7 @@
 import type { Session } from 'electron'
 import type { Canvas } from '../../shared/canvas'
+import type { PrepareInput } from '../../shared/web'
+import { isOwnOrigin } from '../permissions'
 
 /** Electron's default UA minus the `Electron/<v>` and `ppt-share/<v>` tokens, so sites see plain Chrome. */
 export function chromeUserAgent(electronUa: string): string {
@@ -14,6 +16,20 @@ const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-sanitized-write'])
 /** Everything not listed is denied (camera, mic, location, notifications, midi, hid, serial, usb, ...). */
 export function permissionAllowed(permission: string): boolean {
   return ALLOWED_PERMISSIONS.has(permission)
+}
+
+/**
+ * An app window (operator, HDMI, OMT, Prepare) capturing a web deck page with
+ * `chromeMediaSource: 'tab'`: Chromium asks the page's session for
+ * `display-capture` with the requester's origin. A page asking for screen
+ * capture itself has its own web origin and stays denied.
+ */
+export function appTabCapture(
+  permission: string,
+  securityOrigin: string | undefined,
+  devUrl: string | undefined
+): boolean {
+  return permission === 'display-capture' && !!securityOrigin && isOwnOrigin(securityOrigin, devUrl)
 }
 
 /** Only web pages: no mail, app-protocol, file, javascript or data URLs. */
@@ -31,23 +47,7 @@ export function popupAllowed(live: boolean): boolean {
   return !live
 }
 
-export type PrepareInput =
-  | {
-      kind: 'mouse'
-      type: 'mouseDown' | 'mouseUp' | 'mouseMove'
-      x: number
-      y: number
-      button: 'left' | 'right' | 'middle'
-      clickCount: number
-    }
-  | { kind: 'wheel'; x: number; y: number; deltaX: number; deltaY: number }
-  | {
-      kind: 'key'
-      type: 'keyDown' | 'keyUp' | 'char'
-      /** DOM `KeyboardEvent.key` style name or a single character. */
-      keyCode: string
-      modifiers: string[]
-    }
+export type { PrepareInput }
 
 const DOM_TO_ELECTRON_KEY: Readonly<Record<string, string>> = {
   ArrowRight: 'Right',
@@ -173,13 +173,21 @@ export function validatePrepareInput(
 /**
  * Applies the web source policy to the `persist:web` session: Chrome UA, deny-by-default
  * permissions (fullscreen and sanitized clipboard writes are allowed, also while live) and
- * every download cancelled. The live rule applies to popups (popupAllowed) and input only.
+ * every download cancelled; `display-capture` only for the app's own tab capture
+ * (`appTabCapture`, `devUrl` = the dev server in development). The live rule applies to popups (popupAllowed) and input only.
  * Covered by the Task 8 end-to-end check, not by unit tests.
  */
-export function applyWebSession(ses: Session, electronUa: string): void {
+export function applyWebSession(ses: Session, electronUa: string, devUrl?: string): void {
   ses.setUserAgent(chromeUserAgent(electronUa))
-  ses.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permissionAllowed(permission))
+  ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    callback(
+      permissionAllowed(permission) ||
+        appTabCapture(
+          permission,
+          'securityOrigin' in details ? details.securityOrigin : undefined,
+          devUrl
+        )
+    )
   })
   ses.setPermissionCheckHandler((_wc, permission) => permissionAllowed(permission))
   ses.on('will-download', (event) => {

@@ -81,6 +81,21 @@ const api: Api = {
   setNetworkFps: (fps) => invoke(Invoke.networkSetFps, fps),
   requestOmtAudioPort: () => ipcRenderer.send(Send.omtAudioPortRequest),
   reportOmtWarning: (w) => ipcRenderer.send(Send.omtAudioWarning, w),
+  addWebDeck: (eventId, url, name) =>
+    name === undefined
+      ? invoke(Invoke.webAdd, eventId, url)
+      : invoke(Invoke.webAdd, eventId, url, name),
+  setWebUrl: (deckId, url) => invoke(Invoke.webSetUrl, deckId, url),
+  reloadWeb: (deckId) => invoke(Invoke.webReload, deckId),
+  navWeb: (deckId, dir) => invoke(Invoke.webNav, deckId, dir),
+  webInput: (deckId, input) => invoke(Invoke.webInput, deckId, input),
+  webSourceId: (deckId) => invoke(Invoke.webSourceId, deckId),
+  webFrame: (deckId) => invoke(Invoke.webFrame, deckId),
+  webEnded: (deckId) => invoke(Invoke.webEnded, deckId),
+  openPrepare: (deckId) => invoke(Invoke.webOpenPrepare, deckId),
+  signOutWeb: () => invoke(Invoke.webSignOut),
+  webStatuses: () => invoke(Invoke.webStatuses),
+  onWebStatus: (cb) => subscribe(Broadcast.webStatus, cb),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }
