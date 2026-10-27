@@ -104,9 +104,10 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] VM Windows 11 bersih dengan internet: jalankan installer. Muncul "Downloading the NDI Runtime...", runtime terpasang, lalu sumber NDI muncul di NDI Studio Monitor / vMix setelah NDI dinyalakan di aplikasi.
 - [ ] Runtime sudah terpasang: langkah NDI dilewati (tidak ada unduhan, tidak ada prompt).
 - [ ] Set `PPT_SIMULATE_NDI_MISSING=1` (variabel lingkungan) saat runtime sudah ada: jalur unduhan tetap berjalan.
-- [ ] Tanpa internet: muncul prompt "The NDI Runtime could not be downloaded. Continue installing PPT Share without NDI? ...". Pilih **Yes**: install selesai, NDI menampilkan pesan runtime tidak ada, HDMI dan OMT tetap bekerja. Pilih **No**: install dibatalkan.
+- [ ] Tanpa internet: muncul prompt "The NDI Runtime could not be downloaded. Continue installing PPT Share without NDI? ...". Pilih **Yes**: install selesai, NDI menampilkan pesan runtime tidak ada, HDMI dan OMT tetap bekerja. Pilih **No**: installer berhenti di halaman gagal (bukan pembatalan bersih, karena `Abort` di `customInstall` berjalan setelah file aplikasi disalin); file aplikasi mungkin tertinggal dan pengguna boleh meng-uninstall.
 - [ ] File dirusak (ganti exe hasil unduhan dengan exe tanpa tanda tangan setelah diunduh, mis. dengan menjeda skrip): muncul prompt "The downloaded NDI Runtime does not carry a valid Vizrt signature and was not installed. ..." dan tidak ada yang terpasang.
 - [ ] Pemasang runtime gagal (mis. dibatalkan atau kode keluar bukan 0): muncul prompt "The NDI Runtime could not be installed (code N). ..." dengan kode yang benar.
+- [ ] Install per-user (bukan per-mesin) berjalan sebagai pengguna biasa, sedangkan pemasang NDI Runtime butuh admin: muncul prompt UAC, juga pada `/S`. Menolak UAC menghasilkan prompt kode 4 ("could not be installed (code 4)") pada install biasa; pada `/S` install lanjut tanpa NDI.
 - [ ] Install senyap `PPT-Share-setup.exe /S` selesai tanpa prompt apa pun, juga tanpa internet (lanjut tanpa NDI).
 
 ## Selesai

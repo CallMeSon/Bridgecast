@@ -73,12 +73,15 @@ Keep `libomt.so` and `libvmx.so` side by side. For `npm run dev` (unpackaged) po
 
 ### NDI Runtime
 
-NDI output (video and sound to vMix / OBS / NDI Monitor over the LAN) was removed on 2026-10-08
+NDI output (video and sound to vMix / OBS / NDI Monitor over the LAN; not yet verified on Windows or with a real receiver, see `docs/test-checklist.md`) was removed on 2026-10-08
 because of SDK licensing and re-added on 2026-10-27 without bundling anything from NewTek / Vizrt.
 PPT Share never ships the NDI Runtime. The Windows installer (`build/installer.nsh`,
-`build/install-ndi-runtime.ps1`) downloads it from https://ndi.video when it is not installed yet;
+`build/install-ndi-runtime.ps1`) downloads it from https://ndi.video when it is not installed yet (signature check and fallback not yet verified on Windows, see `docs/test-checklist.md`);
 if that fails the install continues and the app shows "NDI could not start: the NDI Runtime is not
-installed" when NDI is switched on (HDMI and OMT keep working). On a development machine install
+installed" when NDI is switched on (HDMI and OMT keep working). The installer is per-user, so the NDI Runtime installer needs admin and Windows shows a UAC prompt
+even for a silent (`/S`) install. electron-builder runs the custom step after the app files are
+copied, so answering No to the "continue without NDI" prompt ends the installer on a failed page
+instead of cleanly cancelling (the files may stay installed). On a development machine install
 the NDI Runtime yourself from ndi.video; the app looks for it at run time through koffi.
 
 NDI® is a registered trademark of Vizrt NDI AB.

@@ -3,6 +3,11 @@
 ; bundled. Exit codes of the script: 0 ok, 2 download failed, 3 signature
 ; invalid, 4 install failed. For 2-4 the user may continue without NDI; silent
 ; installs (/S) continue without asking (/SD IDYES).
+; CAVEAT: electron-builder runs customInstall AFTER the app files are copied, so
+; `Abort` after the user answers No does NOT cancel the install: the files stay
+; installed and the installer ends on a failed page (the user may uninstall).
+; Per-user installs (oneClick false, perMachine false) run as a standard user and
+; the NDI Runtime installer needs admin, so a UAC prompt appears even under /S.
 !macro customInstall
   InitPluginsDir
   File "/oname=$PLUGINSDIR\install-ndi-runtime.ps1" "${BUILD_RESOURCES_DIR}\install-ndi-runtime.ps1"
