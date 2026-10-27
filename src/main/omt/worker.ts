@@ -16,9 +16,12 @@ type In =
   | { type: 'frame'; width: number; height: number; data: ArrayBuffer }
   | { type: 'audio'; data: Float32Array; samples: number }
   | { type: 'stop' }
+  | { type: 'debugGet' }
 
 export type WorkerOut =
-  { type: 'status'; id: 'omt' | 'ndi'; status: Partial<OmtStatus> } | { type: 'stopped' }
+  | { type: 'status'; id: 'omt' | 'ndi'; status: Partial<OmtStatus> }
+  | { type: 'stopped' }
+  | { type: 'debug'; count: number; sizes: string[] }
 
 const port = parentPort
 if (port) {
@@ -26,10 +29,13 @@ if (port) {
   const sender = new OmtSender()
   const out = (m: WorkerOut): void => port.postMessage(m)
 
+  // Only kept in fake mode, for the PPT_OUTPUT_DUMP debug hook (asked with `debugGet`).
+  let fake: FakeSenderBinding | null = null
+
   const bindingFor = (id: 'omt' | 'ndi'): (() => SenderBinding) => {
     if (id === 'omt')
       return () => {
-        if (data.fake) return new FakeSenderBinding('omt')
+        if (data.fake) return (fake = new FakeSenderBinding('omt'))
         // The main process resolves the directory (libomtDir()); this graph never loads electron.
         if (!data.libDir) throw new OmtLoadError('workerData.libDir missing')
         return loadLibomt(data.libDir)
@@ -59,6 +65,12 @@ if (port) {
         sender.stop()
         out({ type: 'stopped' })
         break
+      case 'debugGet': {
+        const frames = fake?.frames ?? []
+        const sizes = [...new Set(frames.map((f) => `${f.width}x${f.height}`))]
+        out({ type: 'debug', count: frames.length, sizes })
+        break
+      }
     }
   })
 }

@@ -1,6 +1,7 @@
 import type { DeckMeta, EventMeta } from './types'
 import type { OrderItem } from './sections'
 import type { Action, ProgramState } from './program'
+import type { OmtSettings, OmtStatus } from './omt'
 import type { AudioSettings, HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
@@ -33,7 +34,9 @@ export const Invoke = {
   displaysList: 'displays:list',
   hdmiSet: 'hdmi:set',
   hdmiGetStatus: 'hdmi:getStatus',
-  audioSet: 'audio:set'
+  audioSet: 'audio:set',
+  omtSet: 'omt:set',
+  omtGetStatus: 'omt:getStatus'
 } as const
 
 /**
@@ -55,8 +58,12 @@ export const Broadcast = {
   importProgress: 'import:progress',
   displaysChanged: 'displays:changed',
   hdmiStatus: 'hdmi:status',
-  audioSettings: 'audio:settings'
+  audioSettings: 'audio:settings',
+  omtStatus: 'omt:status'
 } as const
+
+/** Main → OMT output window: carries the MessagePort the window sends program sound on. */
+export const OMT_AUDIO_PORT = 'omt:audio-port'
 
 export interface ImportProgress {
   id: string
@@ -133,6 +140,9 @@ export interface InvokeMap {
   'hdmi:getStatus': { args: []; result: HdmiStatus }
   /** Sanitized, saved, then broadcast as `audio:settings`; applies at once to the output. */
   'audio:set': { args: [audio: AudioSettings]; result: Settings }
+  /** Sanitized, saved, then applied: starts, restarts or stops the OMT sender. */
+  'omt:set': { args: [omt: OmtSettings]; result: Settings }
+  'omt:getStatus': { args: []; result: OmtStatus }
 }
 
 export interface BroadcastMap {
@@ -141,6 +151,7 @@ export interface BroadcastMap {
   'displays:changed': DisplayInfo[]
   'hdmi:status': HdmiStatus
   'audio:settings': AudioSettings
+  'omt:status': OmtStatus
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -213,5 +224,10 @@ export interface Api {
   onAudioSettings(cb: (a: AudioSettings) => void): () => void
   /** Output window only (HDMI): the first frame for the current program state is rendered. */
   outputReady(): void
+  setOmt(o: OmtSettings): Promise<Settings>
+  getOmtStatus(): Promise<OmtStatus>
+  onOmtStatus(cb: (s: OmtStatus) => void): () => void
+  /** OMT output window only: receives the port to send program sound to the OMT sender on. */
+  onOmtAudioPort(cb: (port: MessagePort) => void): () => void
   pathForFile(file: File): string
 }

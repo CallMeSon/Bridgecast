@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import {
   Broadcast,
+  OMT_AUDIO_PORT,
   Invoke,
   Send,
   type Api,
@@ -61,6 +62,18 @@ const api: Api = {
   setAudio: (a) => invoke(Invoke.audioSet, a),
   onAudioSettings: (cb) => subscribe(Broadcast.audioSettings, cb),
   outputReady: () => ipcRenderer.send(Send.outputReady),
+  setOmt: (o) => invoke(Invoke.omtSet, o),
+  getOmtStatus: () => invoke(Invoke.omtGetStatus),
+  onOmtStatus: (cb) => subscribe(Broadcast.omtStatus, cb),
+  onOmtAudioPort: (cb) => {
+    const listener = (e: Electron.IpcRendererEvent): void => {
+      if (e.ports[0]) cb(e.ports[0])
+    }
+    ipcRenderer.on(OMT_AUDIO_PORT, listener)
+    return () => {
+      ipcRenderer.removeListener(OMT_AUDIO_PORT, listener)
+    }
+  },
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }

@@ -22,9 +22,11 @@ import {
 } from './slide-protocol'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import { HdmiOutput, screenDisplays } from './display-output'
+import { OmtOutput } from './omt-output'
 import type { ScreenDisplay } from './hdmi-plan'
 import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
 import { permissionAllowed } from './permissions'
+import { sanitizeOmt, type OmtSettings, type OmtStatus } from '../shared/omt'
 import { CANVAS_INVALID, sanitizeCanvas, type Canvas } from '../shared/canvas'
 import {
   sanitizeAudio,
@@ -173,7 +175,8 @@ function registerIpc(
   lib: Library,
   state: AppState,
   settings: SettingsStore,
-  hdmi: HdmiOutput
+  hdmi: HdmiOutput,
+  omt: OmtOutput
 ): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
@@ -410,7 +413,18 @@ function registerIpc(
     return saved
   })
 
-  state.onChange((s) => broadcast(Broadcast.programState, s))
+  handle(Invoke.omtGetStatus, () => omt.status())
+  handle(Invoke.omtSet, (input: OmtSettings) => {
+    const saved = settings.saveOmt(sanitizeOmt(input))
+    omt.apply(saved.omt)
+    return saved
+  })
+
+  state.onChange((s) => {
+    broadcast(Broadcast.programState, s)
+    // The Canvas may differ (event override, machine default): the OMT frame size follows it.
+    omt.canvasChanged()
+  })
 }
 
 /** settings.json: loaded once, saved atomically on every change. */
@@ -428,6 +442,10 @@ class SettingsStore {
   /** Saves HDMI settings (validated by the caller). */
   saveHdmi(hdmi: HdmiSettings): Settings {
     return this.save({ ...this.settings, hdmi })
+  }
+
+  saveOmt(omt: OmtSettings): Settings {
+    return this.save({ ...this.settings, omt })
   }
 
   saveAudio(audio: AudioSettings): Settings {
@@ -489,6 +507,21 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
     })
   }
   return hdmi
+}
+
+/** OMT network output; PPT_OMT_FAKE=1 swaps libomt for a recording fake (e2e, no native library). */
+function createOmtOutput(settings: SettingsStore, state: AppState): OmtOutput {
+  const dump = !!process.env['PPT_OUTPUT_DUMP']
+  const omt = new OmtOutput(
+    settings.get().omt,
+    () => state.state.canvas,
+    (s: OmtStatus) => broadcast(Broadcast.omtStatus, s),
+    { fake: process.env['PPT_OMT_FAKE'] === '1', debug: dump }
+  )
+  if (dump) {
+    Object.defineProperty(globalThis, '__pptOmt', { configurable: true, get: () => omt.debug })
+  }
+  return omt
 }
 
 function createWindow(onReady?: () => void): BrowserWindow {
@@ -582,11 +615,29 @@ Location: ${root}`
     }
   })
   const hdmi = createHdmiOutput(settings)
-  app.on('before-quit', () => hdmi.shutdown())
+  const omt = createOmtOutput(settings, state)
+  // Quit waits (briefly) for the OMT worker to stop its sender before it is terminated.
+  let omtDone = false
+  let omtStopping = false
+  app.on('before-quit', (e) => {
+    hdmi.shutdown()
+    if (omtDone) return
+    e.preventDefault()
+    if (!omtStopping) {
+      omtStopping = true
+      void omt.shutdown().finally(() => {
+        omtDone = true
+        app.quit()
+      })
+    }
+  })
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state, settings, hdmi)
+  registerIpc(lib, state, settings, hdmi, omt)
 
-  const startOutputs = (): void => hdmi.start()
+  const startOutputs = (): void => {
+    hdmi.start()
+    omt.start()
+  }
   hdmi.watchOperator(createWindow(startOutputs))
 
   app.on('activate', function () {
