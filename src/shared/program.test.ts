@@ -8,6 +8,7 @@ import {
   locateShown,
   pendingTake,
   segmentOfDeck,
+  webKey,
   type ProgramState,
   type ShownSlide
 } from './program'
@@ -50,6 +51,7 @@ describe('initialState', () => {
       transition: 'cut',
       autoAdvance: false,
       take: 0,
+      webHold: false,
       canvas: { width: 1920, height: 1080, origin: 'default' }
     })
   })
@@ -699,5 +701,103 @@ describe('fit and deck audio on shown', () => {
     const r = locateShown(shown, { ...plain, audio: { volume: 100, muted: true } })
     expect(r).not.toBe(shown)
     expect(r?.audio?.muted).toBe(true)
+  })
+})
+
+describe('web decks', () => {
+  const webDeck = (
+    id: string
+  ): (typeof decks)[number] & { source: 'web'; web: { url: string } } => ({
+    id,
+    slides: s(1),
+    source: 'web',
+    web: { url: 'https://x.org/' }
+  })
+  const wdecks = [{ id: 'A', slides: s(3) }, webDeck('W'), { id: 'B', slides: s(2) }]
+  const live = (extra: Partial<ProgramState> = {}): ProgramState => ({
+    ...at('W', 0, extra),
+    shown: { ...sh('W', 0), web: { deckId: 'W' } },
+    ...extra
+  })
+
+  it('moveTo marks a web slide', () => {
+    expect(reduce(at('A', 0), { type: 'selectDeck', deckId: 'W' }, wdecks).shown?.web).toEqual({
+      deckId: 'W'
+    })
+    expect(
+      reduce(at('B', 0), { type: 'selectDeck', deckId: 'A' }, wdecks).shown?.web
+    ).toBeUndefined()
+  })
+
+  it('next/prev on a live web deck return the same state, also with auto advance', () => {
+    for (const autoAdvance of [false, true]) {
+      const st = live({ autoAdvance })
+      expect(reduce(st, { type: 'next' }, wdecks)).toBe(st)
+      expect(reduce(st, { type: 'prev' }, wdecks)).toBe(st)
+    }
+  })
+
+  it('a frozen web deck moves the preview normally', () => {
+    const st = live({ frozen: true, autoAdvance: true })
+    const r = reduce(st, { type: 'next' }, wdecks)
+    expect(r.deckId).toBe('B')
+    expect(r.shown).toBe(st.shown)
+  })
+
+  it('nextDeck/prevDeck go to slide 0 of the neighbouring deck, across sections', () => {
+    const sections = [{ id: 's', name: 'S', at: 1 }]
+    const r = reduce(at('A', 2), { type: 'nextDeck' }, wdecks, sections)
+    expect(r.deckId).toBe('W')
+    expect(r.index).toBe(0)
+    expect(r.shown?.deckId).toBe('W')
+    const p = reduce(r, { type: 'prevDeck' }, wdecks, sections)
+    expect(p.deckId).toBe('A')
+    expect(p.index).toBe(0)
+  })
+
+  it('nextDeck works from a live web deck and skips decks without slides', () => {
+    const ds = [webDeck('W'), { id: 'E', slides: [] }, { id: 'B', slides: s(2) }]
+    expect(reduce(live(), { type: 'nextDeck' }, ds).deckId).toBe('B')
+  })
+
+  it('nextDeck/prevDeck at the ends return the same state', () => {
+    const last = at('B', 1)
+    expect(reduce(last, { type: 'nextDeck' }, wdecks)).toBe(last)
+    const first = at('A', 0)
+    expect(reduce(first, { type: 'prevDeck' }, wdecks)).toBe(first)
+  })
+
+  it('frozen nextDeck previews only', () => {
+    const st = at('A', 0, { frozen: true })
+    const r = reduce(st, { type: 'nextDeck' }, wdecks)
+    expect(r.deckId).toBe('W')
+    expect(r.shown).toBe(st.shown)
+  })
+
+  it('webHold is cleared by K, B, taking another deck and resumeWeb, not by next', () => {
+    const held = live({ webHold: true, kvUrl: 'x' })
+    expect(reduce(held, { type: 'toggleKv' }, wdecks).webHold).toBe(false)
+    expect(reduce(held, { type: 'toggleBlack' }, wdecks).webHold).toBe(false)
+    expect(reduce(held, { type: 'selectDeck', deckId: 'A' }, wdecks).webHold).toBe(false)
+    expect(reduce(held, { type: 'nextDeck' }, wdecks).webHold).toBe(false)
+    expect(reduce(held, { type: 'resumeWeb' }, wdecks).webHold).toBe(false)
+    expect(reduce(held, { type: 'next' }, wdecks).webHold).toBe(true)
+    expect(reduce(held, { type: 'selectDeck', deckId: 'W' }, wdecks).webHold).toBe(true)
+  })
+
+  it('resumeWeb without a hold returns the same state', () => {
+    const st = live()
+    expect(reduce(st, { type: 'resumeWeb' }, wdecks)).toBe(st)
+  })
+
+  it('webKey forwards one arrow only for next/prev on a live, unfrozen operator web deck', () => {
+    const st = live()
+    expect(webKey(st, wdecks, { type: 'next' })).toBe('ArrowRight')
+    expect(webKey(st, wdecks, { type: 'prev' })).toBe('ArrowLeft')
+    expect(webKey(st, wdecks, { type: 'toggleKv' })).toBeNull()
+    expect(webKey({ ...st, frozen: true }, wdecks, { type: 'next' })).toBeNull()
+    expect(webKey({ ...st, deckId: 'A' }, wdecks, { type: 'next' })).toBeNull()
+    expect(webKey(at('A', 0), wdecks, { type: 'next' })).toBeNull()
+    expect(webKey(initialState, wdecks, { type: 'next' })).toBeNull()
   })
 })

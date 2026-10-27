@@ -196,6 +196,13 @@ describe('keyToAction', () => {
     expect(keyToAction({ key: 'k', ctrlKey: true, target: body })).toBeNull()
     expect(keyToAction({ key: 'x', target: body })).toBeNull()
   })
+  it('maps D to nextDeck and Shift+D to prevDeck, Shift decides not the case', () => {
+    expect(keyToAction({ key: 'd', target: body })).toEqual({ type: 'nextDeck' })
+    expect(keyToAction({ key: 'D', shiftKey: true, target: body })).toEqual({ type: 'prevDeck' })
+    expect(keyToAction({ key: 'D', target: body })).toEqual({ type: 'nextDeck' })
+    expect(keyToAction({ key: 'd', repeat: true, target: body })).toBeNull()
+    expect(keyToAction({ key: 'D', shiftKey: true, repeat: true, target: body })).toBeNull()
+  })
   it('maps presentation clicker keys', () => {
     expect(keyToAction({ key: 'PageDown', target: body })).toEqual({ type: 'next' })
     expect(keyToAction({ key: 'PageUp', target: body })).toEqual({ type: 'prev' })

@@ -13,7 +13,7 @@ export interface SlideMeta {
 export interface DeckMeta {
   id: string
   name: string
-  source: 'pptx' | 'pdf' | 'folder'
+  source: 'pptx' | 'pdf' | 'folder' | 'web'
   width: number
   height: number
   slides: SlideMeta[]
@@ -21,6 +21,8 @@ export interface DeckMeta {
   fit?: DeckFit
   /** Sound level of this deck's videos; absent = full volume, not muted. */
   audio?: DeckAudio
+  /** The page of a web deck (source 'web'). */
+  web?: { url: string }
 }
 
 export interface SectionMeta {

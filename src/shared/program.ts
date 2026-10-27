@@ -22,6 +22,8 @@ export interface ShownSlide {
    */
   fit?: DeckFit
   audio?: DeckAudio
+  /** Set when the slide is the page of a web deck. */
+  web?: { deckId: string }
 }
 
 export interface ProgramState {
@@ -53,6 +55,12 @@ export interface ProgramState {
    */
   take: number
   /**
+   * The live web page lost its connection and the output holds its last good
+   * frame. Set by main, never by the reducer; cleared by taking another deck,
+   * KV, black or `resumeWeb`.
+   */
+  webHold: boolean
+  /**
    * The canvas of the active event (its override, else the machine default).
    * Set by main, never by the reducer.
    */
@@ -72,8 +80,12 @@ export type Action =
   | { type: 'nextSection' }
   | { type: 'prevSection' }
   | { type: 'selectSection'; sectionId: string }
+  | { type: 'nextDeck' }
+  | { type: 'prevDeck' }
+  | { type: 'resumeWeb' }
 
-type DeckLike = Pick<DeckMeta, 'id' | 'slides' | 'fit' | 'audio'>
+type DeckLike = Pick<DeckMeta, 'id' | 'slides' | 'fit' | 'audio'> &
+  Partial<Pick<DeckMeta, 'source' | 'web'>>
 
 /**
  * The KV image is on the output: not black, there is a KV, and it was pressed
@@ -94,6 +106,7 @@ export const initialState: ProgramState = {
   transition: 'cut',
   autoAdvance: false,
   take: 0,
+  webHold: false,
   canvas: { ...DEFAULT_CANVAS, origin: 'default' }
 }
 
@@ -108,8 +121,12 @@ function moveTo(state: ProgramState, deck: DeckLike, index: number): ProgramStat
     audio: sanitizeDeckAudio(deck.audio)
   }
   if (slide.video) shown.video = slide.video
+  if (deck.source === 'web') shown.web = { deckId: deck.id }
+  // Taking a deck other than the one on air ends a web hold.
+  const leaves = !state.frozen && state.shown?.deckId !== deck.id
   return {
     ...state,
+    webHold: leaves ? false : state.webHold,
     deckId: deck.id,
     index,
     shown: state.frozen ? state.shown : shown,
@@ -265,6 +282,37 @@ export function pendingTake(state: ProgramState, decks: DeckLike[]): boolean {
   )
 }
 
+/** True when the operator deck is a web deck and the output follows the operator (not frozen). */
+function onLiveWebDeck(state: ProgramState, decks: DeckLike[]): boolean {
+  if (state.frozen) return false
+  return decks.some((d) => d.id === state.deckId && d.source === 'web')
+}
+
+/**
+ * The arrow key to forward to the page for a Next/Prev action: only while the
+ * output shows a web deck that is also the operator deck and not frozen.
+ */
+export function webKey(
+  state: ProgramState,
+  decks: DeckLike[],
+  action: Action
+): 'ArrowRight' | 'ArrowLeft' | null {
+  if (action.type !== 'next' && action.type !== 'prev') return null
+  if (!state.shown?.web || state.shown.deckId !== state.deckId) return null
+  if (!onLiveWebDeck(state, decks)) return null
+  return action.type === 'next' ? 'ArrowRight' : 'ArrowLeft'
+}
+
+/** Slide 0 of the next (or previous) deck with slides, in event order; same state at the ends. */
+function stepDeck(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramState {
+  const from = decks.findIndex((d) => d.id === state.deckId)
+  if (from < 0) return state
+  for (let i = from + dir; i >= 0 && i < decks.length; i += dir) {
+    if (decks[i].slides.length > 0) return moveTo(state, decks[i], 0)
+  }
+  return state
+}
+
 export function reduce(
   state: ProgramState,
   action: Action,
@@ -281,7 +329,14 @@ export function reduce(
           state.index
         )
       }
+      // A live web page owns its own navigation: Next/Prev never move the position.
+      if (onLiveWebDeck(state, decks)) return state
       return step(state, decks, sections, action.type === 'next' ? 1 : -1)
+    case 'nextDeck':
+    case 'prevDeck':
+      return stepDeck(state, decks, action.type === 'nextDeck' ? 1 : -1)
+    case 'resumeWeb':
+      return state.webHold ? { ...state, webHold: false } : state
     case 'goto': {
       const deck = decks.find((d) => d.id === state.deckId)
       if (!deck || !Number.isInteger(action.index)) return state
@@ -316,15 +371,20 @@ export function reduce(
       return { ...state, frozen: false, deckId: live.deckId, index: live.index, shown: live }
     }
     case 'toggleBlack':
-      return { ...state, black: !state.black, kv: state.black ? state.kv : false }
+      return { ...state, black: !state.black, kv: state.black ? state.kv : false, webHold: false }
     case 'toggleKv':
       // Off: the KV on air goes away. At STANDBY the KV shows by itself, so the
       // output only really leaves it when it goes black.
       if (kvOnAir(state)) {
-        return { ...state, kv: false, black: state.shown === null ? true : state.black }
+        return {
+          ...state,
+          kv: false,
+          black: state.shown === null ? true : state.black,
+          webHold: false
+        }
       }
-      if (state.kvUrl === null) return state.kv ? { ...state, kv: false } : state
-      return { ...state, kv: true, black: false }
+      if (state.kvUrl === null) return state.kv ? { ...state, kv: false, webHold: false } : state
+      return { ...state, kv: true, black: false, webHold: false }
     case 'setTransition':
       return { ...state, transition: action.transition }
     case 'setAutoAdvance':

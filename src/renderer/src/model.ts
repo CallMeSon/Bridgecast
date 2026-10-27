@@ -174,7 +174,7 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable
 }
 
-/** Keyboard shortcuts: Space/→ Next, ← Prev, F Freeze, B Black, K KV, N next section, Shift+N previous section. Ignored while typing. */
+/** Keyboard shortcuts: Space/→ Next, ← Prev, F Freeze, B Black, K KV, N next section, Shift+N previous section, D next deck, Shift+D previous deck. Ignored while typing. */
 export function keyToAction(e: KeyLike): Action | null {
   if (e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return null
   // A held key (or a clicker that auto-repeats) must never skip slides: every
@@ -202,6 +202,10 @@ export function keyToAction(e: KeyLike): Action | null {
     case 'N':
       // Shift decides, never the case: Caps Lock sends 'N' without Shift.
       return { type: e.shiftKey ? 'prevSection' : 'nextSection' }
+    case 'd':
+    case 'D':
+      // Shift decides, never the case: Caps Lock sends 'D' without Shift.
+      return { type: e.shiftKey ? 'prevDeck' : 'nextDeck' }
     default:
       return null
   }
