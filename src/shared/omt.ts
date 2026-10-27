@@ -92,6 +92,8 @@ export function audioPlan(
   return { local: owner && route !== 'omt', tap: role === 'omt' && route !== 'local' }
 }
 
+import { CANVAS_CHANGE_LIVE, CANVAS_LIVE_NOTICE } from './canvas'
+
 // UI copy, shared by the components and their tests.
 // Error messages arrive in OmtStatus.message from main; this is the fallback.
 export const OMT_START_FAILED =
@@ -100,8 +102,15 @@ export const OMT_DROPS = 'OMT is dropping frames. Set the frame rate to 30.'
 export const OMT_NO_RECEIVERS =
   "No receiver yet. If vMix or OBS can't find PPT Share, allow PPT Share in Windows Firewall (Private networks) or add the address manually."
 export const OMT_NO_SOUND = 'OMT sound is unavailable; sound plays on this PC only.'
-export const OMT_RECEIVERS_CONFIRM =
-  'Receivers will lose the OMT picture for about a second. Change it now?'
+export const OMT_RECEIVERS_NOTICE = 'Receivers will lose the OMT picture for about a second.'
+export const OMT_RECEIVERS_CONFIRM = `${OMT_RECEIVERS_NOTICE} Change it now?`
+
+/** The one question for a canvas change, or null when nothing on air or on the network is affected. */
+export function canvasChangeConfirm(onAir: boolean, receivers: boolean): string | null {
+  if (onAir && receivers) return `${CANVAS_LIVE_NOTICE} ${OMT_RECEIVERS_NOTICE} Change it now?`
+  if (onAir) return CANVAS_CHANGE_LIVE
+  return receivers ? OMT_RECEIVERS_CONFIRM : null
+}
 
 export interface OmtBadge {
   text: string

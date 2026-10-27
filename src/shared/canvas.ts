@@ -22,8 +22,8 @@ export const CANVAS_INVALID =
 export const CANVAS_NO_HDMI = 'Connect the HDMI display first.'
 export const CANVAS_DISPLAY_TOO_LARGE =
   'This display is larger than 3840×2160 in total. Use Custom instead.'
-export const CANVAS_CHANGE_LIVE =
-  'Changing the canvas changes what the audience sees. Change it now?'
+export const CANVAS_LIVE_NOTICE = 'Changing the canvas changes what the audience sees.'
+export const CANVAS_CHANGE_LIVE = `${CANVAS_LIVE_NOTICE} Change it now?`
 
 const MIN_SIDE = 320
 const MAX_SIDE = 7680

@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { CheckIcon, WarningCircleIcon } from '@phosphor-icons/react'
 import {
-  CANVAS_CHANGE_LIVE,
   CANVAS_DISPLAY_TOO_LARGE,
   CANVAS_INVALID,
   CANVAS_NO_HDMI,
@@ -12,7 +11,7 @@ import {
   type Canvas
 } from '../../../shared/canvas'
 import type { DisplayInfo } from '../../../shared/displays'
-import { OMT_RECEIVERS_CONFIRM } from '../../../shared/omt'
+import { canvasChangeConfirm } from '../../../shared/omt'
 import { errorMessage } from '../model'
 
 interface PickerProps {
@@ -320,10 +319,7 @@ export function CanvasSetting({
         >
           <WarningCircleIcon className="ph" size={20} />
           <p>
-            {onAir && <strong>{CANVAS_CHANGE_LIVE}</strong>}
-            {omtReceivers && (
-              <strong data-testid="canvas-confirm-omt">{OMT_RECEIVERS_CONFIRM}</strong>
-            )}
+            <strong>{canvasChangeConfirm(onAir, omtReceivers)}</strong>
             <span>
               New canvas:{' '}
               <span className="num">

@@ -70,7 +70,10 @@ export function OmtSection({ omt, status, onSaved }: Props): React.JSX.Element {
     setBusy(true)
     setError(null)
     try {
-      onSaved(await window.api.setOmt(next))
+      const saved = await window.api.setOmt(next)
+      onSaved(saved)
+      // Show what main kept (trimmed, or the default name for an empty one).
+      setName(saved.omt.name)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -153,7 +156,7 @@ export function OmtSection({ omt, status, onSaved }: Props): React.JSX.Element {
           data-testid="omt-name"
           value={name}
           maxLength={64}
-          disabled={busy}
+          readOnly={busy}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key !== 'Enter') return

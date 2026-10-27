@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_OMT,
   NO_RECEIVERS_AFTER_MS,
+  OMT_RECEIVERS_CONFIRM,
+  OMT_RECEIVERS_NOTICE,
+  canvasChangeConfirm,
   audioPlan,
   dropWarning,
   noReceiversHint,
@@ -9,6 +12,7 @@ import {
   restartAllowed,
   sanitizeOmt
 } from './omt'
+import { CANVAS_CHANGE_LIVE } from './canvas'
 import type { AudioRoute, OmtStatus } from './omt'
 
 describe('sanitizeOmt', () => {
@@ -171,5 +175,25 @@ describe('noReceiversHint', () => {
     expect(noReceiversHint('starting', 0, t0, t0 + 60_000)).toBe(false)
     expect(noReceiversHint('error', 0, t0, t0 + 60_000)).toBe(false)
     expect(noReceiversHint('running', 0, null, t0 + 60_000)).toBe(false)
+  })
+})
+
+describe('canvasChangeConfirm', () => {
+  it('asks nothing when nothing is affected', () => {
+    expect(canvasChangeConfirm(false, false)).toBeNull()
+  })
+  it('on air only keeps the canvas text', () => {
+    expect(canvasChangeConfirm(true, false)).toBe(CANVAS_CHANGE_LIVE)
+  })
+  it('receivers only is the receivers copy verbatim', () => {
+    expect(canvasChangeConfirm(false, true)).toBe(OMT_RECEIVERS_CONFIRM)
+    expect(OMT_RECEIVERS_CONFIRM).toBe(`${OMT_RECEIVERS_NOTICE} Change it now?`)
+  })
+  it('both give one question', () => {
+    const t = canvasChangeConfirm(true, true) as string
+    expect(t.match(/Change it now\?/g)).toHaveLength(1)
+    expect(t.endsWith('Change it now?')).toBe(true)
+    expect(t).toContain('what the audience sees.')
+    expect(t).toContain(OMT_RECEIVERS_NOTICE)
   })
 })
