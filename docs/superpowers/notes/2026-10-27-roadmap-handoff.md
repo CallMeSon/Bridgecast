@@ -51,3 +51,10 @@ Masalah yang diketahui:
 4. Minor yang ditunda (tidak memblokir): daftar per task ada di `.superpowers/sdd/2026-10-27-web-source/progress.md` (folder lokal, tidak masuk git) (baris "minor (deferred)" untuk Task 2 sampai 7), mis. jendela Prepare tidak tertutup saat deck dihapus, Back/Forward/URL yang nonaktif keluar dari urutan Tab, poster thumbnail kedua bisa hilang bila deck live berganti dalam 1,5 detik, chip status tidak diumumkan pembaca layar.
 
 Langkah berikutnya: native-slideshow (3a), plan `docs/superpowers/plans/2026-10-27-native-slideshow.md`. Task 5 web-source sengaja membuat `openStream` generik (`source` selain `tab`) untuk itu.
+
+## Temuan sisa web-source setelah re-review final (belum diperbaiki)
+Re-review atas final fix wave menyatakan semua butir ADDRESSED, tetapi menemukan hal baru. Tidak ada putaran perbaikan kedua, jadi ini menunggu keputusan:
+1. Penting: dua navigasi berdekatan (misalnya klik ganda Reload di Prepare) melewati penantian `web:held`, karena `holdBeforeNavigate` melihat `held = true` dan langsung menavigasi sebelum output berhenti. Perbaikan: tunggu juga HOLD yang masih menunggu ack (`web-host.ts` sekitar baris 171).
+2. Penting: Resume web aktif dalam jendela ack (sampai 1 detik) karena halaman lama masih `ready`. Menekannya membatalkan HOLD, lalu navigasi berjalan tanpa HOLD. Perbaikan: tolak Resume web selama navigasi hold-first masih menunggu.
+3. Penting (UX): setelah Reload yang disengaja pada halaman sehat, operator melihat pita "Web page lost its connection. ..." (`HoldWarning.tsx`), padahal koneksi tidak putus. Perlu teks terpisah untuk HOLD karena operator, dan spec (daftar pemicu HOLD) perlu diperbarui.
+4. Kecil: Reload saat Black atau KV aktif tetap memasang HOLD dan menunggu 1 detik penuh; kilatan satu frame hitam mungkin saat `promote()` melepas video lama; pemeriksaan piksel di e2e Edit URL hampir kosong; `PRODUCT.md` baris 50 masih menyebut "D / Shift+D (atau memilih deck lain)" sebagai satu-satunya cara keluar; Unfreeze ke halaman yang di-reload saat frozen dan belum ready belum dijaga ready gate.
