@@ -3,10 +3,17 @@ import {
   DotsThreeVerticalIcon,
   ArrowDownIcon,
   ArrowUpIcon,
+  ArrowsClockwiseIcon,
+  BrowserIcon,
+  CheckCircleIcon,
   CheckIcon,
+  CircleDashedIcon,
   FilePdfIcon,
   FilePptIcon,
+  GlobeIcon,
   ImageIcon,
+  LinkIcon,
+  PauseIcon,
   ListPlusIcon,
   PencilSimpleIcon,
   PlusIcon,
@@ -14,10 +21,12 @@ import {
   SpeakerLowIcon,
   SpeakerSlashIcon,
   TrashIcon,
-  WarningCircleIcon
+  WarningCircleIcon,
+  WarningIcon
 } from '@phosphor-icons/react'
 import { DECK_NAME_MAX, type DeckMeta, type SectionMeta } from '../../../shared/types'
 import type { ShownSlide } from '../../../shared/program'
+import { webDomain, type WebStatus } from '../../../shared/web'
 import type { ImportProgress } from '../../../shared/ipc'
 import { DECK_FITS, sanitizeFit, type DeckFit } from '../../../shared/canvas'
 import { sanitizeDeckAudio, type DeckAudio } from '../../../shared/audio-levels'
@@ -27,11 +36,15 @@ import {
   errorMessage,
   fileKind,
   importMeta,
-  reorderTarget
+  reorderTarget,
+  webChip,
+  WEB_CHIP_TEXT,
+  type WebChipKind
 } from '../model'
 import { orderItems, type OrderItem } from '../../../shared/sections'
 import { onMenuKeyDown, useContextMenu } from './menuNav'
 import { DeckSound } from './DeckSound'
+import { AddWebDialog } from './AddWebDialog'
 import { SectionMenu, SectionRenameRow, SectionRow, type SectionMenuAt } from './SectionRow'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
@@ -68,6 +81,16 @@ interface Props {
   onSetDeckFit(deckId: string, fit: DeckFit): void
   /** Volume and mute of the deck; App saves it and reports a failure itself. */
   onSetDeckAudio(deckId: string, audio: DeckAudio): void
+  /** Load state of every open web deck page. */
+  webStatuses: Record<string, WebStatus>
+  /** The live web page lost its connection (HOLD): its row shows the HOLD chip. */
+  webHold: boolean
+  /** Adds a web deck to the active event; rejects with a user-facing message. */
+  onAddWeb(url: string, name: string | undefined): Promise<void>
+  /** Changes the page of a web deck; rejects with a user-facing message. */
+  onSetWebUrl(deckId: string, url: string): Promise<void>
+  onReloadWeb(deckId: string): void
+  onPrepareWeb(deckId: string): void
   sections: SectionMeta[]
   /** `at` is a deck index (the section goes before that deck). Resolves to the new section's id. */
   onAddSection(at: number | 'end'): Promise<string | null>
@@ -95,6 +118,10 @@ function DeckMenu({
   canUp,
   canDown,
   fit,
+  web,
+  onPrepare,
+  onEditUrl,
+  onReload,
   onRename,
   onSound,
   onFit,
@@ -107,6 +134,11 @@ function DeckMenu({
   canUp: boolean
   canDown: boolean
   fit: DeckFit
+  /** A web deck: Prepare, Edit URL and Reload instead of the Fit items. */
+  web: boolean
+  onPrepare(): void
+  onEditUrl(): void
+  onReload(): void
   onRename(): void
   onSound(): void
   onFit(fit: DeckFit): void
@@ -129,6 +161,23 @@ function DeckMenu({
       style={{ left: at.x, top: at.y }}
       data-testid="deck-menu"
     >
+      {web && (
+        <>
+          <button role="menuitem" onClick={onPrepare}>
+            <BrowserIcon className="chk" size={16} />
+            Prepare…
+          </button>
+          <button role="menuitem" onClick={onEditUrl}>
+            <LinkIcon className="chk" size={16} />
+            Edit URL
+          </button>
+          <button role="menuitem" onClick={onReload}>
+            <ArrowsClockwiseIcon className="chk" size={16} />
+            Reload
+          </button>
+          <hr />
+        </>
+      )}
       <button role="menuitem" onClick={onRename}>
         <PencilSimpleIcon className="chk" size={16} />
         Rename…
@@ -152,31 +201,62 @@ function DeckMenu({
         <SpeakerHighIcon className="chk" size={16} />
         Sound…
       </button>
-      <hr />
-      <div role="group" aria-labelledby="deck-fit-label">
-        <span className="menu-label" id="deck-fit-label">
-          Display mode
-        </span>
-        {DECK_FITS.map((f) => (
-          <button
-            key={f}
-            role="menuitemradio"
-            aria-checked={fit === f}
-            title={FIT_NAMES[f].hint}
-            onClick={() => onFit(f)}
-          >
-            {/* The check mark is the shape cue; the empty slot keeps the names aligned. */}
-            {fit === f ? <CheckIcon className="chk" size={16} /> : <span className="chk" />}
-            {FIT_NAMES[f].name}
-          </button>
-        ))}
-      </div>
+      {!web && (
+        <>
+          <hr />
+          <div role="group" aria-labelledby="deck-fit-label">
+            <span className="menu-label" id="deck-fit-label">
+              Display mode
+            </span>
+            {DECK_FITS.map((f) => (
+              <button
+                key={f}
+                role="menuitemradio"
+                aria-checked={fit === f}
+                title={FIT_NAMES[f].hint}
+                onClick={() => onFit(f)}
+              >
+                {/* The check mark is the shape cue; the empty slot keeps the names aligned. */}
+                {fit === f ? <CheckIcon className="chk" size={16} /> : <span className="chk" />}
+                {FIT_NAMES[f].name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <hr />
       <button role="menuitem" className="danger" onClick={onRemove}>
         <TrashIcon className="chk" size={16} />
         Remove deck…
       </button>
     </div>
+  )
+}
+
+/** Icon of a deck row by source. */
+function DeckIcon({ source }: { source: DeckMeta['source'] }): React.JSX.Element {
+  if (source === 'pdf') return <FilePdfIcon className="ph" size={20} />
+  if (source === 'web') return <GlobeIcon className="ph" size={20} />
+  return <FilePptIcon className="ph" size={20} />
+}
+
+const CHIP_ICON: Record<WebChipKind, React.JSX.Element> = {
+  loading: <CircleDashedIcon size={14} />,
+  ready: <CheckCircleIcon size={14} weight="fill" />,
+  error: <WarningIcon size={14} weight="fill" />,
+  hold: <PauseIcon size={14} weight="fill" />
+}
+
+/**
+ * Load state of a web deck's page: words plus a shape (dashed ring, check, triangle,
+ * pause bars), never colour alone. HOLD is the filled one: the live page is held.
+ */
+function WebChip({ kind }: { kind: WebChipKind }): React.JSX.Element {
+  return (
+    <span className="chip" data-kind={kind} data-testid="web-chip">
+      {CHIP_ICON[kind]}
+      {WEB_CHIP_TEXT[kind]}
+    </span>
   )
 }
 
@@ -247,11 +327,7 @@ function RenameRow({
   }
   return (
     <div className="deck rename" data-no-shortcuts data-testid="rename-deck">
-      {deck.source === 'pdf' ? (
-        <FilePdfIcon className="ph" size={20} />
-      ) : (
-        <FilePptIcon className="ph" size={20} />
-      )}
+      <DeckIcon source={deck.source} />
       <input
         ref={input}
         className="text-input"
@@ -433,6 +509,9 @@ export function Library(p: Props): React.JSX.Element {
   const [confirm, setConfirm] = useState<string | null>(null)
   const [sound, setSound] = useState<MenuAt | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
+  // The Add web page dialog, or the Edit URL one of a web deck.
+  const [webDialog, setWebDialog] = useState<'add' | { deckId: string } | null>(null)
+  const addWebButton = useRef<HTMLButtonElement>(null)
   const [renamingSection, setRenamingSection] = useState<string | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
@@ -659,21 +738,29 @@ export function Library(p: Props): React.JSX.Element {
                 onContextMenu={(e) => openMenu(e, d.id)}
                 {...dragProps(i)}
               >
-                {d.source === 'pdf' ? (
-                  <FilePdfIcon className="ph" size={20} />
-                ) : (
-                  <FilePptIcon className="ph" size={20} />
-                )}
+                <DeckIcon source={d.source} />
                 <span className="name" title={d.name}>
                   {d.name}
                 </span>
-                <span className="meta">{countOf(d.slides.length, 'slide')}</span>
+                {d.source === 'web' ? (
+                  <WebChip
+                    kind={webChip(p.webStatuses[d.id], p.webHold && p.live?.deckId === d.id)}
+                  />
+                ) : (
+                  <span className="meta">{countOf(d.slides.length, 'slide')}</span>
+                )}
                 <span className="sub">
-                  {p.live?.deckId === d.id
-                    ? `LIVE, slide ${p.live.index + 1}`
-                    : p.frozen?.deckId === d.id
-                      ? `FROZEN, slide ${p.frozen.index + 1}`
-                      : `.${d.source}`}
+                  {d.source === 'web'
+                    ? (p.live?.deckId === d.id
+                        ? 'LIVE, '
+                        : p.frozen?.deckId === d.id
+                          ? 'FROZEN, '
+                          : '') + webDomain(d.web?.url ?? '')
+                    : p.live?.deckId === d.id
+                      ? `LIVE, slide ${p.live.index + 1}`
+                      : p.frozen?.deckId === d.id
+                        ? `FROZEN, slide ${p.frozen.index + 1}`
+                        : `.${d.source}`}
                   <DeckSoundMark audio={d.audio} />
                 </span>
               </button>
@@ -747,6 +834,22 @@ export function Library(p: Props): React.JSX.Element {
           canUp={menuIndex > 0}
           canDown={menuIndex >= 0 && menuIndex < items.length - 1}
           fit={sanitizeFit(deckById.get(menu.deckId)?.fit)}
+          web={deckById.get(menu.deckId)?.source === 'web'}
+          onPrepare={() => {
+            const id = menu.deckId
+            setMenu(null)
+            p.onPrepareWeb(id)
+          }}
+          onEditUrl={() => {
+            setWebDialog({ deckId: menu.deckId })
+            setMenu(null)
+          }}
+          onReload={() => {
+            focusRow(`deck:${menu.deckId}`)
+            const id = menu.deckId
+            setMenu(null)
+            p.onReloadWeb(id)
+          }}
           onClose={closeMenu}
           onMove={(dir) => {
             setMenu(null)
@@ -812,6 +915,30 @@ export function Library(p: Props): React.JSX.Element {
           }}
         />
       )}
+      {webDialog !== null && (
+        <AddWebDialog
+          key={webDialog === 'add' ? 'add' : webDialog.deckId}
+          edit={
+            webDialog === 'add'
+              ? undefined
+              : {
+                  deckName: deckById.get(webDialog.deckId)?.name ?? '',
+                  url: deckById.get(webDialog.deckId)?.web?.url ?? ''
+                }
+          }
+          onSubmit={(url, name) =>
+            webDialog === 'add' ? p.onAddWeb(url, name) : p.onSetWebUrl(webDialog.deckId, url)
+          }
+          onClose={(restoreFocus) => {
+            const target = webDialog
+            setWebDialog(null)
+            if (!restoreFocus) return
+            // Back to the opener: the Add button, or the row of the deck being edited.
+            if (target === 'add') addWebButton.current?.focus()
+            else focusRow(`deck:${target.deckId}`)
+          }}
+        />
+      )}
       <KvBlock
         kvUrl={p.kvUrl}
         onAir={p.kvOnAir}
@@ -824,6 +951,20 @@ export function Library(p: Props): React.JSX.Element {
           <button className="btn" disabled={!p.canImport} onClick={() => input.current?.click()}>
             <PlusIcon size={16} />
             Add files
+          </button>
+          <button
+            ref={addWebButton}
+            className="btn"
+            disabled={!p.canImport}
+            data-testid="add-web"
+            onClick={() => {
+              setConfirm(null)
+              setMenu(null)
+              setWebDialog('add')
+            }}
+          >
+            <GlobeIcon size={16} />
+            Add web page
           </button>
           <button className="btn" disabled={!p.canImport} onClick={() => addSection('end')}>
             <ListPlusIcon size={16} />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WebOutputs, WebStatus } from '../../shared/web'
 import { recaptureNeeded } from './stream'
 
@@ -12,17 +12,35 @@ export interface WebPages {
 }
 
 /**
+ * The list from `web:statuses` merged with what events already said: entries of
+ * `touched` (pages that sent a `web:status` since the list was requested) keep
+ * their event status, which is newer; other pages follow the list, so a closed
+ * page drops out.
+ */
+export function mergeStatuses(
+  prev: Record<string, WebStatus>,
+  list: { deckId: string; status: WebStatus }[],
+  touched: ReadonlySet<string>
+): Record<string, WebStatus> {
+  const out: Record<string, WebStatus> = Object.fromEntries(list.map((e) => [e.deckId, e.status]))
+  for (const id of touched) if (id in prev) out[id] = prev[id]
+  return out
+}
+
+/**
  * The open web deck pages (`web:statuses`, then `web:status`). `refresh` reads
  * the list again (a closed page sends no status of its own).
  */
-export function useWebPages(): WebPages & { refresh(): void } {
+export function useWebPages(): WebPages & { refresh(): void; bump(deckId: string): void } {
   const [pages, setPages] = useState<WebPages>({ statuses: {}, versions: {}, generations: {} })
   const [tick, setTick] = useState(0)
+  // Pages that sent a status event since the current list request began.
+  const touched = useRef(new Set<string>())
   useEffect(() => {
     const api = window.api
-    let fresh = true
+    touched.current = new Set()
     const off = api.onWebStatus((e) => {
-      fresh = false
+      touched.current.add(e.deckId)
       setPages((p) => ({
         statuses: { ...p.statuses, [e.deckId]: e.status },
         versions: { ...p.versions, [e.deckId]: (p.versions[e.deckId] ?? 0) + 1 },
@@ -34,17 +52,21 @@ export function useWebPages(): WebPages & { refresh(): void } {
     api
       .webStatuses()
       .then((list) => {
-        // A full list replaces the statuses (closed pages drop out) unless an event came first.
-        if (!fresh && tick === 0) return
-        setPages((p) => ({
-          ...p,
-          statuses: Object.fromEntries(list.map((e) => [e.deckId, e.status]))
-        }))
+        // Newer event entries win over the list; pages the list lacks (closed) drop out.
+        setPages((p) => ({ ...p, statuses: mergeStatuses(p.statuses, list, touched.current) }))
       })
       .catch((e: unknown) => console.warn('[web] page statuses failed to load:', e))
     return off
   }, [tick])
-  return { ...pages, refresh: () => setTick((t) => t + 1) }
+  const bump = useCallback(
+    (deckId: string) =>
+      setPages((p) => ({
+        ...p,
+        versions: { ...p.versions, [deckId]: (p.versions[deckId] ?? 0) + 1 }
+      })),
+    []
+  )
+  return { ...pages, refresh: () => setTick((t) => t + 1), bump }
 }
 
 /** Which outputs main counts for the ready gate (`web:outputs`); null until known. */

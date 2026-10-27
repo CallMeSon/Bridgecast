@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { DeckMeta, SlideMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { thumbUrl } from '../../../shared/ipc'
+import { posterWithVersion } from '../stream'
 import { currentDeck, reorderTarget, slideLabel, slideRole, type SlideRole } from '../model'
 import { SlideImage } from './Slide'
 
@@ -11,6 +12,8 @@ interface Props {
   decks: DeckMeta[]
   state: ProgramState
   onGoto(index: number): void
+  /** Per web deck: bumped when its snapshot may have been rewritten under the same name. */
+  webVersions?: Record<string, number>
   /** Drag or Alt+Left/Right to reorder: move slide `from` to `to` within the current deck. */
   onMoveSlide(deckId: string, from: number, to: number): void
 }
@@ -23,6 +26,8 @@ interface ThumbProps {
   current: boolean
   dragging: boolean
   over: boolean
+  /** Version of this deck's snapshot (web decks); reloads the thumbnail. */
+  version: number
   onGoto(index: number): void
   /** `file` identifies the slide so focus can follow it after the move. */
   onMove(deckId: string, from: number, to: number, file: string): void
@@ -42,6 +47,7 @@ const Thumb = memo(function Thumb({
   current,
   dragging,
   over,
+  version,
   onGoto,
   onMove,
   setDragging,
@@ -95,7 +101,12 @@ const Thumb = memo(function Thumb({
         onMove(deck.id, Number(from), i, s.file)
       }}
     >
-      <SlideImage src={thumbUrl(deck.id, s.file)} alt="" lazy video={!!s.video} />
+      <SlideImage
+        src={posterWithVersion(thumbUrl(deck.id, s.file), version)}
+        alt=""
+        lazy
+        video={!!s.video}
+      />
       <span className="tg">
         <span className="n">{i + 1}</span>
         {role === 'live' && <b>LIVE</b>}
@@ -106,7 +117,13 @@ const Thumb = memo(function Thumb({
   )
 })
 
-export function Strip({ decks, state, onGoto, onMoveSlide }: Props): React.JSX.Element {
+export function Strip({
+  decks,
+  state,
+  onGoto,
+  onMoveSlide,
+  webVersions
+}: Props): React.JSX.Element {
   const ref = useRef<HTMLElement>(null)
   const deck = currentDeck(decks, state)
   const [dragging, setDragging] = useState<number | null>(null)
@@ -160,6 +177,7 @@ export function Strip({ decks, state, onGoto, onMoveSlide }: Props): React.JSX.E
               current={i === state.index}
               dragging={dragging === i}
               over={over === i}
+              version={deck.source === 'web' ? (webVersions?.[deck.id] ?? 0) : 0}
               onGoto={onGoto}
               onMove={move}
               setDragging={setDragging}

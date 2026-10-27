@@ -10,6 +10,9 @@ interface Props {
   hasSections: boolean
   canPrevSection: boolean
   canNextSection: boolean
+  /** D and Shift+D: another deck exists in that direction. */
+  canPrevDeck: boolean
+  canNextDeck: boolean
   /** Freezing needs a slide on the output; unfreezing is always possible. */
   canFreeze: boolean
   onAction(a: Action): void
@@ -23,6 +26,8 @@ export function Controls({
   hasSections,
   canPrevSection,
   canNextSection,
+  canPrevDeck,
+  canNextDeck,
   canFreeze,
   onAction
 }: Props): React.JSX.Element {
@@ -109,7 +114,22 @@ export function Controls({
           ))}
         </div>
       </div>
-      <div />
+      <div className="decks-nav">
+        <button
+          className="cbtn sec"
+          disabled={!canPrevDeck}
+          onClick={() => onAction({ type: 'prevDeck' })}
+        >
+          Prev deck <kbd className="opt">Shift+D</kbd>
+        </button>
+        <button
+          className="cbtn sec"
+          disabled={!canNextDeck}
+          onClick={() => onAction({ type: 'nextDeck' })}
+        >
+          Next deck <kbd className="opt">D</kbd>
+        </button>
+      </div>
       <div>
         <button
           className="cbtn hold"

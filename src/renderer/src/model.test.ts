@@ -35,7 +35,14 @@ import {
   type OutputMedia,
   TALLY_TEXT,
   tally,
-  needsCanvasConfirm
+  needsCanvasConfirm,
+  webUpNext,
+  webChip,
+  canResumeWeb,
+  visibleCaptureWarnings,
+  WEB_LIVE_NEXT,
+  WEB_NOT_READY,
+  WEB_HOLD_TEXT
 } from './model'
 
 const deck = (id: string, n: number, name = id): DeckMeta => ({
@@ -766,5 +773,94 @@ describe('toPrepareChar', () => {
     expect(toPrepareChar(key('Backspace'))).toBeNull()
     expect(toPrepareChar(key('c', { ctrlKey: true }))).toBeNull()
     expect(toPrepareChar(key('c', { metaKey: true }))).toBeNull()
+  })
+})
+
+describe('webUpNext, webChip and canResumeWeb', () => {
+  const web = (id: string): DeckMeta => ({
+    id,
+    name: id,
+    source: 'web',
+    web: { url: `https://${id}.example/` },
+    width: 1920,
+    height: 1080,
+    slides: [{ file: '001.png', notes: '' }]
+  })
+  const live = (deckId: string, extra: Partial<ProgramState> = {}): ProgramState => ({
+    ...initialState,
+    deckId,
+    index: 0,
+    shown: { deckId, index: 0, file: '001.png', web: { deckId } },
+    ...extra
+  })
+
+  it('a live web deck says Next goes to the page and D takes the next deck', () => {
+    const decks = [web('w1'), deck('b', 3)]
+    expect(webUpNext(live('w1'), decks, { w1: 'ready' })).toBe(WEB_LIVE_NEXT)
+    expect(WEB_LIVE_NEXT).toBe('Web page: Next goes to the page. Press D to take the next deck.')
+  })
+
+  it('a frozen web deck keeps the normal view (Next is a preview)', () => {
+    const decks = [web('w1'), deck('b', 3)]
+    expect(webUpNext(live('w1', { frozen: true }), decks, { w1: 'ready' })).toBeNull()
+  })
+
+  it('the next take is a web deck that is not ready (auto advance at the end of a deck)', () => {
+    const decks = [deck('a', 2), web('w1')]
+    const s = at('a', 1, { autoAdvance: true })
+    expect(webUpNext(s, decks, { w1: 'loading' })).toBe(WEB_NOT_READY)
+    expect(webUpNext(s, decks, { w1: 'error' })).toBe('Web page not ready')
+    expect(webUpNext(s, decks, {})).toBe('Web page not ready')
+    expect(webUpNext(s, decks, { w1: 'ready' })).toBeNull()
+  })
+
+  it('without auto advance Next stops at the end, so nothing is taken', () => {
+    const decks = [deck('a', 2), web('w1')]
+    expect(webUpNext(at('a', 1, { autoAdvance: false }), decks, { w1: 'loading' })).toBeNull()
+  })
+
+  it('a pending take of a web deck that is not ready says so', () => {
+    const decks = [web('w1')]
+    const s: ProgramState = { ...initialState, deckId: 'w1', index: 0 }
+    expect(webUpNext(s, decks, { w1: 'loading' })).toBe(WEB_NOT_READY)
+    expect(webUpNext(s, decks, { w1: 'ready' })).toBeNull()
+  })
+
+  it('a normal deck gives null', () => {
+    const decks = [deck('a', 3), deck('b', 2)]
+    expect(webUpNext(at('a', 0), decks, {})).toBeNull()
+    expect(webUpNext(at('a', 2, { autoAdvance: true }), decks, {})).toBeNull()
+    expect(webUpNext(initialState, decks, {})).toBeNull()
+  })
+
+  it('the chip is text and a shape key; HOLD wins on the live deck only', () => {
+    expect(webChip('loading', false)).toBe('loading')
+    expect(webChip('ready', false)).toBe('ready')
+    expect(webChip('error', false)).toBe('error')
+    expect(webChip(undefined, false)).toBe('loading')
+    expect(webChip('ready', true)).toBe('hold')
+  })
+
+  it('Resume web is enabled only on HOLD with a ready page', () => {
+    expect(canResumeWeb(live('w1', { webHold: true }), { w1: 'ready' })).toBe(true)
+    expect(canResumeWeb(live('w1', { webHold: true }), { w1: 'error' })).toBe(false)
+    expect(canResumeWeb(live('w1', { webHold: true }), { w1: 'loading' })).toBe(false)
+    expect(canResumeWeb(live('w1', { webHold: true }), {})).toBe(false)
+    expect(canResumeWeb(live('w1'), { w1: 'ready' })).toBe(false)
+  })
+
+  it('the HOLD copy is the spec text', () => {
+    expect(WEB_HOLD_TEXT).toBe(
+      'Web page lost its connection. The output holds the last good frame. Press K for the key visual or take the next deck.'
+    )
+  })
+
+  it('HOLD hides the capture warning of the held deck (same cause); others stay', () => {
+    const warnings = [
+      { output: 'hdmi' as const, deckId: 'w1' },
+      { output: 'omt' as const, deckId: 'w2' }
+    ]
+    expect(visibleCaptureWarnings(warnings, live('w1'))).toEqual(warnings)
+    expect(visibleCaptureWarnings(warnings, live('w1', { webHold: true }))).toEqual([warnings[1]])
   })
 })

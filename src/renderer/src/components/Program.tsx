@@ -1,4 +1,4 @@
-import { EyeSlashIcon, ImageIcon, SnowflakeIcon } from '@phosphor-icons/react'
+import { EyeSlashIcon, ImageIcon, PauseIcon, SnowflakeIcon } from '@phosphor-icons/react'
 import type { DeckMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import { outputSource, TALLY_TEXT, tally, type Tally } from '../model'
@@ -41,9 +41,18 @@ export function Program({
         <h2>
           Program<span className="tag">PGM</span>
         </h2>
-        <span className={`tally t-${t}`} data-testid="tally">
-          {TALLY_ICON[t]}
-          {TALLY_TEXT[t]}
+        <span className="tallies">
+          {/* HOLD: the live web page lost its connection (own shape and word). */}
+          {state.webHold && shown?.web && (t === 'live' || t === 'frozen') && (
+            <span className="tally t-hold" data-testid="tally-hold">
+              <PauseIcon size={14} weight="fill" />
+              HOLD
+            </span>
+          )}
+          <span className={`tally t-${t}`} data-testid="tally">
+            {TALLY_ICON[t]}
+            {TALLY_TEXT[t]}
+          </span>
         </span>
       </div>
       <div className="pgm-view">

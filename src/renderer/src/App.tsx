@@ -15,6 +15,7 @@ import { Strip } from './components/Strip'
 import { Splitters } from './components/Splitters'
 import { ActionError, SaveNote } from './components/ActionError'
 import { CaptureWarning } from './components/CaptureWarning'
+import { HoldWarning } from './components/HoldWarning'
 import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import type { StreamOptions } from './components/SlideLayers'
@@ -26,6 +27,7 @@ import {
   canNextSection,
   canPrev,
   canPrevSection,
+  canResumeWeb,
   currentDeck,
   errorMessage,
   fileKind,
@@ -35,7 +37,8 @@ import {
   outputSource,
   SAVED,
   tally,
-  UNSUPPORTED
+  UNSUPPORTED,
+  visibleCaptureWarnings
 } from './model'
 import { applyTheme, loadTheme, type Theme } from './theme'
 import { renderPdf } from './import/pdf'
@@ -506,6 +509,39 @@ function App(): React.JSX.Element {
     setEvents((xs) => xs.map((x) => (x.id === ev.id ? ev : x)))
   }, [api])
 
+  // Web decks. Main checks the address again; its refusal goes back to the dialog.
+  const addWeb = useCallback(
+    async (url: string, name: string | undefined) => {
+      const target = eventRef.current
+      if (!target) throw new Error('Choose an event first, then add the web page.')
+      await api.addWebDeck(target, url, name)
+      await reloadDecks(target)
+    },
+    [api, reloadDecks]
+  )
+  const setWebUrl = useCallback(
+    async (deckId: string, url: string) => {
+      const target = eventRef.current
+      await api.setWebUrl(deckId, url)
+      await reloadDecks(target)
+    },
+    [api, reloadDecks]
+  )
+  const reloadWeb = useCallback(
+    (deckId: string) => {
+      const name = decks.find((d) => d.id === deckId)?.name ?? 'Web page'
+      api.reloadWeb(deckId).catch((e) => reportError(name, e))
+    },
+    [api, decks, reportError]
+  )
+  const prepareWeb = useCallback(
+    (deckId: string) => {
+      const name = decks.find((d) => d.id === deckId)?.name ?? 'Web page'
+      api.openPrepare(deckId).catch((e) => reportError(name, e))
+    },
+    [api, decks, reportError]
+  )
+
   const chooseTheme = (t: Theme): void => {
     applyTheme(t)
     setTheme(t)
@@ -533,6 +569,28 @@ function App(): React.JSX.Element {
     }),
     [api, program.canvas, pages.generations]
   )
+  // A snapshot is rewritten under the same name when its deck leaves air (no status event
+  // of its own): reload the thumbnails and the poster then, and again once it is written.
+  const prevLiveWeb = useRef<string | null>(null)
+  const { bump } = pages
+  useEffect(() => {
+    const left = prevLiveWeb.current
+    prevLiveWeb.current = liveWeb
+    if (!left || left === liveWeb) return
+    bump(left)
+    const t = setTimeout(() => bump(left), 1500)
+    return () => clearTimeout(t)
+  }, [liveWeb, bump])
+  // A page title can rename its deck after the first load: read the list again on status changes.
+  const { statuses: webStatuses } = pages
+  useEffect(() => {
+    if (Object.keys(webStatuses).length === 0) return
+    const t = setTimeout(() => {
+      const target = eventRef.current
+      if (target) reloadDecks(target).catch((e) => reportError('Decks', e))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [webStatuses, reloadDecks, reportError])
   const [captureWarnings, setCaptureWarnings] = useState<WebCaptureWarning[]>([])
   useEffect(() => {
     let fresh = true
@@ -589,10 +647,22 @@ function App(): React.JSX.Element {
           onRenameDeck={renameDeck}
           onSetDeckFit={setDeckFit}
           onSetDeckAudio={setDeckAudio}
+          webStatuses={pages.statuses}
+          webHold={program.webHold}
+          onAddWeb={addWeb}
+          onSetWebUrl={setWebUrl}
+          onReloadWeb={reloadWeb}
+          onPrepareWeb={prepareWeb}
         />
         <section className="stage-col" aria-label="Program">
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />
-          <CaptureWarning warnings={captureWarnings} />
+          {program.webHold && (
+            <HoldWarning
+              canResume={canResumeWeb(program, pages.statuses)}
+              onResume={() => dispatch({ type: 'resumeWeb' })}
+            />
+          )}
+          <CaptureWarning warnings={visibleCaptureWarnings(captureWarnings, program)} />
           <Program
             state={program}
             deck={deck}
@@ -609,13 +679,28 @@ function App(): React.JSX.Element {
             hasSections={sections.length > 0}
             canPrevSection={canPrevSection(decks, program, sections)}
             canNextSection={canNextSection(decks, program, sections)}
+            canPrevDeck={reduce(program, { type: 'prevDeck' }, decks, sections) !== program}
+            canNextDeck={reduce(program, { type: 'nextDeck' }, decks, sections) !== program}
             canFreeze={reduce(program, { type: 'toggleFreeze' }, decks, sections) !== program}
             onAction={dispatch}
           />
         </section>
-        <NextPanel decks={decks} sections={sections} state={program} onAction={dispatch} />
+        <NextPanel
+          decks={decks}
+          sections={sections}
+          state={program}
+          webStatuses={pages.statuses}
+          webVersions={pages.versions}
+          onAction={dispatch}
+        />
       </main>
-      <Strip decks={decks} state={program} onGoto={goto} onMoveSlide={moveSlide} />
+      <Strip
+        decks={decks}
+        state={program}
+        onGoto={goto}
+        onMoveSlide={moveSlide}
+        webVersions={pages.versions}
+      />
       <SaveNote text={note} />
       <Splitters appRef={appRef} />
       <DropOverlay onDrop={({ files, folders }) => importFiles(files, folders)} />

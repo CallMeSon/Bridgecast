@@ -5,7 +5,7 @@ import { segmentsOf } from '../../shared/sections'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import { DEFAULT_AUDIO, type AudioSettings, type HdmiSettings } from '../../shared/settings'
 import { DEFAULT_DECK_AUDIO, effectiveGain, type DeckAudio } from '../../shared/audio-levels'
-import type { PrepareInput } from '../../shared/web'
+import type { PrepareInput, WebCaptureWarning, WebStatus } from '../../shared/web'
 import { posterWithVersion, type StreamSourceKind } from './stream'
 
 export type NextView =
@@ -544,4 +544,75 @@ export function toPrepareChar(e: KeyboardEvent): PrepareInput | null {
   const typed = e.key === 'Enter' ? '\r' : e.key.length === 1 ? e.key : null
   if (typed === null) return null
   return { kind: 'key', type: 'char', keyCode: typed, modifiers: modifiersOf(e) }
+}
+
+/** Up next copy while a web deck is live (not frozen): Next goes to the page. */
+export const WEB_LIVE_NEXT = 'Web page: Next goes to the page. Press D to take the next deck.'
+/** Up next copy when the next take is a web deck whose page is not ready. */
+export const WEB_NOT_READY = 'Web page not ready'
+/** HOLD warning: the live page lost its connection. */
+export const WEB_HOLD_TEXT =
+  'Web page lost its connection. The output holds the last good frame. Press K for the key visual or take the next deck.'
+
+/**
+ * Up next copy for web decks, or null for the normal view. A live web deck (not
+ * frozen) says Next goes to the page. Else, when the next take puts a web deck
+ * on air (the pending take of the operator deck, or the next deck after the last
+ * slide with auto advance on) and its page is not `ready`: "Web page not ready".
+ */
+export function webUpNext(
+  s: ProgramState,
+  decks: DeckMeta[],
+  status: Record<string, WebStatus>
+): string | null {
+  const current = decks.find((d) => d.id === s.deckId)
+  if (!current) return null
+  if (!s.frozen && current.source === 'web') {
+    return pendingTake(s, decks) ? notReady(current, status) : WEB_LIVE_NEXT
+  }
+  if (s.frozen) return null
+  const nx = nextView(decks, s)
+  if (nx.kind === 'slide' && pendingTake(s, decks)) return notReady(current, status)
+  if (nx.kind === 'end' && nx.auto) {
+    const pos = decks.indexOf(current)
+    const target = decks.slice(pos + 1).find((d) => d.slides.length > 0)
+    return target ? notReady(target, status) : null
+  }
+  return null
+}
+
+function notReady(deck: DeckMeta, status: Record<string, WebStatus>): string | null {
+  return deck.source === 'web' && status[deck.id] !== 'ready' ? WEB_NOT_READY : null
+}
+
+/** Chip on a web deck row; HOLD (the live page lost its connection) wins over the load state. */
+export type WebChipKind = WebStatus | 'hold'
+
+export function webChip(status: WebStatus | undefined, hold: boolean): WebChipKind {
+  return hold ? 'hold' : (status ?? 'loading')
+}
+
+export const WEB_CHIP_TEXT: Record<WebChipKind, string> = {
+  loading: 'Loading',
+  ready: 'Ready',
+  error: 'Error',
+  hold: 'HOLD'
+}
+
+/** Resume web needs HOLD and a page that has recovered (`ready`). */
+export function canResumeWeb(s: ProgramState, status: Record<string, WebStatus>): boolean {
+  return s.webHold && !!s.shown?.web && status[s.shown.web.deckId] === 'ready'
+}
+
+/**
+ * Capture warnings to show. While the live page is on HOLD its output already holds
+ * the last good frame and the HOLD warning explains it, so the capture warning of
+ * that deck (the same lost connection seen from the output) would only repeat it.
+ */
+export function visibleCaptureWarnings(
+  warnings: WebCaptureWarning[],
+  s: ProgramState
+): WebCaptureWarning[] {
+  if (!s.webHold) return warnings
+  return warnings.filter((w) => w.deckId !== s.shown?.web?.deckId)
 }

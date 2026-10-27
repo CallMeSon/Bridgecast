@@ -1052,13 +1052,14 @@ main {
 }
 .add-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .add .btn {
   width: 100%;
 }
 .add-row .btn {
-  flex: 1 1 0;
+  flex: 1 1 calc(50% - 4px);
   min-width: 0;
   white-space: nowrap;
 }
@@ -2007,4 +2008,182 @@ footer .empty {
 .prepare-gone {
   padding: 24px 16px;
   color: var(--text);
+}
+
+/* Web decks: status chip on the deck row. Text plus a shape (dashed ring, check, triangle,
+   pause bars); never red, which stays the on-air tally. HOLD is the filled one. */
+.deck .chip {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  font: 500 12px/1 var(--font-mono);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.deck .chip[data-kind='loading'] {
+  border-style: dashed;
+}
+.deck .chip[data-kind='ready'] {
+  border-color: var(--line-hi);
+  color: var(--text);
+}
+.deck .chip[data-kind='error'] {
+  border-width: 2px;
+  color: var(--text);
+  font-weight: 700;
+}
+.deck .chip[data-kind='hold'] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+.deck-row > .deck:has(.chip) {
+  padding-right: 44px;
+}
+
+/* Add web page / Edit URL: a modal over the app. */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+.popover.modal {
+  position: static;
+  width: min(440px, 100%);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.btn.inverse:not(:disabled) {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+.btn.inverse:hover:not(:disabled) {
+  background: var(--text-2);
+}
+.add-web .pop-error,
+.add-web .pop-status {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.add-web .pop-error svg,
+.add-web .pop-status svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* HOLD: the live page lost its connection. Same band as the action error, a pause icon. */
+.hold-warning {
+  border-left-width: 6px;
+}
+.btn[aria-disabled='true'] {
+  background: transparent;
+  border: 1px dashed var(--line-hi);
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+.tallies {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.t-hold {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* Prev deck / Next deck: two small buttons stacked in the spare cell of the control deck. */
+.controls > .decks-nav {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  padding-block: 6px;
+}
+.decks-nav .cbtn {
+  height: 32px;
+  font-size: 13px;
+  white-space: nowrap;
+  justify-content: space-between;
+}
+/* The narrow layouts hide the spacer cell: the deck buttons take their own full row instead. */
+@container stage (max-width: 700px) {
+  .controls > .decks-nav {
+    display: flex;
+    flex-direction: row;
+    order: 10;
+    grid-column: 1 / -1;
+    min-height: 0;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+@container stage (max-width: 1000px) {
+  .controls.has-sections > .decks-nav {
+    display: flex;
+    flex-direction: row;
+    order: 10;
+    grid-column: 1 / -1;
+    min-height: 0;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+/* Medium widths: the spare cell is too small for the deck buttons, so they get a row of their
+   own under the other controls (the other cells keep their columns). Without sections this is
+   701 to 1099px, with sections 1001 to 1189px; narrower layouts are handled above. */
+@container stage (min-width: 701px) and (max-width: 1099px) {
+  .controls:not(.has-sections) {
+    height: auto;
+    grid-template-rows: 84px auto;
+  }
+  .controls:not(.has-sections) > :nth-child(4) {
+    grid-column: 4;
+  }
+  .controls:not(.has-sections) > :nth-child(5) {
+    grid-column: 5;
+  }
+  .controls:not(.has-sections) > .decks-nav {
+    flex-direction: row;
+    order: 10;
+    grid-column: 1 / -1;
+    min-height: 0;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+@container stage (min-width: 1001px) and (max-width: 1189px) {
+  .controls.has-sections {
+    height: auto;
+    grid-template-rows: 84px auto;
+  }
+  .controls.has-sections > :nth-child(4) {
+    grid-column: 4;
+  }
+  .controls.has-sections > :nth-child(5) {
+    grid-column: 5;
+  }
+  .controls.has-sections > .decks-nav {
+    flex-direction: row;
+    order: 10;
+    grid-column: 1 / -1;
+    min-height: 0;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
 }

@@ -1,7 +1,9 @@
 import type { DeckMeta, SectionMeta } from '../../../shared/types'
 import type { Action, ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
-import { currentDeck, nextView } from '../model'
+import { currentDeck, nextView, webUpNext } from '../model'
+import { posterWithVersion } from '../stream'
+import type { WebStatus } from '../../../shared/web'
 import { EndCard, VideoMark } from './Slide'
 import { SlideLayers } from './SlideLayers'
 import { Switch } from './Switch'
@@ -10,11 +12,17 @@ export function NextPanel({
   decks,
   sections,
   state,
+  webStatuses,
+  webVersions,
   onAction
 }: {
   decks: DeckMeta[]
   sections: SectionMeta[]
   state: ProgramState
+  /** Load state of the web deck pages (a web deck that is not ready cannot be taken). */
+  webStatuses: Record<string, WebStatus>
+  /** Per web deck: bumped when its snapshot may have been rewritten under the same name. */
+  webVersions: Record<string, number>
   onAction(a: Action): void
 }): React.JSX.Element {
   const deck = currentDeck(decks, state)
@@ -23,6 +31,15 @@ export function NextPanel({
   const notes = nx.kind === 'slide' && nx.held ? nx.notes : (deck?.slides[state.index]?.notes ?? '')
 
   const held = nx.kind === 'slide' && nx.held === true
+  // A web deck's snapshot is rewritten under the same name: the version reloads it.
+  const snapshotUrl = (deckId: string, file: string): string => {
+    const web = decks.find((d) => d.id === deckId)?.source === 'web'
+    return web
+      ? posterWithVersion(slideUrl(deckId, file), webVersions[deckId] ?? 0)
+      : slideUrl(deckId, file)
+  }
+  // Web deck copy: Next goes to the live page, or the next take is a page that is not ready.
+  const webText = webUpNext(state, decks, webStatuses)
   let card: React.JSX.Element
   let cap: React.ReactNode = ''
   // Position of the slide Next takes, e.g. "3 / 9"; empty at the end of a deck.
@@ -33,7 +50,11 @@ export function NextPanel({
     card = (
       <div className="slide next-slide">
         <SlideLayers
-          media={{ kind: 'image', url: slideUrl(nx.deckId, nx.file), fit: 'fit' }}
+          media={{
+            kind: 'image',
+            url: snapshotUrl(nx.deckId, nx.file),
+            fit: 'fit'
+          }}
           fade={false}
           muted
           layerClass="next-layer"
@@ -65,6 +86,29 @@ export function NextPanel({
     card = <EndCard title="No slides yet" />
   }
 
+  if (webText !== null) {
+    // The live page shows its snapshot; a not-ready page keeps the card of the normal view.
+    if (deck?.source === 'web' && nx.kind !== 'slide') {
+      card = (
+        <div className="slide next-slide">
+          <SlideLayers
+            media={{
+              kind: 'image',
+              url: snapshotUrl(deck.id, deck.slides[0].file),
+              fit: 'fit'
+            }}
+            fade={false}
+            muted
+            layerClass="next-layer"
+            imgAttrs={() => ({ alt: `Web page ${deck.name}` })}
+          />
+        </div>
+      )
+      nextPos = ''
+    }
+    cap = webText
+  }
+
   return (
     <aside className="right" aria-label="Up next">
       <div className="colhead">
@@ -78,6 +122,7 @@ export function NextPanel({
           className="next-card"
           data-testid="next-card"
           data-kind={nx.kind}
+          data-web={webText ?? undefined}
           data-held={held || undefined}
           data-video={(nx.kind === 'slide' && nx.video) || undefined}
         >
