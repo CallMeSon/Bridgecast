@@ -221,8 +221,8 @@ export function CanvasPicker({
 interface SettingProps extends Omit<PickerProps, 'onChange'> {
   /** The show is visible to the audience: ask before changing (see needsCanvasConfirm). */
   confirm: boolean
-  /** OMT receivers are connected: the change also resets their picture, so ask even when nothing is on air. */
-  omtReceivers?: boolean
+  /** Network (OMT or NDI) receivers are connected: the change also resets their picture, so ask even when nothing is on air. */
+  networkReceivers?: boolean
   /** The machine canvas that "Use default" applies; shown in the confirm. */
   defaultCanvas?: Canvas | null
   /** Saves the canvas; a rejection is shown under the picker. */
@@ -236,12 +236,12 @@ interface SettingProps extends Omit<PickerProps, 'onChange'> {
  */
 export function CanvasSetting({
   confirm: onAir,
-  omtReceivers = false,
+  networkReceivers = false,
   defaultCanvas,
   apply,
   ...picker
 }: SettingProps): React.JSX.Element {
-  const confirm = onAir || omtReceivers
+  const confirm = onAir || networkReceivers
   const [pending, setPending] = useState<{ canvas: Canvas | null } | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Bumped on Cancel so the picker forgets what was typed.
@@ -319,7 +319,7 @@ export function CanvasSetting({
         >
           <WarningCircleIcon className="ph" size={20} />
           <p>
-            <strong>{canvasChangeConfirm(onAir, omtReceivers)}</strong>
+            <strong>{canvasChangeConfirm(onAir, networkReceivers)}</strong>
             <span>
               New canvas:{' '}
               <span className="num">

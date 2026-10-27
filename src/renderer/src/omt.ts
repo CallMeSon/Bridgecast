@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { noReceiversHint, type OmtStatus } from '../../shared/omt'
+import { noReceiversHint, type NdiStatus, type OmtStatus } from '../../shared/omt'
 
 /** Live OMT sender status (null until main answers). A pushed status is newer than the first read. */
 export function useOmtStatus(): OmtStatus | null {
@@ -7,6 +7,17 @@ export function useOmtStatus(): OmtStatus | null {
   useEffect(() => {
     const off = window.api.onOmtStatus(setStatus)
     void window.api.getOmtStatus().then((s) => setStatus((cur) => cur ?? s))
+    return off
+  }, [])
+  return status
+}
+
+/** Live NDI sender status (null until main answers). A pushed status is newer than the first read. */
+export function useNdiStatus(): NdiStatus | null {
+  const [status, setStatus] = useState<NdiStatus | null>(null)
+  useEffect(() => {
+    const off = window.api.onNdiStatus(setStatus)
+    void window.api.getNdiStatus().then((s) => setStatus((cur) => cur ?? s))
     return off
   }, [])
   return status

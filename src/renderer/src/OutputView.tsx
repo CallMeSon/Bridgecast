@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProgramState } from '../../shared/program'
-import { audioPlan, type OmtStatus } from '../../shared/omt'
+import { audioPlan, networkRunning, type NdiStatus, type OmtStatus } from '../../shared/omt'
 import type { AudioSettings } from '../../shared/settings'
 import { outputGain, outputSource } from './model'
 import { OutputAudio } from './output-audio'
@@ -85,8 +85,9 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
       })
   )
   useEffect(() => () => out.close(), [out])
-  // OMT network sender state and the MessagePort main feeds the OMT sound on.
-  const [networkRunning, setNetworkRunning] = useState(false)
+  // Network (OMT, NDI) sender state and the MessagePort main feeds the OMT sound on.
+  const [omtState, setOmtState] = useState<OmtStatus | null>(null)
+  const [ndiState, setNdiState] = useState<NdiStatus | null>(null)
   const [audioPort, setAudioPort] = useState<MessagePort | null>(null)
   const windowSize = useWindowSize()
 
@@ -96,6 +97,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     let freshAudio = true
     let freshHdmi = true
     let freshOmt = true
+    let freshNdi = true
     const offAudio = api.onAudioSettings((a) => {
       freshAudio = false
       setAudio(a)
@@ -126,14 +128,24 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
       })
     const offOmt = api.onOmtStatus((s: OmtStatus) => {
       freshOmt = false
-      setNetworkRunning(s.state === 'running')
+      setOmtState(s)
     })
     api
       .getOmtStatus()
       .then((s) => {
-        if (freshOmt) setNetworkRunning(s.state === 'running')
+        if (freshOmt) setOmtState(s)
       })
       .catch((e) => console.error('[output] OMT status failed to load:', e))
+    const offNdi = api.onNdiStatus((s: NdiStatus) => {
+      freshNdi = false
+      setNdiState(s)
+    })
+    api
+      .getNdiStatus()
+      .then((s) => {
+        if (freshNdi) setNdiState(s)
+      })
+      .catch((e) => console.error('[output] NDI status failed to load:', e))
     const off = api.onProgramState((s) => {
       fresh = false // a broadcast is newer than the initial fetch
       setProgram(s)
@@ -149,6 +161,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
       offAudio()
       offHdmi()
       offOmt()
+      offNdi()
     }
   }, [])
 
@@ -177,7 +190,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
   // One window plays the sound here (HDMI while it shows, else OMT while a
   // network sender runs); the OMT window also taps it for the sender.
   const route = audio?.route ?? 'local'
-  const plan = audioPlan(role, onScreen, networkRunning, route)
+  const plan = audioPlan(role, onScreen, networkRunning(omtState, ndiState), route)
   useEffect(() => {
     out
       .setPlan({ local: plan.local, tap: plan.tap }, audioPort)

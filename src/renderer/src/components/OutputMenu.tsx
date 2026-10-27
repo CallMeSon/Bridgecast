@@ -5,12 +5,20 @@ import { canvasLabel, type Canvas } from '../../../shared/canvas'
 import type { ProgramState } from '../../../shared/program'
 import { pickDisplay, type DisplayInfo } from '../../../shared/displays'
 import type { AudioSettings, HdmiSettings } from '../../../shared/settings'
-import { omtBadge, type OmtSettings } from '../../../shared/omt'
+import {
+  hasConnections,
+  ndiBadge,
+  omtBadge,
+  type NdiSettings,
+  type OmtSettings
+} from '../../../shared/omt'
 import { hdmiBadge, needsCanvasConfirm } from '../model'
 import { HdmiSection } from './HdmiSection'
 import { AudioSection } from './AudioSection'
-import { useOmtStatus } from '../omt'
+import { useNdiStatus, useOmtStatus } from '../omt'
 import { OmtSection } from './OmtSection'
+import { NdiSection } from './NdiSection'
+import { NetworkSection } from './NetworkSection'
 import { CanvasSetting } from './CanvasPicker'
 
 /**
@@ -24,7 +32,9 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
   const [audio, setAudio] = useState<AudioSettings | null>(null)
   const [canvas, setCanvas] = useState<Canvas | null>(null)
   const [omt, setOmt] = useState<OmtSettings | null>(null)
+  const [ndi, setNdi] = useState<NdiSettings | null>(null)
   const omtStatus = useOmtStatus()
+  const ndiStatus = useNdiStatus()
   const [status, setStatus] = useState<HdmiStatus | null>(null)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [open, setOpen] = useState(false)
@@ -42,6 +52,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
       setAudio((cur) => cur ?? s.audio)
       setCanvas(s.canvas)
       setOmt(s.omt)
+      setNdi(s.ndi)
     })
     // A status pushed before this resolves is newer; keep it.
     api.getHdmiStatus().then((s) => setStatus((cur) => cur ?? s))
@@ -56,6 +67,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
       setHdmi(s.hdmi)
       setCanvas(s.canvas)
       setOmt(s.omt)
+      setNdi(s.ndi)
     })
     api.listDisplays().then(setDisplays)
   }, [api, open])
@@ -81,7 +93,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
     }
   }, [open])
 
-  if (!hdmi || !audio || !omt) {
+  if (!hdmi || !audio || !omt || !ndi) {
     return (
       <div className="output-menu">
         <span className="output-btn" data-tone="off">
@@ -96,6 +108,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
   // The screen the output window is on: shown only while it really is showing.
   const target = badge.tone === 'ok' ? displays.find((d) => d.id === hdmi.displayId) : undefined
   const omtTone = omtBadge(omtStatus)
+  const ndiTone = ndiBadge(ndiStatus)
   const StatusIcon = badge.tone === 'warn' || badge.tone === 'error' ? WarningIcon : MonitorIcon
 
   return (
@@ -115,6 +128,10 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
         <span className="ind" data-testid="omt-status" data-tone={omtTone.tone}>
           {omtTone.tone === 'error' ? <WarningIcon size={16} /> : <BroadcastIcon size={16} />}
           <span>{omtTone.text}</span>
+        </span>
+        <span className="ind" data-testid="ndi-status" data-tone={ndiTone.tone}>
+          {ndiTone.tone === 'error' ? <WarningIcon size={16} /> : <BroadcastIcon size={16} />}
+          <span>{ndiTone.text}</span>
         </span>
         <span
           className="canvas-tag"
@@ -147,11 +164,29 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
               setCanvas(s.canvas)
             }}
           />
+          <NetworkSection
+            fps={omt.fps}
+            omtStatus={omtStatus}
+            ndiStatus={ndiStatus}
+            onSaved={(s) => {
+              setOmt(s.omt)
+              setNdi(s.ndi)
+            }}
+          />
           <OmtSection
             omt={omt}
             status={omtStatus}
             onSaved={(s) => {
               setOmt(s.omt)
+              setAudio(s.audio)
+              setCanvas(s.canvas)
+            }}
+          />
+          <NdiSection
+            ndi={ndi}
+            status={ndiStatus}
+            onSaved={(s) => {
+              setNdi(s.ndi)
               setAudio(s.audio)
               setCanvas(s.canvas)
             }}
@@ -177,7 +212,7 @@ export function OutputMenu({ program }: { program: ProgramState }): React.JSX.El
                 allowDefault={false}
                 hdmiDisplay={pickDisplay(displays, hdmi.displayId)}
                 confirm={needsCanvasConfirm(program)}
-                omtReceivers={(omtStatus?.connections ?? 0) > 0}
+                networkReceivers={hasConnections(omtStatus, ndiStatus)}
                 apply={async (c) => {
                   // allowDefault is false: the picker never hands over null here.
                   if (c) setCanvas((await api.setDefaultCanvas(c)).canvas)

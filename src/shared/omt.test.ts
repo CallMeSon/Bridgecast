@@ -5,9 +5,10 @@ import {
   NDI_COPY,
   NETWORK_CHANGE_CONFIRM,
   NO_RECEIVERS_AFTER_MS,
-  OMT_RECEIVERS_CONFIRM,
-  OMT_RECEIVERS_NOTICE,
+  NETWORK_CHANGE_NOTICE,
   canvasChangeConfirm,
+  hasConnections,
+  networkRunning,
   audioPlan,
   dropWarning,
   noReceiversHint,
@@ -19,7 +20,7 @@ import {
   sanitizeOmt
 } from './omt'
 import { CANVAS_CHANGE_LIVE } from './canvas'
-import type { AudioRoute, NdiStatus, OmtStatus } from './omt'
+import type { AudioRoute, NdiSettings, NdiStatus, OmtSettings, OmtStatus } from './omt'
 
 describe('sanitizeOmt', () => {
   it('defaults for anything that is not an object', () => {
@@ -192,15 +193,15 @@ describe('canvasChangeConfirm', () => {
     expect(canvasChangeConfirm(true, false)).toBe(CANVAS_CHANGE_LIVE)
   })
   it('receivers only is the receivers copy verbatim', () => {
-    expect(canvasChangeConfirm(false, true)).toBe(OMT_RECEIVERS_CONFIRM)
-    expect(OMT_RECEIVERS_CONFIRM).toBe(`${OMT_RECEIVERS_NOTICE} Change it now?`)
+    expect(canvasChangeConfirm(false, true)).toBe(NETWORK_CHANGE_CONFIRM)
+    expect(NETWORK_CHANGE_CONFIRM).toBe(`${NETWORK_CHANGE_NOTICE} Change it now?`)
   })
   it('both give one question', () => {
     const t = canvasChangeConfirm(true, true) as string
     expect(t.match(/Change it now\?/g)).toHaveLength(1)
     expect(t.endsWith('Change it now?')).toBe(true)
     expect(t).toContain('what the audience sees.')
-    expect(t).toContain(OMT_RECEIVERS_NOTICE)
+    expect(t).toContain(NETWORK_CHANGE_NOTICE)
   })
 })
 
@@ -269,11 +270,43 @@ describe('NDI copy', () => {
 
 describe('networkOn', () => {
   it('is true when either protocol is enabled', () => {
-    const o = (enabled: boolean) => ({ ...DEFAULT_OMT, enabled })
-    const n = (enabled: boolean) => ({ ...DEFAULT_NDI, enabled })
+    const o = (enabled: boolean): OmtSettings => ({ ...DEFAULT_OMT, enabled })
+    const n = (enabled: boolean): NdiSettings => ({ ...DEFAULT_NDI, enabled })
     expect(networkOn({ omt: o(false), ndi: n(false) })).toBe(false)
     expect(networkOn({ omt: o(true), ndi: n(false) })).toBe(true)
     expect(networkOn({ omt: o(false), ndi: n(true) })).toBe(true)
     expect(networkOn({ omt: o(true), ndi: n(true) })).toBe(true)
+  })
+})
+
+describe('hasConnections', () => {
+  const st = (connections: number, state: OmtStatus['state'] = 'running'): OmtStatus => ({
+    state,
+    connections,
+    address: null
+  })
+  it('is false for null and for no receivers', () => {
+    expect(hasConnections(null, null)).toBe(false)
+    expect(hasConnections(st(0), st(0))).toBe(false)
+    expect(hasConnections(st(0), null)).toBe(false)
+  })
+  it('is true when either target has a receiver', () => {
+    expect(hasConnections(st(1), null)).toBe(true)
+    expect(hasConnections(null, st(2))).toBe(true)
+    expect(hasConnections(st(0), st(1))).toBe(true)
+  })
+})
+
+describe('networkRunning', () => {
+  const st = (state: OmtStatus['state']): OmtStatus => ({ state, connections: 0, address: null })
+  it('is false for null and for targets that are not running', () => {
+    expect(networkRunning(null, null)).toBe(false)
+    expect(networkRunning(st('off'), st('starting'))).toBe(false)
+    expect(networkRunning(st('error'), null)).toBe(false)
+  })
+  it('is true when either target runs', () => {
+    expect(networkRunning(st('running'), null)).toBe(true)
+    expect(networkRunning(null, st('running'))).toBe(true)
+    expect(networkRunning(st('off'), st('running'))).toBe(true)
   })
 })

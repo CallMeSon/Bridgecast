@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { CheckIcon, CopyIcon, WarningCircleIcon } from '@phosphor-icons/react'
+import { useEffect, useState } from 'react'
+import { CheckIcon, CopyIcon } from '@phosphor-icons/react'
 import type { Settings } from '../../../shared/settings'
 import {
   OMT_DROPS,
   OMT_NO_RECEIVERS,
   OMT_NO_SOUND,
-  OMT_RECEIVERS_CONFIRM,
   OMT_START_FAILED,
   omtBadge,
   type OmtSettings,
@@ -13,7 +12,6 @@ import {
 } from '../../../shared/omt'
 import { errorMessage } from '../model'
 import { useNoReceiversHint } from '../omt'
-import { Segmented } from './Segmented'
 import { Switch } from './Switch'
 
 interface Props {
@@ -21,11 +19,6 @@ interface Props {
   status: OmtStatus | null
   onSaved(s: Settings): void
 }
-
-const FPS = [
-  { value: 30, label: '30' },
-  { value: 60, label: '60' }
-] as const
 
 function statusText(omt: OmtSettings, s: OmtStatus | null): string {
   if (!omt.enabled || !s || s.state === 'off') return 'Off'
@@ -36,19 +29,16 @@ function statusText(omt: OmtSettings, s: OmtStatus | null): string {
 
 /**
  * "OMT output" part of the output popover: on/off, the source name receivers list,
- * the frame rate, the Source string to copy, and the status with its warnings.
+ * the Source string to copy, and the status with its warnings.
  * Changes apply at once; the name is saved on Enter or when the field loses focus.
- * Changing the frame rate restarts the stream, so with receivers connected it asks first.
+ * The frame rate is shared with NDI and lives in NetworkSection.
  */
 export function OmtSection({ omt, status, onSaved }: Props): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [name, setName] = useState(omt.name)
   const [savedName, setSavedName] = useState(omt.name)
-  const [pendingFps, setPendingFps] = useState<30 | 60 | null>(null)
   const [copied, setCopied] = useState(false)
-  const cancel = useRef<HTMLButtonElement>(null)
-  const fpsBox = useRef<HTMLDivElement>(null)
   const noReceivers = useNoReceiversHint(status)
 
   // The saved name changed (sanitized by main, or elsewhere): the field shows it.
@@ -57,9 +47,6 @@ export function OmtSection({ omt, status, onSaved }: Props): React.JSX.Element {
     setName(omt.name)
   }
 
-  useEffect(() => {
-    if (pendingFps !== null) cancel.current?.focus()
-  }, [pendingFps])
   useEffect(() => {
     if (!copied) return
     const id = setTimeout(() => setCopied(false), 2000)
@@ -84,19 +71,6 @@ export function OmtSection({ omt, status, onSaved }: Props): React.JSX.Element {
   const commitName = (): void => {
     if (name === omt.name) return
     void save({ ...omt, name })
-  }
-
-  const receivers = (status?.connections ?? 0) > 0
-  const chooseFps = (fps: 30 | 60): void => {
-    if (receivers) setPendingFps(fps)
-    else void save({ ...omt, fps })
-  }
-  const dismissFps = (): void => {
-    setPendingFps(null)
-    // The group was inert while asking: focus returns to the chosen rate.
-    requestAnimationFrame(() =>
-      fpsBox.current?.querySelector<HTMLElement>('[role=radio][aria-checked=true]')?.focus()
-    )
   }
 
   const copy = async (): Promise<void> => {
@@ -167,68 +141,6 @@ export function OmtSection({ omt, status, onSaved }: Props): React.JSX.Element {
         />
         <span className="hint">The name vMix, OBS and other receivers list.</span>
       </div>
-
-      <div className="field" ref={fpsBox}>
-        <span className="row-label" id="omt-fps-title">
-          Frame rate
-        </span>
-        {/* inert while asking: the question is the only thing to answer. */}
-        <div inert={pendingFps !== null}>
-          <Segmented
-            label="Frame rate"
-            value={omt.fps}
-            options={FPS}
-            disabled={busy}
-            testId="omt-fps"
-            onChange={chooseFps}
-          />
-        </div>
-        <span className="hint">Frames per second. Use 30 if 60 drops frames.</span>
-      </div>
-      {pendingFps !== null && (
-        <div
-          className="canvas-confirm"
-          role="group"
-          aria-label="Confirm frame rate change"
-          data-no-shortcuts
-          data-testid="omt-confirm"
-          onKeyDown={(e) => {
-            if (e.key !== 'Escape') return
-            e.stopPropagation()
-            dismissFps()
-          }}
-        >
-          <WarningCircleIcon className="ph" size={20} />
-          <p>
-            <strong>{OMT_RECEIVERS_CONFIRM}</strong>
-            <span>
-              New frame rate: <span className="num">{pendingFps}</span>
-            </span>
-          </p>
-          <span className="actions">
-            <button
-              className="btn sm danger"
-              data-testid="omt-confirm-yes"
-              onClick={() => {
-                const fps = pendingFps
-                setPendingFps(null)
-                void save({ ...omt, name, fps }).then(() =>
-                  requestAnimationFrame(() =>
-                    fpsBox.current
-                      ?.querySelector<HTMLElement>('[role=radio][aria-checked=true]')
-                      ?.focus()
-                  )
-                )
-              }}
-            >
-              Change frame rate
-            </button>
-            <button ref={cancel} className="btn sm" onClick={dismissFps}>
-              Cancel
-            </button>
-          </span>
-        </div>
-      )}
 
       {running && status?.address && (
         <div className="field">

@@ -10,7 +10,7 @@ import { useDebouncedSave } from './useDebouncedSave'
 
 const ROUTES: readonly { value: AudioRoute; label: string }[] = [
   { value: 'local', label: 'Local device' },
-  { value: 'omt', label: 'OMT' },
+  { value: 'omt', label: 'Network' },
   { value: 'both', label: 'Both' }
 ]
 
@@ -122,7 +122,8 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
           onChange={(route) => void saveAudio({ ...audio, masterVolume: volumeRef.current, route })}
         />
         <span className="hint">
-          Local device is the HDMI output (or this PC when HDMI is off). OMT sends it to receivers.
+          Local device is the HDMI output (or this PC when HDMI is off). Network sends it to OMT and
+          NDI receivers.
         </span>
       </div>
 
