@@ -23,7 +23,7 @@ Model:
 - `EventMeta.canvas?: { width, height }`. Tidak ada = memakai default mesin.
 - `resolveCanvas(event, settings)` di `src/shared/canvas.ts`: override event, kalau tidak ada maka default mesin. Hasilnya `{ width, height, origin: 'event' | 'default' }`.
 - `sanitizeCanvas(raw)`: bilangan bulat, tiap sisi 320–7680, `width*height ≤ 3840*2160`, dibulatkan ke bawah ke bilangan genap. Tidak valid = `null` (event) atau default (mesin).
-- Main menyiarkan Canvas yang berlaku lewat channel baru (`canvas:changed`, plus `getCanvas`), mengikuti pola `audio` settings. Canvas berubah saat default mesin diubah, override event diubah, atau event lain dibuka.
+- Canvas yang berlaku dibawa di `ProgramState.canvas` (`ResolvedCanvas`), diisi main seperti `kvUrl` (tidak pernah oleh reducer), sehingga setiap jendela menerima Canvas bersama state yang sama tanpa channel tambahan. Canvas berubah saat default mesin diubah, override event diubah, atau event lain dibuka.
 
 Output:
 - Route `#/output` merender **stage** seukuran Canvas. Di jendela HDMI, stage diskalakan agar muat di layar (contain, area sisa hitam). Bila rasio Canvas sama dengan layar, hasilnya sama seperti sekarang.
