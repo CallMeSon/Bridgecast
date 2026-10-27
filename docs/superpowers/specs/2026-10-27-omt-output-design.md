@@ -7,6 +7,8 @@ Spec ini adalah sub-project 1. Urutannya: (0) Canvas dan level audio (`2026-10-2
 
 Cakupan: sender OMT dengan isi Program, independen dari HDMI; pilihan frame rate; route audio ke lokal, OMT, atau keduanya; status dan alamat di UI.
 
+Penambahan NDI (2026-10-27): NDI ditambahkan di atas pengirim ini oleh plan `docs/superpowers/plans/2026-10-27-ndi-output.md`. Bagian di spec ini yang menyebut satu sender OMT dan "lebih dari satu sender" sebagai di luar cakupan digantikan oleh plan itu: OMT dan NDI memakai satu jendela offscreen dan satu jam frame, dan frame rate berlaku untuk keduanya.
+
 Di luar cakupan (YAGNI): ukuran frame berbeda dari Canvas, alpha channel, tally dari penerima (API ada di `omt_send_gettally`, bisa ditambah nanti), lebih dari satu sender, output OMT dengan isi berbeda dari HDMI, menerima OMT.
 
 ## Keputusan pengguna

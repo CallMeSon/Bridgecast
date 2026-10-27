@@ -530,11 +530,237 @@ async function missingLibraryScenario() {
   }
 }
 
+// ---------------------------------------------------------------- scenario 3: OMT + NDI together
+const setNdi = (win, n) => win.evaluate((v) => window.api.setNdi(v), n)
+const ndiStatus = (win) => win.evaluate(() => window.api.getNdiStatus())
+const net = (app) => app.evaluate(() => globalThis.__pptNet)
+const NDI_MISSING =
+  'NDI could not start: the NDI Runtime is not installed. Install it from ndi.video, then turn NDI off and on.'
+const OMT_ON = { enabled: true, name: 'PPT Share', fps: 30 }
+const NDI_ON = { enabled: true, name: 'PPT Share NDI' }
+const NDI_OFF = { enabled: false, name: 'PPT Share NDI' }
+
+async function waitNet(app, pred, what, timeout = 20_000) {
+  const end = Date.now() + timeout
+  let d = null
+  while (Date.now() < end) {
+    d = await net(app)
+    if (d && pred(d)) return d
+    await sleep(150)
+  }
+  throw new Error(
+    `ASSERT: ${what} (last: ${JSON.stringify(d && { ...d, targets: d.targets.map((t) => ({ id: t.id, n: t.frames.length, last: t.frames.at(-1) })) })})`
+  )
+}
+const target = (d, id) => d.targets.find((t) => t.id === id)
+const lastOf = (d, id) => target(d, id)?.frames.at(-1)
+const countOf = (d, id) => target(d, id)?.frames.length ?? 0
+/** Both targets have frames, the last one of each has this size and fps. */
+const bothAt = (w, h, fps) => (d) =>
+  ['omt', 'ndi'].every((id) => {
+    const f = lastOf(d, id)
+    return countOf(d, id) > 5 && f && f.width === w && f.height === h && f.fps === fps
+  })
+const allSame = (d, id, w, h, fps) =>
+  target(d, id).frames.every((f) => f.width === w && f.height === h && f.fps === fps)
+
+async function bothScenario() {
+  const { app, win, errors } = await launch({ PPT_OMT_FAKE: '1', PPT_NDI_FAKE: '1' })
+  try {
+    await win.click('.event-btn')
+    await win.getByRole('menuitem', { name: 'New event' }).click()
+    await win.fill('.event-input', 'Both Event')
+    await win.press('.event-input', 'Enter')
+    await win.locator('.event-btn', { hasText: 'Both Event' }).waitFor()
+    await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
+    await win.locator('.deck .meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })
+    await win.keyboard.press('Space')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
+    )
+
+    const n0 = await net(app)
+    check(
+      n0.windows === 0 && n0.targets.every((t) => t.frames.length === 0),
+      'both off: no window and no frames'
+    )
+
+    // ---- both on, HDMI off: one offscreen window, both targets get 1920x1080 at 30 fps
+    await setOmt(win, OMT_ON)
+    await setNdi(win, NDI_ON)
+    const d1 = await waitNet(
+      app,
+      bothAt(1920, 1080, 30),
+      'both targets receive 1920x1080 at 30 fps'
+    )
+    check(d1.windows === 1, 'OMT and NDI on, HDMI off: exactly one offscreen window')
+    check(
+      allSame(d1, 'omt', 1920, 1080, 30) && allSame(d1, 'ndi', 1920, 1080, 30),
+      'every OMT and NDI frame is 1920x1080 with fps 30'
+    )
+    check((await omtWindows(app)) === 1, 'exactly one OMT-titled BrowserWindow exists')
+    await waitStatus(win, (s) => s.state === 'running', 'OMT running')
+    const ns = await waitNdiStatus(win, (s) => s.state === 'running', 'NDI running')
+    check(ns.state === 'running', 'NDI status running')
+    // Same content: the sample deck's slide 1 is white on both.
+    const dc = await waitDbg(
+      app,
+      (d) => d.frames?.lastPx && isWhitePx(d.frames.lastPx),
+      'slide 1 reaches the OMT frames'
+    )
+    check(isWhitePx(dc.frames.lastPx), 'OMT frames show slide 1 (white)')
+    const px = (await waitNet(app, (d) => target(d, 'ndi').lastPx, 'NDI has a last frame')).targets
+    const omtPx = px.find((t) => t.id === 'omt').lastPx
+    const ndiPx = px.find((t) => t.id === 'ndi').lastPx
+    check(
+      isWhitePx(ndiPx) && JSON.stringify(ndiPx) === JSON.stringify(omtPx),
+      `NDI frames carry the same content as OMT (${JSON.stringify(ndiPx)})`
+    )
+
+    // ---- NDI off: OMT keeps flowing, the NDI sender is destroyed.
+    // The debug snapshot refreshes every 500 ms, so a pause cannot be seen tick by tick:
+    // the frame deficit over a 4 s window around the switch must stay within two ticks
+    // (plus 3 for snapshot timing jitter). The frame clock is not restarted by setTargets.
+    const snap = async () => {
+      const d = await waitDbg(app, (x) => x.frames?.count > 0, 'OMT snapshot')
+      return { t: Date.now(), c: d.frames.count }
+    }
+    let s0 = await snap()
+    for (;;) {
+      const x = await snap()
+      if (x.c !== s0.c) {
+        s0 = x
+        break
+      }
+      await sleep(30)
+    }
+    await setNdi(win, NDI_OFF)
+    await sleep(4000)
+    let s1 = await snap()
+    for (;;) {
+      await sleep(30)
+      const x = await snap()
+      if (x.c !== s1.c) {
+        s1 = x
+        break
+      }
+    }
+    const expected = ((s1.t - s0.t) / 1000) * 30
+    const deficit = expected - (s1.c - s0.c)
+    check(s1.c > s0.c, `NDI off: OMT frame count keeps rising (${s0.c} -> ${s1.c})`)
+    check(
+      deficit <= 2 + 3,
+      `NDI off: OMT lost no more than two ticks (${s1.c - s0.c} frames in ${((s1.t - s0.t) / 1000).toFixed(2)} s, expected about ${expected.toFixed(0)})`
+    )
+    const st = await waitNdiStatus(win, (s) => s.state === 'off', 'NDI status off')
+    check(st.state === 'off', 'NDI off: status off')
+    const ndiFrozen = countOf(await net(app), 'ndi')
+    await sleep(600)
+    check(
+      countOf(await net(app), 'ndi') === ndiFrozen,
+      'NDI off: the NDI target no longer receives frames (destroyed)'
+    )
+    check((await net(app)).windows === 1, 'NDI off, OMT on: the offscreen window stays')
+
+    // ---- NDI on again: a fresh target receives frames
+    await setNdi(win, NDI_ON)
+    await waitNet(
+      app,
+      (d) => countOf(d, 'ndi') > 5 && lastOf(d, 'ndi').width === 1920,
+      'NDI receives frames again after it is switched back on'
+    )
+    check(true, 'NDI on again: the NDI target receives frames again')
+
+    // ---- 60 fps applies to both and restarts both once
+    const wc = (await dbg(app)).windowCreates
+    await setOmt(win, { ...OMT_ON, fps: 60 })
+    const d60 = await waitNet(app, bothAt(1920, 1080, 60), 'both targets report fps 60')
+    check(
+      allSame(d60, 'omt', 1920, 1080, 60) && allSame(d60, 'ndi', 1920, 1080, 60),
+      'frame rate 60: both targets restarted and every new frame reports fps 60'
+    )
+    check(
+      (await dbg(app)).windowCreates === wc,
+      'frame rate 60 keeps the same offscreen window (no extra window)'
+    )
+
+    // ---- event canvas 3840x1080 reaches both targets
+    const sess = await win.evaluate(() => window.api.getSession())
+    await win.evaluate(
+      (id) => window.api.setEventCanvas(id, { width: 3840, height: 1080 }),
+      sess.eventId
+    )
+    const dw = await waitNet(app, bothAt(3840, 1080, 60), 'both targets receive 3840x1080')
+    check(
+      allSame(dw, 'omt', 3840, 1080, 60) && allSame(dw, 'ndi', 3840, 1080, 60),
+      'event canvas 3840x1080: both OMT and NDI frames are 3840x1080'
+    )
+    await win.evaluate((id) => window.api.setEventCanvas(id, null), sess.eventId)
+    await waitNet(app, bothAt(1920, 1080, 60), 'canvas back to 1920x1080 on both')
+
+    // ---- both off: window and worker gone
+    await setOmt(win, { ...OMT_ON, enabled: false })
+    await setNdi(win, NDI_OFF)
+    const off = await waitDbg(
+      app,
+      (d) => !d.windowExists && !d.workerAlive,
+      'both off removes window and worker'
+    )
+    check(!off.windowExists && !off.workerAlive, 'both off: no window and no worker')
+    check((await omtWindows(app)) === 0, 'both off: no OMT BrowserWindow left')
+    check(errors.length === 0, `no page errors in the operator window ${JSON.stringify(errors)}`)
+  } finally {
+    await app.close().catch(() => undefined)
+  }
+}
+
+async function waitNdiStatus(win, pred, what, timeout = 15_000) {
+  const end = Date.now() + timeout
+  let s = null
+  while (Date.now() < end) {
+    s = await ndiStatus(win)
+    if (pred(s)) return s
+    await sleep(150)
+  }
+  throw new Error(`ASSERT: ${what} (last: ${JSON.stringify(s)})`)
+}
+
+async function ndiMissingScenario() {
+  const { app, win } = await launch({ PPT_OMT_FAKE: '1', PPT_NDI_FAKE: 'missing' })
+  try {
+    await setOmt(win, OMT_ON)
+    await setNdi(win, NDI_ON)
+    const s = await waitNdiStatus(win, (x) => x.state === 'error', 'NDI errors without its runtime')
+    check(s.message === NDI_MISSING, `NDI runtime missing: status error "${s.message}"`)
+    const before = countOf(
+      await waitNet(app, (d) => countOf(d, 'omt') > 5, 'OMT frames flow'),
+      'omt'
+    )
+    await sleep(800)
+    const after = countOf(await net(app), 'omt')
+    check(after > before, `NDI missing: OMT frames continue (${before} -> ${after})`)
+    check((await omtStatus(win)).state === 'running', 'NDI missing: OMT stays running')
+    check(countOf(await net(app), 'ndi') === 0, 'NDI missing: the NDI target got no frames')
+    await setOmt(win, { ...OMT_ON, enabled: false })
+    await setNdi(win, NDI_OFF)
+    await waitDbg(
+      app,
+      (d) => !d.windowExists && !d.workerAlive,
+      'both off removes window and worker'
+    )
+    check(true, 'NDI missing, then both off: window and worker gone')
+  } finally {
+    await app.close().catch(() => undefined)
+  }
+}
+
 // ---------------------------------------------------------------- run
 try {
   buildChecks()
   await fakeScenario()
   await missingLibraryScenario()
+  await bothScenario()
+  await ndiMissingScenario()
   console.log('all OMT end-to-end checks passed')
 } catch (e) {
   console.error(e)

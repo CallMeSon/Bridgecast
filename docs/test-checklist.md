@@ -73,6 +73,21 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] **Resolume** (plugin FFGL pihak ketiga, best effort): catat sumber terlihat atau tidak.
 - [ ] Matikan OMT: sumber hilang dari vMix/OBS dan HDMI tidak terpengaruh.
 
+## Output NDI (network)
+
+**BELUM DIJALANKAN oleh pengguna.** Butuh NDI Runtime terpasang di PC acara (installer memasangnya) dan PC kedua di LAN yang sama dengan vMix, OBS (plugin DistroAV), dan NDI Monitor. Hasil Windows untuk spike ada di `docs/superpowers/notes/ndi-spike.md`.
+
+- [ ] Nyalakan NDI di popover output: lencana NDI berubah dan sumber `NAMA-PC (PPT Share)` muncul.
+- [ ] **vMix** memilih sumber NDI dari daftar sumber dan videonya tampil.
+- [ ] **OBS** (DistroAV) memilih sumber NDI dan videonya tampil.
+- [ ] **NDI Monitor** pada canvas **1920×1080**: gambar tidak terdistorsi (tidak miring, tidak bergeser, warna benar).
+- [ ] **NDI Monitor** pada canvas **3840×1080**: gambar tidak terdistorsi.
+- [ ] Suara, dengan satu video slide: rute **Local device**, **Network**, **Both**. Local: suara hanya di PC ini. Network: suara hanya di penerima NDI dan OMT. Both: keduanya, dan suara lokal hanya keluar dari satu jendela.
+- [ ] Cabut kabel LAN saat NDI menyala, lalu pasang lagi: aplikasi tidak macet, HDMI tidak terpengaruh, penerima menemukan sumber lagi.
+- [ ] OMT dan NDI keduanya menyala selama **30 menit** (60 fps) dengan penerima tersambung di keduanya: tidak ada putus, suara tidak putus-putus, CPU wajar. Matikan salah satu protokol: yang lain tetap mengirim tanpa putus.
+- [ ] Ubah frame rate dengan kedua protokol menyala: konfirmasi muncul sekali, kedua sumber kembali setelah sekitar satu detik.
+- [ ] Tanpa NDI Runtime: nyalakan NDI, muncul pesan runtime tidak terpasang dan OMT serta HDMI tetap jalan.
+
 ## Library dan event
 
 - [ ] Urutkan deck dan slide dengan drag. Output tidak berubah saat mengurutkan.

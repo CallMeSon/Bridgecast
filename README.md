@@ -71,7 +71,21 @@ npm run build:unpack   # dist/linux-unpacked/resources/omt now holds both librar
 Keep `libomt.so` and `libvmx.so` side by side. For `npm run dev` (unpackaged) point
 `PPT_LIBOMT_DIR` at the folder holding them.
 
+### NDI Runtime
+
+NDI output (video and sound to vMix / OBS / NDI Monitor over the LAN) was removed on 2026-10-08
+because of SDK licensing and re-added on 2026-10-27 without bundling anything from NewTek / Vizrt.
+PPT Share never ships the NDI Runtime. The Windows installer (`build/installer.nsh`,
+`build/install-ndi-runtime.ps1`) downloads it from https://ndi.video when it is not installed yet;
+if that fails the install continues and the app shows "NDI could not start: the NDI Runtime is not
+installed" when NDI is switched on (HDMI and OMT keep working). On a development machine install
+the NDI Runtime yourself from ndi.video; the app looks for it at run time through koffi.
+
+NDI® is a registered trademark of Vizrt NDI AB.
+
 ### Tests
 
-`npm run test:e2e:network` runs the OMT end-to-end checks with a recording fake in place of
-libomt (`PPT_OMT_FAKE=1`), so it needs no native library.
+`npm run test:e2e:network` runs the OMT and NDI end-to-end checks with recording fakes in place of
+the native libraries (`PPT_OMT_FAKE=1`, `PPT_NDI_FAKE=1`; `PPT_NDI_FAKE=missing` simulates an absent
+NDI Runtime), so it needs no native library. It covers both protocols on together, NDI switched
+off and on, 60 fps, a 3840×1080 canvas and the missing-runtime case.

@@ -12,7 +12,7 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
   - PDF: dirender dengan pdf.js.
   - Animasi dan video di dalam slide tidak didukung (slide menjadi gambar statis).
 - **Output:** HDMI saja. Program tampil fullscreen tanpa bingkai di layar kedua (Windows mode Extend). Isinya Program, termasuk Freeze/Black/Fade. Operator memilih layar tujuan. Jika layar HDMI hilang saat acara, jendela output disembunyikan (tidak pindah ke layar operator) dan otomatis muncul lagi fullscreen saat layar itu tersambung kembali. Tidak ada output pembicara/transcript (dibatalkan).
-- **NDI dihapus (keputusan pengguna 2026-10-08):** kode, dependency (`grandi`), UI, dan tes NDI dihapus dari repo. Alasan awal penundaan: lisensi NDI SDK (redistribusi runtime dan merek "NDI") belum ditinjau. Riwayatnya ada di git (commit sebelum penghapusan).
+- **NDI:** dihapus 2026-10-08 (kode, dependency `grandi`, UI, tes) karena lisensi NDI SDK, riwayatnya ada di git. Ditambahkan lagi 2026-10-27 oleh plan `ndi-output` tanpa menyertakan runtime: NDI Runtime tidak pernah ikut dalam aplikasi dan dipasang dari ndi.video oleh installer Windows. NDI® adalah merek dagang terdaftar Vizrt NDI AB.
 - **Tanpa Preview/Program ala vMix.** Next/Prev langsung mengganti slide di Program. Panel Next menampilkan slide berikutnya beserta notes.
 - **Library:** per event. Event baru mulai kosong. Deck bisa diurutkan, dihapus, dan slide dalam deck bisa diurutkan. Nama deck bisa diganti (klik kanan "Rename…" atau F2); hanya nama tampilan, file slide tetap.
 - **Kontrol:** Prev, Next, transisi Cut/Fade, Freeze, Black. Pintasan: Space/→ Next, ← Prev, F Freeze, B Black, K KV.
@@ -27,10 +27,10 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 
 ## Output network (OMT, 2026-10-27)
 
-Program juga bisa dikirim lewat network dengan Open Media Transport (OMT) ke vMix dan OBS, dengan video dan suara, di luar atau bersama output HDMI. Ukuran gambar mengikuti Canvas, frame rate 30 atau 60. NDI tetap dicoret; plan `ndi-output` menambahkannya lagi nanti di atas pengirim yang sama. Desain lengkap: `docs/superpowers/specs/2026-10-27-omt-output-design.md`.
+Program juga bisa dikirim lewat network dengan Open Media Transport (OMT) ke vMix dan OBS, dengan video dan suara, di luar atau bersama output HDMI. Ukuran gambar mengikuti Canvas, frame rate 30 atau 60. Plan `ndi-output` (`docs/superpowers/plans/2026-10-27-ndi-output.md`) menambahkan NDI di atas pengirim yang sama: OMT dan NDI bisa menyala bersamaan, satu renderer offscreen, dan frame rate berlaku untuk semua protokol network. Desain lengkap: `docs/superpowers/specs/2026-10-27-omt-output-design.md`.
 
 ## Di luar cakupan
 
-NDI, output kedua dengan isi berbeda, transcript/speech-to-text, mode Live PowerPoint (animasi), timer, playlist bertingkat, remote control dari perangkat lain.
+Output kedua dengan isi berbeda, transcript/speech-to-text, mode Live PowerPoint (animasi), timer, playlist bertingkat, remote control dari perangkat lain.
 
 Animasi lewat slide video (MP4 per halaman, mis. dari Canva) dikerjakan terpisah: `2026-10-09-video-slides-design.md`.

@@ -559,7 +559,11 @@ function createNetOutput(settings: SettingsStore, state: AppState): NetOutput {
         const d = net.debug
         return {
           windows: d.windowExists ? 1 : 0,
-          targets: (d.frames?.targets ?? []).map((t) => ({ id: t.id, frames: t.frames }))
+          targets: (d.frames?.targets ?? []).map((t) => ({
+            id: t.id,
+            frames: t.frames,
+            lastPx: t.lastPx
+          }))
         }
       }
     })

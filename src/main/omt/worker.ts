@@ -23,7 +23,11 @@ type In =
 /** Fake-mode counters for the e2e debug hook. */
 export interface FakeDebug {
   /** Frames each fake target received (PPT_OUTPUT_DUMP's __pptNet). */
-  targets?: { id: 'omt' | 'ndi'; frames: { width: number; height: number; fps: number }[] }[]
+  targets?: {
+    id: 'omt' | 'ndi'
+    frames: { width: number; height: number; fps: number }[]
+    lastPx: number[][] | null
+  }[]
   firstPx: number[][] | null
   lastPx: number[][] | null
   blackAfterContent: number
@@ -107,8 +111,8 @@ if (port) {
           audioBlocks: fake?.audio ?? 0,
           lastAudioLen: fake?.lastAudioLen ?? 0,
           targets: [
-            { id: 'omt', frames: fake?.frames ?? [] },
-            { id: 'ndi', frames: fakeNdi?.frames ?? [] }
+            { id: 'omt', frames: fake?.frames ?? [], lastPx: fake?.lastPx ?? null },
+            { id: 'ndi', frames: fakeNdi?.frames ?? [], lastPx: fakeNdi?.lastPx ?? null }
           ]
         }
         out({ type: 'debug', count: frames.length, sizes, extra })
