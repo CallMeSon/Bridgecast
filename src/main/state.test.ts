@@ -718,6 +718,52 @@ describe('AppState web decks', () => {
     expect(app.dispatch({ type: 'resumeWeb' }).webHold).toBe(false)
   })
 
+  it('K or B off after HOLD is refused while the page is not ready (no failed page on air)', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    const kv = path.join(src, 'kv.png')
+    fs.writeFileSync(kv, 'kv')
+    lib.setKv(a.id, kv)
+    let ready = true
+    const app = new AppState(lib, false, undefined, () => ready)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    app.setWebHold(true)
+    ready = false
+    // K on: leaves the page, clears the hold.
+    let s = app.dispatch({ type: 'toggleKv' })
+    expect(s.kv).toBe(true)
+    expect(s.webHold).toBe(false)
+    // K off would show the failed page: refused.
+    expect(app.dispatch({ type: 'toggleKv' })).toBe(s)
+    // B on from KV is fine (nothing of the page shows), B off would show the page: refused.
+    s = app.dispatch({ type: 'toggleBlack' })
+    expect(s.black).toBe(true)
+    expect(app.dispatch({ type: 'toggleBlack' })).toBe(s)
+    // Once the page is ready again, B off shows it.
+    ready = true
+    s = app.dispatch({ type: 'toggleBlack' })
+    expect(s.black).toBe(false)
+    expect(s.shown?.web?.deckId).toBe(w)
+  })
+
+  it('B off after HOLD without a KV is refused while the page is not ready', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    let ready = true
+    const app = new AppState(lib, false, undefined, () => ready)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    app.setWebHold(true)
+    ready = false
+    const s = app.dispatch({ type: 'toggleBlack' })
+    expect(s.black).toBe(true)
+    expect(s.webHold).toBe(false)
+    expect(app.dispatch({ type: 'toggleBlack' })).toBe(s)
+    // K with no KV image does nothing visible; the page stays off air.
+    expect(app.dispatch({ type: 'toggleKv' }).black).toBe(true)
+  })
+
   it('removing the live web deck drops shown and the hold', () => {
     const lib = new Library(root)
     const a = lib.createEvent('A')

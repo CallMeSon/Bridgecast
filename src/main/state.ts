@@ -110,6 +110,12 @@ export class AppState {
     if (web && next.shown !== this.current.shown && !this.webReady(web.deckId)) {
       return this.current
     }
+    // K or B going off would show the web page again: only when it is ready (after HOLD the
+    // output never returns to a failed page by itself, and the ready gate covers this too).
+    const hidden = (x: ProgramState): boolean => x.black || kvOnAir(x)
+    if (web && hidden(this.current) && !hidden(next) && !this.webReady(web.deckId)) {
+      return this.current
+    }
     // Resume web only once the page has recovered.
     const held = this.current.shown?.web
     if (a.type === 'resumeWeb' && held && !this.webReady(held.deckId)) return this.current
