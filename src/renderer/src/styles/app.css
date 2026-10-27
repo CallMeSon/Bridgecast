@@ -915,18 +915,19 @@ main {
   padding: 16px 20px 12px;
 }
 .pgm-stack {
-  width: min(100cqw, max(0px, calc((100cqh - 40px) * 16 / 9)));
+  /* --cw / --ch: the canvas size, set by Program (defaults 16:9). */
+  width: min(100cqw, max(0px, calc((100cqh - 40px) * var(--cw, 16) / var(--ch, 9))));
   margin: 0 auto;
 }
 .screen {
   position: relative;
   width: 100%;
-  aspect-ratio: 16/9;
+  aspect-ratio: var(--cw, 16) / var(--ch, 9);
   overflow: hidden;
   background: var(--letterbox);
   border-radius: var(--r);
 }
-/* Rings are overlays, so the slide keeps an exact 16:9 box (no black slivers). */
+/* Rings are overlays, so the slide keeps an exact canvas-aspect box (no black slivers). */
 .screen::after,
 .next-card .slide::after,
 .th .slide::after {
@@ -944,6 +945,15 @@ main {
 .screen .pgm-layer {
   position: absolute;
   inset: 0;
+}
+/* The deck's fit on the monitor, same mapping as the output (thumbnails and the Next card stay contain). */
+.screen .pgm-layer[data-fit='fill'] img,
+.screen .pgm-layer[data-fit='fill'] video {
+  object-fit: cover;
+}
+.screen .pgm-layer[data-fit='stretch'] img,
+.screen .pgm-layer[data-fit='stretch'] video {
+  object-fit: fill;
 }
 /* A video layer is see-through until its first frame is on screen (see SlideLayers). */
 .screen .pgm-layer[data-kind='video'] {

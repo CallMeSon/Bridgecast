@@ -98,6 +98,9 @@ function stop(v: HTMLVideoElement): void {
  * (after Black or KV) shows its poster, the last frame (see `layerFor`). A
  * newer slide supersedes any layer still pending: that layer is stopped and
  * removed at once, so it never shows or sounds.
+ *
+ * `fit` is a property of a layer, not part of its identity: when only the fit
+ * of the media on top changes, the layer's `data-fit` is updated in place.
  */
 export function SlideLayers({
   media,
@@ -223,7 +226,18 @@ export function SlideLayers({
     const m = mediaKey ? (JSON.parse(mediaKey) as OutputMedia) : null
     const spec = layerFor(m, played.current, topId.current ?? null)
     const id = spec?.id ?? null
-    if (id === topId.current) return
+    if (id === topId.current) {
+      // Same media, another fit (the deck's Fit changed while it is live): update
+      // that layer in place. No new layer, no fade, and a <video> stays the same
+      // element, so it keeps playing.
+      const ls = current.current
+      const i = ls.map((l) => l.spec?.id ?? null).lastIndexOf(id)
+      const at = i >= 0 ? ls[i].spec : null
+      if (spec && at && at.fit !== spec.fit) {
+        commit(ls.map((l, j) => (j === i ? { ...l, spec: { ...at, fit: spec.fit } } : l)))
+      }
+      return
+    }
     const first = topId.current === undefined
     topId.current = id
     const key = ++seq.current
@@ -288,6 +302,7 @@ export function SlideLayers({
           className={layerClass}
           data-state={!l.ready ? 'pending' : l.fade ? 'fade' : 'shown'}
           data-kind={l.spec?.kind === 'video' && !l.failed ? 'video' : undefined}
+          data-fit={l.spec?.fit}
         >
           {l.spec?.kind === 'video' && !l.failed ? (
             <video

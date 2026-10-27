@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ProgramState } from '../../shared/program'
 import type { AudioSettings } from '../../shared/settings'
 import { outputSource } from './model'
+import { stageRect } from './stage'
 import { AUDIO_SETUP_MS, outputGateOpen, outputMuted, pickSink, useAudioOutputs } from './audio'
 import { SlideLayers, type ShownMedia } from './components/SlideLayers'
 
@@ -33,11 +34,23 @@ function imagePainted(id: string, timeoutMs = 1500): Promise<void> {
   })
 }
 
+/** The window's inner size, kept current on `resize` (the stage is laid out from it). */
+function useWindowSize(): { width: number; height: number } {
+  const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
+  useEffect(() => {
+    const onResize = (): void => setSize({ width: window.innerWidth, height: window.innerHeight })
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return size
+}
+
 /**
  * Program output (route `#/output`), shown fullscreen by the HDMI window on
  * the second display. No chrome, no input: only black or the `shown` slide,
- * letterboxed with `object-fit: contain`. Slides change through SlideLayers,
- * so Next never flashes black between two slides.
+ * inside a stage with the canvas aspect (`stageRect`, centred; the rest of the
+ * window is black) where each slide is drawn per its deck's fit. Slides change
+ * through SlideLayers, so Next never flashes black between two slides.
  */
 export function OutputView(): React.JSX.Element {
   // null until the real program state is known (initial fetch or a broadcast):
@@ -60,6 +73,7 @@ export function OutputView(): React.JSX.Element {
     return () => clearTimeout(t)
   }, [])
   const readySent = useRef(false)
+  const windowSize = useWindowSize()
 
   useEffect(() => {
     const api = window.api
@@ -131,18 +145,26 @@ export function OutputView(): React.JSX.Element {
     )
   }
 
+  const stage = program ? stageRect(program.canvas, windowSize) : null
+
   return (
     <div className="output" aria-hidden="true">
-      {program && soundReady && (
-        <SlideLayers
-          media={outputSource(program)}
-          fade={program.transition === 'fade'}
-          muted={outputMuted(audio, onScreen)}
-          sinkId={sink}
-          layerClass="output-layer"
-          imgAttrs={(key) => ({ elementtiming: timingId(key) })}
-          onShown={onShown}
-        />
+      {program && stage && soundReady && (
+        <div
+          className="output-stage"
+          data-canvas={`${program.canvas.width}x${program.canvas.height}`}
+          style={{ left: stage.left, top: stage.top, width: stage.width, height: stage.height }}
+        >
+          <SlideLayers
+            media={outputSource(program)}
+            fade={program.transition === 'fade'}
+            muted={outputMuted(audio, onScreen)}
+            sinkId={sink}
+            layerClass="output-layer"
+            imgAttrs={(key) => ({ elementtiming: timingId(key) })}
+            onShown={onShown}
+          />
+        </div>
       )}
     </div>
   )

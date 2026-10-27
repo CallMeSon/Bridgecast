@@ -33,7 +33,7 @@ export function NextPanel({
     card = (
       <div className="slide next-slide">
         <SlideLayers
-          media={{ kind: 'image', url: slideUrl(nx.deckId, nx.file) }}
+          media={{ kind: 'image', url: slideUrl(nx.deckId, nx.file), fit: 'fit' }}
           fade={false}
           muted
           layerClass="next-layer"

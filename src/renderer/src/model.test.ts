@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { DeckMeta, SectionMeta } from '../../shared/types'
 import { initialState, reduce, type ProgramState } from '../../shared/program'
+import type { DeckFit } from '../../shared/canvas'
 import {
   baseName,
   canNext,
@@ -275,7 +276,7 @@ describe('errorMessage', () => {
   })
 })
 
-const img = (url: string): OutputMedia => ({ kind: 'image', url })
+const img = (url: string, fit: DeckFit = 'fit'): OutputMedia => ({ kind: 'image', url, fit })
 
 describe('outputSource with a video slide', () => {
   const deckId = '44444444-4444-4444-4444-444444444444'
@@ -286,8 +287,27 @@ describe('outputSource with a video slide', () => {
       kind: 'video',
       url: `slide://${deckId}/001.mp4`,
       poster: `slide://${deckId}/001.png`,
-      take: 7
+      take: 7,
+      fit: 'fit'
     })
+  })
+  it('the deck fit of the shown slide rides on the media; a shown without fit is fit', () => {
+    expect(
+      outputSource({ ...initialState, shown: { ...shown, fit: 'fill' }, take: 7 })
+    ).toMatchObject({
+      kind: 'video',
+      fit: 'fill'
+    })
+    const still = { deckId, index: 0, file: '001.png' }
+    expect(outputSource({ ...initialState, shown: { ...still, fit: 'stretch' } })).toEqual(
+      img(`slide://${deckId}/001.png`, 'stretch')
+    )
+  })
+  it('KV and STANDBY KV are always fit, whatever the shown slide had', () => {
+    expect(
+      outputSource({ ...initialState, shown: { ...shown, fit: 'fill' }, kvUrl, kv: true })
+    ).toEqual(img(kvUrl, 'fit'))
+    expect(outputSource({ ...initialState, kvUrl })).toEqual(img(kvUrl, 'fit'))
   })
   it('a shown image slide is an image', () => {
     const still = { deckId, index: 0, file: '001.png' }

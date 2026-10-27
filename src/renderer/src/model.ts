@@ -1,4 +1,5 @@
 import type { DeckMeta, SectionMeta } from '../../shared/types'
+import type { DeckFit } from '../../shared/canvas'
 import { kvOnAir, pendingTake, reduce, type Action, type ProgramState } from '../../shared/program'
 import { segmentsOf } from '../../shared/sections'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
@@ -261,25 +262,28 @@ export function baseName(name: string): string {
  * last frame) and the `take` that put it live, so each window plays a take once.
  */
 export type OutputMedia =
-  { kind: 'image'; url: string } | { kind: 'video'; url: string; poster: string; take: number }
+  | { kind: 'image'; url: string; fit: DeckFit }
+  | { kind: 'video'; url: string; poster: string; take: number; fit: DeckFit }
 
 /**
  * What the Program output shows, for the HDMI window and the operator monitor:
  * null = black. Black on is black. KV on (with a KV) is the KV. Else the `shown`
  * slide (never the operator position), also while frozen: a video when it has
  * one, else its image. Else (STANDBY) the event's KV, or black without one.
+ * The `shown` slide carries its deck's `fit` (missing = `fit`); the KV is always `fit`.
  */
 export function outputSource(s: ProgramState): OutputMedia | null {
   if (s.black) return null
-  if (s.kv && s.kvUrl) return { kind: 'image', url: s.kvUrl }
+  if (s.kv && s.kvUrl) return { kind: 'image', url: s.kvUrl, fit: 'fit' }
   if (s.shown) {
     const { deckId, file, video } = s.shown
+    const fit = s.shown.fit ?? 'fit'
     const poster = slideUrl(deckId, file)
     return video
-      ? { kind: 'video', url: slideUrl(deckId, video), poster, take: s.take }
-      : { kind: 'image', url: poster }
+      ? { kind: 'video', url: slideUrl(deckId, video), poster, take: s.take, fit }
+      : { kind: 'image', url: poster, fit }
   }
-  return s.kvUrl ? { kind: 'image', url: s.kvUrl } : null
+  return s.kvUrl ? { kind: 'image', url: s.kvUrl, fit: 'fit' } : null
 }
 
 export interface HdmiBadge {

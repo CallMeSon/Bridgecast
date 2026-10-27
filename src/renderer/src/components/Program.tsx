@@ -14,7 +14,7 @@ const TALLY_ICON: Partial<Record<Tally, React.JSX.Element>> = {
 /**
  * The Program column: tally in the head, the monitor, and the operator position.
  * The monitor shows exactly what is on the output (`outputSource`: the shown slide,
- * the KV, or black), not the operator position.
+ * the KV, or black), not the operator position, in a frame with the canvas aspect.
  */
 export function Program({
   state,
@@ -41,7 +41,15 @@ export function Program({
         </span>
       </div>
       <div className="pgm-view">
-        <div className="pgm-stack">
+        <div
+          className="pgm-stack"
+          style={
+            {
+              '--cw': state.canvas.width,
+              '--ch': state.canvas.height
+            } as React.CSSProperties
+          }
+        >
           <div className="screen" data-black={state.black} data-transition={state.transition}>
             {shown || media ? (
               <SlideLayers

@@ -7,6 +7,11 @@
   cursor: none;
   user-select: none;
 }
+/* The canvas-shaped area (left/top/width/height set by OutputView); the rest of .output stays black. */
+.output-stage {
+  position: absolute;
+  overflow: hidden;
+}
 .output-layer {
   position: absolute;
   inset: 0;
@@ -18,6 +23,15 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+/* The deck's fit (data-fit on the layer): Fill crops to cover, Stretch ignores the aspect. */
+.output-layer[data-fit='fill'] img,
+.output-layer[data-fit='fill'] video {
+  object-fit: cover;
+}
+.output-layer[data-fit='stretch'] img,
+.output-layer[data-fit='stretch'] video {
+  object-fit: fill;
 }
 /* A video layer is see-through until its first frame is on screen (see SlideLayers). */
 .output-layer[data-kind='video'] {
