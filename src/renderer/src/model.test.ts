@@ -550,7 +550,8 @@ describe('outputGain', () => {
   const master = (masterVolume: number, muted = false): AudioSettings => ({
     deviceId: null,
     muted,
-    masterVolume
+    masterVolume,
+    route: 'local'
   })
 
   it('is deck volume times master volume', () => {

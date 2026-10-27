@@ -2,16 +2,18 @@ import * as fs from 'fs'
 import { dirname } from 'path'
 import { randomUUID } from 'crypto'
 import { DEFAULT_CANVAS } from '../shared/canvas'
+import { DEFAULT_OMT } from '../shared/omt'
 import { DEFAULT_AUDIO, DEFAULT_HDMI, sanitizeSettings, type Settings } from '../shared/settings'
 
 export type { Settings } from '../shared/settings'
 
-/** Spec defaults: HDMI off, no auto advance to the next deck, default sound device, not muted, 1920×1080 canvas. */
+/** Spec defaults: HDMI off, no auto advance to the next deck, default sound device, not muted, 1920×1080 canvas, OMT off, sound on this PC. */
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   hdmi: DEFAULT_HDMI,
   autoAdvance: false,
   audio: DEFAULT_AUDIO,
-  canvas: DEFAULT_CANVAS
+  canvas: DEFAULT_CANVAS,
+  omt: DEFAULT_OMT
 })
 
 /**

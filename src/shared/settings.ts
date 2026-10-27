@@ -1,5 +1,6 @@
 import { sanitizeVolume } from './audio-levels'
 import { DEFAULT_CANVAS, sanitizeCanvas, type Canvas } from './canvas'
+import { sanitizeOmt, type AudioRoute, type OmtSettings } from './omt'
 
 /**
  * Program fullscreen on a second display (HDMI, Windows "Extend"). `displayId`
@@ -14,12 +15,13 @@ export interface HdmiSettings {
  * Sound of the HDMI output window (video slides and every other output sound).
  * `deviceId` is a `MediaDeviceInfo.deviceId` of an audio output; null = the
  * Windows default. `masterVolume` (0–100) applies to every output sound, on top
- * of each deck's own volume.
+ * of each deck's own volume. `route` picks where the sound goes (this PC, OMT, both).
  */
 export interface AudioSettings {
   deviceId: string | null
   muted: boolean
   masterVolume: number
+  route: AudioRoute
 }
 
 export interface Settings {
@@ -29,6 +31,8 @@ export interface Settings {
   audio: AudioSettings
   /** Machine default output size; an event may override it (see resolveCanvas). */
   canvas: Canvas
+  /** OMT network output. */
+  omt: OmtSettings
 }
 
 export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
@@ -39,8 +43,11 @@ export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
 export const DEFAULT_AUDIO: Readonly<AudioSettings> = Object.freeze({
   deviceId: null,
   muted: false,
-  masterVolume: 100
+  masterVolume: 100,
+  route: 'local'
 })
+
+const AUDIO_ROUTES: readonly AudioRoute[] = ['local', 'omt', 'both']
 
 /** Longest device id kept (real ids are about 64 characters). */
 const MAX_DEVICE_ID = 512
@@ -57,7 +64,7 @@ export function sanitizeHdmi(raw: unknown): HdmiSettings {
   }
 }
 
-/** Any parsed JSON → valid AudioSettings (an empty or over-long deviceId becomes null, masterVolume is 0–100). */
+/** Any parsed JSON → valid AudioSettings (an empty or over-long deviceId becomes null, masterVolume is 0–100, an unknown route is 'local'). */
 export function sanitizeAudio(raw: unknown): AudioSettings {
   const a = isObject(raw) ? raw : {}
   return {
@@ -66,7 +73,10 @@ export function sanitizeAudio(raw: unknown): AudioSettings {
         ? a.deviceId
         : DEFAULT_AUDIO.deviceId,
     muted: typeof a.muted === 'boolean' ? a.muted : DEFAULT_AUDIO.muted,
-    masterVolume: sanitizeVolume(a.masterVolume, DEFAULT_AUDIO.masterVolume)
+    masterVolume: sanitizeVolume(a.masterVolume, DEFAULT_AUDIO.masterVolume),
+    route: AUDIO_ROUTES.includes(a.route as AudioRoute)
+      ? (a.route as AudioRoute)
+      : DEFAULT_AUDIO.route
   }
 }
 
@@ -80,6 +90,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     hdmi: sanitizeHdmi(r.hdmi),
     autoAdvance: typeof r.autoAdvance === 'boolean' ? r.autoAdvance : false,
     audio: sanitizeAudio(r.audio),
-    canvas: sanitizeCanvas(r.canvas) ?? { ...DEFAULT_CANVAS }
+    canvas: sanitizeCanvas(r.canvas) ?? { ...DEFAULT_CANVAS },
+    omt: sanitizeOmt(r.omt)
   }
 }

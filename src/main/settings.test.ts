@@ -19,8 +19,9 @@ describe('loadSettings / saveSettings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false, masterVolume: 100 },
-      canvas: { width: 1920, height: 1080 }
+      audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
+      canvas: { width: 1920, height: 1080 },
+      omt: { enabled: false, name: 'PPT Share', fps: 30 }
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
   })
@@ -29,8 +30,9 @@ describe('loadSettings / saveSettings', () => {
     const s = {
       hdmi: { enabled: true, displayId: 2528732444 },
       autoAdvance: true,
-      audio: { deviceId: null, muted: false, masterVolume: 100 },
-      canvas: { width: 1920, height: 1080 }
+      audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
+      canvas: { width: 1920, height: 1080 },
+      omt: { enabled: true, name: 'Aula', fps: 60 as const }
     }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
@@ -71,8 +73,9 @@ describe('hdmi settings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false, masterVolume: 100 },
-      canvas: { width: 1920, height: 1080 }
+      audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
+      canvas: { width: 1920, height: 1080 },
+      omt: { enabled: false, name: 'PPT Share', fps: 30 }
     })
   })
 
@@ -82,8 +85,9 @@ describe('hdmi settings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: true, displayId: 7 },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false, masterVolume: 100 },
-      canvas: { width: 1920, height: 1080 }
+      audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
+      canvas: { width: 1920, height: 1080 },
+      omt: { enabled: false, name: 'PPT Share', fps: 30 }
     })
   })
 
@@ -117,13 +121,28 @@ describe('hdmi settings', () => {
 
 describe('audio settings', () => {
   it('defaults: no saved device, not muted', () => {
-    expect(DEFAULT_SETTINGS.audio).toEqual({ deviceId: null, muted: false, masterVolume: 100 })
-    expect(sanitizeSettings({}).audio).toEqual({ deviceId: null, muted: false, masterVolume: 100 })
+    expect(DEFAULT_SETTINGS.audio).toEqual({
+      deviceId: null,
+      muted: false,
+      masterVolume: 100,
+      route: 'local' as const
+    })
+    expect(sanitizeSettings({}).audio).toEqual({
+      deviceId: null,
+      muted: false,
+      masterVolume: 100,
+      route: 'local' as const
+    })
   })
 
   it('missing or wrong-typed audio falls back to the defaults', () => {
     for (const audio of [undefined, null, 'loud', 7, [], { deviceId: 5, muted: 'yes' }]) {
-      expect(sanitizeAudio(audio)).toEqual({ deviceId: null, muted: false, masterVolume: 100 })
+      expect(sanitizeAudio(audio)).toEqual({
+        deviceId: null,
+        muted: false,
+        masterVolume: 100,
+        route: 'local' as const
+      })
     }
   })
 
@@ -131,12 +150,14 @@ describe('audio settings', () => {
     expect(sanitizeAudio({ deviceId: 'abc123', muted: true })).toEqual({
       deviceId: 'abc123',
       muted: true,
-      masterVolume: 100
+      masterVolume: 100,
+      route: 'local'
     })
     expect(sanitizeSettings({ audio: { deviceId: 'abc123', muted: true } }).audio).toEqual({
       deviceId: 'abc123',
       muted: true,
-      masterVolume: 100
+      masterVolume: 100,
+      route: 'local'
     })
   })
 
@@ -144,7 +165,8 @@ describe('audio settings', () => {
     expect(sanitizeAudio({ deviceId: '', muted: true })).toEqual({
       deviceId: null,
       muted: true,
-      masterVolume: 100
+      masterVolume: 100,
+      route: 'local'
     })
     expect(sanitizeAudio({ deviceId: 'x'.repeat(512) }).deviceId).toBe('x'.repeat(512))
     expect(sanitizeAudio({ deviceId: 'x'.repeat(513) }).deviceId).toBeNull()
@@ -154,20 +176,22 @@ describe('audio settings', () => {
     expect(sanitizeAudio({ deviceId: null, muted: false, volume: 3 })).toEqual({
       deviceId: null,
       muted: false,
-      masterVolume: 100
+      masterVolume: 100,
+      route: 'local'
     })
   })
 
   it('save then load keeps audio', () => {
     const s = {
       ...DEFAULT_SETTINGS,
-      audio: { deviceId: 'hdmi-1', muted: true, masterVolume: 100 }
+      audio: { deviceId: 'hdmi-1', muted: true, masterVolume: 100, route: 'local' as const }
     }
     saveSettings(file, s)
     expect(loadSettings(file).audio).toEqual({
       deviceId: 'hdmi-1',
       muted: true,
-      masterVolume: 100
+      masterVolume: 100,
+      route: 'local'
     })
   })
 })
@@ -200,7 +224,12 @@ describe('canvas setting', () => {
 describe('master volume', () => {
   it('audio without masterVolume loads at 100', () => {
     fs.writeFileSync(file, JSON.stringify({ audio: { deviceId: 'hdmi-1', muted: true } }))
-    expect(loadSettings(file).audio).toEqual({ deviceId: 'hdmi-1', muted: true, masterVolume: 100 })
+    expect(loadSettings(file).audio).toEqual({
+      deviceId: 'hdmi-1',
+      muted: true,
+      masterVolume: 100,
+      route: 'local' as const
+    })
   })
 
   it('an out-of-range or invalid masterVolume becomes 100', () => {
@@ -213,8 +242,41 @@ describe('master volume', () => {
     expect(sanitizeAudio({ masterVolume: 30 }).masterVolume).toBe(30)
     saveSettings(file, {
       ...DEFAULT_SETTINGS,
-      audio: { deviceId: null, muted: false, masterVolume: 30 }
+      audio: { deviceId: null, muted: false, masterVolume: 30, route: 'local' }
     })
     expect(loadSettings(file).audio.masterVolume).toBe(30)
+  })
+})
+
+describe('audio route', () => {
+  it('keeps local, omt and both; anything else becomes local', () => {
+    for (const route of ['local', 'omt', 'both']) {
+      expect(sanitizeAudio({ route }).route).toBe(route)
+    }
+    for (const route of ['hdmi', 5, null, undefined]) {
+      expect(sanitizeAudio({ route }).route).toBe('local')
+    }
+  })
+})
+
+describe('omt setting', () => {
+  it('a settings file without omt loads the defaults', () => {
+    fs.writeFileSync(file, JSON.stringify({ hdmi: { enabled: true, displayId: 3 } }))
+    expect(loadSettings(file).omt).toEqual({ enabled: false, name: 'PPT Share', fps: 30 })
+  })
+
+  it('sanitizes invalid values and survives save then load', () => {
+    expect(sanitizeSettings({ omt: { enabled: true, name: '  ', fps: 45 } }).omt).toEqual({
+      enabled: true,
+      name: 'PPT Share',
+      fps: 30
+    })
+    saveSettings(file, { ...DEFAULT_SETTINGS, omt: { enabled: true, name: 'Sala', fps: 60 } })
+    expect(loadSettings(file).omt).toEqual({ enabled: true, name: 'Sala', fps: 60 })
+  })
+
+  it('does not share the default omt object with callers', () => {
+    loadSettings(file).omt.name = 'X'
+    expect(loadSettings(file).omt.name).toBe('PPT Share')
   })
 })
