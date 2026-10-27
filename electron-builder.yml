@@ -24,6 +24,7 @@ win:
     - nsis
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
+  include: build/installer.nsh
   oneClick: false
   allowToChangeInstallationDirectory: true
   shortcutName: ${productName}
