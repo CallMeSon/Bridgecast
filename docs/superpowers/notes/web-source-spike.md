@@ -68,7 +68,7 @@ Local form page in a hidden window, `webContents.sendInputEvent`, events recorde
 - Typing: per character `keyDown`, `char`, `keyUp` with `keyCode` set to the character. The input field value came out right, including the capital H and punctuation ("Hello, 123"). The `keydown` `key` is lowercase for a capital letter (no shift modifier sent); the typed text is still correct because the `char` event carries it. PASS.
 - Special keys: Electron key names are `Backspace`, `Enter`, `Left`, `Right`, `Down`, `PageDown` etc. (not `ArrowRight`); the page saw `ArrowRight`, `ArrowLeft`, `ArrowDown`, `PageDown`, `Enter`. Use the Electron names in Task 6's key map. PASS.
 - Wheel: `{ type:'mouseWheel', x, y, deltaX:0, deltaY, wheelTicksY, canScroll:true }`. Negative `deltaY` scrolls down (300 px of delta moved the page about 300 px). Works when the hidden window is being captured (scrollY 501 to 801 and back as expected) and when the window is shown. Without an active capture the hidden window scrolled late or not at all (compositor is idle). Not an issue in production because the window is always captured, but do not test input on an uncaptured hidden window.
-- `webContents.focus()` was called before keyboard input; keep that in the implementation.
+- `webContents.focus()` was called before keyboard input in this spike. The implementation does not call it (removed in f1a07d1: focusing the hidden page took the keyboard from the operator window); `sendInputEvent` reaches the page without focus, verified for arrow keys and for typing into a clicked field.
 
 ### Canva and Google sign-in (user to run, unchecked)
 
