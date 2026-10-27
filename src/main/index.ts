@@ -55,7 +55,14 @@ const MAX_FILES = 200
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'slide',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+    // corsEnabled: the output's <video crossorigin> (needed for Web Audio) is a CORS request.
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true
+    }
   }
 ])
 
@@ -100,6 +107,9 @@ async function videoResponse(file: string, rangeHeader: string | null): Promise<
     'accept-ranges': 'bytes',
     'cache-control': 'no-store',
     // The output plays video through Web Audio, which needs a CORS-clean source (silent otherwise).
+    // `*` is safe: only the app's own renderer (file:// = Origin null, or http://localhost in dev)
+    // loads slide:// URLs, nothing here carries credentials, and external web pages (planned
+    // browser source) run in the separate `persist:web` session, which has no slide: protocol.
     'access-control-allow-origin': '*'
   }
   const { size } = await fs.promises.stat(file)
