@@ -3,15 +3,15 @@
 ## Tujuan
 Mengirim Program ke network lewat **Open Media Transport (OMT)**, supaya vMix, OBS, dan (best effort) Resolume bisa mengambilnya sebagai sumber video dan audio, seperti NDI. NDI dicoret 2026-10-08 karena lisensi SDK; semua repo OMT (`libomt`, `libomtnet`, `libvmx`) berlisensi MIT.
 
-Spec ini adalah sub-project 1 dari 3. Urutannya: (1) output OMT, (2) browser source (Canva present dan web lain), (3) memutar PPT/PDF asli dengan animasi, video, audio, dan revisi kecil. Sub-project 2 dan 3 punya spec sendiri; apa pun yang tampil di Program nanti ikut terkirim lewat OMT tanpa perubahan di spec ini.
+Spec ini adalah sub-project 1. Urutannya: (0) Canvas dan level audio (`2026-10-27-canvas-audio-levels-design.md`), (1) output OMT, (2) browser source (`2026-10-27-web-source-design.md`), (3) memutar PPT/PDF asli dengan animasi, video, audio, dan revisi kecil (belum ada spec). Spec ini bergantung pada (0): ukuran frame = Canvas, dan volume deck × master berlaku juga di jalur OMT. Apa pun yang tampil di Program nanti ikut terkirim lewat OMT tanpa perubahan di spec ini.
 
-Cakupan: sender OMT dengan isi Program, independen dari HDMI; pilihan frame rate; audio ke lokal, OMT, atau keduanya; status dan alamat di UI.
+Cakupan: sender OMT dengan isi Program, independen dari HDMI; pilihan frame rate; route audio ke lokal, OMT, atau keduanya; status dan alamat di UI.
 
-Di luar cakupan (YAGNI): resolusi selain 1920×1080, alpha channel, tally dari penerima (API ada di `omt_send_gettally`, bisa ditambah nanti), lebih dari satu sender, output OMT dengan isi berbeda dari HDMI, menerima OMT.
+Di luar cakupan (YAGNI): ukuran frame berbeda dari Canvas, alpha channel, tally dari penerima (API ada di `omt_send_gettally`, bisa ditambah nanti), lebih dari satu sender, output OMT dengan isi berbeda dari HDMI, menerima OMT.
 
 ## Keputusan pengguna
 - Audio **bisa dipilih**: ke perangkat lokal, ke OMT, atau keduanya.
-- Frame rate **bisa dipilih 30 atau 60**, default 30. Resolusi tetap 1920×1080.
+- Frame rate **bisa dipilih 30 atau 60**, default 30. Resolusi = **Canvas** yang berlaku (spec fondasi; default 1920×1080). Revisi 2026-10-27: awalnya dikunci 1920×1080, diubah karena LED di event sering berukuran lain.
 - Penerima yang wajib lulus uji: **vMix 29+** dan **OBS 31+ dengan `omtplugin`**. **Resolume** best effort: belum ada dukungan OMT bawaan (hanya feature request di forum Resolume); ada plugin FFGL pihak ketiga yang belum diverifikasi.
 - Pendekatan: **renderer offscreen + FFI (`koffi`) di worker thread**, dengan spike lebih dulu. Native addon C++ (N-API) hanya bila spike membuktikan FFI terlalu lambat. Capture jendela HDMI ditolak karena OMT akan mati saat HDMI dicabut.
 - Pengembangan di Linux (Zorin OS 18), target produksi Windows 11: spike dipecah menjadi spike Linux dan spike Windows.
@@ -21,14 +21,14 @@ Di luar cakupan (YAGNI): resolusi selain 1920×1080, alpha channel, tally dari p
 ```
 main process
  ├─ HdmiOutput (sudah ada)  → jendela HDMI      #/output → layar kedua
- └─ OmtOutput  (baru)       → jendela offscreen #/output (1920×1080, tersembunyi)
+ └─ OmtOutput  (baru)       → jendela offscreen #/output (ukuran Canvas, tersembunyi)
         │ event 'paint' (BGRA)                 ▲ audio PCM (AudioWorklet → MessagePort)
         ▼                                      │
      omt-worker (worker thread) ── koffi ──► libomt + libvmx ──► LAN → vMix / OBS
 ```
 
 Komponen baru:
-- `src/main/omt-output.ts`: `OmtOutput`, pola sama dengan `HdmiOutput`. Membuat dan menghancurkan jendela offscreen (`webPreferences.offscreen: true`, `backgroundThrottling: false`, ukuran 1920×1080, `setFrameRate(fps)`), mengikuti setting, membuat ulang renderer yang crash, mengelola worker, dan melaporkan `OmtStatus` ke UI. Jendela offscreen memakai pengaman input yang sama dengan jendela HDMI (tanpa input, navigasi, atau popup).
+- `src/main/omt-output.ts`: `OmtOutput`, pola sama dengan `HdmiOutput`. Membuat dan menghancurkan jendela offscreen (`webPreferences.offscreen: true`, `backgroundThrottling: false`, ukuran = Canvas, `setFrameRate(fps)`), mengikuti setting dan Canvas (Canvas berubah: jendela di-resize dan sender dibuat ulang dengan ukuran baru), membuat ulang renderer yang crash, mengelola worker, dan melaporkan `OmtStatus` ke UI. Jendela offscreen memakai pengaman input yang sama dengan jendela HDMI (tanpa input, navigasi, atau popup).
 - `src/main/omt/worker.ts`: worker thread pemilik sender. Ia punya **jam sendiri** dan mengirim frame terbaru setiap 1/fps detik. Offscreen Electron hanya memicu `paint` saat ada perubahan, jadi pada slide diam frame terakhir diulang. Frame masuk ke satu slot "terbaru menang": frame yang belum terkirim ditimpa, tidak diantre.
 - `src/main/omt/libomt.ts`: binding `koffi` tipis ke `omt_send_create`, `omt_send`, `omt_send_connections`, `omt_send_getaddress`, `omt_send_getvideostatistics`, `omt_send_destroy`. Worker memakainya lewat interface `OmtBinding` supaya test bisa memakai binding palsu.
 - `src/shared/settings.ts`: `omt` dan `audio.route` (bagian 2).
@@ -41,7 +41,7 @@ Aturan isi:
 
 Audio:
 - Tepat **satu jendela** membunyikan audio lokal: jendela HDMI bila sedang tampil (`hdmi:status` `showing`), jika tidak, jendela OMT bila OMT berjalan. Tidak ada suara dobel.
-- Bila `route` memuat `omt`, jendela OMT menyalurkan elemen video lewat Web Audio (`MediaElementAudioSourceNode` → AudioWorklet), lalu mengirim PCM float ke worker lewat `MessagePort`. Worker mengirimnya sebagai `OMTCodec_FPA1` (float planar). Bila jendela OMT juga harus bersuara lokal, graph juga tersambung ke `destination`, dan perangkat dipilih lewat `AudioContext.setSinkId` (setelah lewat Web Audio, `setSinkId` pada elemen tidak lagi berlaku).
+- Bila `route` memuat `omt`, jendela OMT menyambungkan GainNode dari spec fondasi (level deck × master sudah diterapkan) ke AudioWorklet, lalu mengirim PCM float ke worker lewat `MessagePort`. Worker mengirimnya sebagai `OMTCodec_FPA1` (float planar). Bila jendela OMT juga harus bersuara lokal, GainNode juga tersambung ke `destination` (perangkat lewat `AudioContext.setSinkId`, seperti di spec fondasi). Sumber audio deck web (stream tab capture) masuk ke GainNode yang sama (spec browser source).
 - Audio OMT tidak dikunci ke frame video. Untuk slide, ini diterima.
 - Ini menggantikan aturan spec slide video "Hanya jendela output HDMI yang bersuara. HDMI off: tidak ada audio".
 
@@ -55,7 +55,7 @@ Setting (per mesin, lewat `sanitizeSettings`):
 Popover output di header (`OutputMenu`), di bawah bagian HDMI, ada bagian **Network (OMT)**:
 - Switch **OMT** On/Off.
 - **Source name**, default `PPT Share`. Di penerima diperkirakan tampil sebagai `NAMA-PC (PPT Share)`; format pastinya dicatat di spike. Panjang dan karakter dibatasi oleh `sanitizeOmt`.
-- **Frame rate** `30` / `60`. Mengubahnya membuat ulang sender (penerima putus sekitar 1 detik). Bila ada penerima tersambung, operator diminta konfirmasi dulu.
+- **Frame rate** `30` / `60`. Mengubahnya (atau mengubah Canvas) membuat ulang sender (penerima putus sekitar 1 detik). Bila ada penerima tersambung, operator diminta konfirmasi dulu: *"Receivers will lose the OMT picture for about a second. Change it now?"*
 - **Address** dari `omt_send_getaddress` (mis. `omt://192.168.1.20:6400`) dengan tombol **Copy**, untuk diketik manual di penerima bila discovery tidak menemukannya.
 
 Badge di header, di sebelah badge HDMI. Status dibedakan lewat teks dan bentuk, bukan warna saja:
@@ -64,7 +64,7 @@ Badge di header, di sebelah badge HDMI. Status dibedakan lewat teks dan bentuk, 
 - `OMT · N receivers`: hijau (dari `omt_send_connections`).
 - `OMT error`: ikon peringatan, pesan di popover.
 
-Bagian audio di popover: **Sound to** `Local device` / `OMT` / `Both`. Pilihan perangkat yang sudah ada berlaku untuk `Local device` dan `Both`. **Mute** membungkam semua jalur.
+Bagian audio di popover: **Sound to** `Local device` / `OMT` / `Both`. Pilihan perangkat yang sudah ada berlaku untuk `Local device` dan `Both`. **Master volume** dan **Mute all** (spec fondasi) berlaku untuk semua jalur.
 
 ## 3. Error handling dan kasus pinggir
 
@@ -90,12 +90,13 @@ Prinsip: masalah OMT tidak boleh mengganggu HDMI atau kontrol operator, dan pene
 ### Unit test (`vitest`, tanpa `libomt`)
 - `sanitizeOmt`, `sanitizeAudio` dengan `route`, dan setting lama tanpa field baru.
 - Jam frame: mengulang frame terakhir, frame terbuang tidak diantre, ambang peringatan drop.
-- Aturan audio: jendela mana yang bersuara lokal untuk setiap kombinasi HDMI tampil/tidak × `route` × Mute.
+- Aturan audio: jendela mana yang bersuara lokal untuk setiap kombinasi HDMI tampil/tidak × `route` × Mute all.
 - Worker dengan binding palsu: start, gagal muat, gagal create, crash dan restart (batas 3 per menit), shutdown memanggil `destroy` setelah jam berhenti.
 - Status OMT ke badge.
 
 ### E2E (`e2e/smoke.mjs`, binding palsu, hanya dengan `PPT_OUTPUT_DUMP`)
-- OMT On tanpa HDMI: binding palsu menerima frame BGRA 1920×1080, hitam dulu, lalu Program setelah `output:ready`.
+- OMT On tanpa HDMI: binding palsu menerima frame BGRA seukuran Canvas (default 1920×1080), hitam dulu, lalu Program setelah `output:ready`.
+- Canvas event 3840×1080: sender dibuat ulang, binding palsu menerima frame 3840×1080.
 - Next, Black, dan KV mengubah isi frame; slide diam tetap terkirim sesuai fps.
 - Renderer offscreen dimatikan: frame terakhir diulang (bukan hitam), lalu pulih.
 - OMT Off: worker dan jendela offscreen hilang.
