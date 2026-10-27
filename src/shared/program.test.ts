@@ -760,6 +760,17 @@ describe('web decks', () => {
     expect(reduce(live(), { type: 'nextDeck' }, ds).deckId).toBe('B')
   })
 
+  it('nextDeck from a pending take takes the pending deck first (not the one after it)', () => {
+    // After an event switch the output still shows a slide of the old event (Z).
+    const st: ProgramState = { ...at('A', 1), shown: { ...sh('Z', 0), web: { deckId: 'Z' } } }
+    const r = reduce(st, { type: 'nextDeck' }, wdecks)
+    expect(r.deckId).toBe('A')
+    expect(r.index).toBe(0)
+    expect(r.shown?.deckId).toBe('A')
+    // Same deck Next would take.
+    expect(reduce(st, { type: 'next' }, wdecks).shown?.deckId).toBe('A')
+  })
+
   it('nextDeck/prevDeck at the ends return the same state', () => {
     const last = at('B', 1)
     expect(reduce(last, { type: 'nextDeck' }, wdecks)).toBe(last)

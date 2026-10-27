@@ -303,10 +303,15 @@ export function webKey(
   return action.type === 'next' ? 'ArrowRight' : 'ArrowLeft'
 }
 
-/** Slide 0 of the next (or previous) deck with slides, in event order; same state at the ends. */
+/**
+ * Slide 0 of the next (or previous) deck with slides, in event order; same state at the ends.
+ * Forward from a pending take (nothing of these decks on air, e.g. after an event switch):
+ * the position's own deck first, the deck Next would take.
+ */
 function stepDeck(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramState {
   const from = decks.findIndex((d) => d.id === state.deckId)
   if (from < 0) return state
+  if (dir === 1 && pendingTake(state, decks)) return moveTo(state, decks[from], 0)
   for (let i = from + dir; i >= 0 && i < decks.length; i += dir) {
     if (decks[i].slides.length > 0) return moveTo(state, decks[i], 0)
   }
