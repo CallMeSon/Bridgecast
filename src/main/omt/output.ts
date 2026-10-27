@@ -231,6 +231,9 @@ export class OmtController {
       {
         onPaint: (width, height, data) => {
           if (!mine() || !this.ready || !this.sending || !this.worker) return
+          // A clamped or scaled frame would break the sender's fixed size.
+          if (data.byteLength !== width * height * 4) return
+          if (width !== this.winSize.width || height !== this.winSize.height) return
           this.worker.postMessage({ type: 'frame', width, height, data }, [data])
         },
         onReady: () => {
@@ -377,11 +380,19 @@ export class OmtController {
         done()
       }
     })
-    try {
-      await w.terminate()
-    } catch {
-      // already gone
-    }
+    // terminate() cannot interrupt a blocked native call, so its wait is bounded too.
+    await new Promise<void>((resolve) => {
+      const timer = this.deps.setTimer(resolve, this.deps.stopWaitMs)
+      const settle = (): void => {
+        this.deps.clearTimer(timer)
+        resolve()
+      }
+      try {
+        void Promise.resolve(w.terminate()).then(settle, settle)
+      } catch {
+        settle()
+      }
+    })
   }
 
   private clearTimers(): void {

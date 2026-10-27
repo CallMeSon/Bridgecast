@@ -28,6 +28,16 @@ function subscribe<C extends keyof BroadcastMap>(
   }
 }
 
+// OMT audio port contract: a MessagePort cannot cross contextBridge, so main's
+// port is forwarded to the page as window.postMessage('omt:audio-port', '*', ports).
+// The output renderer listens for 'message' events with data === 'omt:audio-port',
+// takes e.ports[0], and calls api.requestOmtAudioPort() on mount (main also posts
+// one after did-finish-load). The listener is registered at preload load time so
+// no port is missed.
+ipcRenderer.on(OMT_AUDIO_PORT, (e) => {
+  window.postMessage('omt:audio-port', '*', [...e.ports])
+})
+
 const api: Api = {
   listEvents: () => invoke(Invoke.eventsList),
   createEvent: (name) => invoke(Invoke.eventsCreate, name),
@@ -65,15 +75,7 @@ const api: Api = {
   setOmt: (o) => invoke(Invoke.omtSet, o),
   getOmtStatus: () => invoke(Invoke.omtGetStatus),
   onOmtStatus: (cb) => subscribe(Broadcast.omtStatus, cb),
-  onOmtAudioPort: (cb) => {
-    const listener = (e: Electron.IpcRendererEvent): void => {
-      if (e.ports[0]) cb(e.ports[0])
-    }
-    ipcRenderer.on(OMT_AUDIO_PORT, listener)
-    return () => {
-      ipcRenderer.removeListener(OMT_AUDIO_PORT, listener)
-    }
-  },
+  requestOmtAudioPort: () => ipcRenderer.send(Send.omtAudioPortRequest),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }

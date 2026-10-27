@@ -8,9 +8,12 @@ import {
   type WorkerLike
 } from './output'
 
+const frameBuf = (w = 1920, h = 1080): ArrayBuffer => new ArrayBuffer(w * h * 4)
+
 class FakeWorker implements WorkerLike {
   posted: { m: { type: string; [k: string]: unknown }; transfer?: unknown[] }[] = []
   terminated = false
+  hangTerminate = false
   private ls: Record<string, ((a?: unknown) => void)[]> = {}
   postMessage(m: unknown, transfer?: unknown[]): void {
     this.posted.push({ m: m as { type: string }, transfer })
@@ -20,7 +23,7 @@ class FakeWorker implements WorkerLike {
   }
   terminate(): Promise<number> {
     this.terminated = true
-    return Promise.resolve(0)
+    return this.hangTerminate ? new Promise<number>(() => {}) : Promise.resolve(0)
   }
   emit(ev: string, a?: unknown): void {
     for (const f of this.ls[ev] ?? []) f(a)
@@ -154,10 +157,10 @@ describe('OmtController', () => {
     t.out.start()
     const w = t.workers[0]
     const before = w.posted.length
-    t.windows[0].h.onPaint(1920, 1080, new ArrayBuffer(8))
+    t.windows[0].h.onPaint(1920, 1080, frameBuf())
     expect(w.posted.length).toBe(before)
     t.windows[0].h.onReady()
-    const ab = new ArrayBuffer(16)
+    const ab = frameBuf()
     t.windows[0].h.onPaint(1920, 1080, ab)
     const last = w.posted[w.posted.length - 1]
     expect(last.m).toMatchObject({ type: 'frame', width: 1920, height: 1080 })
@@ -283,10 +286,10 @@ describe('OmtController', () => {
     expect(w.posted.length).toBe(n)
     t.fire(1000)
     expect(t.windows).toHaveLength(2)
-    t.windows[1].h.onPaint(1920, 1080, new ArrayBuffer(8))
+    t.windows[1].h.onPaint(1920, 1080, frameBuf())
     expect(w.posted.length).toBe(n)
     t.windows[1].h.onReady()
-    t.windows[1].h.onPaint(1920, 1080, new ArrayBuffer(8))
+    t.windows[1].h.onPaint(1920, 1080, frameBuf())
     expect(w.posted.length).toBe(n + 1)
   })
 
@@ -378,5 +381,34 @@ describe('OmtController', () => {
     const n = t.workers[0].posted.length
     t.windows[0].h.onAudio(new Float32Array(3), 4)
     expect(t.workers[0].posted.length).toBe(n)
+  })
+
+  it('shutdown still resolves in bounded time when terminate() never settles', async () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    const w = t.workers[0]
+    w.hangTerminate = true
+    let done = false
+    const p = t.out.shutdown().then(() => (done = true))
+    w.emit('message', { type: 'stopped' })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(w.terminated).toBe(true)
+    expect(done).toBe(false)
+    t.fire(1500)
+    await p
+    expect(done).toBe(true)
+  })
+
+  it('drops paints whose byte length or size does not match the Canvas', () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    t.windows[0].h.onReady()
+    const n = t.workers[0].posted.length
+    t.windows[0].h.onPaint(1920, 1080, new ArrayBuffer(100))
+    t.windows[0].h.onPaint(1920, 1028, frameBuf(1920, 1028))
+    expect(t.workers[0].posted.length).toBe(n)
+    t.windows[0].h.onPaint(1920, 1080, frameBuf())
+    expect(t.workers[0].posted.length).toBe(n + 1)
   })
 })

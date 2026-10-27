@@ -48,6 +48,8 @@ import {
 import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
 
+/** Longest the app waits for the OMT worker to stop before it quits anyway. */
+const OMT_QUIT_CAP_MS = 3000
 const IMPORT_WIDTH = 1920
 const PPTX_RE = /\.pptx?$/i
 /** Upper bound for one import request (a drop of a whole folder's worth of files). */
@@ -625,7 +627,9 @@ Location: ${root}`
     e.preventDefault()
     if (!omtStopping) {
       omtStopping = true
-      void omt.shutdown().finally(() => {
+      // Hard cap: a blocked native call in the worker must never keep the app from quitting.
+      const cap = new Promise<void>((r) => setTimeout(r, OMT_QUIT_CAP_MS))
+      void Promise.race([omt.shutdown(), cap]).finally(() => {
         omtDone = true
         app.quit()
       })

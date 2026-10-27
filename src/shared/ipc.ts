@@ -49,7 +49,9 @@ export const Send = {
    * Sent once by an output window (`#/output`) when its first layer for the
    * current program state (a slide, or black) is decoded, committed and painted.
    */
-  outputReady: 'output:ready'
+  outputReady: 'output:ready',
+  /** OMT output window: asks main for a fresh audio MessagePort (answered by `omt:audio-port`). */
+  omtAudioPortRequest: 'omt:audio-port-request'
 } as const
 
 /** Main → renderer broadcasts (webContents.send ↔ ipcRenderer.on). */
@@ -227,7 +229,11 @@ export interface Api {
   setOmt(o: OmtSettings): Promise<Settings>
   getOmtStatus(): Promise<OmtStatus>
   onOmtStatus(cb: (s: OmtStatus) => void): () => void
-  /** OMT output window only: receives the port to send program sound to the OMT sender on. */
-  onOmtAudioPort(cb: (port: MessagePort) => void): () => void
+  /**
+   * OMT output window only. Main answers with a fresh MessagePort that the
+   * preload forwards to the page as `window.postMessage('omt:audio-port', '*', ports)`
+   * (the page listens for a `message` event whose data is 'omt:audio-port' and uses e.ports[0]).
+   */
+  requestOmtAudioPort(): void
   pathForFile(file: File): string
 }

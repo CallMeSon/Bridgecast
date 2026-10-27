@@ -1,10 +1,11 @@
-import { BrowserWindow, MessageChannelMain } from 'electron'
+import { BrowserWindow, MessageChannelMain, type MessagePortMain } from 'electron'
 import { join } from 'path'
 import { Worker } from 'worker_threads'
 import { is } from '@electron-toolkit/utils'
 import { OMT_AUDIO_PORT, Send } from '../shared/ipc'
 import type { OmtSettings, OmtStatus } from '../shared/omt'
 import { libomtDir } from './omt/lib-dir'
+import { AudioPortFeed } from './omt/audio-port'
 import {
   OmtController,
   RESTART_DELAY_MS,
@@ -42,7 +43,7 @@ function createOmtWindow(
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      offscreen: true,
+      offscreen: { deviceScaleFactor: 1 },
       backgroundThrottling: false,
       spellcheck: false
     }
@@ -74,17 +75,16 @@ function createOmtWindow(
   wc.on('will-navigate', (e) => e.preventDefault())
   wc.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-  // Program sound: port1 to the window, port2 stays here and feeds the worker.
-  const { port1, port2 } = new MessageChannelMain()
-  port2.on('message', (e) => {
-    const m = e.data as { data?: Float32Array; samples?: number } | null
-    if (m && m.data instanceof Float32Array && typeof m.samples === 'number')
-      h.onAudio(m.data, m.samples)
-  })
-  port2.start()
-  wc.once('did-finish-load', () => {
-    if (!win.isDestroyed()) wc.postMessage(OMT_AUDIO_PORT, null, [port1])
-  })
+  // Program sound: every request (and the first load) builds a fresh channel.
+  const feed = new AudioPortFeed(
+    () => new MessageChannelMain(),
+    (port1) => {
+      if (!win.isDestroyed()) wc.postMessage(OMT_AUDIO_PORT, null, [port1 as MessagePortMain])
+    },
+    h.onAudio
+  )
+  wc.ipc.on(Send.omtAudioPortRequest, () => feed.request())
+  wc.once('did-finish-load', () => feed.request())
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/output?role=omt`)
@@ -103,7 +103,7 @@ function createOmtWindow(
       if (!win.isDestroyed()) wc.invalidate()
     },
     destroy: () => {
-      port2.close()
+      feed.close()
       if (!win.isDestroyed()) win.destroy()
     }
   }
