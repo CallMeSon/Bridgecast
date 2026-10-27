@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProgramState } from '../../shared/program'
+import { audioPlan, type OmtStatus } from '../../shared/omt'
 import type { AudioSettings } from '../../shared/settings'
 import { outputGain, outputSource } from './model'
 import { OutputAudio } from './output-audio'
 import { stageRect } from './stage'
-import { AUDIO_SETUP_MS, outputGateOpen, outputMuted, pickSink, useAudioOutputs } from './audio'
+import tapModuleUrl from './omt-tap.worklet.ts?worker&url'
+import { AUDIO_SETUP_MS, outputGateOpen, pickSink, useAudioOutputs } from './audio'
 import { SlideLayers, type ShownMedia } from './components/SlideLayers'
 
 const timingId = (key: number): string => `layer-${key}`
@@ -53,7 +55,7 @@ function useWindowSize(): { width: number; height: number } {
  * window is black) where each slide is drawn per its deck's fit. Slides change
  * through SlideLayers, so Next never flashes black between two slides.
  */
-export function OutputView(): React.JSX.Element {
+export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.JSX.Element {
   // null until the real program state is known (initial fetch or a broadcast):
   // nothing is rendered before that, it is not "the current state".
   const [program, setProgram] = useState<ProgramState | null>(null)
@@ -75,8 +77,17 @@ export function OutputView(): React.JSX.Element {
   }, [])
   const readySent = useRef(false)
   // One gain stage for all the output's video sound (deck level times master).
-  const [out] = useState(() => new OutputAudio())
+  const [out] = useState(
+    () =>
+      new OutputAudio(undefined, {
+        tapModuleUrl,
+        onWarning: (w) => console.warn(`[audio] OMT sound is unavailable (${w})`)
+      })
+  )
   useEffect(() => () => out.close(), [out])
+  // OMT network sender state and the MessagePort main feeds the OMT sound on.
+  const [networkRunning, setNetworkRunning] = useState(false)
+  const [audioPort, setAudioPort] = useState<MessagePort | null>(null)
   const windowSize = useWindowSize()
 
   useEffect(() => {
@@ -84,6 +95,7 @@ export function OutputView(): React.JSX.Element {
     let fresh = true
     let freshAudio = true
     let freshHdmi = true
+    let freshOmt = true
     const offAudio = api.onAudioSettings((a) => {
       freshAudio = false
       setAudio(a)
@@ -112,6 +124,16 @@ export function OutputView(): React.JSX.Element {
         console.error('[output] HDMI status failed to load:', e)
         if (freshHdmi) setOnScreen(true)
       })
+    const offOmt = api.onOmtStatus((s: OmtStatus) => {
+      freshOmt = false
+      setNetworkRunning(s.state === 'running')
+    })
+    api
+      .getOmtStatus()
+      .then((s) => {
+        if (freshOmt) setNetworkRunning(s.state === 'running')
+      })
+      .catch((e) => console.error('[output] OMT status failed to load:', e))
     const off = api.onProgramState((s) => {
       fresh = false // a broadcast is newer than the initial fetch
       setProgram(s)
@@ -126,8 +148,37 @@ export function OutputView(): React.JSX.Element {
       off()
       offAudio()
       offHdmi()
+      offOmt()
     }
   }, [])
+
+  // OMT window: main answers a request with a fresh MessagePort, forwarded by
+  // the preload as window.postMessage('omt:audio-port', '*', ports). A new port
+  // replaces the old one, which is closed.
+  const portRef = useRef<MessagePort | null>(null)
+  useEffect(() => {
+    if (role !== 'omt') return
+    const onMessage = (e: MessageEvent): void => {
+      if (e.data !== 'omt:audio-port' || !e.ports[0]) return
+      const port = e.ports[0]
+      if (portRef.current && portRef.current !== port) portRef.current.close()
+      portRef.current = port
+      setAudioPort(port)
+    }
+    window.addEventListener('message', onMessage)
+    window.api.requestOmtAudioPort()
+    return () => window.removeEventListener('message', onMessage)
+  }, [role])
+
+  // One window plays the sound here (HDMI while it shows, else OMT while a
+  // network sender runs); the OMT window also taps it for the sender.
+  const route = audio?.route ?? 'local'
+  const plan = audioPlan(role, onScreen, networkRunning, route)
+  useEffect(() => {
+    out
+      .setPlan({ local: plan.local, tap: plan.tap }, audioPort)
+      .catch((e: unknown) => console.warn('[audio] sound plan failed:', e))
+  }, [out, plan.local, plan.tap, audioPort])
 
   // A saved device is looked up in the device list, so wait (briefly) for the
   // list before the first video. A missing device, or a list that is late,
@@ -173,7 +224,7 @@ export function OutputView(): React.JSX.Element {
           <SlideLayers
             media={outputSource(program)}
             fade={program.transition === 'fade'}
-            muted={outputMuted(audio, onScreen)}
+            muted={audio === null || audio.muted}
             audio={out}
             layerClass="output-layer"
             imgAttrs={(key) => ({ elementtiming: timingId(key) })}

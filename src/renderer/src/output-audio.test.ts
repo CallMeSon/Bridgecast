@@ -3,11 +3,14 @@ import { OutputAudio } from './output-audio'
 
 /** A hand-written AudioContext: records the graph the class builds. */
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type -- the inferred type of the recorded fakes is the point
-function fakeContext(opts: { sinkRejects?: boolean; noSinkId?: boolean; state?: string } = {}) {
+function fakeContext(
+  opts: { moduleRejects?: boolean; sinkRejects?: boolean; noSinkId?: boolean; state?: string } = {}
+) {
   const destination = { name: 'destination' }
   const gainNode = {
     gain: { value: 1, setTargetAtTime: vi.fn() },
-    connect: vi.fn()
+    connect: vi.fn(),
+    disconnect: vi.fn()
   }
   const sources: {
     el: unknown
@@ -26,6 +29,11 @@ function fakeContext(opts: { sinkRejects?: boolean; noSinkId?: boolean; state?: 
     }),
     resume: vi.fn(() => Promise.resolve()),
     close: vi.fn(() => Promise.resolve()),
+    audioWorklet: {
+      addModule: vi.fn(() =>
+        opts.moduleRejects ? Promise.reject(new Error('blocked')) : Promise.resolve()
+      )
+    },
     ...(opts.noSinkId
       ? {}
       : {
@@ -268,5 +276,128 @@ describe('OutputAudio', () => {
     expect(f.sources[0].disconnect).toHaveBeenCalled()
     a.close()
     expect(f.ctx.close).toHaveBeenCalled()
+  })
+})
+
+/** A hand-written AudioWorkletNode: records connections, exposes the port the worklet posts on. */
+function fakeTapNode(): {
+  connect: ReturnType<typeof vi.fn>
+  disconnect: ReturnType<typeof vi.fn>
+  port: { onmessage: ((e: { data: unknown }) => void) | null }
+} {
+  return { connect: vi.fn(), disconnect: vi.fn(), port: { onmessage: null } }
+}
+
+function tapSetup(opts: Parameters<typeof fakeContext>[0] = {}): {
+  f: ReturnType<typeof fakeContext>
+  a: OutputAudio
+  node: ReturnType<typeof fakeTapNode>
+  warnings: string[]
+} {
+  const f = fakeContext(opts)
+  const node = fakeTapNode()
+  const warnings: string[] = []
+  const a = new OutputAudio(() => asCtx(f.ctx), {
+    tapModuleUrl: 'omt-tap.worklet.js',
+    makeTapNode: () => node as unknown as AudioWorkletNode,
+    onWarning: (w) => warnings.push(w)
+  })
+  return { f, a, node, warnings }
+}
+
+const fakePort = (): { postMessage: ReturnType<typeof vi.fn> } => ({ postMessage: vi.fn() })
+const asPort = (p: unknown): MessagePort => p as MessagePort
+
+describe('OutputAudio sound plan', () => {
+  it('local:false, tap:false disconnects the gain from the destination', async () => {
+    const { f, a } = tapSetup()
+    a.attach(asVideo(fakeVideo()))
+    await a.setPlan({ local: false, tap: false }, null)
+    expect(f.gainNode.disconnect).toHaveBeenCalledWith(f.destination)
+    expect(f.ctx.audioWorklet.addModule).not.toHaveBeenCalled()
+  })
+
+  it('local:true, tap:true keeps the destination and adds the worklet after the gain', async () => {
+    const { f, a, node } = tapSetup()
+    a.attach(asVideo(fakeVideo()))
+    await a.setPlan({ local: true, tap: true }, asPort(fakePort()))
+    expect(f.gainNode.disconnect).not.toHaveBeenCalled()
+    expect(f.gainNode.connect).toHaveBeenCalledWith(f.destination)
+    expect(f.ctx.audioWorklet.addModule).toHaveBeenCalledWith('omt-tap.worklet.js')
+    expect(f.gainNode.connect).toHaveBeenCalledWith(node)
+  })
+
+  it('reconnects the destination when local turns back on', async () => {
+    const { f, a } = tapSetup()
+    a.attach(asVideo(fakeVideo()))
+    await a.setPlan({ local: false, tap: false }, null)
+    f.gainNode.connect.mockClear()
+    await a.setPlan({ local: true, tap: false }, null)
+    expect(f.gainNode.connect).toHaveBeenCalledWith(f.destination)
+  })
+
+  it('a plan set before the first attach is applied when the context opens', async () => {
+    const { f, a } = tapSetup()
+    await a.setPlan({ local: false, tap: false }, null)
+    a.attach(asVideo(fakeVideo()))
+    expect(f.gainNode.connect).not.toHaveBeenCalledWith(f.destination)
+  })
+
+  it('forwards the worklet blocks to the port, and to the newest port', async () => {
+    const { a, node } = tapSetup()
+    const p1 = fakePort()
+    const p2 = fakePort()
+    await a.setPlan({ local: false, tap: true }, asPort(p1))
+    const block = { data: new Float32Array(960), samples: 480 }
+    node.port.onmessage?.({ data: block })
+    expect(p1.postMessage).toHaveBeenCalledWith(block)
+    await a.setPlan({ local: false, tap: true }, asPort(p2))
+    const block2 = { data: new Float32Array(960), samples: 480 }
+    node.port.onmessage?.({ data: block2 })
+    expect(p2.postMessage).toHaveBeenCalledWith(block2)
+    expect(p1.postMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops blocks while there is no port', async () => {
+    const { a, node } = tapSetup()
+    await a.setPlan({ local: false, tap: true }, null)
+    expect(() =>
+      node.port.onmessage?.({ data: { data: new Float32Array(960), samples: 480 } })
+    ).not.toThrow()
+  })
+
+  it('removes the worklet when tap turns off', async () => {
+    const { f, a, node } = tapSetup()
+    await a.setPlan({ local: true, tap: true }, asPort(fakePort()))
+    await a.setPlan({ local: true, tap: false }, null)
+    expect(f.gainNode.disconnect).toHaveBeenCalledWith(node)
+    expect(node.disconnect).toHaveBeenCalled()
+  })
+
+  it('a worklet that fails to load reports no-sound once and local sound still works', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { f, a, warnings } = tapSetup({ moduleRejects: true })
+    a.attach(asVideo(fakeVideo()))
+    await a.setPlan({ local: true, tap: true }, asPort(fakePort()))
+    await a.setPlan({ local: true, tap: true }, asPort(fakePort()))
+    expect(warnings).toEqual(['no-sound'])
+    expect(f.gainNode.disconnect).not.toHaveBeenCalled()
+    expect(f.gainNode.connect).toHaveBeenCalledWith(f.destination)
+    warn.mockRestore()
+  })
+
+  it('a fallback element is silent while local is off', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const a = new OutputAudio(() => {
+      throw new Error('x')
+    })
+    const v = fakeVideo()
+    a.attach(asVideo(v))
+    a.setGain(0.5)
+    await a.setPlan({ local: false, tap: false }, null)
+    expect(v.volume).toBe(0)
+    await a.setPlan({ local: true, tap: false }, null)
+    expect(v.volume).toBe(0.5)
+    warn.mockRestore()
   })
 })
