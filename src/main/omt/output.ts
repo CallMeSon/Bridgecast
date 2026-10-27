@@ -22,6 +22,8 @@ export interface WindowHandlers {
   onGone(): void
   /** One block of 48 kHz planar stereo (left samples, then right samples). */
   onAudio(data: Float32Array, samples: number): void
+  /** A warning the renderer reports (untrusted payload): only 'no-sound' is accepted. */
+  onWarning(w: unknown): void
 }
 
 export interface OmtWindowLike {
@@ -86,6 +88,14 @@ export class OmtController {
   private quitting = false
   private failures: number[] = []
   private st: OmtStatus = OFF
+  /**
+   * The window's sound tap failed to load. Sticky while that window lives (the
+   * renderer reports it once and never retries), so every status emission
+   * carries it. Precedence: 'no-sound' wins over the sender's 'drops' and
+   * 'no-receivers', because it needs the operator to act while those pass.
+   * Cleared when the window is destroyed (turned off, renderer restarted).
+   */
+  private soundLost = false
   private winSize: Size = { width: 0, height: 0 }
   private startTimer: unknown = null
   private winTimer: unknown = null
@@ -250,6 +260,11 @@ export class OmtController {
             this.createWindow()
           }, this.deps.restartDelayMs)
         },
+        onWarning: (w) => {
+          if (!mine() || w !== 'no-sound' || !this.active) return
+          this.soundLost = true
+          this.setStatus(this.st)
+        },
         onAudio: (data, samples) => {
           if (!mine() || !this.sending || !this.worker) return
           if (!(data instanceof Float32Array) || !Number.isInteger(samples)) return
@@ -267,6 +282,14 @@ export class OmtController {
     this.win = null
     this.winSeq++
     this.ready = false
+    if (this.soundLost) {
+      this.soundLost = false
+      if (this.st.warning === 'no-sound') {
+        const rest = { ...this.st }
+        delete rest.warning
+        this.setStatus(rest)
+      }
+    }
     if (this.winTimer !== null) this.deps.clearTimer(this.winTimer)
     this.winTimer = null
     try {
@@ -401,7 +424,9 @@ export class OmtController {
     this.debugPoll = null
   }
 
-  private setStatus(s: OmtStatus): void {
+  private setStatus(raw: OmtStatus): void {
+    const s: OmtStatus =
+      this.soundLost && raw.state !== 'off' ? { ...raw, warning: 'no-sound' } : raw
     if (JSON.stringify(s) === JSON.stringify(this.st)) return
     this.st = s
     this.onStatus(s)

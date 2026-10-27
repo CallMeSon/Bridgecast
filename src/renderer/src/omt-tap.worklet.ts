@@ -3,6 +3,8 @@
 // 480 left samples then 480 right samples, posted as { data, samples: 480 }.
 // The output stays silent; the node only exists to be pulled on.
 
+export {}
+
 declare abstract class AudioWorkletProcessor {
   readonly port: MessagePort
 }

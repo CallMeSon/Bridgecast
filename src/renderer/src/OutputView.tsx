@@ -81,7 +81,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     () =>
       new OutputAudio(undefined, {
         tapModuleUrl,
-        onWarning: (w) => console.warn(`[audio] OMT sound is unavailable (${w})`)
+        onWarning: (w) => window.api.reportOmtWarning(w)
       })
   )
   useEffect(() => () => out.close(), [out])
@@ -106,7 +106,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
         if (freshAudio) setAudio(s.audio)
       })
       .catch((e) => {
-        // No real settings arrived: the sound stays muted (see outputMuted).
+        // No real settings arrived: the sound stays muted.
         console.error('[output] settings failed to load, video stays muted:', e)
         setAudioFailed(true)
       })
@@ -167,7 +167,11 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     }
     window.addEventListener('message', onMessage)
     window.api.requestOmtAudioPort()
-    return () => window.removeEventListener('message', onMessage)
+    return () => {
+      window.removeEventListener('message', onMessage)
+      portRef.current?.close()
+      portRef.current = null
+    }
   }, [role])
 
   // One window plays the sound here (HDMI while it shows, else OMT while a

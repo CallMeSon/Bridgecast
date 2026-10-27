@@ -84,6 +84,7 @@ function createOmtWindow(
     h.onAudio
   )
   wc.ipc.on(Send.omtAudioPortRequest, () => feed.request())
+  wc.ipc.on(Send.omtAudioWarning, (_e, w: unknown) => h.onWarning(w))
   wc.once('did-finish-load', () => feed.request())
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {

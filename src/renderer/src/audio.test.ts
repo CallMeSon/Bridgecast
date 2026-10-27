@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { outputGateOpen, outputMuted, pickSink } from './audio'
+import { outputGateOpen, pickSink } from './audio'
 
 const devices = [{ deviceId: 'default' }, { deviceId: 'hdmi-1' }]
 
@@ -36,22 +36,5 @@ describe('outputGateOpen', () => {
     expect(outputGateOpen(saved, null, false)).toBe(false)
     expect(outputGateOpen(saved, null, true)).toBe(true)
     expect(outputGateOpen(saved, [], false)).toBe(true)
-  })
-})
-
-describe('outputMuted', () => {
-  it('is silent while the audio settings are unknown', () => {
-    expect(outputMuted(null, true)).toBe(true)
-    expect(outputMuted(null, false)).toBe(true)
-  })
-
-  it('follows the saved Mute while the window is on screen', () => {
-    expect(outputMuted({ muted: false }, true)).toBe(false)
-    expect(outputMuted({ muted: true }, true)).toBe(true)
-  })
-
-  it('is silent while the window is hidden, whatever the saved Mute', () => {
-    expect(outputMuted({ muted: false }, false)).toBe(true)
-    expect(outputMuted({ muted: true }, false)).toBe(true)
   })
 })

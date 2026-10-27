@@ -51,7 +51,9 @@ export const Send = {
    */
   outputReady: 'output:ready',
   /** OMT output window: asks main for a fresh audio MessagePort (answered by `omt:audio-port`). */
-  omtAudioPortRequest: 'omt:audio-port-request'
+  omtAudioPortRequest: 'omt:audio-port-request',
+  /** OMT output window: its sound tap failed to load (payload 'no-sound'; anything else is ignored). */
+  omtAudioWarning: 'omt:audio-warning'
 } as const
 
 /** Main → renderer broadcasts (webContents.send ↔ ipcRenderer.on). */
@@ -235,5 +237,7 @@ export interface Api {
    * (the page listens for a `message` event whose data is 'omt:audio-port' and uses e.ports[0]).
    */
   requestOmtAudioPort(): void
+  /** OMT output window only: its sound tap could not be loaded; main shows it as OmtStatus.warning. */
+  reportOmtWarning(w: 'no-sound'): void
   pathForFile(file: File): string
 }

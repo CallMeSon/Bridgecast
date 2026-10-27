@@ -411,4 +411,64 @@ describe('OmtController', () => {
     t.windows[0].h.onPaint(1920, 1080, frameBuf())
     expect(t.workers[0].posted.length).toBe(n + 1)
   })
+
+  describe('no-sound warning from the window', () => {
+    const running = (t: Rig): void => {
+      t.out.start()
+      t.workers[0].emit('message', {
+        type: 'status',
+        id: 'omt',
+        status: { state: 'running', connections: 0, address: 'H' }
+      })
+    }
+
+    it('sets status.warning and broadcasts it', () => {
+      const t = setup({ enabled: true })
+      running(t)
+      t.windows[0].h.onWarning('no-sound')
+      expect(t.out.status().warning).toBe('no-sound')
+      expect(t.statuses.at(-1)).toMatchObject({ state: 'running', warning: 'no-sound' })
+    })
+
+    it('survives sender status updates, drops and a sender restart; no-sound wins over drops', () => {
+      const t = setup({ enabled: true, name: 'A' })
+      running(t)
+      t.windows[0].h.onWarning('no-sound')
+      t.workers[0].emit('message', { type: 'status', id: 'omt', status: { warning: 'drops' } })
+      expect(t.out.status().warning).toBe('no-sound')
+      t.workers[0].emit('message', { type: 'status', id: 'omt', status: { warning: undefined } })
+      expect(t.out.status().warning).toBe('no-sound')
+      t.out.apply({ ...DEFAULT_OMT, enabled: true, name: 'B' })
+      expect(t.out.status().warning).toBe('no-sound')
+      expect(t.windows).toHaveLength(1)
+    })
+
+    it('is cleared when OMT is turned off', () => {
+      const t = setup({ enabled: true })
+      running(t)
+      t.windows[0].h.onWarning('no-sound')
+      t.out.apply({ ...DEFAULT_OMT, enabled: false })
+      expect(t.out.status().warning).toBeUndefined()
+      expect(t.out.status().state).toBe('off')
+    })
+
+    it('is cleared when the window is recreated, and a stale window cannot set it', () => {
+      const t = setup({ enabled: true })
+      running(t)
+      const old = t.windows[0]
+      old.h.onWarning('no-sound')
+      old.h.onGone()
+      expect(t.out.status().warning).toBeUndefined()
+      old.h.onWarning('no-sound')
+      expect(t.out.status().warning).toBeUndefined()
+    })
+
+    it('ignores any other payload', () => {
+      const t = setup({ enabled: true })
+      running(t)
+      for (const bad of ['drops', 'no-receivers', '', null, undefined, 1, { a: 1 }, ['no-sound']])
+        t.windows[0].h.onWarning(bad)
+      expect(t.out.status().warning).toBeUndefined()
+    })
+  })
 })

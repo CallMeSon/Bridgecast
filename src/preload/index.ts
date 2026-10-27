@@ -76,6 +76,7 @@ const api: Api = {
   getOmtStatus: () => invoke(Invoke.omtGetStatus),
   onOmtStatus: (cb) => subscribe(Broadcast.omtStatus, cb),
   requestOmtAudioPort: () => ipcRenderer.send(Send.omtAudioPortRequest),
+  reportOmtWarning: (w) => ipcRenderer.send(Send.omtAudioWarning, w),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }
