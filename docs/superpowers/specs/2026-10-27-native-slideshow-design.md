@@ -23,7 +23,7 @@ Di luar cakupan: engine LibreOffice dan paket Linux (3b), editor teks di dalam a
 Impor `.pptx` / `.ppt` (Windows, PowerPoint COM, `scripts/export-pptx.ps1`):
 - Ekspor PNG per slide tetap dijalankan (thumbnail, notes, Up next, cadangan).
 - Ekspor **PDF** seluruh deck (`ExportAsFixedFormat`, font tertanam, **termasuk slide hidden** agar nomor halaman = nomor slide) ke `source.pdf`.
-- Salinan file asli disimpan ke folder deck sebagai `source.pptx` / `source.ppt`. Edit in PowerPoint dan slide show memakai salinan, bukan file klien.
+- Salinan file asli disimpan ke folder deck dua kali: `original.pptx` / `original.ppt` (tidak pernah diubah, untuk Revert) dan `source.pptx` / `source.ppt` (versi yang dipakai). Edit in PowerPoint dan slide show memakai salinan, bukan file klien.
 - Per slide dicatat `clicks` (jumlah efek `TimeLine.MainSequence` dengan trigger On Click) dan `hidden`.
 - Per deck dicatat apakah **statis**: tidak ada slide dengan efek animasi apa pun (On Click, With/After Previous), transisi selain "None", atau objek media. Statis → default `vector`, selain itu `native`.
 
@@ -89,7 +89,7 @@ PDF vektor (`vector`, untuk PDF dan PPT statis):
 - Strip: tanda **"3 clicks"** pada slide berlangkah; slide hidden redup dengan label **Hidden**.
 - Program: posisi `Slide 4 · step 2/3` untuk deck native.
 - Up next: *"Next: step 3 of 3 on this slide"* selama masih ada langkah; setelah langkah terakhir, thumbnail slide berikutnya.
-- Menu deck: **Edit in PowerPoint** (pptx/ppt), **Playback: Native / Vector / Still images**.
+- Menu deck: **Edit in PowerPoint** (pptx/ppt), **Revert to imported file** (aktif bila `source.*` berbeda dari `original.*`), **Playback: Native / Vector / Still images**.
 - Tombol **Resume PowerPoint** di peringatan fallback.
 
 Edit in PowerPoint:
@@ -97,6 +97,7 @@ Edit in PowerPoint:
 - Setelah file disimpan dan ditutup di PowerPoint, atau operator menekan **Done editing**, app mengekspor ulang PNG, PDF, `clicks`, `hidden`, dan status statis, mengganti `source.*`, dan membuka ulang sesi.
 - Deck sedang live: perubahan diterapkan setelah deck turun dari live; banner *"Changes apply when this deck leaves air."* dengan **Apply now** (konfirmasi).
 - Ekspor ulang gagal: versi lama tetap; *"Your changes could not be loaded. The previous version is still used. Save the file again in PowerPoint."*
+- **Revert to imported file** (menu deck): konfirmasi *"Undo all edits and go back to the imported file?"*, salin `original.*` ke `source.*`, ekspor ulang, buka ulang sesi. Deck live: diterapkan setelah turun dari live, seperti Edit.
 - Mode Playback yang dipilih operator dipertahankan, kecuali deck berubah dari statis menjadi beranimasi saat mode `vector` hasil default; maka mode menjadi `native`.
 
 ## 5. Error handling
