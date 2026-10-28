@@ -53,7 +53,8 @@ function setup(): void {
     engine,
     app,
     () => decks,
-    () => canvas
+    () => canvas,
+    (id) => `${id}.pptx`
   )
 }
 
@@ -184,5 +185,105 @@ describe('SlideShowManager', () => {
     expect(reopened.map((o) => o.deckId)).toEqual(['b'])
     expect(reopened[0].canvas).toEqual({ width: 1280, height: 720 })
     expect(engine.maxOpen).toBeLessThanOrEqual(2)
+  })
+
+  it('the engine position wins when it counts other clicks than SlideMeta', async () => {
+    await goLive('a')
+    engine.setEngineClicks('a', [0, 0, 0]) // meta says 2 on slide 0
+    const takes: number[] = []
+    const orig = app.dispatch
+    app.dispatch = (a) => {
+      const before = app.state.take
+      const r = orig(a)
+      if (a.type === 'enginePosition') takes.push(app.state.take - before)
+      return r
+    }
+    app.dispatch({ type: 'next' }) // reducer: step 1 of slide 0
+    expect(app.state.shown?.step).toBe(1)
+    await flush()
+    expect(engine.calls).toContain('next:a')
+    expect(takes.length).toBeGreaterThan(0)
+    expect(takes.every((d) => d === 0)).toBe(true)
+    expect(app.state.shown?.index).toBe(1)
+    expect(app.state.shown?.step).toBe(0)
+    // Next is not stuck
+    app.dispatch({ type: 'next' })
+    await flush()
+    expect(app.state.shown?.index).toBe(2)
+  })
+
+  it('navigation during a hang is abandoned and the engine is driven again after the restart', async () => {
+    await goLive('a')
+    engine.hang()
+    app.dispatch({ type: 'next' })
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(dispatched).toContain('nativeFallback')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(app.state.shown?.playback).toBe('native')
+    engine.calls.length = 0
+    app.dispatch({ type: 'goto', index: 2 })
+    await flush()
+    expect(engine.calls).toContain('goto:a:2')
+    expect(app.state.shown?.index).toBe(2)
+  })
+
+  it('a healthy engine is not declared hung again after a restart', async () => {
+    await goLive('a')
+    engine.hang()
+    await vi.advanceTimersByTimeAsync(4500)
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(dispatched.filter((t) => t === 'nativeFallback')).toHaveLength(1)
+    expect(app.state.shown?.playback).toBe('native')
+    expect(mgr.ready('a')).toBe(true)
+  })
+
+  it('restarts even if shutdown hangs', async () => {
+    await goLive('a')
+    engine.hangShutdown()
+    engine.hang()
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(app.state.shown?.playback).toBe('images')
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(app.state.shown?.playback).toBe('native')
+    expect(mgr.ready('a')).toBe(true)
+  })
+
+  it('an engine error for a deck closes its session and a retry stays within 2 sessions', async () => {
+    await goLive('a')
+    engine.emitError('a', 'boom')
+    await flush()
+    expect(engine.calls).toContain('close:a')
+    expect(app.state.shown?.playback).toBe('images')
+    expect(mgr.ready('a')).toBe(false)
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(engine.maxOpen).toBeLessThanOrEqual(2)
+    expect(engine.openCount).toBeLessThanOrEqual(2)
+    expect(mgr.ready('a')).toBe(true)
+    expect(app.state.shown?.playback).toBe('native')
+  })
+
+  it('rapid take changes A,B,C,A in one tick stay within 2 sessions', async () => {
+    for (const id of ['a', 'b', 'c', 'a']) app.dispatch({ type: 'selectDeck', deckId: id })
+    for (let i = 0; i < 5; i++) await flush()
+    expect(engine.maxOpen).toBeLessThanOrEqual(2)
+    expect(engine.openCount).toBeLessThanOrEqual(2)
+    expect(mgr.ready('a')).toBe(true)
+  })
+
+  it('a restart racing a close recovers within the cap', async () => {
+    await goLive('a')
+    engine.hang()
+    app.dispatch({ type: 'selectDeck', deckId: 'c' }) // closes a and b, which hang
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(engine.openCount).toBeLessThanOrEqual(2)
+    expect(engine.maxOpen).toBeLessThanOrEqual(2)
+    expect(mgr.ready('c')).toBe(true)
+  })
+
+  it('dispose leaves no timers', async () => {
+    await goLive('a')
+    mgr.dispose()
+    await flush()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

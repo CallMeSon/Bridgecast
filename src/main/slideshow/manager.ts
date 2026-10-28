@@ -48,21 +48,25 @@ export class SlideShowManager {
   /** nativeFallback was dispatched for these decks and not yet resumed. */
   private fallen = new Set<string>()
   private down = false
+  /** Decks whose open failed or errored; not reopened until the retry timer fires. */
+  private blocked = new Set<string>()
   private lastOk: number
   private pingInFlight = false
   private heartbeat: unknown
   private retry: unknown = null
   private chain: Promise<void> = Promise.resolve()
   private disposed = false
+  /** Bumped when the engine goes down; work from an older generation is abandoned. */
+  private gen = 0
 
   constructor(
     private engine: SlideShowEngine,
     private state: AppState,
     private decks: () => DeckMeta[],
     private canvas: () => Canvas,
-    private timers: ManagerTimers = realTimers,
     /** Path of the deck's PowerPoint file. */
-    private fileOf: (deckId: string) => string = (id) => id
+    private fileOf: (deckId: string) => string,
+    private timers: ManagerTimers = realTimers
   ) {
     this.lastOk = timers.now()
     engine.on('position', (p) => this.onPosition(p.deckId, p.index, p.step))
@@ -110,7 +114,7 @@ export class SlideShowManager {
     }
     if (!this.down) {
       for (const id of wanted) {
-        if (this.entries.has(id)) continue
+        if (this.entries.has(id) || this.blocked.has(id)) continue
         if (this.entries.size >= MAX_SESSIONS) break // wait for a close to finish
         this.openEntry(id, canvas)
       }
@@ -153,6 +157,7 @@ export class SlideShowManager {
       () => {
         if (this.entries.get(deckId) !== e) return
         this.entries.delete(deckId)
+        this.blocked.add(deckId)
         if (this.liveNative(this.state.state, this.decks()) === deckId) this.fallBack(deckId)
         this.scheduleRetry()
       }
@@ -160,6 +165,7 @@ export class SlideShowManager {
   }
 
   private afterOpen(deckId: string): void {
+    if (this.disposed) return
     const live = this.liveNative(this.state.state, this.decks())
     const shown = this.state.state.shown
     if (live === deckId && (this.fallen.has(deckId) || shown?.playback === 'images')) {
@@ -189,6 +195,7 @@ export class SlideShowManager {
     if (this.retry !== null || this.disposed) return
     this.retry = this.timers.setTimeout(() => {
       this.retry = null
+      this.blocked.clear()
       this.sync()
     }, RETRY_MS)
   }
@@ -200,7 +207,12 @@ export class SlideShowManager {
 
   private failDeck(deckId: string): void {
     const e = this.entries.get(deckId)
-    if (e) this.entries.delete(deckId)
+    this.blocked.add(deckId)
+    if (e) {
+      this.entries.delete(deckId)
+      // Do not leak the window: a retry opens a fresh session.
+      if (e.session) void this.withTimeout(e.session.close()).catch(() => {})
+    }
     if (this.liveNative(this.state.state, this.decks()) === deckId) this.fallBack(deckId)
     this.scheduleRetry()
   }
@@ -209,16 +221,37 @@ export class SlideShowManager {
   private engineDown(): void {
     if (this.down || this.disposed) return
     this.down = true
+    const gen = ++this.gen
+    this.chain = Promise.resolve() // abandon moves stuck on the dead engine
+    this.pingInFlight = false
     const live = this.liveNative(this.state.state, this.decks())
     this.entries.clear()
     if (live) this.fallBack(live)
-    this.engine.shutdown().then(
-      () => this.restarted(),
-      () => this.restarted()
-    )
+    // A hung shutdown must not keep the engine down forever.
+    const restart = (): void => {
+      if (gen === this.gen) this.restarted()
+    }
+    this.withTimeout(this.engine.shutdown()).then(restart, restart)
+  }
+
+  private withTimeout<T>(p: Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const h = this.timers.setTimeout(() => reject(new Error('engine call timed out')), HANG_MS)
+      p.then(
+        (v) => {
+          this.timers.clearTimeout(h)
+          resolve(v)
+        },
+        (err) => {
+          this.timers.clearTimeout(h)
+          reject(err)
+        }
+      )
+    })
   }
 
   private restarted(): void {
+    if (this.disposed) return
     this.down = false
     this.lastOk = this.timers.now()
     this.sync()
@@ -234,22 +267,24 @@ export class SlideShowManager {
     if (!this.engine.ping) return
     if (!this.pingInFlight) {
       this.pingInFlight = true
+      const gen = this.gen
       this.engine
         .ping()
         .then(
           () => {
-            this.lastOk = this.timers.now()
+            if (gen === this.gen) this.lastOk = this.timers.now()
           },
           () => {}
         )
         .finally(() => {
-          this.pingInFlight = false
+          if (gen === this.gen) this.pingInFlight = false
         })
     }
     if (now - this.lastOk >= HANG_MS) this.engineDown()
   }
 
   private onPosition(deckId: string, index: number, step: number): void {
+    if (this.disposed) return
     const e = this.entries.get(deckId)
     if (e) e.pos = { index, step }
     const shown = this.state.state.shown
@@ -260,10 +295,13 @@ export class SlideShowManager {
 
   /** Queue the engine moves so they never overlap. */
   private drive(deckId: string): void {
-    this.chain = this.chain.then(() => this.driveNow(deckId)).catch(() => {})
+    const gen = this.gen
+    this.chain = this.chain
+      .then(() => (gen === this.gen ? this.driveNow(deckId, gen) : undefined))
+      .catch(() => {})
   }
 
-  private async driveNow(deckId: string): Promise<void> {
+  private async driveNow(deckId: string, gen: number): Promise<void> {
     const s = this.state.state
     const shown = s.shown
     const e = this.entries.get(deckId)
@@ -275,18 +313,23 @@ export class SlideShowManager {
     const to = { index: shown.index, step: shown.step ?? 0 }
     if (cur.index === to.index && cur.step === to.step) return
     const session = e.session
-    if (cur.index === to.index && to.step === cur.step + 1) return session.next()
-    if (cur.index === to.index && to.step === cur.step - 1) return session.prev()
+    // Every engine call is bounded; a hung one is left to the heartbeat and abandoned.
+    const call = (p: Promise<void>): Promise<void> => this.withTimeout(p)
+    if (cur.index === to.index && to.step === cur.step + 1) return call(session.next())
+    if (cur.index === to.index && to.step === cur.step - 1) return call(session.prev())
     if (to.index > cur.index && to.step === 0 && cur.step >= clicks(cur.index)) {
       const between = slides.slice(cur.index + 1, to.index)
-      if (between.every((x) => x.hidden)) return session.next()
+      if (between.every((x) => x.hidden)) return call(session.next())
     }
     if (to.index < cur.index && cur.step === 0 && to.step === clicks(to.index)) {
       const between = slides.slice(to.index + 1, cur.index)
-      if (between.every((x) => x.hidden)) return session.prev()
+      if (between.every((x) => x.hidden)) return call(session.prev())
     }
-    await session.goto(to.index)
+    await call(session.goto(to.index))
     // Build the slide up to the wanted step; the engine position still wins afterwards.
-    for (let i = 0; i < to.step && i < clicks(to.index); i++) await session.next()
+    for (let i = 0; i < to.step && i < clicks(to.index); i++) {
+      if (gen !== this.gen) return
+      await call(session.next())
+    }
   }
 }

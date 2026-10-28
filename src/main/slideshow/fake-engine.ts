@@ -12,6 +12,8 @@ export class FakeEngine implements SlideShowEngine {
   private hung = false
   private crashed = false
   private readyDelay = 0
+  private shutdownHangs = false
+  private clicksOverride = new Map<string, number[]>()
   private live = new Set<string>()
   /** Highest number of sessions open at the same time. */
   maxOpen = 0
@@ -34,6 +36,18 @@ export class FakeEngine implements SlideShowEngine {
     this.crashed = true
     this.live.clear()
     for (const cb of this.exitCbs) cb()
+  }
+  /** The next shutdown never replies. */
+  hangShutdown(): void {
+    this.shutdownHangs = true
+  }
+  /** The engine counts other clicks for a deck than SlideMeta.clicks (trigger / After Previous). */
+  setEngineClicks(deckId: string, clicks: number[]): void {
+    this.clicksOverride.set(deckId, clicks)
+  }
+  /** The engine reports an error. */
+  emitError(deckId: string | undefined, message: string): void {
+    for (const cb of this.errCbs) cb({ deckId, message })
   }
   /** Opens resolve only after this many ms. */
   delayReady(ms: number): void {
@@ -58,6 +72,10 @@ export class FakeEngine implements SlideShowEngine {
     this.hung = false
     this.crashed = false
     this.live.clear()
+    if (this.shutdownHangs) {
+      this.shutdownHangs = false
+      return never()
+    }
   }
 
   async open(deckId: string, file: string, canvas: Canvas): Promise<EngineSession> {
@@ -69,7 +87,8 @@ export class FakeEngine implements SlideShowEngine {
     this.maxOpen = Math.max(this.maxOpen, this.live.size)
     if (this.readyDelay > 0) await new Promise((r) => setTimeout(r, this.readyDelay))
     const slides = (): DeckMeta['slides'] => this.decks().find((d) => d.id === deckId)?.slides ?? []
-    const clicks = (i: number): number => slides()[i]?.clicks ?? 0
+    const clicks = (i: number): number =>
+      this.clicksOverride.get(deckId)?.[i] ?? slides()[i]?.clicks ?? 0
     const shown = (i: number): boolean => !slides()[i]?.hidden
     let index = 0
     let step = 0
