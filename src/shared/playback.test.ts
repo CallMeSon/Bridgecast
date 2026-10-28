@@ -29,6 +29,9 @@ describe('playbackOf and canNative', () => {
   it('a deck without playback is images', () => {
     expect(playbackOf(deck({}))).toBe('images')
   })
+  it('a bogus stored value is images', () => {
+    expect(playbackOf(deck({ playback: 'zoom' as never }))).toBe('images')
+  })
   it('returns the stored mode', () => {
     expect(playbackOf(deck({ playback: 'native' }))).toBe('native')
   })

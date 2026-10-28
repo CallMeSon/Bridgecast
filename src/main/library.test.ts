@@ -884,6 +884,33 @@ describe('Library fit, deck audio and event canvas', () => {
     expect('canvas' in lib.listEvents()[0]).toBe(false)
   })
 
+  it('sanitizes playback, clicks and hidden on load', () => {
+    const { ev, deck } = setup()
+    const deckFile = path.join(root, 'decks', deck.id, 'deck.json')
+    const slide = (o: object): object => ({ file: '001.png', notes: '', ...o })
+    fs.writeFileSync(
+      deckFile,
+      JSON.stringify({
+        ...deck,
+        playback: 'zoom',
+        slides: [
+          slide({ clicks: -2, hidden: 'yes' }),
+          slide({ clicks: 1.5 }),
+          slide({ clicks: 3, hidden: true })
+        ]
+      })
+    )
+    let d = new Library(root).getDecks(ev.id)[0]
+    expect('playback' in d).toBe(false)
+    expect(d.slides.map((s) => s.clicks)).toEqual([undefined, undefined, 3])
+    expect(d.slides.map((s) => s.hidden)).toEqual([undefined, undefined, true])
+    fs.writeFileSync(deckFile, JSON.stringify({ ...deck, source: 'pdf', playback: 'native' }))
+    d = new Library(root).getDecks(ev.id)[0]
+    expect('playback' in d).toBe(false)
+    fs.writeFileSync(deckFile, JSON.stringify({ ...deck, playback: 'native' }))
+    expect(new Library(root).getDecks(ev.id)[0].playback).toBe('native')
+  })
+
   it('keeps a valid stored fit and sanitizes a stored audio object on load', () => {
     const { ev, deck } = setup()
     const deckFile = path.join(root, 'decks', deck.id, 'deck.json')

@@ -146,7 +146,19 @@ export class Library {
       throw new Error('Deck not found. Reload the deck list, or import the deck again.')
     const deck = JSON.parse(fs.readFileSync(file, 'utf8')) as DeckMeta
     // Fields added after the first release: keep only valid values, never throw on old or damaged files.
-    const { fit, audio, web } = deck
+    const { fit, audio, web, playback } = deck
+    delete deck.playback
+    if (isPlayback(playback) && (playback !== 'native' || canNative(deck))) deck.playback = playback
+    if (Array.isArray(deck.slides)) {
+      for (const s of deck.slides) {
+        const c = (s as { clicks?: unknown }).clicks
+        const h = (s as { hidden?: unknown }).hidden
+        delete s.clicks
+        delete s.hidden
+        if (typeof c === 'number' && Number.isInteger(c) && c > 0) s.clicks = c
+        if (h === true) s.hidden = true
+      }
+    }
     delete deck.fit
     delete deck.audio
     delete deck.web

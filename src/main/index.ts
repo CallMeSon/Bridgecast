@@ -64,6 +64,7 @@ import {
 import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
 import { defaultPlayback } from '../shared/playback'
+import { pdfSourceFields } from './import/pdf-source'
 import { sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
 import {
@@ -396,13 +397,7 @@ function registerIpc(
         width: Number(payload.width),
         height: Number(payload.height),
         slides,
-        playback: defaultPlayback('pdf', true),
-        ...(typeof payload.sourcePath === 'string' &&
-        path.isAbsolute(payload.sourcePath) &&
-        /\.pdf$/i.test(payload.sourcePath) &&
-        fs.existsSync(payload.sourcePath)
-          ? { sourcePath: payload.sourcePath }
-          : {})
+        ...pdfSourceFields(payload.sourcePath)
       })
       state.refresh()
       return deck

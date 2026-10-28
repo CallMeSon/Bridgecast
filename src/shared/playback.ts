@@ -9,7 +9,7 @@ export function defaultPlayback(source: DeckMeta['source'], isStatic: boolean): 
 
 /** The deck's mode; decks saved before playback existed play as images. */
 export function playbackOf(d: DeckMeta): Playback {
-  return d.playback ?? 'images'
+  return isPlayback(d.playback) ? d.playback : 'images'
 }
 
 /** Only PowerPoint decks can play natively. */
