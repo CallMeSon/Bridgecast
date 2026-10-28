@@ -20,6 +20,12 @@ win:
   extraResources:
     - from: resources/omt/win
       to: omt
+    # PowerPoint slide show helper; build it first: scripts/build-ppt-bridge.sh (npm run build:bridge)
+    - from: native/ppt-bridge/bin/Release/net48
+      to: ppt-bridge
+      filter:
+        - ppt-bridge.exe
+        - ppt-bridge.exe.config
   target:
     - nsis
 nsis:

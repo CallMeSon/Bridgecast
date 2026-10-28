@@ -6,6 +6,7 @@ import {
   ipcMain,
   nativeImage,
   protocol,
+  screen,
   session,
   type IpcMainInvokeEvent
 } from 'electron'
@@ -17,6 +18,10 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { Library } from './library'
 import { AppState } from './state'
+import { FakeEngine } from './slideshow/fake-engine'
+import { SlideShowManager } from './slideshow/manager'
+import type { SlideShowEngine } from './slideshow/engine'
+import { PowerPointEngine, bridgeExePath } from './slideshow/powerpoint-engine'
 import { importPptx } from './import/pptx'
 import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
@@ -779,6 +784,56 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
 }
 
 /**
+ * The slide show engine: PowerPoint (ppt-bridge.exe) on Windows, the in-memory FakeEngine
+ * elsewhere and with PPT_OUTPUT_DUMP + PPT_ENGINE_FAKE=1 (e2e). A helper that cannot start
+ * leaves every native deck on still images (the engine rejects its opens, nothing is ready).
+ */
+function createSlideShow(
+  lib: Library,
+  state: AppState
+): { engine: SlideShowEngine; manager: SlideShowManager } {
+  const fake =
+    process.platform !== 'win32' ||
+    (!!process.env['PPT_OUTPUT_DUMP'] && process.env['PPT_ENGINE_FAKE'] === '1')
+  let helperError: string | null = null
+  const engine: SlideShowEngine = fake
+    ? new FakeEngine(() => state.decks())
+    : new PowerPointEngine({
+        exe: bridgeExePath({
+          packaged: app.isPackaged,
+          resourcesPath: process.resourcesPath,
+          appPath: app.getAppPath()
+        }),
+        dpi: () => screen.getPrimaryDisplay().scaleFactor * 96,
+        onStartFailure: (message) => {
+          helperError = message
+          console.error('[slideshow]', message)
+        }
+      })
+  const manager = new SlideShowManager(
+    engine,
+    state,
+    () => state.decks(),
+    () => state.state.canvas,
+    (deckId) => {
+      try {
+        return lib.sourceFilePath(deckId)
+      } catch (err) {
+        console.error('[slideshow] deck file:', (err as Error).message)
+        return ''
+      }
+    }
+  )
+  if (process.env['PPT_OUTPUT_DUMP']) {
+    Object.defineProperty(globalThis, '__pptEngine', {
+      configurable: true,
+      get: () => ({ fake, helperError, opens: engine instanceof FakeEngine ? engine.opens : [] })
+    })
+  }
+  return { engine, manager }
+}
+
+/**
  * Network output (OMT and NDI). PPT_OMT_FAKE=1 swaps libomt for a recording fake
  * (e2e, no native library); PPT_NDI_FAKE=1 does the same for NDI and
  * PPT_NDI_FAKE=missing simulates an absent NDI runtime.
@@ -902,13 +957,18 @@ Location: ${root}`
   const settings = new SettingsStore(join(root, 'settings.json'))
   // The web host needs the state and the state needs the host (ready gate, arrow keys).
   let web: WebHost | null = null
+  // Likewise the slide show manager: a native take asks it whether the deck's slide show is ready.
+  let slides: SlideShowManager | null = null
   const state = new AppState(
     lib,
     settings.get().autoAdvance,
     () => settings.get().canvas,
     (deckId) => web?.webReady(deckId) ?? false,
-    (deckId, key) => web?.key(deckId, key)
+    (deckId, key) => web?.key(deckId, key),
+    (deckId) => slides?.ready(deckId) ?? false
   )
+  const slideShow = createSlideShow(lib, state)
+  slides = slideShow.manager
   // The auto advance toggle is part of the program state; keep it saved.
   state.onChange((s) => {
     if (s.autoAdvance === settings.get().autoAdvance) return
@@ -963,13 +1023,15 @@ Location: ${root}`
   app.on('before-quit', (e) => {
     hdmi.shutdown()
     host.shutdown()
+    slideShow.manager.dispose()
     if (omtDone) return
     e.preventDefault()
     if (!omtStopping) {
       omtStopping = true
       // Hard cap: a blocked native call in the worker must never keep the app from quitting.
       const cap = new Promise<void>((r) => setTimeout(r, OMT_QUIT_CAP_MS))
-      void Promise.race([net.shutdown(), cap]).finally(() => {
+      const engineDone = slideShow.engine.shutdown().catch(() => {})
+      void Promise.race([Promise.all([net.shutdown(), engineDone]), cap]).finally(() => {
         omtDone = true
         app.quit()
       })

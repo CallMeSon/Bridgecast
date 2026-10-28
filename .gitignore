@@ -17,3 +17,7 @@ out
 # OMT native libraries are put in place locally for a build, never committed (see README.md)
 resources/omt/**/*.so
 resources/omt/**/*.dll
+
+# ppt-bridge build output
+native/ppt-bridge/bin/
+native/ppt-bridge/obj/

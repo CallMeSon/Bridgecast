@@ -953,6 +953,15 @@ describe('Library import files and playback', () => {
     expect(new Library(root).getDecks(ev.id)[0].playback).toBe('native')
   })
 
+  it('sourceFilePath finds source.pptx or source.ppt and refuses a deck without one', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const deck = lib.addDeck(ev.id, withFiles())
+    expect(lib.sourceFilePath(deck.id)).toBe(path.join(root, 'decks', deck.id, 'source.pptx'))
+    const plain = lib.addDeck(ev.id, deckInput(1))
+    expect(() => lib.sourceFilePath(plain.id)).toThrow(/Import the deck again/)
+  })
+
   it('a pdf deck stores its PDF as original.pdf and source.pdf', () => {
     const lib = new Library(root)
     const ev = lib.createEvent('E')

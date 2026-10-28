@@ -713,4 +713,14 @@ export class Library {
     if (!slide) throw new Error('Slide not found. Choose a slide number that exists in this deck.')
     return path.join(this.deckDir(deckId), slide.file)
   }
+
+  /** Path of the deck's PowerPoint working copy (`source.pptx` or `source.ppt`), the file the slide show opens. */
+  sourceFilePath(deckId: string): string {
+    const dir = this.deckDir(deckId)
+    for (const ext of ['.pptx', '.ppt']) {
+      const file = path.join(dir, `source${ext}`)
+      if (fs.existsSync(file)) return file
+    }
+    throw new Error('The PowerPoint file of this deck was not found. Import the deck again.')
+  }
 }
