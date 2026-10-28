@@ -63,6 +63,7 @@ import {
 } from '../shared/ipc'
 import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
+import { defaultPlayback } from '../shared/playback'
 import { sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
 import {
@@ -249,7 +250,13 @@ function registerSlideProtocol(root: string, lib: Library): void {
       if (!isInside(root, file)) return new Response('Forbidden', { status: 403 })
       if (parsed?.file.endsWith('.mp4')) return await videoResponse(file, req.headers.get('range'))
       // A thumbnail is a JPEG, or the full PNG when generation failed.
-      const type = kv ? kvMimeType(kv.file) : file.endsWith('.jpg') ? 'image/jpeg' : 'image/png'
+      const type = kv
+        ? kvMimeType(kv.file)
+        : file.endsWith('.pdf')
+          ? 'application/pdf'
+          : file.endsWith('.jpg')
+            ? 'image/jpeg'
+            : 'image/png'
       if (!type) return new Response('Bad request', { status: 400 })
       const data = await fs.promises.readFile(file)
       return new Response(data, {
@@ -314,7 +321,11 @@ function registerIpc(
       try {
         const deck = await importPptx(job.path, out, IMPORT_WIDTH)
         progress({ id: job.id, name: job.name, percent: 90, status: 'busy' })
-        lib.addDeck(eventId, { ...deck, source: 'pptx' })
+        lib.addDeck(eventId, {
+          ...deck,
+          source: 'pptx',
+          playback: defaultPlayback('pptx', deck.isStatic)
+        })
         state.refresh()
       } finally {
         fs.rmSync(out, { recursive: true, force: true })
@@ -384,7 +395,14 @@ function registerIpc(
         source: 'pdf',
         width: Number(payload.width),
         height: Number(payload.height),
-        slides
+        slides,
+        playback: defaultPlayback('pdf', true),
+        ...(typeof payload.sourcePath === 'string' &&
+        path.isAbsolute(payload.sourcePath) &&
+        /\.pdf$/i.test(payload.sourcePath) &&
+        fs.existsSync(payload.sourcePath)
+          ? { sourcePath: payload.sourcePath }
+          : {})
       })
       state.refresh()
       return deck

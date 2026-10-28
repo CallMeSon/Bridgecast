@@ -6,7 +6,52 @@ export type ImportedDeck = {
   name: string
   width: number
   height: number
-  slides: { pngPath: string; notes: string }[]
+  slides: { pngPath: string; notes: string; clicks: number; hidden: boolean }[]
+  /** PDF export of the whole deck, hidden slides included. */
+  pdfPath: string
+  /** No animation, transition or media anywhere in the deck. */
+  isStatic: boolean
+  /** The imported file (kept as original.pptx / source.pptx). */
+  sourcePath: string
+}
+
+export interface Manifest {
+  width: number
+  height: number
+  notes: string[]
+  clicks: number[]
+  hidden: boolean[]
+  isStatic: boolean
+  pdf: string
+}
+
+function padded<T>(v: unknown, n: number, fill: T, pick: (x: unknown) => T): T[] {
+  const arr = Array.isArray(v) ? v : []
+  return Array.from({ length: n }, (_, i) => (i < arr.length ? pick(arr[i]) : fill))
+}
+
+/** Reads the script's JSON line; arrays are padded or cut to `slideCount`, bad values become 0 / false. */
+export function parseExportManifest(json: string, slideCount: number): Manifest {
+  let raw: unknown
+  try {
+    raw = JSON.parse(json)
+  } catch {
+    throw new Error('The PowerPoint import result could not be read. Try again.')
+  }
+  const o = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
+  const num = (x: unknown): number =>
+    typeof x === 'number' && Number.isFinite(x) && x > 0 ? Math.floor(x) : 0
+  return {
+    width: num(o.width),
+    height: num(o.height),
+    notes: padded<string>(Array.isArray(o.notes) ? o.notes : [o.notes], slideCount, '', (x) =>
+      typeof x === 'string' ? x : ''
+    ),
+    clicks: padded(o.clicks, slideCount, 0, num),
+    hidden: padded(o.hidden, slideCount, false, (x) => x === true),
+    isStatic: o.isStatic === true,
+    pdf: typeof o.pdf === 'string' ? o.pdf : ''
+  }
 }
 
 const TIMEOUT_MS = 5 * 60 * 1000
@@ -30,12 +75,14 @@ function scriptPath(): string {
   return candidates.find((c) => fs.existsSync(c)) ?? candidates[candidates.length - 1]
 }
 
-function friendlyError(stderr: string): string {
-  const code = /^(NOTFOUND|NOAPP|OPEN|EXPORT|INUSE):/m.exec(stderr)?.[1]
+export function friendlyError(stderr: string): string {
+  const code = /^(NOTFOUND|NOAPP|OPEN|EXPORT|INUSE|PASSWORD):/m.exec(stderr)?.[1]
   const lower = stderr.toLowerCase()
   if (code === 'NOTFOUND') return 'File not found. Check the file location, then choose it again.'
   if (code === 'NOAPP')
     return 'PowerPoint was not found on this computer. Install Microsoft PowerPoint, or export the file to PDF and import the PDF.'
+  if (code === 'PASSWORD')
+    return 'This presentation has a password. Remove it in PowerPoint, then import again.'
   if (code === 'OPEN') {
     if (/password|kata sandi|protected|dilindungi/.test(lower))
       return 'This file is password protected. Remove the password in PowerPoint, save, then import again.'
@@ -103,28 +150,26 @@ export async function importPptx(
       .map((l) => l.trim())
       .filter(Boolean)
       .pop()
-    let parsed: { width: number; height: number; notes: string[] | string }
-    try {
-      parsed = JSON.parse(line ?? '')
-    } catch {
-      throw new Error('The PowerPoint import result could not be read. Try again.')
-    }
     const names = orderExportedFiles(fs.readdirSync(work))
     if (names.length === 0)
       throw new Error(
         'No slides were exported. Make sure the file contains slides, then try again.'
       )
-    const notes = Array.isArray(parsed.notes) ? parsed.notes : [parsed.notes]
+    const parsed = parseExportManifest(line ?? '', names.length)
+    const notes = parsed.notes
     const slides = names.map((n, i) => {
       const pngPath = path.join(outDir, String(i + 1).padStart(3, '0') + '.png')
       fs.renameSync(path.join(work, n), pngPath)
-      return { pngPath, notes: notes[i] ?? '' }
+      return { pngPath, notes: notes[i], clicks: parsed.clicks[i], hidden: parsed.hidden[i] }
     })
     return {
       name: path.basename(filePath).replace(/\.pptx?$/i, ''),
       width: parsed.width,
       height: parsed.height,
-      slides
+      slides,
+      pdfPath: parsed.pdf,
+      isStatic: parsed.isStatic,
+      sourcePath: filePath
     }
   } finally {
     fs.rmSync(work, { recursive: true, force: true })

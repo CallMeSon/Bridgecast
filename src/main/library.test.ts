@@ -896,3 +896,66 @@ describe('Library fit, deck audio and event canvas', () => {
     expect(d.audio).toEqual({ volume: 100, muted: false })
   })
 })
+
+describe('Library import files and playback', () => {
+  const withFiles = (ext = 'pptx'): Parameters<Library['addDeck']>[1] => {
+    const sourcePath = path.join(src, `deck.${ext}`)
+    const pdfPath = path.join(src, 'deck.pdf')
+    fs.writeFileSync(sourcePath, 'SRC')
+    fs.writeFileSync(pdfPath, 'PDF')
+    return {
+      ...deckInput(2),
+      sourcePath,
+      pdfPath,
+      playback: 'native',
+      slides: deckInput(2).slides.map((s, i) => ({ ...s, clicks: i + 1, hidden: i === 1 }))
+    }
+  }
+
+  it('addDeck copies original, source and source.pdf and stores metadata', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const deck = lib.addDeck(ev.id, withFiles())
+    const dir = path.join(root, 'decks', deck.id)
+    expect(fs.readFileSync(path.join(dir, 'original.pptx'), 'utf8')).toBe('SRC')
+    expect(fs.readFileSync(path.join(dir, 'source.pptx'), 'utf8')).toBe('SRC')
+    expect(fs.readFileSync(path.join(dir, 'source.pdf'), 'utf8')).toBe('PDF')
+    expect(deck.playback).toBe('native')
+    expect(deck.slides.map((s) => s.clicks)).toEqual([1, 2])
+    expect(deck.slides.map((s) => s.hidden)).toEqual([undefined, true])
+    expect(new Library(root).getDecks(ev.id)[0].playback).toBe('native')
+  })
+
+  it('a pdf deck stores its PDF as original.pdf and source.pdf', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const pdf = path.join(src, 'a.pdf')
+    fs.writeFileSync(pdf, 'PDF')
+    const deck = lib.addDeck(ev.id, { ...deckInput(1), source: 'pdf', sourcePath: pdf })
+    const dir = path.join(root, 'decks', deck.id)
+    expect(fs.readFileSync(path.join(dir, 'original.pdf'), 'utf8')).toBe('PDF')
+    expect(fs.readFileSync(path.join(dir, 'source.pdf'), 'utf8')).toBe('PDF')
+  })
+
+  it('a deck added without files has none of them', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const deck = lib.addDeck(ev.id, deckInput(1))
+    expect(fs.existsSync(path.join(root, 'decks', deck.id, 'source.pdf'))).toBe(false)
+    expect(deck.playback).toBeUndefined()
+  })
+
+  it('setPlayback persists and enforces the rules', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const pptx = lib.addDeck(ev.id, deckInput(1))
+    const pdf = lib.addDeck(ev.id, { ...deckInput(1), source: 'pdf' })
+    const BAD = 'The playback mode is not valid for this deck.'
+    expect(lib.setPlayback(ev.id, pptx.id, 'native').playback).toBe('native')
+    expect(new Library(root).getDecks(ev.id)[0].playback).toBe('native')
+    expect(lib.setPlayback(ev.id, pdf.id, 'vector').playback).toBe('vector')
+    expect(() => lib.setPlayback(ev.id, pdf.id, 'native')).toThrow(BAD)
+    expect(() => lib.setPlayback(ev.id, pptx.id, 'bogus')).toThrow(BAD)
+    expect(() => lib.setPlayback(ev.id, pptx.id, 3)).toThrow(BAD)
+  })
+})

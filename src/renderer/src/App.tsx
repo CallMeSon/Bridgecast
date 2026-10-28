@@ -218,15 +218,20 @@ function App(): React.JSX.Element {
       try {
         upsertImport({ id, name, percent: 5, status: 'busy' })
         const data = new Uint8Array(await f.arrayBuffer())
-        const r = await renderPdf(data, IMPORT_WIDTH, (done, total) =>
-          upsertImport({ id, name, percent: 5 + Math.round((85 * done) / total), status: 'busy' })
+        const r = await renderPdf(
+          data,
+          IMPORT_WIDTH,
+          (done, total) =>
+            upsertImport({ id, name, percent: 5 + Math.round((85 * done) / total), status: 'busy' }),
+          api.pathForFile(f) || undefined
         )
         upsertImport({ id, name, percent: 95, status: 'busy' })
         await api.addRendered(target, {
           name: baseName(f.name),
           width: r.width,
           height: r.height,
-          pages: r.pages
+          pages: r.pages,
+          ...(r.sourcePath ? { sourcePath: r.sourcePath } : {})
         })
         upsertImport({ id, name, percent: 100, status: 'done' })
         await reloadDecks(target)

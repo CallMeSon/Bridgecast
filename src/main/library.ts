@@ -8,9 +8,12 @@ import {
   KV_MIME,
   type DeckMeta,
   type EventMeta,
-  type SectionMeta
+  type Playback,
+  type SectionMeta,
+  type SlideMeta
 } from '../shared/types'
 import { CANVAS_INVALID, isDeckFit, sanitizeCanvas } from '../shared/canvas'
+import { canNative, isPlayback } from '../shared/playback'
 import { sanitizeDeckAudio } from '../shared/audio-levels'
 import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections'
 import { sanitizeWebUrl } from '../shared/web'
@@ -22,7 +25,18 @@ type DeckInput = {
   source: 'pptx' | 'pdf' | 'folder'
   width: number
   height: number
-  slides: { pngPath: string; notes: string; videoPath?: string }[]
+  slides: {
+    pngPath: string
+    notes: string
+    videoPath?: string
+    clicks?: number
+    hidden?: boolean
+  }[]
+  /** The imported file; stored as original.<ext> and source.<ext>. */
+  sourcePath?: string
+  /** PDF export of a PowerPoint file; stored as source.pdf. */
+  pdfPath?: string
+  playback?: Playback
 }
 
 type WebDeckInput = {
@@ -240,12 +254,21 @@ export class Library {
       const slides = d.slides.map((s, i) => {
         const file = slideName(i)
         fs.copyFileSync(s.pngPath, path.join(dir, file))
-        if (!s.videoPath) return { file, notes: s.notes }
+        const meta: SlideMeta = { file, notes: s.notes }
+        if (s.clicks) meta.clicks = s.clicks
+        if (s.hidden) meta.hidden = true
+        if (!s.videoPath) return meta
         // The video shares its number with the poster (003.png / 003.mp4).
         const video = slideName(i, 'mp4')
         fs.copyFileSync(s.videoPath, path.join(dir, video))
-        return { file, notes: s.notes, video }
+        return { ...meta, video }
       })
+      if (d.sourcePath) {
+        const ext = path.extname(d.sourcePath).toLowerCase()
+        fs.copyFileSync(d.sourcePath, path.join(dir, `original${ext}`))
+        fs.copyFileSync(d.sourcePath, path.join(dir, `source${ext}`))
+      }
+      if (d.pdfPath) fs.copyFileSync(d.pdfPath, path.join(dir, 'source.pdf'))
       const deck: DeckMeta = {
         id,
         name: d.name,
@@ -255,6 +278,7 @@ export class Library {
         slides
       }
       if (web) deck.web = web
+      if (d.playback) deck.playback = d.playback
       this.writeDeck(deck)
       ev.deckIds.push(id)
       this.saveEvents()
@@ -447,6 +471,17 @@ export class Library {
     return deck
   }
 
+  /** How this deck plays. Rejects unknown modes, and `native` for anything but a PowerPoint deck. */
+  setPlayback(eventId: string, deckId: string, p: unknown): DeckMeta {
+    const current = this.deckInEvent(eventId, deckId)
+    if (!isPlayback(p) || (p === 'native' && !canNative(current))) {
+      throw new Error('The playback mode is not valid for this deck.')
+    }
+    const deck = { ...current, playback: p }
+    this.writeDeck(deck)
+    return deck
+  }
+
   /** Sound level of this deck's videos; stored sanitized (volume 0–100, muted flag). */
   setDeckAudio(eventId: string, deckId: string, audio: unknown): DeckMeta {
     const current = this.deckInEvent(eventId, deckId)
@@ -589,6 +624,11 @@ export class Library {
    * file always shows the same image.
    */
   slideFilePath(deckId: string, file: string): string {
+    if (file === 'source.pdf') {
+      const pdf = path.join(this.deckDir(deckId), file)
+      if (!fs.existsSync(pdf)) throw new Error('PDF not found. Import the deck again.')
+      return pdf
+    }
     const deck = this.readDeck(deckId)
     if (!deck.slides.some((s) => s.file === file)) {
       throw new Error('Slide not found. Choose a slide that exists in this deck.')

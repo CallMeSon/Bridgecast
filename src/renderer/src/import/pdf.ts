@@ -13,6 +13,8 @@ export interface RenderedPdf {
   width: number
   height: number
   pages: Uint8Array[]
+  /** Path of the PDF on disk, if known; main stores a copy as source.pdf. */
+  sourcePath?: string
 }
 
 /** Lets input, IPC and paints run between pages so a long PDF never freezes the operator UI. */
@@ -21,7 +23,8 @@ const yieldToUi = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
 export async function renderPdf(
   data: Uint8Array,
   targetWidth: number,
-  onPage?: (done: number, total: number) => void
+  onPage?: (done: number, total: number) => void,
+  sourcePath?: string
 ): Promise<RenderedPdf> {
   let doc: pdfjs.PDFDocumentProxy
   try {
@@ -73,7 +76,7 @@ export async function renderPdf(
       }
     }
     if (pages.length === 0) throw new Error('The PDF has no pages. Choose another PDF file.')
-    return { width, height, pages }
+    return { width, height, pages, ...(sourcePath ? { sourcePath } : {}) }
   } finally {
     await doc.loadingTask.destroy()
   }

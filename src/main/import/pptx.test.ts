@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { orderExportedFiles, importPptx } from './pptx'
+import { orderExportedFiles, importPptx, parseExportManifest, friendlyError } from './pptx'
 
 describe('orderExportedFiles', () => {
   it('sorts numerically, not lexically', () => {
@@ -18,6 +18,59 @@ describe('orderExportedFiles', () => {
       'Slide1.png',
       'Slide2.PNG'
     ])
+  })
+})
+
+describe('parseExportManifest', () => {
+  it('reads a full manifest', () => {
+    const m = parseExportManifest(
+      JSON.stringify({
+        width: 1920,
+        height: 1080,
+        notes: ['a', 'b'],
+        clicks: [0, 3],
+        hidden: [false, true],
+        isStatic: false,
+        pdf: 'C:\\t\\deck.pdf'
+      }),
+      2
+    )
+    expect(m).toMatchObject({
+      width: 1920,
+      height: 1080,
+      clicks: [0, 3],
+      hidden: [false, true],
+      isStatic: false,
+      pdf: 'C:\\t\\deck.pdf'
+    })
+  })
+  it('pads short arrays with 0 and false', () => {
+    const m = parseExportManifest(JSON.stringify({ clicks: [2], hidden: [true] }), 3)
+    expect(m.clicks).toEqual([2, 0, 0])
+    expect(m.hidden).toEqual([true, false, false])
+  })
+  it('turns non-numbers into 0 and non-booleans into false', () => {
+    const m = parseExportManifest(
+      JSON.stringify({ clicks: ['x', null, -1, 2.7, 4], hidden: ['yes', 1, true], isStatic: 'no' }),
+      5
+    )
+    expect(m.clicks).toEqual([0, 0, 0, 2, 4])
+    expect(m.hidden).toEqual([false, false, true, false, false])
+    expect(m.isStatic).toBe(false)
+    expect(m.pdf).toBe('')
+  })
+  it('survives a single value, garbage and a non-object', () => {
+    expect(parseExportManifest(JSON.stringify({ clicks: 5, hidden: 'x' }), 2).clicks).toEqual([0, 0])
+    expect(parseExportManifest('null', 1).clicks).toEqual([0])
+    expect(() => parseExportManifest('nope', 1)).toThrow(/could not be read/)
+  })
+})
+
+describe('friendlyError', () => {
+  it('maps PASSWORD to the password copy', () => {
+    expect(friendlyError('PASSWORD: x')).toBe(
+      'This presentation has a password. Remove it in PowerPoint, then import again.'
+    )
   })
 })
 

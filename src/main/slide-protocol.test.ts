@@ -200,3 +200,14 @@ describe('capRange', () => {
     expect(capRange({ start: 5, end: 5 }, MAX)).toEqual({ start: 5, end: 5 })
   })
 })
+
+describe('parseSlideUrl source.pdf', () => {
+  it('accepts source.pdf', () => {
+    expect(parseSlideUrl(`slide://${ID}/source.pdf`)).toEqual({ deckId: ID, file: 'source.pdf' })
+  })
+  it('refuses source.pptx and original.pptx', () => {
+    expect(parseSlideUrl(`slide://${ID}/source.pptx`)).toBeNull()
+    expect(parseSlideUrl(`slide://${ID}/original.pptx`)).toBeNull()
+    expect(parseSlideUrl(`slide://${ID}/original.pdf`)).toBeNull()
+  })
+})

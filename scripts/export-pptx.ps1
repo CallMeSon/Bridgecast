@@ -1,5 +1,8 @@
 # Usage: powershell.exe -NoProfile -File export-pptx.ps1 -Path <pptx> -OutDir <dir> -Width <px>
-# stdout: one JSON line {"width":n,"height":n,"notes":[...]}. On failure: exit != 0, message on stderr "CODE: detail".
+# stdout: one JSON line {"width":n,"height":n,"notes":[...],"clicks":[n,...],"hidden":[bool,...],"isStatic":bool,"pdf":"<path>"}.
+#   clicks = on-click animation effects per slide; hidden = slide hidden in PowerPoint; isStatic = no animation,
+#   transition or media anywhere; pdf = PDF of the whole deck (hidden slides included), written to <OutDir>\source.pdf.
+# On failure: exit != 0, message on stderr "CODE: detail".
 param(
   [Parameter(Mandatory = $true)][string]$Path,
   [Parameter(Mandatory = $true)][string]$OutDir,
@@ -48,7 +51,9 @@ try {
     # Open(FileName, ReadOnly, Untitled, WithWindow): msoTrue = -1, msoFalse = 0
     $pres = $app.Presentations.Open($tmpCopy, -1, 0, 0)
   } catch {
-    Fail 'OPEN' $_.Exception.Message
+    $msg = $_.Exception.Message
+    if ($msg -match 'password|kata sandi') { Fail 'PASSWORD' $msg }
+    Fail 'OPEN' $msg
   }
   # Only ours if it is a new presentation (not already open, and the count increased).
   if (-not $before.ContainsKey([string]$pres.FullName) -and [int]$app.Presentations.Count -gt $countBefore) {
@@ -67,8 +72,43 @@ try {
   } catch {
     Fail 'EXPORT' $_.Exception.Message
   }
+  $pdfPath = Join-Path $OutDir 'source.pdf'
+  try {
+    # ExportAsFixedFormat(Path, FixedFormatType=ppFixedFormatTypePDF 2, Intent=ppFixedFormatIntentScreen 1,
+    #   FrameSlides=false, HandoutOrder=1, OutputType=ppPrintOutputSlides 1, PrintHiddenSlides=true)
+    $pres.ExportAsFixedFormat($pdfPath, 2, 1, 0, 1, 1, -1)
+  } catch {
+    Fail 'EXPORT' $_.Exception.Message
+  }
   $notes = @()
+  $clicks = @()
+  $hidden = @()
+  $isStatic = $true
   foreach ($slide in $pres.Slides) {
+    # On-click effects of the main sequence (msoAnimTriggerOnPageClick = 1).
+    $n = 0
+    try {
+      $seq = $slide.TimeLine.MainSequence
+      if ([int]$seq.Count -gt 0) { $isStatic = $false }
+      for ($i = 1; $i -le [int]$seq.Count; $i++) {
+        if ([int]$seq.Item($i).Timing.TriggerType -eq 1) { $n++ }
+      }
+      if ([int]$slide.TimeLine.InteractiveSequences.Count -gt 0) { $isStatic = $false }
+    } catch { $isStatic = $false }
+    $clicks += $n
+    $isHidden = $false
+    try {
+      # ppEffectNone = 0; msoTrue = -1
+      if ([int]$slide.SlideShowTransition.EntryEffect -ne 0) { $isStatic = $false }
+      $isHidden = ([int]$slide.SlideShowTransition.Hidden -eq -1)
+    } catch { $isStatic = $false }
+    $hidden += $isHidden
+    try {
+      foreach ($shape in $slide.Shapes) {
+        # msoMedia = 16, msoWebVideo = 25
+        if ([int]$shape.Type -eq 16 -or [int]$shape.Type -eq 25) { $isStatic = $false; break }
+      }
+    } catch { $isStatic = $false }
     $text = ''
     try {
       foreach ($shape in $slide.NotesPage.Shapes) {
@@ -80,7 +120,10 @@ try {
     } catch { $text = '' }
     $notes += $text
   }
-  $result = [ordered]@{ width = $Width; height = $height; notes = @($notes) }
+  $result = [ordered]@{
+    width = $Width; height = $height; notes = @($notes)
+    clicks = @($clicks); hidden = @($hidden); isStatic = $isStatic; pdf = $pdfPath
+  }
   [Console]::Out.WriteLine(($result | ConvertTo-Json -Compress -Depth 4))
 }
 finally {

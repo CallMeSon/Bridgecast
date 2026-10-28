@@ -8,7 +8,14 @@ export interface SlideMeta {
   file: string
   notes: string
   video?: string
+  /** Click animations (on-click effects) on this slide; absent = 0. */
+  clicks?: number
+  /** The slide is hidden in PowerPoint; absent = shown. */
+  hidden?: boolean
 }
+
+/** How a deck plays: PowerPoint itself, vector pages from the PDF, or the slide images. */
+export type Playback = 'native' | 'vector' | 'images'
 
 export interface DeckMeta {
   id: string
@@ -21,6 +28,8 @@ export interface DeckMeta {
   fit?: DeckFit
   /** Sound level of this deck's videos; absent = full volume, not muted. */
   audio?: DeckAudio
+  /** How the deck plays; absent = 'images'. */
+  playback?: Playback
   /** The page of a web deck (source 'web'). */
   web?: { url: string }
 }

@@ -117,6 +117,8 @@ export interface RenderedDeck {
   height: number
   pages: Uint8Array[]
   notes?: string[]
+  /** Absolute path of the PDF on disk (`pathForFile`); stored as source.pdf so it can play as vector. */
+  sourcePath?: string
 }
 
 /** Load state of one web deck's page, broadcast as `web:status`. */
