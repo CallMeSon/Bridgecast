@@ -1,4 +1,5 @@
 import type { DeckMeta, SectionMeta } from '../../shared/types'
+import { playbackOf, type EngineState } from '../../shared/playback'
 import type { DeckFit } from '../../shared/canvas'
 import { kvOnAir, pendingTake, reduce, type Action, type ProgramState } from '../../shared/program'
 import { segmentsOf } from '../../shared/sections'
@@ -69,12 +70,15 @@ export function nextView(
       ...(cur.video ? { video: true as const } : {})
     }
   }
-  const nxt = deck.slides[s.index + 1]
+  // Hidden slides are skipped by Next, so they are never "up next".
+  let ni = s.index + 1
+  while (deck.slides[ni]?.hidden) ni++
+  const nxt = deck.slides[ni]
   if (nxt) {
     return {
       kind: 'slide',
       deckId: deck.id,
-      index: s.index + 1,
+      index: ni,
       file: nxt.file,
       notes: nxt.notes,
       ...(nxt.video ? { video: true as const } : {})
@@ -651,4 +655,63 @@ export function visibleCaptureWarnings(
 /** The deck whose row shows HOLD: the live web deck while held, also while frozen; else null. */
 export function holdDeckId(s: ProgramState): string | null {
   return s.webHold ? (s.shown?.web?.deckId ?? null) : null
+}
+
+/** Clicks of the live native slide, or null when the live slide is not a native slide with steps. */
+function liveSteps(s: ProgramState, decks: DeckMeta[]): { clicks: number; step: number } | null {
+  const shown = s.shown
+  if (!shown || shown.playback !== 'native') return null
+  const clicks = decks.find((d) => d.id === shown.deckId)?.slides[shown.index]?.clicks ?? 0
+  return clicks > 0 ? { clicks, step: shown.step ?? 0 } : null
+}
+
+/** "Slide 4 · step 2/3" for the live native slide with animation steps, else null. */
+export function stepLabel(s: ProgramState, decks: DeckMeta[]): string | null {
+  const l = liveSteps(s, decks)
+  return l && s.shown ? `Slide ${s.shown.index + 1} · step ${l.step}/${l.clicks}` : null
+}
+
+/** What Next does on a live native slide that still has steps; null once they are done (or frozen). */
+export function nextStepText(s: ProgramState, decks: DeckMeta[]): string | null {
+  const l = liveSteps(s, decks)
+  if (!l || s.frozen || l.step >= l.clicks) return null
+  return `Next: step ${l.step + 1} of ${l.clicks} on this slide`
+}
+
+/** The deck's playback chip in the Decks list. `engine` matters for native decks only. */
+export function playbackChip(d: DeckMeta, engine: EngineState | null): string {
+  const mode = playbackOf(d)
+  if (mode === 'vector') return 'Vector'
+  if (mode === 'images') return 'Still images'
+  if (engine === 'ready') return 'Native · Ready'
+  if (engine === 'fallback') return 'Native · Fallback'
+  return 'Native · Opening…'
+}
+
+export const NATIVE_NOT_READY = 'The slide show is not ready; showing still slides.'
+export const NATIVE_NOT_RESPONDING =
+  'PowerPoint is not responding. Showing still slides. Save your other PowerPoint files, then press Resume PowerPoint.'
+export const NATIVE_HELPER_FAILED =
+  'The slide show helper could not start. Reinstall PPT Share. Showing still slides.'
+export const NATIVE_PENDING = 'Changes apply when this deck leaves air.'
+export const REVERT_CONFIRM = 'Undo all edits and go back to the imported file?'
+export const APPLY_NOW_CONFIRM = 'Apply the changes now, while this deck is on air?'
+
+export type NativeNotice = 'notReady' | 'notResponding' | 'helper'
+
+/**
+ * Why the live native deck shows still slides, or null while it plays natively. A helper that
+ * could not start is told first, since nothing else can fix it.
+ */
+export function nativeNotice(
+  s: ProgramState,
+  decks: DeckMeta[],
+  status: { decks: Record<string, EngineState>; helperError: string | null } | null
+): NativeNotice | null {
+  const shown = s.shown
+  if (!shown || shown.playback !== 'images') return null
+  const d = decks.find((x) => x.id === shown.deckId)
+  if (!d || playbackOf(d) !== 'native') return null
+  if (status?.helperError) return 'helper'
+  return status?.decks[d.id] === 'fallback' ? 'notResponding' : 'notReady'
 }

@@ -6,6 +6,7 @@ import type { AudioSettings, HdmiSettings, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
 import type { DeckAudio } from './audio-levels'
+import type { SlideshowStatus } from './playback'
 import type { PrepareInput, WebCaptureWarning, WebOutputs, WebStatus } from './web'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
@@ -59,6 +60,7 @@ export const Invoke = {
   slideshowSourceId: 'slideshow:sourceId',
   slideshowFrame: 'slideshow:frame',
   slideshowNote: 'slideshow:note',
+  slideshowStatus: 'slideshow:status',
   deckEdit: 'deck:edit',
   deckEditDone: 'deck:editDone',
   deckApplyNow: 'deck:applyNow',
@@ -99,6 +101,7 @@ export const Broadcast = {
   webOutputs: 'web:outputs',
   webCaptureWarnings: 'web:captureWarnings',
   slideshowNote: 'slideshow:note',
+  slideshowStatus: 'slideshow:status',
   deckPending: 'deck:pending',
   deckEditError: 'deck:editError'
 } as const
@@ -261,6 +264,8 @@ export interface InvokeMap {
   'slideshow:frame': { args: [deckId: string]; result: void }
   /** Why the app cannot control PowerPoint's sound (operator copy), or null. */
   'slideshow:note': { args: []; result: string | null }
+  /** Session state of each native deck and the helper start failure, if any. */
+  'slideshow:status': { args: []; result: SlideshowStatus }
   /** Opens the deck's working copy in a PowerPoint window; every save is exported again. PowerPoint decks only. */
   'deck:edit': { args: [deckId: string]; result: void }
   /** Stops watching the working copy and exports the last saved version now; rejects when that fails. */
@@ -290,6 +295,7 @@ export interface BroadcastMap {
   'web:outputs': WebOutputs
   'web:captureWarnings': WebCaptureWarning[]
   'slideshow:note': string | null
+  'slideshow:status': SlideshowStatus
   'deck:pending': DeckPendingEvent
   'deck:editError': DeckEditErrorEvent
 }
@@ -415,6 +421,8 @@ export interface Api {
   /** Why PowerPoint's sound cannot be controlled by the app (copy), or null. */
   slideshowNote(): Promise<string | null>
   onSlideshowNote(cb: (note: string | null) => void): () => void
+  slideshowStatus(): Promise<SlideshowStatus>
+  onSlideshowStatus(cb: (s: SlideshowStatus) => void): () => void
   /** Opens the deck in a PowerPoint window for editing (PowerPoint decks). */
   editDeck(deckId: string): Promise<void>
   /** Done editing: export the last saved version now. */

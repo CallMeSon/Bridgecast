@@ -1,7 +1,7 @@
 import type { DeckMeta, SectionMeta } from '../../../shared/types'
 import type { Action, ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
-import { currentDeck, nextView, webUpNext } from '../model'
+import { currentDeck, nextStepText, nextView, webUpNext } from '../model'
 import { posterWithVersion } from '../stream'
 import type { WebStatus } from '../../../shared/web'
 import { EndCard, VideoMark } from './Slide'
@@ -13,7 +13,7 @@ export function NextPanel({
   sections,
   state,
   webStatuses,
-  webVersions,
+  versions,
   onAction
 }: {
   decks: DeckMeta[]
@@ -21,8 +21,8 @@ export function NextPanel({
   state: ProgramState
   /** Load state of the web deck pages (a web deck that is not ready cannot be taken). */
   webStatuses: Record<string, WebStatus>
-  /** Per web deck: bumped when its snapshot may have been rewritten under the same name. */
-  webVersions: Record<string, number>
+  /** Per deck: bumped when its images may have been rewritten under the same names. */
+  versions: Record<string, number>
   onAction(a: Action): void
 }): React.JSX.Element {
   const deck = currentDeck(decks, state)
@@ -31,20 +31,32 @@ export function NextPanel({
   const notes = nx.kind === 'slide' && nx.held ? nx.notes : (deck?.slides[state.index]?.notes ?? '')
 
   const held = nx.kind === 'slide' && nx.held === true
-  // A web deck's snapshot is rewritten under the same name: the version reloads it.
-  const snapshotUrl = (deckId: string, file: string): string => {
-    const web = decks.find((d) => d.id === deckId)?.source === 'web'
-    return web
-      ? posterWithVersion(slideUrl(deckId, file), webVersions[deckId] ?? 0)
-      : slideUrl(deckId, file)
-  }
+  // A web snapshot or an edited deck's images are rewritten under the same names: the version reloads them.
+  const snapshotUrl = (deckId: string, file: string): string =>
+    posterWithVersion(slideUrl(deckId, file), versions[deckId] ?? 0)
+  // A live native slide with animation steps left: Next plays the next step, not the next slide.
+  const stepText = nextStepText(state, decks)
+  const shown = state.shown
   // Web deck copy: Next goes to the live page, or the next take is a page that is not ready.
   const webText = webUpNext(state, decks, webStatuses)
   let card: React.JSX.Element
   let cap: React.ReactNode = ''
   // Position of the slide Next takes, e.g. "3 / 9"; empty at the end of a deck.
   let nextPos = ''
-  if (nx.kind === 'slide') {
+  if (stepText !== null && shown) {
+    card = (
+      <div className="slide next-slide">
+        <SlideLayers
+          media={{ kind: 'image', url: snapshotUrl(shown.deckId, shown.file), fit: 'fit' }}
+          fade={false}
+          muted
+          layerClass="next-layer"
+          imgAttrs={() => ({ alt: `Slide ${shown.index + 1}, the slide on air` })}
+        />
+      </div>
+    )
+    cap = stepText
+  } else if (nx.kind === 'slide') {
     // Layers keep the previous slide on screen until the new image has decoded (no black frame).
     // A video slide shows its poster only; the card never plays video.
     card = (
@@ -124,6 +136,7 @@ export function NextPanel({
           data-kind={nx.kind}
           data-web={webText ?? undefined}
           data-held={held || undefined}
+          data-step={stepText !== null || undefined}
           data-video={(nx.kind === 'slide' && nx.video) || undefined}
         >
           {card}

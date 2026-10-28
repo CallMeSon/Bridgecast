@@ -274,7 +274,10 @@ export class DeckEditor {
         failure = st.failure
       }
       fs.rmSync(st.tmp, { recursive: true, force: true })
+      // `pending: false` also tells the windows that the deck's files changed (images, clicks).
+      const wasPending = this.pendingSet.has(deckId)
       this.setPending(deckId, false)
+      if (!wasPending) this.deps.onPending(deckId, false)
       if (failure === null) {
         if (!this.watches.has(deckId)) this.deps.library.discardEdit(deckId)
         this.deps.applied(deckId)

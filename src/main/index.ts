@@ -78,7 +78,7 @@ import {
 } from '../shared/ipc'
 import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
-import { defaultPlayback, playbackOf } from '../shared/playback'
+import { defaultPlayback, engineStates, playbackOf, type SlideshowStatus } from '../shared/playback'
 import { pdfSourceFields } from './import/pdf-source'
 import { sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
@@ -312,7 +312,14 @@ function registerIpc(
     assertString(eventId, 'Event ID')
     return lib.getDecks(eventId)
   })
-  handle(Invoke.programDispatch, (action: Action) => state.dispatch(action))
+  handle(Invoke.programDispatch, (action: Action) => {
+    // Resume PowerPoint clears the manager's fallback first (the engine gate refuses it while set).
+    if (action?.type === 'resumeNative') {
+      slideShow.manager.resumeNative(action.deckId)
+      return state.state
+    }
+    return state.dispatch(action)
+  })
   handle(Invoke.programGet, () => ({ eventId: state.eventId, state: state.state }))
 
   // PPT/PPTX via PowerPoint COM through the import queue: one file at a time
@@ -805,6 +812,8 @@ interface SlideShowHost {
   sound: SlideSound
   /** Hands the current program state and sound settings to `sound`. */
   syncSound(): void
+  /** Session state of the native decks and the helper start failure. */
+  status(): SlideshowStatus
 }
 
 /** The copy shown while PowerPoint's sound cannot be routed by the app (see SlideSound). */
@@ -834,6 +843,7 @@ function registerSlideshowIpc(
     if (frameSenderAllowed(roleOf(e.sender), outputsActive())) host.manager.frameSeen(deckId)
   })
   appHandle(Invoke.slideshowNote, () => slideNote)
+  appHandle(Invoke.slideshowStatus, () => host.status())
 
   // Each output window asks for a fresh port (on mount, and again after a reload).
   const known = new Set<number>()
@@ -999,7 +1009,25 @@ function createSlideShow(lib: Library, state: AppState, settings: SettingsStore)
   }
   const syncSound = (): void => sound.program(state.state, settings.get().audio)
   state.onChange(syncSound)
-  return { engine, manager, sound, syncSound }
+  const status = (): SlideshowStatus => {
+    const decks = engineStates(state.decks(), manager)
+    return {
+      decks,
+      resumable: Object.keys(decks).filter((id) => manager.fellBack(id) && manager.sessionOpen(id)),
+      helperError: engine instanceof PowerPointEngine ? engine.helperError : null
+    }
+  }
+  let lastStatus = JSON.stringify(status())
+  const pushStatus = (): void => {
+    const next = status()
+    const json = JSON.stringify(next)
+    if (json === lastStatus) return
+    lastStatus = json
+    broadcast(Broadcast.slideshowStatus, next)
+  }
+  manager.onStatus(pushStatus)
+  state.onChange(pushStatus)
+  return { engine, manager, sound, syncSound, status }
 }
 
 /**

@@ -21,7 +21,8 @@ export function Program({
   deck,
   emptyHint = 'Drag .pptx, .ppt, or .pdf files into this window.',
   posterVersion = 0,
-  stream
+  stream,
+  stepLabel = null
 }: {
   state: ProgramState
   deck: DeckMeta | null
@@ -31,6 +32,8 @@ export function Program({
   posterVersion?: number
   /** How the monitor captures a live web page (video only, 30 fps; no sound). */
   stream?: StreamOptions
+  /** 'Slide 4 · step 2/3' for a live native slide with steps. */
+  stepLabel?: string | null
 }): React.JSX.Element {
   const t = tally(state)
   const shown = state.shown
@@ -95,6 +98,11 @@ export function Program({
                 {deck ? `${state.index + 1} / ${deck.slides.length}` : ''}
               </span>
             </span>
+            {stepLabel && (
+              <span className="stp" data-testid="step-label">
+                {stepLabel}
+              </span>
+            )}
             <span className="ttl" title={deck?.name}>
               {deck?.name}
             </span>

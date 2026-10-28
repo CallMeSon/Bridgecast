@@ -4,6 +4,7 @@ import { orderItems, splitOrder } from '../../shared/sections'
 import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '../../shared/program'
 import type { ImportRequest } from '../../shared/ipc'
 import type { DeckFit } from '../../shared/canvas'
+import type { Playback } from '../../shared/types'
 import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
 import { Library, type ImportRow } from './components/Library'
@@ -16,6 +17,8 @@ import { Splitters } from './components/Splitters'
 import { ActionError, SaveNote } from './components/ActionError'
 import { CaptureWarning } from './components/CaptureWarning'
 import { HoldWarning } from './components/HoldWarning'
+import { EditErrorBanner, NativeFallbackWarning, PendingBanner } from './components/NativeNotices'
+import { useSlideshow } from './slideshow'
 import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import type { StreamOptions } from './components/SlideLayers'
@@ -35,6 +38,8 @@ import {
   keyToAction,
   moveItem,
   moveOrder,
+  nativeNotice,
+  stepLabel,
   outputSource,
   SAVED,
   tally,
@@ -451,6 +456,56 @@ function App(): React.JSX.Element {
     [api, applyDeckLevels, reloadDecks, reportError]
   )
 
+  // Edit in PowerPoint, Revert and the playback mode. The decks are read again when the new
+  // version is applied (`deck:pending` false, see useSlideshow).
+  const [editing, setEditing] = useState<string[]>([])
+  const editDeck = useCallback(
+    (deckId: string) => {
+      api.editDeck(deckId).then(
+        () => setEditing((xs) => (xs.includes(deckId) ? xs : [...xs, deckId])),
+        (e) => reportError('Edit in PowerPoint', e)
+      )
+    },
+    [api, reportError]
+  )
+  const editDeckDone = useCallback(
+    (deckId: string) => {
+      setEditing((xs) => xs.filter((x) => x !== deckId))
+      api.editDeckDone(deckId).catch((e) => reportError('Edit in PowerPoint', e))
+    },
+    [api, reportError]
+  )
+  const revertDeck = useCallback(
+    (deckId: string) => {
+      setEditing((xs) => xs.filter((x) => x !== deckId))
+      api.revertDeck(deckId).catch((e) => reportError('Revert', e))
+    },
+    [api, reportError]
+  )
+  const applyDeckNow = useCallback(
+    (deckId: string) => {
+      api.applyDeckNow(deckId).catch((e) => reportError('Apply now', e))
+    },
+    [api, reportError]
+  )
+  const setDeckPlayback = useCallback(
+    (deckId: string, playback: Playback) => {
+      const target = eventRef.current
+      if (!target) return
+      api
+        .setDeckPlayback(target, deckId, playback)
+        .then(
+          (meta) =>
+            setDecks((ds) =>
+              ds.map((d) => (d.id === meta.id ? { ...d, playback: meta.playback } : d))
+            ),
+          (e) => reportError('Playback', e)
+        )
+        .finally(() => reloadDecks(target).catch((e) => reportError('Decks', e)))
+    },
+    [api, reloadDecks, reportError]
+  )
+
   const moveSlide = useCallback(
     (deckId: string, from: number, to: number) => {
       const target = eventRef.current
@@ -561,6 +616,23 @@ function App(): React.JSX.Element {
   // Web deck pages: the monitor shows the live one (video only, 30 fps). While no
   // output is active this window is the one whose first frames open the ready gate.
   const pages = useWebPages()
+  const slideshow = useSlideshow(
+    useCallback(
+      (deckId: string) => {
+        // The deck's files were replaced: read slides, clicks and hidden flags again.
+        const target = eventRef.current
+        if (target) reloadDecks(target).catch((e) => reportError('Decks', e))
+        setEditing((xs) => xs.filter((x) => x !== deckId))
+      },
+      [reloadDecks, reportError]
+    )
+  )
+  // Per deck: bumped when a web snapshot or an edited deck's images were rewritten under the same names.
+  const versions = useMemo(() => {
+    const out: Record<string, number> = { ...pages.versions }
+    for (const [id, v] of Object.entries(slideshow.versions)) out[id] = (out[id] ?? 0) + v
+    return out
+  }, [pages.versions, slideshow.versions])
   const outputs = useWebOutputs()
   const liveWeb = program.shown?.web?.deckId ?? null
   const onMonitor = outputSource(program)
@@ -646,6 +718,11 @@ function App(): React.JSX.Element {
 
   const deck = currentDeck(decks, program)
   const ready = deck !== null
+  const notice = nativeNotice(program, decks, slideshow.status)
+  // Saved edits that wait because their deck is on air (Apply now).
+  const pendingLive = decks.filter(
+    (d) => slideshow.pending.includes(d.id) && program.shown?.deckId === d.id
+  )
 
   return (
     <div className="app" ref={appRef}>
@@ -690,6 +767,13 @@ function App(): React.JSX.Element {
           onSetWebUrl={setWebUrl}
           onReloadWeb={reloadWeb}
           onPrepareWeb={prepareWeb}
+          engine={slideshow.status.decks}
+          editing={editing}
+          isEdited={api.isDeckEdited}
+          onEditDeck={editDeck}
+          onEditDone={editDeckDone}
+          onRevertDeck={revertDeck}
+          onSetPlayback={setDeckPlayback}
         />
         <section className="stage-col" aria-label="Program">
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />
@@ -699,6 +783,23 @@ function App(): React.JSX.Element {
               canResume={canResumeWeb(program, pages.statuses)}
               onResume={() => dispatch({ type: 'resumeWeb' })}
             />
+          )}
+          {notice && (
+            <NativeFallbackWarning
+              notice={notice}
+              canResume={
+                !!program.shown && slideshow.status.resumable.includes(program.shown.deckId)
+              }
+              onResume={() =>
+                program.shown && dispatch({ type: 'resumeNative', deckId: program.shown.deckId })
+              }
+            />
+          )}
+          {pendingLive.map((d) => (
+            <PendingBanner key={d.id} deckName={d.name} onApplyNow={() => applyDeckNow(d.id)} />
+          ))}
+          {slideshow.editError && (
+            <EditErrorBanner error={slideshow.editError} onDismiss={slideshow.clearEditError} />
           )}
           <CaptureWarning
             warnings={visibleCaptureWarnings(captureWarnings, program)}
@@ -711,7 +812,8 @@ function App(): React.JSX.Element {
           <Program
             state={program}
             deck={deck}
-            posterVersion={liveWeb ? (pages.versions[liveWeb] ?? 0) : 0}
+            posterVersion={program.shown ? (versions[program.shown.deckId] ?? 0) : 0}
+            stepLabel={stepLabel(program, decks)}
             stream={monitorStream}
             emptyHint={
               eventId ? undefined : 'Create an event first from the Event menu at the top left.'
@@ -735,7 +837,7 @@ function App(): React.JSX.Element {
           sections={sections}
           state={program}
           webStatuses={pages.statuses}
-          webVersions={pages.versions}
+          versions={versions}
           onAction={dispatch}
         />
       </main>
@@ -744,7 +846,7 @@ function App(): React.JSX.Element {
         state={program}
         onGoto={goto}
         onMoveSlide={moveSlide}
-        webVersions={pages.versions}
+        versions={versions}
       />
       <SaveNote text={note} />
       <Splitters appRef={appRef} />

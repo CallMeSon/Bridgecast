@@ -165,7 +165,7 @@ describe('DeckEditor', () => {
     expect(read('original.pptx')).toBe('ORIG')
     expect(lib.getDeck(deckId).slides[0].notes).toBe('V2')
     expect(editor.pending(deckId)).toBe(false)
-    expect(events).toEqual(['open:edit.pptx', 'suspend:deck', 'applied', 'resume'])
+    expect(events).toEqual(['open:edit.pptx', 'suspend:deck', 'pending:false', 'applied', 'resume'])
     // The working copy stays while the operator keeps editing.
     expect(fs.existsSync(path.join(dir, 'edit.pptx'))).toBe(true)
   })

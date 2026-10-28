@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   DotsThreeVerticalIcon,
+  ArrowCounterClockwiseIcon,
   ArrowDownIcon,
   ArrowUpIcon,
   ArrowsClockwiseIcon,
@@ -13,6 +14,7 @@ import {
   GlobeIcon,
   ImageIcon,
   LinkIcon,
+  NotePencilIcon,
   PauseIcon,
   ListPlusIcon,
   PencilSimpleIcon,
@@ -24,7 +26,13 @@ import {
   WarningCircleIcon,
   WarningIcon
 } from '@phosphor-icons/react'
-import { DECK_NAME_MAX, type DeckMeta, type SectionMeta } from '../../../shared/types'
+import {
+  DECK_NAME_MAX,
+  type DeckMeta,
+  type Playback,
+  type SectionMeta
+} from '../../../shared/types'
+import { canNative, playbackOf, type EngineState } from '../../../shared/playback'
 import type { ShownSlide } from '../../../shared/program'
 import { webDomain, type WebStatus } from '../../../shared/web'
 import type { ImportProgress } from '../../../shared/ipc'
@@ -39,7 +47,9 @@ import {
   reorderTarget,
   webChip,
   WEB_CHIP_TEXT,
-  type WebChipKind
+  type WebChipKind,
+  playbackChip,
+  REVERT_CONFIRM
 } from '../model'
 import { orderItems, type OrderItem } from '../../../shared/sections'
 import { onMenuKeyDown, useContextMenu } from './menuNav'
@@ -91,6 +101,16 @@ interface Props {
   onSetWebUrl(deckId: string, url: string): Promise<void>
   onReloadWeb(deckId: string): void
   onPrepareWeb(deckId: string): void
+  /** Session state of each native deck (the chip of its row). */
+  engine: Record<string, EngineState>
+  /** Decks the operator opened in PowerPoint and has not finished (Done editing shows). */
+  editing: string[]
+  /** The deck's file differs from the imported one (Revert is available). */
+  isEdited(deckId: string): Promise<boolean>
+  onEditDeck(deckId: string): void
+  onEditDone(deckId: string): void
+  onRevertDeck(deckId: string): void
+  onSetPlayback(deckId: string, playback: Playback): void
   sections: SectionMeta[]
   /** `at` is a deck index (the section goes before that deck). Resolves to the new section's id. */
   onAddSection(at: number | 'end'): Promise<string | null>
@@ -104,6 +124,25 @@ interface MenuAt {
   deckId: string
   x: number
   y: number
+}
+
+const PLAYBACK_NAMES: Record<Playback, { name: string; hint: string }> = {
+  native: {
+    name: 'Native',
+    hint: 'PowerPoint plays the slide show: animations, transitions and video'
+  },
+  vector: { name: 'Vector', hint: 'Sharp pages drawn from the file, no animation' },
+  images: { name: 'Still images', hint: 'The imported pictures of the slides' }
+}
+
+/** The playback modes this deck can use, in menu order (a PDF has no Native). */
+function playbackOptions(d: DeckMeta | undefined): Playback[] {
+  if (!d || d.source === 'web') return []
+  const out: Playback[] = []
+  if (canNative(d)) out.push('native')
+  if (d.source === 'pptx' || d.source === 'pdf') out.push('vector')
+  out.push('images')
+  return out
 }
 
 const FIT_NAMES: Record<DeckFit, { name: string; hint: string }> = {
@@ -120,6 +159,15 @@ function DeckMenu({
   fit,
   web,
   holdsFirst = false,
+  powerPoint,
+  options,
+  editing,
+  edited,
+  playback,
+  onEdit,
+  onEditDone,
+  onRevert,
+  onPlayback,
   onPrepare,
   onEditUrl,
   onReload,
@@ -139,6 +187,18 @@ function DeckMenu({
   web: boolean
   /** The web deck is on air and not frozen: Edit URL and Reload put the output on HOLD first. */
   holdsFirst?: boolean
+  /** A PowerPoint deck: Edit in PowerPoint and Revert. */
+  powerPoint: boolean
+  /** Opened in PowerPoint and not finished. */
+  editing: boolean
+  /** The file differs from the imported one; null while that is being read. */
+  edited: boolean | null
+  playback: Playback
+  onEdit(): void
+  onEditDone(): void
+  onRevert(): void
+  onPlayback(p: Playback): void
+  options: Playback[]
   onPrepare(): void
   onEditUrl(): void
   onReload(): void
@@ -206,6 +266,51 @@ function DeckMenu({
         <SpeakerHighIcon className="chk" size={16} />
         Sound…
       </button>
+      {powerPoint && (
+        <>
+          <hr />
+          <button role="menuitem" onClick={onEdit}>
+            <NotePencilIcon className="chk" size={16} />
+            Edit in PowerPoint
+          </button>
+          {editing && (
+            <button role="menuitem" onClick={onEditDone}>
+              <CheckIcon className="chk" size={16} />
+              Done editing
+            </button>
+          )}
+          <button role="menuitem" disabled={edited !== true} onClick={onRevert}>
+            <ArrowCounterClockwiseIcon className="chk" size={16} />
+            Revert to imported file
+          </button>
+        </>
+      )}
+      {options.length > 0 && (
+        <>
+          <hr />
+          <div role="group" aria-labelledby="deck-playback-label">
+            <span className="menu-label" id="deck-playback-label">
+              Playback
+            </span>
+            {options.map((o) => (
+              <button
+                key={o}
+                role="menuitemradio"
+                aria-checked={playback === o}
+                title={PLAYBACK_NAMES[o].hint}
+                onClick={() => onPlayback(o)}
+              >
+                {playback === o ? (
+                  <CheckIcon className="chk" size={16} />
+                ) : (
+                  <span className="chk" />
+                )}
+                {PLAYBACK_NAMES[o].name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {!web && (
         <>
           <hr />
@@ -409,6 +514,49 @@ function ConfirmRemove({
   )
 }
 
+/** Inline confirmation in place of the deck row before Revert (no modal). */
+function ConfirmRevert({
+  deck,
+  onConfirm,
+  onCancel
+}: {
+  deck: DeckMeta
+  onConfirm(): void
+  onCancel(): void
+}): React.JSX.Element {
+  const cancel = useRef<HTMLButtonElement>(null)
+  useEffect(() => cancel.current?.focus(), [])
+  return (
+    <div
+      className="deck confirm"
+      role="group"
+      aria-label={`Revert ${deck.name}`}
+      data-no-shortcuts
+      data-testid="confirm-revert"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          onCancel()
+        }
+      }}
+    >
+      <ArrowCounterClockwiseIcon className="ph" size={20} />
+      <span className="name" title={deck.name}>
+        {REVERT_CONFIRM}
+      </span>
+      <span className="msg">{deck.name}</span>
+      <span className="actions">
+        <button className="btn sm danger" data-testid="revert-yes" onClick={onConfirm}>
+          Revert
+        </button>
+        <button ref={cancel} className="btn sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </span>
+    </div>
+  )
+}
+
 /** "Key visual (KV)": the event's hold image (shown on the output on demand and while STANDBY). */
 function KvBlock({
   kvUrl,
@@ -507,11 +655,30 @@ function focusRow(key: string): void {
     ?.focus()
 }
 
+const menuOpenId = (m: MenuAt | null): string | null => (m ? m.deckId : null)
+
 export function Library(p: Props): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null)
   const [menu, setMenu] = useState<MenuAt | null>(null)
   const [sectionMenu, setSectionMenu] = useState<SectionMenuAt | null>(null)
   const [confirm, setConfirm] = useState<string | null>(null)
+  const [confirmRevert, setConfirmRevert] = useState<string | null>(null)
+  // Whether a deck differs from its imported file, read when its menu opens.
+  const [editedRead, setEditedRead] = useState<{ id: string; edited: boolean } | null>(null)
+  const menuDeckId = menuOpenId(menu)
+  const menuEdited = editedRead && editedRead.id === menuDeckId ? editedRead.edited : null
+  const { isEdited } = p
+  useEffect(() => {
+    if (menuDeckId === null) return
+    let fresh = true
+    isEdited(menuDeckId).then(
+      (edited) => fresh && setEditedRead({ id: menuDeckId, edited }),
+      () => fresh && setEditedRead({ id: menuDeckId, edited: false })
+    )
+    return () => {
+      fresh = false
+    }
+  }, [menuDeckId, isEdited])
   const [sound, setSound] = useState<MenuAt | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   // The Add web page dialog, or the Edit URL one of a web deck.
@@ -718,6 +885,20 @@ export function Library(p: Props): React.JSX.Element {
                 setRenaming((r) => (r === d.id ? null : r))
               }}
             />
+          ) : confirmRevert === d.id ? (
+            <ConfirmRevert
+              key={d.id}
+              deck={d}
+              onConfirm={() => {
+                setConfirmRevert(null)
+                focusRow(`deck:${d.id}`)
+                p.onRevertDeck(d.id)
+              }}
+              onCancel={() => {
+                setConfirmRevert(null)
+                refocus.current = `deck:${d.id}`
+              }}
+            />
           ) : confirm === d.id ? (
             <ConfirmRemove
               key={d.id}
@@ -773,6 +954,18 @@ export function Library(p: Props): React.JSX.Element {
                       : p.frozen?.deckId === d.id
                         ? `FROZEN, slide ${p.frozen.index + 1}`
                         : `.${d.source}`}
+                  {d.source !== 'web' && (
+                    <span
+                      className="pb"
+                      data-mode={playbackOf(d)}
+                      data-engine={
+                        playbackOf(d) === 'native' ? (p.engine[d.id] ?? 'opening') : undefined
+                      }
+                      data-testid="playback-chip"
+                    >
+                      {playbackChip(d, p.engine[d.id] ?? null)}
+                    </span>
+                  )}
                   <DeckSoundMark audio={d.audio} />
                 </span>
               </button>
@@ -787,6 +980,7 @@ export function Library(p: Props): React.JSX.Element {
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
                   setConfirm(null)
+                  setConfirmRevert(null)
                   setSectionMenu(null)
                   setSound(null)
                   setMenu({ deckId: d.id, x: Math.max(8, r.right - 200), y: r.bottom + 4 })
@@ -848,6 +1042,33 @@ export function Library(p: Props): React.JSX.Element {
           fit={sanitizeFit(deckById.get(menu.deckId)?.fit)}
           web={deckById.get(menu.deckId)?.source === 'web'}
           holdsFirst={p.live?.deckId === menu.deckId}
+          powerPoint={deckById.get(menu.deckId)?.source === 'pptx'}
+          options={playbackOptions(deckById.get(menu.deckId))}
+          editing={p.editing.includes(menu.deckId)}
+          edited={menuEdited}
+          playback={playbackOf(deckById.get(menu.deckId) ?? ({} as DeckMeta))}
+          onEdit={() => {
+            focusRow(`deck:${menu.deckId}`)
+            const id = menu.deckId
+            setMenu(null)
+            p.onEditDeck(id)
+          }}
+          onEditDone={() => {
+            focusRow(`deck:${menu.deckId}`)
+            const id = menu.deckId
+            setMenu(null)
+            p.onEditDone(id)
+          }}
+          onRevert={() => {
+            setConfirmRevert(menu.deckId)
+            setMenu(null)
+          }}
+          onPlayback={(mode) => {
+            focusRow(`deck:${menu.deckId}`)
+            const id = menu.deckId
+            setMenu(null)
+            p.onSetPlayback(id, mode)
+          }}
           onPrepare={() => {
             const id = menu.deckId
             setMenu(null)

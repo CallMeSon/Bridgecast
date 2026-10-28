@@ -117,6 +117,24 @@ describe('SlideShowManager', () => {
     expect(mgr.ready('a')).toBe(false)
   })
 
+  it('tells listeners when a session becomes ready', async () => {
+    const seen: boolean[] = []
+    mgr.onStatus(() => seen.push(mgr.ready('a')))
+    await goLive('a')
+    expect(seen).toContain(true)
+  })
+
+  it('resumeNative returns a fallen deck to the slide show once its session is open', async () => {
+    await goLive('a')
+    ;(mgr as unknown as { fallBack(id: string): void }).fallBack('a')
+    expect(app.state.shown?.playback).toBe('images')
+    expect(mgr.fellBack('a')).toBe(true)
+    expect(mgr.sessionOpen('a')).toBe(true)
+    mgr.resumeNative('a')
+    expect(mgr.fellBack('a')).toBe(false)
+    expect(app.state.shown?.playback).toBe('native')
+  })
+
   it('step forward calls next and dispatches the engine position', async () => {
     await goLive('a')
     dispatched.length = 0

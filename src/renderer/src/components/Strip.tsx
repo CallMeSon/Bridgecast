@@ -6,14 +6,17 @@ import { posterWithVersion } from '../stream'
 import { currentDeck, reorderTarget, slideLabel, slideRole, type SlideRole } from '../model'
 import { SlideImage } from './Slide'
 
+/** '3 clicks': the animation steps the slide has when it plays natively. */
+const clicksText = (n: number): string => `${n} ${n === 1 ? 'click' : 'clicks'}`
+
 const SLIDE_TYPE = 'application/x-ppt-share-slide'
 
 interface Props {
   decks: DeckMeta[]
   state: ProgramState
   onGoto(index: number): void
-  /** Per web deck: bumped when its snapshot may have been rewritten under the same name. */
-  webVersions?: Record<string, number>
+  /** Per deck: bumped when its images may have been rewritten under the same names (web snapshot, edit, revert). */
+  versions?: Record<string, number>
   /** Drag or Alt+Left/Right to reorder: move slide `from` to `to` within the current deck. */
   onMoveSlide(deckId: string, from: number, to: number): void
 }
@@ -26,7 +29,7 @@ interface ThumbProps {
   current: boolean
   dragging: boolean
   over: boolean
-  /** Version of this deck's snapshot (web decks); reloads the thumbnail. */
+  /** Version of this deck's images; reloads the thumbnail. */
   version: number
   onGoto(index: number): void
   /** `file` identifies the slide so focus can follow it after the move. */
@@ -65,9 +68,14 @@ const Thumb = memo(function Thumb({
       data-role={role}
       data-file={s.file}
       data-video={s.video ? 'true' : undefined}
+      data-hidden={s.hidden ? 'true' : undefined}
       draggable
       aria-current={current ? 'true' : undefined}
-      aria-label={slideLabel(i, role)}
+      aria-label={
+        slideLabel(i, role) +
+        (s.hidden ? ', hidden' : '') +
+        (s.clicks ? `, ${clicksText(s.clicks)}` : '')
+      }
       title="Click to go to this slide. Drag, or press Alt+←/→, to reorder."
       onClick={() => onGoto(i)}
       onKeyDown={(e) => {
@@ -112,18 +120,14 @@ const Thumb = memo(function Thumb({
         {role === 'live' && <b>LIVE</b>}
         {role === 'frozen' && <b>FROZEN</b>}
         {role === 'next' && <b>NEXT</b>}
+        {s.hidden && <i className="hid">Hidden</i>}
+        {!!s.clicks && !s.hidden && <i className="clk">{clicksText(s.clicks)}</i>}
       </span>
     </button>
   )
 })
 
-export function Strip({
-  decks,
-  state,
-  onGoto,
-  onMoveSlide,
-  webVersions
-}: Props): React.JSX.Element {
+export function Strip({ decks, state, onGoto, onMoveSlide, versions }: Props): React.JSX.Element {
   const ref = useRef<HTMLElement>(null)
   const deck = currentDeck(decks, state)
   const [dragging, setDragging] = useState<number | null>(null)
@@ -177,7 +181,7 @@ export function Strip({
               current={i === state.index}
               dragging={dragging === i}
               over={over === i}
-              version={deck.source === 'web' ? (webVersions?.[deck.id] ?? 0) : 0}
+              version={versions?.[deck.id] ?? 0}
               onGoto={onGoto}
               onMove={move}
               setDragging={setDragging}

@@ -84,10 +84,40 @@ export class SlideShowManager {
     this.heartbeat = timers.setInterval(() => this.tick(), HEARTBEAT_MS)
   }
 
+  private statusCbs: (() => void)[] = []
+
+  /** `cb` runs whenever session readiness may have changed (the caller compares). */
+  onStatus(cb: () => void): void {
+    this.statusCbs.push(cb)
+  }
+
+  private notifyStatus(): void {
+    for (const cb of this.statusCbs) cb()
+  }
+
   /** The deck's slideshow is open, the engine is up and no fallback is pending. */
   ready(deckId: string): boolean {
     const e = this.entries.get(deckId)
     return !!e?.session && !e.closing && !this.down && !this.fallen.has(deckId)
+  }
+
+  /** The deck's slide show session is open, whether or not the deck fell back. */
+  sessionOpen(deckId: string): boolean {
+    const e = this.entries.get(deckId)
+    return !!e?.session && !e.closing && !this.down
+  }
+
+  /** The engine failed while the deck was on air and the deck has not been resumed. */
+  fellBack(deckId: string): boolean {
+    return this.fallen.has(deckId)
+  }
+
+  /** The operator's Resume PowerPoint: back to the slide show when its session is open. */
+  resumeNative(deckId: string): void {
+    if (!this.sessionOpen(deckId)) return
+    this.fallen.delete(deckId)
+    this.state.dispatch({ type: 'resumeNative', deckId })
+    this.sync()
   }
 
   windowId(deckId: string): string | null {
@@ -181,6 +211,7 @@ export class SlideShowManager {
       }
     }
     if (live) this.drive(live)
+    this.notifyStatus()
   }
 
   private liveNative(s: ProgramState, decks: DeckMeta[]): string | null {
@@ -222,6 +253,7 @@ export class SlideShowManager {
         this.blocked.add(deckId)
         if (this.liveNative(this.state.state, this.decks()) === deckId) this.fallBack(deckId)
         this.scheduleRetry()
+        this.notifyStatus()
       }
     )
   }
@@ -283,6 +315,7 @@ export class SlideShowManager {
     }
     if (this.liveNative(this.state.state, this.decks()) === deckId) this.fallBack(deckId)
     this.scheduleRetry()
+    this.notifyStatus()
   }
 
   /** Engine hung or died: images take over, restart in the background. */
@@ -298,6 +331,7 @@ export class SlideShowManager {
     this.framed.clear()
     for (const id of gone) this.notifyGone(id)
     if (live) this.fallBack(live)
+    this.notifyStatus()
     // A hung shutdown must not keep the engine down forever.
     const restart = (): void => {
       if (gen === this.gen) this.restarted()

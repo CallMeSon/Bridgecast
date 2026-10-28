@@ -44,7 +44,11 @@ import {
   WEB_LIVE_NEXT,
   WEB_NOT_READY,
   WEB_HOLD_TEXT,
-  WEB_HOLD_NAVIGATING_TEXT
+  WEB_HOLD_NAVIGATING_TEXT,
+  stepLabel,
+  nextStepText,
+  playbackChip,
+  nativeNotice
 } from './model'
 
 const deck = (id: string, n: number, name = id): DeckMeta => ({
@@ -929,5 +933,107 @@ describe('webUpNext, webChip and canResumeWeb', () => {
     expect(holdDeckId(live('w1', { webHold: true, frozen: true }))).toBe('w1')
     expect(holdDeckId(live('w1'))).toBeNull()
     expect(holdDeckId(at('a', 0, { webHold: true }))).toBeNull()
+  })
+})
+
+describe('native step helpers', () => {
+  const nd = (over: Partial<DeckMeta> = {}): DeckMeta => ({
+    ...deck('n', 5),
+    source: 'pptx',
+    playback: 'native',
+    slides: [0, 1, 2, 3, 4].map((i) => ({
+      file: `${i}.png`,
+      notes: '',
+      ...(i === 3 ? { clicks: 3 } : {})
+    })),
+    ...over
+  })
+  const live = (
+    index: number,
+    step: number,
+    playback: 'native' | 'images' = 'native'
+  ): ProgramState =>
+    ({
+      ...initialState,
+      deckId: 'n',
+      index,
+      shown: { deckId: 'n', index, file: `${index}.png`, step, playback }
+    }) as ProgramState
+
+  it('stepLabel shows slide and step of a live native slide with clicks', () => {
+    expect(stepLabel(live(3, 2), [nd()])).toBe('Slide 4 · step 2/3')
+    expect(stepLabel(live(3, 0), [nd()])).toBe('Slide 4 · step 0/3')
+  })
+  it('stepLabel is null without clicks, off native, fallen back or nothing live', () => {
+    expect(stepLabel(live(1, 0), [nd()])).toBeNull()
+    expect(stepLabel(live(3, 0, 'images'), [nd()])).toBeNull()
+    expect(stepLabel({ ...initialState, deckId: 'n' }, [nd()])).toBeNull()
+  })
+  it('nextStepText while steps remain', () => {
+    expect(nextStepText(live(3, 2), [nd()])).toBe('Next: step 3 of 3 on this slide')
+    expect(nextStepText(live(3, 0), [nd()])).toBe('Next: step 1 of 3 on this slide')
+  })
+  it('nextStepText is null after the last step, without clicks, frozen', () => {
+    expect(nextStepText(live(3, 3), [nd()])).toBeNull()
+    expect(nextStepText(live(1, 0), [nd()])).toBeNull()
+    expect(nextStepText({ ...live(3, 1), frozen: true }, [nd()])).toBeNull()
+  })
+})
+
+describe('playbackChip', () => {
+  const d = (p?: DeckMeta['playback']): DeckMeta => ({ ...deck('x', 1), playback: p })
+  it('names the native engine state', () => {
+    expect(playbackChip(d('native'), 'opening')).toBe('Native · Opening…')
+    expect(playbackChip(d('native'), null)).toBe('Native · Opening…')
+    expect(playbackChip(d('native'), 'ready')).toBe('Native · Ready')
+    expect(playbackChip(d('native'), 'fallback')).toBe('Native · Fallback')
+  })
+  it('names the other modes', () => {
+    expect(playbackChip(d('vector'), 'ready')).toBe('Vector')
+    expect(playbackChip(d('images'), null)).toBe('Still images')
+    expect(playbackChip(d(), null)).toBe('Still images')
+  })
+})
+
+describe('nativeNotice', () => {
+  const d = { ...deck('n', 2), source: 'pptx' as const, playback: 'native' as const }
+  const on = (playback: 'native' | 'images'): ProgramState =>
+    ({
+      ...initialState,
+      shown: { deckId: 'n', index: 0, file: 'n0.png', step: 0, playback }
+    }) as ProgramState
+  const st = (
+    e: 'opening' | 'ready' | 'fallback',
+    helperError: string | null = null
+  ): { decks: Record<string, 'opening' | 'ready' | 'fallback'>; helperError: string | null } => ({
+    decks: { n: e },
+    helperError
+  })
+  it('is null while native plays or nothing is native', () => {
+    expect(nativeNotice(on('native'), [d], st('ready'))).toBeNull()
+    expect(nativeNotice(initialState, [d], st('ready'))).toBeNull()
+    expect(nativeNotice(on('images'), [{ ...d, playback: 'images' }], st('ready'))).toBeNull()
+  })
+  it('names the cause of the stills', () => {
+    expect(nativeNotice(on('images'), [d], st('opening'))).toBe('notReady')
+    expect(nativeNotice(on('images'), [d], null)).toBe('notReady')
+    expect(nativeNotice(on('images'), [d], st('fallback'))).toBe('notResponding')
+    expect(nativeNotice(on('images'), [d], st('fallback', 'x'))).toBe('helper')
+  })
+})
+
+describe('nextView and hidden slides', () => {
+  it('skips hidden slides', () => {
+    const d = deck('h', 4)
+    d.slides[1].hidden = true
+    d.slides[2].hidden = true
+    const s = {
+      ...initialState,
+      deckId: 'h',
+      index: 0,
+      shown: { deckId: 'h', index: 0, file: 'h0.png' }
+    } as ProgramState
+    const v = nextView([d], s)
+    expect(v.kind === 'slide' && v.index).toBe(3)
   })
 })

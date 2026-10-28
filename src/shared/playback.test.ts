@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canNative, defaultPlayback, playbackOf } from './playback'
+import { canNative, defaultPlayback, engineStates, playbackOf } from './playback'
 import type { DeckMeta } from './types'
 
 const deck = (over: Partial<DeckMeta>): DeckMeta => ({
@@ -39,5 +39,15 @@ describe('playbackOf and canNative', () => {
     expect(canNative(deck({ source: 'pptx' }))).toBe(true)
     expect(canNative(deck({ source: 'pdf' }))).toBe(false)
     expect(canNative(deck({ source: 'folder' }))).toBe(false)
+  })
+})
+
+describe('engineStates', () => {
+  const nat = (id: string): DeckMeta => deck({ id, playback: 'native' })
+  const decks = [nat('a'), nat('b'), nat('f'), deck({ id: 'c', playback: 'vector' })]
+  it('lists native decks only: ready, opening or fallback', () => {
+    expect(
+      engineStates(decks, { ready: (id) => id === 'a', fellBack: (id) => id === 'f' })
+    ).toEqual({ a: 'ready', b: 'opening', f: 'fallback' })
   })
 })
