@@ -23,6 +23,10 @@ namespace PptBridge
         [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hh, uint flags);
         [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+        [DllImport("user32.dll")] public static extern bool IsHungAppWindow(IntPtr h);
+        public const uint WM_NULL = 0, SMTO_ABORTIFHUNG = 0x0002;
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeoutMs, out IntPtr result);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern IntPtr CreateEvent(IntPtr attrs, bool manualReset, bool initial, string name);

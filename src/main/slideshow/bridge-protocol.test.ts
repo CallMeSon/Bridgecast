@@ -48,6 +48,13 @@ describe('BridgeClient', () => {
     await expect(Promise.all([a, b])).resolves.toHaveLength(2)
   })
 
+  it('dispatches the app event (PowerPoint pid and ownership)', () => {
+    const got: BridgeEvent[] = []
+    c.onEvent((e) => got.push(e))
+    c.feed('{"event":"app","pid":12,"owned":true}\n')
+    expect(got).toEqual([{ event: 'app', pid: 12, owned: true }])
+  })
+
   it('dispatches events', () => {
     const got: BridgeEvent[] = []
     c.onEvent((e) => got.push(e))

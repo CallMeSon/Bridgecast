@@ -1,4 +1,4 @@
-import { spawn as nodeSpawn } from 'node:child_process'
+import { execFile, spawn as nodeSpawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
@@ -20,8 +20,26 @@ export interface BridgeChild {
 }
 export type SpawnFn = (exe: string) => BridgeChild
 
+/** Shown when the sound of PowerPoint cannot be routed or its level changed by the app. */
+export const DEFAULT_DEVICE_SOUND = "PowerPoint sound plays on this PC's default device only."
+
 const defaultSpawn: SpawnFn = (exe) =>
   nodeSpawn(exe, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }) as BridgeChild
+
+/** `ppt-bridge.exe --restore-audio`: puts PowerPoint's session volume/mute back after an abnormal exit. */
+const defaultRestoreAudio = (exe: string): Promise<void> =>
+  new Promise((resolve) => {
+    try {
+      execFile(exe, ['--restore-audio'], { timeout: 5000, windowsHide: true }, () => resolve())
+    } catch {
+      resolve()
+    }
+  })
+
+/** Ends a PowerPoint process the bridge launched itself and that hangs. */
+const defaultKillPid = (pid: number): void => {
+  process.kill(pid, 'SIGKILL')
+}
 
 /** Where ppt-bridge.exe is: `resources/ppt-bridge/` packaged, the build output in dev. */
 export function bridgeExePath(opts: {
@@ -44,6 +62,10 @@ export interface PowerPointEngineOptions {
   place?: { x: number; y: number; behind: boolean }
   /** Called when the helper cannot start. */
   onStartFailure?: (message: string) => void
+  /** Runs the one-shot `--restore-audio` of the helper (at engine start, after an abnormal exit). */
+  restoreAudio?: (exe: string) => Promise<void>
+  /** Kills a hung PowerPoint process that the helper launched itself. */
+  killPid?: (pid: number) => void
   /** How long shutdown waits for the helper to exit before killing it. */
   shutdownMs?: number
 }
@@ -61,6 +83,10 @@ interface Live {
   exited: boolean
   /** The helper has written something: a later `error` is a broken pipe, not a failed start. */
   heard: boolean
+  /** The PowerPoint process the helper reported; `owned` = the helper launched it. */
+  app: { pid: number; owned: boolean } | null
+  /** An `edit` window was opened: the document belongs to the operator now. */
+  edited: boolean
 }
 
 /**
@@ -78,8 +104,11 @@ export class PowerPointEngine implements SlideShowEngine {
   /** Named pipe of the PowerPoint audio (48 kHz stereo float), when the loopback capture works. */
   audioPipe: string | null = null
   /** `pipe`: loopback capture; `fallback`: use setVolume; `none`: no session yet. */
-  audioMode: 'pipe' | 'fallback' | 'none' = 'none'
+  audioMode: 'pipe' | 'fallback' | 'device' | 'none' = 'none'
   private volume = 1
+  private restoredAtStart = false
+  /** Why the app cannot control the PowerPoint sound (copy for the operator), or null. */
+  audioNote: string | null = null
 
   constructor(private opts: PowerPointEngineOptions) {}
 
@@ -106,6 +135,10 @@ export class PowerPointEngine implements SlideShowEngine {
     if (this.live && !this.live.exited) return this.live
     const exists = this.opts.exists ?? fs.existsSync
     if (!exists(this.opts.exe)) this.failStart(`ppt-bridge.exe not found at ${this.opts.exe}`)
+    if (!this.restoredAtStart) {
+      this.restoredAtStart = true
+      this.runRestoreAudio()
+    }
     let child: BridgeChild
     try {
       child = (this.opts.spawn ?? defaultSpawn)(this.opts.exe)
@@ -115,7 +148,15 @@ export class PowerPointEngine implements SlideShowEngine {
     const client = new BridgeClient((line) => {
       child.stdin.write(line)
     })
-    const live: Live = { child, client, stopping: false, exited: false, heard: false }
+    const live: Live = {
+      child,
+      client,
+      stopping: false,
+      exited: false,
+      heard: false,
+      app: null,
+      edited: false
+    }
     const out = new StringDecoder('utf8')
     child.stdout.on('data', (c) => {
       live.heard = true
@@ -166,12 +207,27 @@ export class PowerPointEngine implements SlideShowEngine {
       this.opts.onStartFailure?.(HELPER_START_FAILED)
       return
     }
-    if (!live.stopping) for (const cb of this.exitCbs) cb()
+    if (!live.stopping) {
+      this.runRestoreAudio() // abnormal end: the helper could not put the sound settings back
+      for (const cb of this.exitCbs) cb()
+    }
+  }
+
+  private runRestoreAudio(): void {
+    const run = this.opts.restoreAudio ?? defaultRestoreAudio
+    run(this.opts.exe).catch(() => {})
   }
 
   private onBridgeEvent(live: Live, e: BridgeEvent): void {
     if (e.event === 'exited') {
       this.gone(live, false)
+      return
+    }
+    if (e.event === 'app') {
+      const { pid, owned } = e as Record<string, unknown>
+      if (Number.isInteger(pid) && (pid as number) > 0 && typeof owned === 'boolean') {
+        live.app = { pid: pid as number, owned }
+      }
       return
     }
     if (e.event === 'position') {
@@ -223,7 +279,11 @@ export class PowerPointEngine implements SlideShowEngine {
       throw new BridgeError('protocol', 'The slide show helper did not return a window.')
     }
     this.startError = null
-    this.audioMode = res.audio === 'pipe' || res.audio === 'fallback' ? res.audio : 'none'
+    this.audioMode =
+      res.audio === 'pipe' || res.audio === 'fallback' || res.audio === 'device'
+        ? res.audio
+        : 'none'
+    this.audioNote = this.audioMode === 'device' ? DEFAULT_DEVICE_SOUND : null
     this.audioPipe = typeof res.audioPipe === 'string' ? res.audioPipe : null
     if (this.audioMode === 'fallback') void this.setVolume(this.volume).catch(() => {})
     const call = async (cmd: 'next' | 'prev' | 'goto' | 'close', args: object): Promise<void> => {
@@ -254,38 +314,65 @@ export class PowerPointEngine implements SlideShowEngine {
     this.volume = Math.max(0, Math.min(1, volume))
     const live = this.live
     if (!live || live.exited) return
-    await live.client.request('setVolume', { volume: this.volume }, MOVE_MS)
+    try {
+      await live.client.request('setVolume', { volume: this.volume }, MOVE_MS)
+    } catch (e) {
+      // The operator's own PowerPoint: its volume is not changed, the sound stays on the default device.
+      if (e instanceof BridgeError && e.code === 'foreignapp') this.audioNote = DEFAULT_DEVICE_SOUND
+      else throw e
+    }
   }
 
   /** Opens the deck's working copy (`edit.pptx`) in a normal PowerPoint window. */
   async edit(file: string): Promise<void> {
     const live = this.start()
+    live.edited = true // from now on the document may be the operator's: never kill PowerPoint
     await live.client.request('edit', { file }, EDIT_MS)
+  }
+
+  /**
+   * Kills the PowerPoint process of a hung helper, but only one the helper launched itself and
+   * only while no edit window handed a document to the operator. Never a PowerPoint that was
+   * already running.
+   */
+  private killHungApp(live: Live): void {
+    const app = live.app
+    if (!app || !app.owned || live.edited) return
+    try {
+      console.warn(`[ppt-bridge] killing hung PowerPoint (pid ${app.pid}) started by the helper`)
+      ;(this.opts.killPid ?? defaultKillPid)(app.pid)
+    } catch (e) {
+      console.error('[ppt-bridge] could not kill PowerPoint:', (e as Error).message)
+    }
   }
 
   /**
    * Ends the helper: closing its stdin makes it close its slide shows and quit a PowerPoint
    * it started itself (when nothing else is open in it). After the wait only the helper process
-   * is killed, never a POWERPNT.EXE.
+   * is killed; a PowerPoint only if the helper launched it and it hangs (see killHungApp).
    */
   async shutdown(): Promise<void> {
     const live = this.live
     this.live = null
     this.audioPipe = null
     this.audioMode = 'none'
+    this.audioNote = null
     if (!live || live.exited) return
     live.stopping = true
     live.client.failAll('exited', 'The slide show helper is shutting down.')
     await new Promise<void>((resolve) => {
       let done = false
       const timer = setTimeout(() => {
+        // The helper did not end by itself: it hangs (PowerPoint stuck in a COM call).
         try {
           live.child.kill()
         } catch {
           /* already gone */
         }
+        this.killHungApp(live)
+        this.runRestoreAudio()
         finish()
-      }, this.opts.shutdownMs ?? 5000)
+      }, this.opts.shutdownMs ?? 2500)
       const finish = (): void => {
         if (done) return
         done = true

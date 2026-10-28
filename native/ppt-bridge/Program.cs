@@ -9,6 +9,12 @@ namespace PptBridge
         [STAThread]
         static int Main(string[] args)
         {
+            // One-shot: put PowerPoint's session volume/mute back after an abnormal bridge exit.
+            if (Array.IndexOf(args, "--restore-audio") >= 0)
+            {
+                try { Audio.RestoreFromFile(); } catch (Exception e) { Console.Error.WriteLine("restore-audio: " + e.Message); }
+                return 0;
+            }
             Io.Init();
             try
             {

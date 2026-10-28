@@ -194,18 +194,48 @@ namespace PptBridge
             }
         }
 
-        // ---- session volume (mute in capture mode, level in fallback mode) ----
+        // ---- session volume (optional local mute in capture mode, level in fallback mode) ----
+        //
+        // Only ever used on a PowerPoint the bridge launched itself. The level and mute state found
+        // before the first change are remembered and written to a small file, so they can be put back
+        // on shutdown, or by `ppt-bridge.exe --restore-audio` after a crash (Windows keeps the level
+        // per application, so a left-over mute would stay for the operator).
 
-        /// <summary>
-        /// Sets the volume of every audio session of the PowerPoint process on the default output device.
-        /// Windows remembers the level per application, so the bridge puts it back to 1.0 on a clean shutdown
-        /// (<see cref="Touched"/> tells whether it ever changed it).
-        /// </summary>
-        public static volatile bool Touched;
+        class Saved { public string Id; public float Volume; public bool Mute; }
+        static readonly System.Collections.Generic.Dictionary<string, Saved> saved =
+            new System.Collections.Generic.Dictionary<string, Saved>();
 
-        public static bool SetSessionVolume(uint targetPid, float level)
+        static string RestoreFile
         {
-            if (targetPid == 0) return false;
+            get
+            {
+                string dir = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+                if (string.IsNullOrEmpty(dir)) dir = Path.GetTempPath();
+                return Path.Combine(dir, "PPT Share", "audio-restore.json");
+            }
+        }
+
+        static void Persist()
+        {
+            try
+            {
+                var list = new System.Collections.Generic.List<object>();
+                foreach (var kv in saved)
+                    list.Add(new System.Collections.Generic.Dictionary<string, object>
+                    { { "id", kv.Value.Id }, { "volume", (double)kv.Value.Volume }, { "mute", kv.Value.Mute } });
+                string file = RestoreFile;
+                if (list.Count == 0) { if (File.Exists(file)) File.Delete(file); return; }
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                File.WriteAllText(file, new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(list));
+            }
+            catch (Exception) { }
+        }
+
+        delegate void SessionVisitor(ISimpleAudioVolume vol, string instanceId, string appId);
+
+        /// <summary>Visits the audio sessions on the default output device (targetPid 0: all processes).</summary>
+        static bool ForEachSession(uint targetPid, SessionVisitor visit)
+        {
             var en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
             IMMDevice dev;
             if (en.GetDefaultAudioEndpoint(0 /*eRender*/, 1 /*eMultimedia*/, out dev) != 0) return false;
@@ -217,23 +247,101 @@ namespace PptBridge
             if (mgr.GetSessionEnumerator(out se) != 0) return false;
             int n; se.GetCount(out n);
             bool any = false;
-            Guid ctx = Guid.Empty;
             for (int i = 0; i < n; i++)
             {
                 object so;
                 if (se.GetSession(i, out so) != 0) continue;
                 var c = so as IAudioSessionControl2;
-                if (c == null) continue;
+                var vol = so as ISimpleAudioVolume;
+                if (c == null || vol == null) continue;
                 uint p; c.GetProcessId(out p);
-                if (p != targetPid) continue;
-                var vol = c as ISimpleAudioVolume;
-                if (vol == null) continue;
-                Touched = true;
-                vol.SetMasterVolume(level, ref ctx);
-                vol.SetMute(false, ref ctx);
+                if (targetPid != 0 && p != targetPid) continue;
+                string inst, app;
+                if (c.GetSessionInstanceIdentifier(out inst) != 0) inst = null;
+                if (c.GetSessionIdentifier(out app) != 0) app = null;
+                visit(vol, inst, app);
                 any = true;
             }
             return any;
+        }
+
+        /// <summary>Sets level and/or mute of the PowerPoint sessions; the original values are remembered first.</summary>
+        public static bool ApplySessionVolume(uint targetPid, float? level, bool? mute)
+        {
+            if (targetPid == 0) return false;
+            Guid ctx = Guid.Empty;
+            bool changed = false;
+            bool any = ForEachSession(targetPid, (vol, inst, app) =>
+            {
+                string key = inst ?? app ?? "?";
+                if (!saved.ContainsKey(key))
+                {
+                    float v; bool m;
+                    vol.GetMasterVolume(out v); vol.GetMute(out m);
+                    saved[key] = new Saved { Id = app ?? key, Volume = v, Mute = m };
+                    changed = true;
+                }
+                if (level.HasValue) vol.SetMasterVolume(level.Value, ref ctx);
+                if (mute.HasValue) vol.SetMute(mute.Value, ref ctx);
+            });
+            if (changed) Persist();
+            return any;
+        }
+
+        /// <summary>Puts back what ApplySessionVolume changed, for the sessions still alive.</summary>
+        public static void RestoreSessions(uint targetPid)
+        {
+            if (saved.Count == 0 || targetPid == 0) return;
+            Guid ctx = Guid.Empty;
+            ForEachSession(targetPid, (vol, inst, app) =>
+            {
+                Saved s;
+                if (!saved.TryGetValue(inst ?? app ?? "?", out s)) return;
+                vol.SetMasterVolume(s.Volume, ref ctx);
+                vol.SetMute(s.Mute, ref ctx);
+                saved.Remove(inst ?? app ?? "?");
+            });
+            // Entries whose session is already gone stay in the file for `--restore-audio`.
+            Persist();
+        }
+
+        /// <summary>
+        /// `ppt-bridge.exe --restore-audio`: restores the level and mute state saved in the file for any
+        /// session of the same application that exists now. The file is deleted once all entries were
+        /// restored, or when it is older than 7 days. Returns the number of entries still waiting.
+        /// </summary>
+        public static int RestoreFromFile()
+        {
+            string file = RestoreFile;
+            if (!File.Exists(file)) return 0;
+            if (DateTime.UtcNow - File.GetLastWriteTimeUtc(file) > TimeSpan.FromDays(7)) { File.Delete(file); return 0; }
+            var list = new System.Web.Script.Serialization.JavaScriptSerializer()
+                .DeserializeObject(File.ReadAllText(file)) as object[];
+            if (list == null) { File.Delete(file); return 0; }
+            var pending = new System.Collections.Generic.List<object>(list);
+            var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Guid ctx = Guid.Empty;
+            ForEachSession(0, (vol, inst, app) =>
+            {
+                if (app == null) return;
+                foreach (var o in pending)
+                {
+                    var d = o as System.Collections.Generic.Dictionary<string, object>;
+                    if (d == null || !string.Equals(Convert.ToString(d["id"]), app, StringComparison.OrdinalIgnoreCase)) continue;
+                    vol.SetMasterVolume(Convert.ToSingle(d["volume"]), ref ctx);
+                    vol.SetMute((bool)d["mute"], ref ctx);
+                    seen.Add(app);
+                }
+            });
+            // An entry is done once a session of its application was restored.
+            pending.RemoveAll(o =>
+            {
+                var d = o as System.Collections.Generic.Dictionary<string, object>;
+                return d == null || seen.Contains(Convert.ToString(d["id"]));
+            });
+            if (pending.Count == 0) File.Delete(file);
+            else File.WriteAllText(file, new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(pending));
+            return pending.Count;
         }
 
         // ---- COM interop ----

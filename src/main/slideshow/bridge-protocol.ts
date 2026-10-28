@@ -5,7 +5,10 @@ export type BridgeRequest = { id: number; cmd: BridgeCmd } & Record<string, unkn
 export type BridgeReply =
   | ({ id: number; ok: true } & Record<string, unknown>)
   | { id: number; ok: false; code: string; message: string }
-export type BridgeEvent = { event: 'position' | 'error' | 'exited' } & Record<string, unknown>
+export type BridgeEvent = { event: 'position' | 'error' | 'exited' | 'app' } & Record<
+  string,
+  unknown
+>
 
 export class BridgeError extends Error {
   constructor(
@@ -91,7 +94,12 @@ export class BridgeClient {
     }
     const m = msg as Record<string, unknown>
     if (typeof m.event === 'string') {
-      if (m.event === 'position' || m.event === 'error' || m.event === 'exited') {
+      if (
+        m.event === 'position' ||
+        m.event === 'error' ||
+        m.event === 'exited' ||
+        m.event === 'app'
+      ) {
         for (const cb of this.listeners) cb(m as BridgeEvent)
       }
       return

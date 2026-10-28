@@ -20,11 +20,14 @@ namespace PptBridge
     class Bridge
     {
         const int PpAlertsNone = 1, PpAlertsAll = 2;
-        const int PpShowTypeWindow = 1, PpAdvanceUseSlideTimings = 2, PpPointerAlwaysHidden = 3, PpShowDone = 5;
-        /// <summary>A short command (anything but open/edit) stuck longer than this makes `ping` go unanswered: PowerPoint hangs.</summary>
-        const long ShortCmdHangMs = 2500;
-        /// <summary>Whether the real PowerPoint sound is muted while the loopback capture carries it (to be confirmed on Windows).</summary>
-        static readonly bool MuteLocalWhenCapturing = Environment.GetEnvironmentVariable("PPT_BRIDGE_LOCAL_MUTE") != "0";
+        // PpSlideShowType: ppShowTypeSpeaker = 1 (full screen!), ppShowTypeWindow = 2, ppShowTypeKiosk = 3.
+        const int PpShowTypeWindow = 2, PpAdvanceUseSlideTimings = 2, PpPointerAlwaysHidden = 3, PpShowDone = 5;
+        /// <summary>
+        /// Opt-in (PPT_BRIDGE_LOCAL_MUTE=1): mute the real PowerPoint sound while the loopback capture carries it.
+        /// Off until Windows confirms that muting the session does not silence the loopback capture.
+        /// Never used on a PowerPoint the operator already had open.
+        /// </summary>
+        static readonly bool MuteLocalWhenCapturing = Environment.GetEnvironmentVariable("PPT_BRIDGE_LOCAL_MUTE") == "1";
 
         class Req { public int Id; public string Cmd; public Dictionary<string, object> Args; }
 
@@ -46,8 +49,9 @@ namespace PptBridge
         dynamic app;
         /// <summary>True only when this bridge launched PowerPoint (no POWERPNT.EXE existed before).</summary>
         bool ownsApp;
-        int savedAlerts = PpAlertsAll;
         uint pptPid;
+        bool appReported;
+        readonly List<IntPtr> watched = new List<IntPtr>();
         Audio audio;
         double volume = 1.0;
 
@@ -73,10 +77,10 @@ namespace PptBridge
                     lastPoll = Clock.ElapsedMilliseconds;
                     Poll();
                 }
-                if (audio != null && audio.Active && MuteLocalWhenCapturing && Clock.ElapsedMilliseconds - lastMute >= 500)
+                if (ownsApp && audio != null && audio.Active && MuteLocalWhenCapturing && Clock.ElapsedMilliseconds - lastMute >= 500)
                 {
                     lastMute = Clock.ElapsedMilliseconds;
-                    Guarded(() => Audio.SetSessionVolume(pptPid, 0f));
+                    Guarded(() => Audio.ApplySessionVolume(pptPid, null, true));
                 }
             }
             Shutdown();
@@ -114,7 +118,9 @@ namespace PptBridge
         void Ping(int id)
         {
             long since = Interlocked.Read(ref busySince);
-            if (since != 0 && !busyLong && Clock.ElapsedMilliseconds - since > ShortCmdHangMs) return; // no reply: hung
+            // No COM here: this thread must stay answerable while the main thread is stuck in PowerPoint.
+            bool alive = WindowsAlive();
+            if (!PingPolicy.ShouldAnswer(Clock.ElapsedMilliseconds, since, busyLong, alive)) return; // no reply: hung
             Io.Reply(id, new Dictionary<string, object> { { "busy", since != 0 } });
         }
 
@@ -178,8 +184,62 @@ namespace PptBridge
             // PowerPoint is one process. If one is already running it belongs to the operator: use it, never kill it.
             ownsApp = Process.GetProcessesByName("POWERPNT").Length == 0;
             app = Activator.CreateInstance(t);
-            try { savedAlerts = (int)app.DisplayAlerts; } catch { savedAlerts = PpAlertsAll; }
-            app.DisplayAlerts = PpAlertsNone;
+            // DisplayAlerts is only switched off around Open/Run/Close (see Alerts), never left off.
+            try
+            {
+                IntPtr main = new IntPtr((int)app.HWND);
+                uint pid; Native.GetWindowThreadProcessId(main, out pid);
+                Watch(main, true);
+                ReportApp(pid);
+            }
+            catch (Exception e) { Io.Log("app hwnd: " + Clean(e)); }
+        }
+
+        /// <summary>Tells the app which PowerPoint process this is and whether the bridge launched it (once).</summary>
+        void ReportApp(uint pid)
+        {
+            if (appReported || pid == 0) return;
+            appReported = true;
+            pptPid = pid;
+            Io.Event("app", new Dictionary<string, object> { { "pid", (int)pid }, { "owned", ownsApp } });
+        }
+
+        void Watch(IntPtr h, bool add)
+        {
+            lock (watched)
+            {
+                if (add) { if (!watched.Contains(h)) watched.Add(h); }
+                else watched.Remove(h);
+            }
+        }
+
+        /// <summary>Windows-only liveness: no PowerPoint window we know of is hung (SendMessageTimeout, no COM).</summary>
+        bool WindowsAlive()
+        {
+            IntPtr[] hs;
+            lock (watched) hs = watched.ToArray();
+            foreach (var h in hs)
+            {
+                if (!Native.IsWindow(h)) continue;
+                if (Native.IsHungAppWindow(h)) return false;
+                IntPtr res;
+                if (Native.SendMessageTimeout(h, Native.WM_NULL, IntPtr.Zero, IntPtr.Zero, Native.SMTO_ABORTIFHUNG, 500, out res) == IntPtr.Zero)
+                    return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Runs f with PowerPoint's alerts off and puts the previous value back, so the operator's own
+        /// PowerPoint is never left in a changed state.
+        /// </summary>
+        T Alerts<T>(Func<T> f)
+        {
+            int prev = PpAlertsAll; bool got = false;
+            try { prev = (int)app.DisplayAlerts; got = true; } catch { }
+            try { app.DisplayAlerts = PpAlertsNone; } catch { }
+            try { return f(); }
+            finally { if (got) { try { app.DisplayAlerts = prev; } catch { } } }
         }
 
         static void Unblock(string file)
@@ -208,7 +268,7 @@ namespace PptBridge
             try
             {
                 // Open(FileName, ReadOnly: msoTrue, Untitled: msoFalse, WithWindow: msoFalse)
-                pres = app.Presentations.Open(file, -1, 0, 0);
+                pres = Alerts<object>(() => (object)app.Presentations.Open(file, -1, 0, 0));
             }
             catch (COMException e)
             {
@@ -230,14 +290,18 @@ namespace PptBridge
 
                 dynamic st = pres.SlideShowSettings;
                 st.ShowType = PpShowTypeWindow;
+                // Never let a full-screen (Speaker) show take over the operator's screen.
+                if ((int)st.ShowType != PpShowTypeWindow)
+                    throw new BridgeException("open", "PowerPoint did not accept the windowed slide show mode. Showing still slides.");
                 st.ShowPresenterView = 0;
                 st.LoopUntilStopped = 0;
                 st.AdvanceMode = PpAdvanceUseSlideTimings; // After Previous and auto-advance exactly like PowerPoint
                 try { st.ShowWithAnimation = -1; } catch { }
-                s.Win = st.Run();
+                s.Win = Alerts<object>(() => (object)st.Run());
                 s.Win.View.PointerType = PpPointerAlwaysHidden;
 
                 // Window size = Canvas, converted from pixels to points with the screen DPI.
+                // A show that cannot be sized is useless as a Canvas capture: fail the open.
                 try
                 {
                     s.Win.Left = (float)(xPx * 72.0 / dpi);
@@ -245,16 +309,22 @@ namespace PptBridge
                     s.Win.Width = (float)(wPx * 72.0 / dpi);
                     s.Win.Height = (float)(hPx * 72.0 / dpi);
                 }
-                catch (Exception e) { Io.Log("resize: " + Clean(e)); }
+                catch (Exception e)
+                {
+                    if (IsDead(e)) throw;
+                    throw new BridgeException("open", "The slide show window could not be sized to the Canvas: " + Clean(e));
+                }
 
                 s.Hwnd = new IntPtr((int)s.Win.HWND);
                 ToolWindow(s.Hwnd, behind);
+                Watch(s.Hwnd, true);
                 if (prevFg != IntPtr.Zero) Native.SetForegroundWindow(prevFg); // focus back to the operator window
             }
             catch
             {
+                if (s.Hwnd != IntPtr.Zero) Watch(s.Hwnd, false);
                 try { s.Win?.View.Exit(); } catch { }
-                try { pres.Close(); } catch { }
+                try { Alerts<object>(() => { pres.Close(); return null; }); } catch { }
                 throw;
             }
             sessions[deckId] = s;
@@ -264,15 +334,22 @@ namespace PptBridge
             try
             {
                 uint pid; Native.GetWindowThreadProcessId(s.Hwnd, out pid);
-                pptPid = pid;
-                if (audio == null) audio = new Audio(pid, "pptshare-audio-" + Process.GetCurrentProcess().Id);
-                audio.EnsureStarted();
-                audioMode = audio.Active ? "pipe" : "fallback";
-                if (audio.Active) pipe = audio.PipePath;
-                else Io.Log("audio capture unavailable: " + audio.Failure);
+                ReportApp(pid);
+                if (!ownsApp)
+                {
+                    // The operator's PowerPoint: its sound (and their own presentation) is not ours to capture or change.
+                    audioMode = "device";
+                }
+                else
+                {
+                    if (audio == null) audio = new Audio(pid, "pptshare-audio-" + Process.GetCurrentProcess().Id);
+                    audio.EnsureStarted();
+                    audioMode = audio.Active ? "pipe" : "fallback";
+                    if (audio.Active) pipe = audio.PipePath;
+                    else Io.Log("audio capture unavailable: " + audio.Failure);
+                }
             }
-            catch (Exception e) { audioMode = "fallback"; Io.Log("audio: " + Clean(e)); }
-            if (audioMode == "fallback") Guarded(() => Audio.SetSessionVolume(pptPid, (float)volume));
+            catch (Exception e) { audioMode = ownsApp ? "fallback" : "device"; Io.Log("audio: " + Clean(e)); }
 
             s.Last = ""; // the poll reports the first position as an event
             var res = new Dictionary<string, object>
@@ -362,8 +439,9 @@ namespace PptBridge
             Session s;
             if (!sessions.TryGetValue(deckId, out s)) return;
             sessions.Remove(deckId);
-            try { s.Win.View.Exit(); } catch (Exception e) { if (!quiet) Io.Log("exit: " + Clean(e)); }
-            try { s.Pres.Close(); } catch (Exception e) { if (!quiet) Io.Log("close: " + Clean(e)); }
+            if (s.Hwnd != IntPtr.Zero) Watch(s.Hwnd, false);
+            try { Alerts<object>(() => { s.Win.View.Exit(); return null; }); } catch (Exception e) { if (!quiet) Io.Log("exit: " + Clean(e)); }
+            try { Alerts<object>(() => { s.Pres.Close(); return null; }); } catch (Exception e) { if (!quiet) Io.Log("close: " + Clean(e)); }
             Release(s.Win); Release(s.Pres);
         }
 
@@ -385,10 +463,14 @@ namespace PptBridge
         Dictionary<string, object> SetVolume(Dictionary<string, object> a)
         {
             volume = Math.Max(0, Math.Min(1, Io.Num(a, "volume", 1)));
-            // With the loopback capture running the sound is mixed in the output window and the real
-            // sound stays muted. Without it the session volume of PowerPoint is the deck level.
-            if (audio != null && audio.Active && MuteLocalWhenCapturing) return new Dictionary<string, object> { { "applied", "ignored" } };
-            bool ok = Audio.SetSessionVolume(pptPid, (float)volume);
+            if (app == null) return new Dictionary<string, object> { { "applied", "none" } };
+            // The operator's PowerPoint shares the process (and the audio session) with their own
+            // presentation: its volume is not ours to change.
+            if (!ownsApp)
+                throw new BridgeException("foreignapp", "PowerPoint sound plays on this PC's default device only.");
+            // With the loopback capture running the level is applied in the output window.
+            if (audio != null && audio.Active) return new Dictionary<string, object> { { "applied", "ignored" } };
+            bool ok = Audio.ApplySessionVolume(pptPid, (float)volume, null);
             return new Dictionary<string, object> { { "applied", ok ? "session" : "none" } };
         }
 
@@ -410,6 +492,7 @@ namespace PptBridge
                         if (e is BridgeException || ++s.Fails >= 3)
                         {
                             sessions.Remove(s.DeckId);
+                            if (s.Hwnd != IntPtr.Zero) Watch(s.Hwnd, false);
                             Io.Event("error", new Dictionary<string, object>
                             {
                                 { "deckId", s.DeckId },
@@ -451,12 +534,13 @@ namespace PptBridge
 
         void Shutdown()
         {
+            // Give the sound settings back first: closing the shows ends the audio sessions.
+            if (ownsApp) Guarded(() => Audio.RestoreSessions(pptPid));
             foreach (var id in new List<string>(sessions.Keys))
             {
                 try { CloseSession(id, true); }
                 catch (Exception e) { if (IsDead(e)) break; }
             }
-            if (Audio.Touched) Guarded(() => Audio.SetSessionVolume(pptPid, 1f)); // Windows keeps the level per app
             try { audio?.Dispose(); } catch { }
             if (app == null) return;
             try
@@ -464,7 +548,6 @@ namespace PptBridge
                 // Quit only a PowerPoint this bridge launched and only when nothing else is open in it
                 // (the operator's own files, and the edit windows, keep it alive).
                 if (ownsApp && (int)app.Presentations.Count == 0) app.Quit();
-                else app.DisplayAlerts = savedAlerts;
             }
             catch (Exception e) { Io.Log("shutdown: " + Clean(e)); }
         }

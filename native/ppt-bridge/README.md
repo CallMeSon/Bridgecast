@@ -47,6 +47,8 @@ Events (no `id`):
   command and by a poll every 50 ms (After Previous, triggers, auto-advance; late-bound COM cannot hook
   `SlideShowNextSlide`/`SlideShowNextClick`, so the position is polled and verified after every command).
 - `{"event":"error","deckId","message"}`: the show of that deck closed or broke.
+- `{"event":"app","pid","owned"}`: the PowerPoint process the bridge uses; `owned` is true only when the
+  bridge launched it (no `POWERPNT.EXE` existed before). Sent once, after creating/attaching the COM object.
 - `{"event":"exited"}`: PowerPoint died (RPC disconnected). The bridge exits right after.
 
 Closing stdin is the shutdown signal: shows are closed, audio is stopped, PowerPoint is quit only if the
@@ -54,19 +56,27 @@ bridge launched it and no other presentation is open. The bridge force-exits 8 s
 
 ### Hang detection
 
-The reader thread answers `ping` itself. `open` and `edit` may take long and do not stop pings. If any
-other command (or the position poll) has been stuck in a COM call for more than 2.5 s, `ping` is *not*
-answered, so the app's heartbeat (3 s) falls back to still images. A slow `Presentations.Open` never looks
-like a hang.
+The reader thread answers `ping` itself, without COM (`PingPolicy.cs`). It does **not** answer when:
+
+- a short command or the position poll has been stuck in COM for more than 1 s;
+- `open`/`edit` has run for more than 20 s (a slow `Presentations.Open` is fine, a forever one is not);
+- a PowerPoint window known to the bridge (main window, show windows) is hung:
+  `IsHungAppWindow` or `SendMessageTimeout(WM_NULL, SMTO_ABORTIFHUNG, 500 ms)` fails.
+
+The app's heartbeat (3 s) then falls back to still images, also when the next deck is being preloaded.
+When the app has to stop a helper that does not end after closing stdin (2.5 s) it kills the helper
+process, and the PowerPoint pid from the `app` event only if `owned` is true and no `edit` window was
+opened. A PowerPoint that was already running is never killed.
 
 ## What `open` does
 
 1. Deletes the `Zone.Identifier` stream of the file (no Protected View).
 2. `Presentations.Open(path, ReadOnly: true, Untitled: false, WithWindow: false)`; `DisplayAlerts = ppAlertsNone`
-   (the previous value is restored when the bridge does not quit PowerPoint).
-3. `ShowType = ppShowTypeWindow`, `ShowPresenterView = false`, `LoopUntilStopped = false`,
+   only around Open / Run / Close, the previous value is always restored (try/finally).
+3. `ShowType = ppShowTypeWindow` (= 2; 1 is the full-screen Speaker show), read back and the open fails if it
+   is not 2, `ShowPresenterView = false`, `LoopUntilStopped = false`,
    `AdvanceMode = ppSlideShowUseSlideTimings`, `View.PointerType = ppSlideShowPointerAlwaysHidden`.
-4. Window size = Canvas in points (`px * 72 / dpi`). The tool-window style (no taskbar, no Alt+Tab, no
+4. Window size = Canvas in points (a window that cannot be sized fails the open) (`px * 72 / dpi`). The tool-window style (no taskbar, no Alt+Tab, no
    activation) is set, the window goes to the bottom of the Z order (`behind`; the spike decides whether
    it should be off screen instead via `x`/`y`), and the focus goes back to the previous foreground window.
 5. Next on the last click of the last shown slide is a no-op (it would end the show).
@@ -74,9 +84,10 @@ like a hang.
 ## PowerPoint ownership
 
 PowerPoint is one process. The bridge sets `ownsApp` only if no `POWERPNT.EXE` existed before it created
-the COM object. It never kills a PowerPoint process. A foreign PowerPoint is used and left running; its
-own presentations are never closed. Only `ppt-bridge.exe` itself is ever killed by the app, after stdin was
-closed and 5 s passed.
+the COM object. The bridge never kills a PowerPoint process. A foreign PowerPoint is used and left running;
+its own presentations are never closed, its alerts setting, volume and mute state are not changed, and its
+sound is neither captured nor changed (`open` replies `audio:"device"`, `setVolume` fails with
+`foreignapp`; the app shows "PowerPoint sound plays on this PC's default device only.").
 
 ## Audio
 
@@ -89,8 +100,14 @@ closed and 5 s passed.
 - The PCM (interleaved float32 little-endian, 48 kHz, 2 channels, raw, no header) goes to the named pipe
   `\\.\pipe\pptshare-audio-<bridge pid>` (reported as `audioPipe`). While no reader is connected, frames
   are dropped. Task 6 connects the reader.
-- With the capture running the real PowerPoint sound is muted every 500 ms through `ISimpleAudioVolume`
-  (`PPT_BRIDGE_LOCAL_MUTE=0` turns this off) and `setVolume` is ignored (the level is applied in the output
-  window). **Unverified:** whether muting the session also silences the loopback capture.
-- Fallback: `setVolume` sets the master volume of the PowerPoint audio sessions (`IAudioSessionManager2`,
-  `ISimpleAudioVolume`); the volume is put back to 1.0 on a clean shutdown (Windows remembers it per app).
+- Only for a PowerPoint the bridge launched. With the capture running, the local sound is muted only when
+  `PPT_BRIDGE_LOCAL_MUTE=1` (off by default until Windows shows that muting the session does not silence the
+  loopback capture); `setVolume` is ignored while capturing (the level is applied in the output window).
+- Fallback (`audio:"fallback"`, bridge-launched PowerPoint): `setVolume` sets the master volume of the
+  PowerPoint audio sessions (`IAudioSessionManager2`, `ISimpleAudioVolume`).
+- Whenever the level or mute is changed, the original level and mute state are remembered and written to
+  `%LOCALAPPDATA%\PPT Share\audio-restore.json`. They are put back before the shows are closed on a clean
+  shutdown. `ppt-bridge.exe --restore-audio` (one-shot, no COM for PowerPoint itself) restores them for any
+  session of the same application that exists; the app runs it at engine start and after an abnormal helper
+  exit (crash, hang kill). It can only restore a session that exists; otherwise the entry stays in the file
+  (deleted after restore or after 7 days).
