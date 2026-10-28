@@ -1,4 +1,5 @@
-import type { DeckMeta, SectionMeta } from './types'
+import type { DeckMeta, Playback, SectionMeta } from './types'
+import { playbackOf } from './playback'
 import { segmentsOf } from './sections'
 import { DEFAULT_CANVAS, sanitizeFit, type DeckFit, type ResolvedCanvas } from './canvas'
 import { DEFAULT_DECK_AUDIO, sanitizeDeckAudio, type DeckAudio } from './audio-levels'
@@ -24,6 +25,13 @@ export interface ShownSlide {
   audio?: DeckAudio
   /** Set when the slide is the page of a web deck. */
   web?: { deckId: string }
+  /** Animation step inside the slide (0 or absent = nothing built yet); only native playback has steps. */
+  step?: number
+  /**
+   * How the slide plays: the deck's mode, or 'images' while a native deck has
+   * fallen back (engine not ready or failed). Absent on state from before it existed.
+   */
+  playback?: Playback
 }
 
 export interface ProgramState {
@@ -83,9 +91,12 @@ export type Action =
   | { type: 'nextDeck' }
   | { type: 'prevDeck' }
   | { type: 'resumeWeb' }
+  | { type: 'enginePosition'; deckId: string; index: number; step: number }
+  | { type: 'nativeFallback'; deckId: string }
+  | { type: 'resumeNative'; deckId: string }
 
 type DeckLike = Pick<DeckMeta, 'id' | 'slides' | 'fit' | 'audio'> &
-  Partial<Pick<DeckMeta, 'source' | 'web'>>
+  Partial<Pick<DeckMeta, 'source' | 'web' | 'playback'>>
 
 /**
  * The KV image is on the output: not black, there is a KV, and it was pressed
@@ -111,14 +122,24 @@ export const initialState: ProgramState = {
 }
 
 /** Move the operator position (index must exist in deck); `shown` follows unless frozen. */
-function moveTo(state: ProgramState, deck: DeckLike, index: number): ProgramState {
+function moveTo(
+  state: ProgramState,
+  deck: DeckLike,
+  index: number,
+  step = 0,
+  /** A step inside the live slide is not a new take. */
+  newTake = true
+): ProgramState {
   const slide = deck.slides[index]
+  const playback = playbackOf(deck as DeckMeta)
   const shown: ShownSlide = {
     deckId: deck.id,
     index,
     file: slide.file,
     fit: sanitizeFit(deck.fit),
-    audio: sanitizeDeckAudio(deck.audio)
+    audio: sanitizeDeckAudio(deck.audio),
+    step: playback === 'native' ? step : 0,
+    playback
   }
   if (slide.video) shown.video = slide.video
   if (deck.source === 'web') shown.web = { deckId: deck.id }
@@ -130,7 +151,7 @@ function moveTo(state: ProgramState, deck: DeckLike, index: number): ProgramStat
     deckId: deck.id,
     index,
     shown: state.frozen ? state.shown : shown,
-    take: state.frozen ? state.take : state.take + 1
+    take: state.frozen || !newTake ? state.take : state.take + 1
   }
 }
 
@@ -165,9 +186,37 @@ function step(
   }
   const pos = flat.findIndex((p) => p.deck.id === state.deckId && p.index === state.index)
   if (pos < 0) return state
-  const target = flat[pos + dir]
+  // Hidden slides are skipped in every mode (the current one may be hidden: it was reached by goto).
+  let n = pos + dir
+  while (flat[n]?.deck.slides[flat[n].index].hidden) n += dir
+  const target = flat[n]
   if (!target) return state
-  return moveTo(state, target.deck, target.index)
+  // Going back lands on a native slide fully built.
+  const built = dir === -1 ? clicksOf(target.deck.slides[target.index]) : 0
+  return moveTo(state, target.deck, target.index, built)
+}
+
+function clicksOf(slide: { clicks?: number } | undefined): number {
+  const c = slide?.clicks
+  return typeof c === 'number' && Number.isInteger(c) && c > 0 ? c : 0
+}
+
+/** The live slide of the operator deck plays natively, so Next/Prev may step inside it. */
+function nativeLive(state: ProgramState, decks: DeckLike[]): DeckLike | null {
+  const shown = state.shown
+  if (state.frozen || !shown || shown.playback !== 'native') return null
+  if (shown.deckId !== state.deckId || shown.index !== state.index) return null
+  return decks.find((d) => d.id === shown.deckId) ?? null
+}
+
+function stepInside(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramState | null {
+  const deck = nativeLive(state, decks)
+  if (!deck || !state.shown) return null
+  const cur = state.shown.step ?? 0
+  const clicks = clicksOf(deck.slides[state.index])
+  const to = cur + dir
+  if (to < 0 || to > clicks) return null
+  return moveTo(state, deck, state.index, to, false)
 }
 
 /**
@@ -336,7 +385,45 @@ export function reduce(
       }
       // A live web page owns its own navigation: Next/Prev never move the position.
       if (onLiveWebDeck(state, decks)) return state
-      return step(state, decks, sections, action.type === 'next' ? 1 : -1)
+      return (
+        stepInside(state, decks, action.type === 'next' ? 1 : -1) ??
+        step(state, decks, sections, action.type === 'next' ? 1 : -1)
+      )
+    case 'enginePosition': {
+      // The engine is the truth for where the slideshow is: correct, never a new take.
+      const shown = state.shown
+      const deck = decks.find((d) => d.id === action.deckId)
+      if (!shown || !deck || shown.deckId !== action.deckId || shown.playback !== 'native') {
+        return state
+      }
+      if (!Number.isInteger(action.index) || !Number.isInteger(action.step)) return state
+      const slide = deck.slides[action.index]
+      if (!slide) return state
+      const step = Math.max(0, Math.min(action.step, clicksOf(slide)))
+      if (shown.index === action.index && (shown.step ?? 0) === step) return state
+      const moved: ShownSlide = { ...shown, index: action.index, file: slide.file, step }
+      if (slide.video) moved.video = slide.video
+      else delete moved.video
+      const own = !state.frozen && state.deckId === action.deckId
+      return {
+        ...state,
+        shown: moved,
+        index: own ? action.index : state.index
+      }
+    }
+    case 'nativeFallback':
+      if (state.shown?.deckId !== action.deckId || state.shown.playback !== 'native') return state
+      return { ...state, shown: { ...state.shown, playback: 'images', step: 0 } }
+    case 'resumeNative': {
+      const shown = state.shown
+      const deck = decks.find((d) => d.id === action.deckId)
+      if (!shown || !deck || shown.deckId !== action.deckId) return state
+      if (shown.playback !== 'images' || playbackOf(deck as DeckMeta) !== 'native') return state
+      return {
+        ...state,
+        shown: { ...shown, playback: 'native', step: clicksOf(deck.slides[shown.index]) }
+      }
+    }
     case 'nextDeck':
     case 'prevDeck':
       return stepDeck(state, decks, action.type === 'nextDeck' ? 1 : -1)

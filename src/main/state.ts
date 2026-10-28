@@ -38,6 +38,8 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.shown?.video === b.shown?.video &&
     a.shown?.deckId === b.shown?.deckId &&
     a.shown?.index === b.shown?.index &&
+    a.shown?.step === b.shown?.step &&
+    a.shown?.playback === b.shown?.playback &&
     a.shown?.file === b.shown?.file &&
     a.shown?.web?.deckId === b.shown?.web?.deckId
   )
@@ -61,13 +63,16 @@ export class AppState {
    * @param webReady ready gate of a web deck (page loaded and a first capture
    *   frame seen); a take that would put a not-ready web deck on air is refused.
    * @param forwardKey sends Next/Prev to the live web page as one arrow key.
+   * @param engineReady the native slideshow of a deck is open and ready; a take of a
+   *   native deck while it is not plays that take as images (never black, never desktop).
    */
   constructor(
     private lib: Library,
     autoAdvance = false,
     private machineCanvas: () => Canvas = () => DEFAULT_CANVAS,
     private webReady: (deckId: string) => boolean = () => true,
-    private forwardKey: (deckId: string, key: 'ArrowRight' | 'ArrowLeft') => void = () => {}
+    private forwardKey: (deckId: string, key: 'ArrowRight' | 'ArrowLeft') => void = () => {},
+    private engineReady: (deckId: string) => boolean = () => true
   ) {
     this.activeEvent = lib.listEvents()[0]?.id ?? null
     this.current = this.normalize({ ...initialState, autoAdvance })
@@ -103,8 +108,20 @@ export class AppState {
       return this.current
     }
     // Actions arrive over IPC; an unknown type makes reduce return undefined.
-    const next = reduce(this.current, a, decks, this.sections()) as ProgramState | undefined
+    let next = reduce(this.current, a, decks, this.sections()) as ProgramState | undefined
     if (!next) return this.current
+    // Engine gate: a native slide taken while the engine is not ready plays as images.
+    const nat = next.shown
+    if (
+      nat &&
+      nat.playback === 'native' &&
+      nat !== this.current.shown &&
+      a.type !== 'enginePosition' &&
+      !this.engineReady(nat.deckId)
+    ) {
+      if (a.type === 'resumeNative') return this.current
+      next = { ...next, shown: { ...nat, playback: 'images', step: 0 } }
+    }
     // Ready gate: a web page goes on air only once it is loaded and a frame was captured.
     const web = next.shown?.web
     if (web && next.shown !== this.current.shown && !this.webReady(web.deckId)) {

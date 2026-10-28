@@ -24,7 +24,9 @@ const sh = (deckId: string, index: number, file = `${index}.png`): ShownSlide =>
   index,
   file,
   fit: 'fit',
-  audio: { volume: 100, muted: false }
+  audio: { volume: 100, muted: false },
+  step: 0,
+  playback: 'images'
 })
 const decks = [
   { id: 'A', slides: s(3) },
@@ -479,11 +481,11 @@ describe('take and video', () => {
       deckId: 'V',
       index: 1,
       take: 7,
-      shown: { deckId: 'V', index: 1, file: '002.png', video: '002.mp4' }
+      shown: { deckId: 'V', index: 1, file: '002.png', video: '002.mp4', step: 0 }
     }
     const f = followSlideOrder(st, 'V', [1, 0])
     expect(f.take).toBe(7)
-    expect(f.shown).toEqual({ deckId: 'V', index: 0, file: '002.png', video: '002.mp4' })
+    expect(f.shown).toEqual({ deckId: 'V', index: 0, file: '002.png', video: '002.mp4', step: 0 })
     const reordered = [{ id: 'V', slides: [vd[0].slides[1], vd[0].slides[0]] }]
     const r = reconcile(st, reordered)
     expect(r.take).toBe(7)
@@ -692,7 +694,7 @@ describe('fit and deck audio on shown', () => {
   })
 
   it('locateShown returns the identical old-style shown on a deck without fit and audio', () => {
-    const old: ShownSlide = { deckId: 'D', index: 1, file: '1.png' }
+    const old: ShownSlide = { deckId: 'D', index: 1, file: '1.png', step: 0 }
     expect(locateShown(old, plain)).toBe(old)
   })
 
@@ -810,5 +812,117 @@ describe('web decks', () => {
     expect(webKey({ ...st, deckId: 'A' }, wdecks, { type: 'next' })).toBeNull()
     expect(webKey(at('A', 0), wdecks, { type: 'next' })).toBeNull()
     expect(webKey(initialState, wdecks, { type: 'next' })).toBeNull()
+  })
+})
+
+describe('native steps, hidden slides and fallback', () => {
+  const sl = (clicks: number, hidden = false) => ({ file: `${clicks}-${hidden}.png`, notes: '', clicks, hidden })
+  const nd = [
+    {
+      id: 'N',
+      playback: 'native' as const,
+      slides: [
+        { file: 'n0.png', notes: '', clicks: 3 },
+        { file: 'n1.png', notes: '', clicks: 2, hidden: true },
+        { file: 'n2.png', notes: '', clicks: 0 },
+        { file: 'n3.png', notes: '', clicks: 2 }
+      ]
+    },
+    { id: 'V', playback: 'vector' as const, slides: [sl(2), sl(2)] }
+  ]
+  const live = (index = 0, step = 0, extra: Partial<ProgramState> = {}): ProgramState => ({
+    ...initialState,
+    deckId: 'N',
+    index,
+    take: 5,
+    shown: { ...sh('N', index, nd[0].slides[index].file), playback: 'native', step },
+    ...extra
+  })
+
+  it('a taken native slide starts at step 0', () => {
+    const r = reduce(initialState, { type: 'selectDeck', deckId: 'N' }, nd)
+    expect(r.shown?.playback).toBe('native')
+    expect(r.shown?.step).toBe(0)
+  })
+
+  it('next steps through the clicks without a take, then the next slide takes', () => {
+    let st = live()
+    for (let i = 1; i <= 3; i++) {
+      st = reduce(st, { type: 'next' }, nd)
+      expect(st.shown?.step).toBe(i)
+      expect(st.index).toBe(0)
+      expect(st.take).toBe(5)
+    }
+    st = reduce(st, { type: 'next' }, nd)
+    expect(st.index).toBe(2) // slide 1 is hidden
+    expect(st.shown?.step).toBe(0)
+    expect(st.take).toBe(6)
+  })
+
+  it('a slide with no counted clicks is not waited on', () => {
+    const st = reduce(live(2), { type: 'next' }, nd)
+    expect(st.index).toBe(3)
+    expect(st.take).toBe(6)
+  })
+
+  it('prev steps back, then lands on the previous non-hidden slide fully built', () => {
+    let st = live(2, 0)
+    st = reduce(st, { type: 'prev' }, nd)
+    expect(st.index).toBe(0)
+    expect(st.shown?.step).toBe(3)
+    expect(st.take).toBe(6)
+    st = reduce(st, { type: 'prev' }, nd)
+    expect(st.shown?.step).toBe(2)
+    expect(st.take).toBe(6)
+  })
+
+  it('hidden slide is skipped forward and back in every mode', () => {
+    const img = [{ id: 'I', slides: [sl(0), sl(0, true), sl(0)] }]
+    const a = reduce({ ...initialState, deckId: 'I', index: 0, shown: sh('I', 0, img[0].slides[0].file) }, { type: 'next' }, img)
+    expect(a.index).toBe(2)
+    expect(reduce(a, { type: 'prev' }, img).index).toBe(0)
+  })
+
+  it('vector deck has no steps', () => {
+    const st = reduce(initialState, { type: 'selectDeck', deckId: 'V' }, nd)
+    expect(st.shown?.playback).toBe('vector')
+    const n = reduce(st, { type: 'next' }, nd)
+    expect(n.index).toBe(1)
+    expect(n.shown?.step).toBe(0)
+    expect(reduce(n, { type: 'prev' }, nd).shown?.step).toBe(0)
+  })
+
+  it('goto resets the step', () => {
+    expect(reduce(live(0, 2), { type: 'goto', index: 3 }, nd).shown?.step).toBe(0)
+  })
+
+  it('enginePosition corrects index and step without changing take', () => {
+    const r = reduce(live(0, 1), { type: 'enginePosition', deckId: 'N', index: 3, step: 1 }, nd)
+    expect(r.index).toBe(3)
+    expect(r.shown?.index).toBe(3)
+    expect(r.shown?.file).toBe('n3.png')
+    expect(r.shown?.step).toBe(1)
+    expect(r.take).toBe(5)
+    const r2 = reduce(live(0, 1), { type: 'enginePosition', deckId: 'N', index: 0, step: 2 }, nd)
+    expect(r2.shown?.step).toBe(2)
+    expect(r2.take).toBe(5)
+    const other = live(0, 1)
+    expect(reduce(other, { type: 'enginePosition', deckId: 'X', index: 3, step: 0 }, nd)).toBe(other)
+  })
+
+  it('fallback then next moves per slide; resume goes back to native fully built', () => {
+    let st = reduce(live(0, 1), { type: 'nativeFallback', deckId: 'N' }, nd)
+    expect(st.shown?.playback).toBe('images')
+    st = reduce(st, { type: 'next' }, nd)
+    expect(st.index).toBe(2)
+    st = reduce(st, { type: 'resumeNative', deckId: 'N' }, nd)
+    expect(st.shown?.playback).toBe('native')
+    expect(st.shown?.step).toBe(0)
+    const r = reduce(
+      reduce(live(3, 0), { type: 'nativeFallback', deckId: 'N' }, nd),
+      { type: 'resumeNative', deckId: 'N' },
+      nd
+    )
+    expect(r.shown?.step).toBe(2)
   })
 })

@@ -787,4 +787,58 @@ describe('AppState web decks', () => {
     const s = app.setEvent(b.id)
     expect(s.shown).toMatchObject({ deckId: w, web: { deckId: w } })
   })
+
+  describe('native engine gate', () => {
+    function addNative(lib: Library, eventId: string): string {
+      const slides = [2, 0].map((clicks, i) => {
+        const p = path.join(src, `nat-${i}.png`)
+        fs.writeFileSync(p, `png-${i}`)
+        return { pngPath: p, notes: '', clicks }
+      })
+      return lib.addDeck(eventId, {
+        name: 'Nat',
+        source: 'pptx',
+        width: 1920,
+        height: 1080,
+        slides,
+        playback: 'native'
+      }).id
+    }
+
+    it('takes a native deck natively when the engine is ready and steps without a take', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const d = addNative(lib, a.id)
+      const app = new AppState(lib, false, undefined, undefined, undefined, () => true)
+      const s = app.dispatch({ type: 'selectDeck', deckId: d })
+      expect(s.shown).toMatchObject({ playback: 'native', step: 0 })
+      const s2 = app.dispatch({ type: 'next' })
+      expect(s2.shown?.step).toBe(1)
+      expect(s2.take).toBe(s.take)
+    })
+
+    it('falls back to images for a take while the engine is not ready', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const d = addNative(lib, a.id)
+      const app = new AppState(lib, false, undefined, undefined, undefined, () => false)
+      const s = app.dispatch({ type: 'selectDeck', deckId: d })
+      expect(s.shown).toMatchObject({ playback: 'images', step: 0 })
+      expect(app.dispatch({ type: 'next' }).index).toBe(1)
+    })
+
+    it('resumeNative is refused while the engine is not ready', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const d = addNative(lib, a.id)
+      let ready = true
+      const app = new AppState(lib, false, undefined, undefined, undefined, () => ready)
+      app.dispatch({ type: 'selectDeck', deckId: d })
+      app.dispatch({ type: 'nativeFallback', deckId: d })
+      ready = false
+      expect(app.dispatch({ type: 'resumeNative', deckId: d }).shown?.playback).toBe('images')
+      ready = true
+      expect(app.dispatch({ type: 'resumeNative', deckId: d }).shown?.playback).toBe('native')
+    })
+  })
 })
