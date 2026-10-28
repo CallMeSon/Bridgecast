@@ -56,8 +56,8 @@ namespace PptBridge
         double volume = 1.0;
 
         // Busy tracking for ping (written by the main thread, read by the reader thread).
-        long busySince;      // Clock ms, 0 when idle
-        volatile bool busyLong;
+        // One packed value so the reader thread never sees a stale pair: (startMs << 1) | isLong, 0 when idle.
+        long busyState;
 
         public int Run()
         {
@@ -117,10 +117,12 @@ namespace PptBridge
 
         void Ping(int id)
         {
-            long since = Interlocked.Read(ref busySince);
+            long st = Interlocked.Read(ref busyState);
+            long since = st >> 1;
+            bool longCmd = (st & 1) != 0;
             // No COM here: this thread must stay answerable while the main thread is stuck in PowerPoint.
             bool alive = WindowsAlive();
-            if (!PingPolicy.ShouldAnswer(Clock.ElapsedMilliseconds, since, busyLong, alive)) return; // no reply: hung
+            if (!PingPolicy.ShouldAnswer(Clock.ElapsedMilliseconds, since, longCmd, alive)) return; // no reply: hung
             Io.Reply(id, new Dictionary<string, object> { { "busy", since != 0 } });
         }
 
@@ -128,10 +130,9 @@ namespace PptBridge
 
         void Busy(bool isLong)
         {
-            busyLong = isLong;
-            Interlocked.Exchange(ref busySince, Clock.ElapsedMilliseconds + 1);
+            Interlocked.Exchange(ref busyState, ((Clock.ElapsedMilliseconds + 1) << 1) | (isLong ? 1L : 0L));
         }
-        void Idle() { Interlocked.Exchange(ref busySince, 0); busyLong = false; }
+        void Idle() { Interlocked.Exchange(ref busyState, 0); }
 
         void Execute(Req r)
         {

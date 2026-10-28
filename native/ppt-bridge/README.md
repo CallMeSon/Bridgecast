@@ -64,9 +64,12 @@ The reader thread answers `ping` itself, without COM (`PingPolicy.cs`). It does 
   `IsHungAppWindow` or `SendMessageTimeout(WM_NULL, SMTO_ABORTIFHUNG, 500 ms)` fails.
 
 The app's heartbeat (3 s) then falls back to still images, also when the next deck is being preloaded.
-When the app has to stop a helper that does not end after closing stdin (2.5 s) it kills the helper
-process, and the PowerPoint pid from the `app` event only if `owned` is true and no `edit` window was
-opened. A PowerPoint that was already running is never killed.
+When the app has to stop a helper that does not end after closing stdin (5 s) it kills **only the helper
+process**. A PowerPoint that the bridge launched and that hangs is **never killed automatically**: PowerPoint
+is one instance per user, so the operator may have opened their own file in it after the bridge started
+(`owned` is fixed at launch), and a hung PowerPoint cannot report which presentations it holds. A kill could
+destroy unsaved work. After such a hang the operator closes that PowerPoint themselves; the show keeps
+running as still images meanwhile. The `app` event (pid, owned) is informational only.
 
 ## What `open` does
 

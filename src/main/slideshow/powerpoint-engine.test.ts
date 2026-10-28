@@ -71,7 +71,7 @@ let spawned: string[]
 let engine: PowerPointEngine
 let startFailures: string[]
 let restores: string[]
-let killed: number[]
+let procKill: ReturnType<typeof vi.spyOn>
 
 const openReply =
   (extra: Msg = {}) =>
@@ -91,7 +91,6 @@ function make(opts: Partial<ConstructorParameters<typeof PowerPointEngine>[0]> =
     dpi: () => 144,
     onStartFailure: (m) => startFailures.push(m),
     restoreAudio: async (exe) => void restores.push(exe),
-    killPid: (pid) => void killed.push(pid),
     shutdownMs: 1000,
     ...opts
   })
@@ -106,7 +105,7 @@ beforeEach(() => {
   spawned = []
   startFailures = []
   restores = []
-  killed = []
+  procKill = vi.spyOn(process, 'kill').mockImplementation(() => true)
   make()
 })
 afterEach(() => {
@@ -332,68 +331,65 @@ describe('PowerPointEngine', () => {
     })
   })
 
-  describe('hung helper and the PowerPoint it launched', () => {
+  describe('hung helper: only the helper is killed, never a PowerPoint', () => {
     async function hang(c: FakeChild, run: () => Promise<void>): Promise<void> {
       c.exitOnEnd = false
       const p = run()
-      await vi.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(5000)
       await p
     }
 
-    it('kills the helper and a PowerPoint it launched when the helper hangs', async () => {
+    it('owned PowerPoint + hung helper: the helper is killed, no pid is', async () => {
       await engine.open('d1', 'f.pptx', canvas)
       child.send({ event: 'app', pid: 4321, owned: true })
+      expect(engine.powerPoint).toEqual({ pid: 4321, owned: true })
       await hang(child, () => engine.shutdown())
       expect(child.killed).toBe(true)
-      expect(killed).toEqual([4321])
+      expect(procKill).not.toHaveBeenCalled()
     })
 
-    it('never kills a PowerPoint that was already running (owned false)', async () => {
+    it('foreign PowerPoint + hung helper: no pid is killed', async () => {
       await engine.open('d1', 'f.pptx', canvas)
       child.send({ event: 'app', pid: 4321, owned: false })
       await hang(child, () => engine.shutdown())
       expect(child.killed).toBe(true)
-      expect(killed).toEqual([])
+      expect(procKill).not.toHaveBeenCalled()
     })
 
-    it('never kills PowerPoint after an edit window was opened', async () => {
+    it('edit window opened + hung helper: no pid is killed', async () => {
       await engine.open('d1', 'f.pptx', canvas)
       child.send({ event: 'app', pid: 4321, owned: true })
       await engine.edit('C:\\lib\\edit.pptx')
       await hang(child, () => engine.shutdown())
       expect(child.killed).toBe(true)
-      expect(killed).toEqual([])
+      expect(procKill).not.toHaveBeenCalled()
     })
 
-    it('does not kill anything when the helper ends by itself, or without an app event', async () => {
+    it('waits the full 5 s before killing the helper by default', async () => {
+      make({ shutdownMs: undefined })
+      await engine.open('d1', 'f.pptx', canvas)
+      child.exitOnEnd = false
+      const p = engine.shutdown()
+      await vi.advanceTimersByTimeAsync(4999)
+      expect(child.killed).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      await p
+      expect(child.killed).toBe(true)
+    })
+
+    it('graceful end and malformed or missing app events: nothing is killed', async () => {
       await engine.open('d1', 'f.pptx', canvas)
       child.send({ event: 'app', pid: 4321, owned: true })
       await engine.shutdown()
-      expect(killed).toEqual([])
+      expect(child.killed).toBe(false)
       child = new FakeChild()
       child.reply = openReply()
-      await engine.open('d1', 'f.pptx', canvas)
-      await hang(child, () => engine.shutdown())
-      expect(killed).toEqual([])
-    })
-
-    it('ignores a malformed app event', async () => {
       await engine.open('d1', 'f.pptx', canvas)
       child.send({ event: 'app', pid: 'x', owned: true })
       child.send({ event: 'app', pid: -3, owned: true })
+      expect(engine.powerPoint).toBeNull()
       await hang(child, () => engine.shutdown())
-      expect(killed).toEqual([])
-    })
-
-    it('a pid is not reused for the next helper', async () => {
-      await engine.open('d1', 'f.pptx', canvas)
-      child.send({ event: 'app', pid: 4321, owned: true })
-      await engine.shutdown()
-      child = new FakeChild()
-      child.reply = openReply()
-      await engine.open('d1', 'f.pptx', canvas)
-      await hang(child, () => engine.shutdown())
-      expect(killed).toEqual([])
+      expect(procKill).not.toHaveBeenCalled()
     })
   })
 

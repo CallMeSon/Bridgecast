@@ -36,11 +36,6 @@ const defaultRestoreAudio = (exe: string): Promise<void> =>
     }
   })
 
-/** Ends a PowerPoint process the bridge launched itself and that hangs. */
-const defaultKillPid = (pid: number): void => {
-  process.kill(pid, 'SIGKILL')
-}
-
 /** Where ppt-bridge.exe is: `resources/ppt-bridge/` packaged, the build output in dev. */
 export function bridgeExePath(opts: {
   packaged: boolean
@@ -64,8 +59,6 @@ export interface PowerPointEngineOptions {
   onStartFailure?: (message: string) => void
   /** Runs the one-shot `--restore-audio` of the helper (at engine start, after an abnormal exit). */
   restoreAudio?: (exe: string) => Promise<void>
-  /** Kills a hung PowerPoint process that the helper launched itself. */
-  killPid?: (pid: number) => void
   /** How long shutdown waits for the helper to exit before killing it. */
   shutdownMs?: number
 }
@@ -83,9 +76,9 @@ interface Live {
   exited: boolean
   /** The helper has written something: a later `error` is a broken pipe, not a failed start. */
   heard: boolean
-  /** The PowerPoint process the helper reported; `owned` = the helper launched it. */
+  /** The PowerPoint process the helper reported (informational only: the app never kills it). */
   app: { pid: number; owned: boolean } | null
-  /** An `edit` window was opened: the document belongs to the operator now. */
+  /** An `edit` window was opened: the document belongs to the operator. */
   edited: boolean
 }
 
@@ -124,6 +117,11 @@ export class PowerPointEngine implements SlideShowEngine {
   /** The helper is running (started and not exited). */
   get running(): boolean {
     return !!this.live && !this.live.exited
+  }
+
+  /** PowerPoint process the helper reported, for the debug dump only; never used to kill it. */
+  get powerPoint(): { pid: number; owned: boolean } | null {
+    return this.live?.app ?? null
   }
 
   /** Last start failure message for the operator UI; null when the helper started. */
@@ -326,30 +324,14 @@ export class PowerPointEngine implements SlideShowEngine {
   /** Opens the deck's working copy (`edit.pptx`) in a normal PowerPoint window. */
   async edit(file: string): Promise<void> {
     const live = this.start()
-    live.edited = true // from now on the document may be the operator's: never kill PowerPoint
+    live.edited = true
     await live.client.request('edit', { file }, EDIT_MS)
-  }
-
-  /**
-   * Kills the PowerPoint process of a hung helper, but only one the helper launched itself and
-   * only while no edit window handed a document to the operator. Never a PowerPoint that was
-   * already running.
-   */
-  private killHungApp(live: Live): void {
-    const app = live.app
-    if (!app || !app.owned || live.edited) return
-    try {
-      console.warn(`[ppt-bridge] killing hung PowerPoint (pid ${app.pid}) started by the helper`)
-      ;(this.opts.killPid ?? defaultKillPid)(app.pid)
-    } catch (e) {
-      console.error('[ppt-bridge] could not kill PowerPoint:', (e as Error).message)
-    }
   }
 
   /**
    * Ends the helper: closing its stdin makes it close its slide shows and quit a PowerPoint
    * it started itself (when nothing else is open in it). After the wait only the helper process
-   * is killed; a PowerPoint only if the helper launched it and it hangs (see killHungApp).
+   * is killed. No POWERPNT.EXE is ever killed by the app.
    */
   async shutdown(): Promise<void> {
     const live = this.live
@@ -363,16 +345,16 @@ export class PowerPointEngine implements SlideShowEngine {
     await new Promise<void>((resolve) => {
       let done = false
       const timer = setTimeout(() => {
-        // The helper did not end by itself: it hangs (PowerPoint stuck in a COM call).
+        // The helper did not end by itself: it hangs (PowerPoint stuck in a COM call). Only the helper
+        // process is killed. A PowerPoint it launched stays: the operator may have opened files in it.
         try {
           live.child.kill()
         } catch {
           /* already gone */
         }
-        this.killHungApp(live)
         this.runRestoreAudio()
         finish()
-      }, this.opts.shutdownMs ?? 2500)
+      }, this.opts.shutdownMs ?? 5000)
       const finish = (): void => {
         if (done) return
         done = true
