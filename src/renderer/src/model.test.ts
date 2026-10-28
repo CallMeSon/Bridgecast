@@ -43,7 +43,8 @@ import {
   holdDeckId,
   WEB_LIVE_NEXT,
   WEB_NOT_READY,
-  WEB_HOLD_TEXT
+  WEB_HOLD_TEXT,
+  WEB_HOLD_NAVIGATING_TEXT
 } from './model'
 
 const deck = (id: string, n: number, name = id): DeckMeta => ({
@@ -854,6 +855,13 @@ describe('webUpNext, webChip and canResumeWeb', () => {
     expect(WEB_HOLD_TEXT).toBe(
       'Web page lost its connection. The output holds the last good frame. Press K for the key visual or take the next deck.'
     )
+  })
+
+  it('the navigating HOLD copy is its own text, not the lost-connection one', () => {
+    expect(WEB_HOLD_NAVIGATING_TEXT).toBe(
+      'The output holds the last good frame while the web page changes. Resume web when the page is ready.'
+    )
+    expect(WEB_HOLD_NAVIGATING_TEXT).not.toBe(WEB_HOLD_TEXT)
   })
 
   it('HOLD hides the capture warning of the held deck (same cause); others stay', () => {

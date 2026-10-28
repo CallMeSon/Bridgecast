@@ -84,6 +84,8 @@ export class WebHost {
   /** The web deck on air at the last syncEvent, to snapshot it when it leaves. */
   private onAir: string | null = null
   private closed = false
+  /** Decks whose HOLD before navigating still waits for the outputs to pause. */
+  private holding = new Map<string, Promise<void>>()
   /**
    * HOLD before navigating a live page waits for this: the outputs report that their
    * stream is paused (`web:held`), or a timeout. Set by main.
@@ -148,6 +150,9 @@ export class WebHost {
 
   /** Ready gate: loaded, no failure, and a captured frame has been seen. */
   webReady(deckId: string): boolean {
+    // While HOLD waits for the outputs to pause the old page still reads `ready`:
+    // Resume web (or K/B off) now would cancel the HOLD and navigate unheld.
+    if (this.holding.has(deckId)) return false
     const p = this.pages.get(deckId)
     return !!p && p.status === 'ready'
   }
@@ -169,10 +174,17 @@ export class WebHost {
    * HOLD then ends only through Resume web (or another take, K, B).
    */
   private async holdFirst(deckId: string): Promise<void> {
+    // A second navigation close to the first waits for the same HOLD.
+    const pending = this.holding.get(deckId)
+    if (pending) return pending
     const s = this.state.state
     if (!holdBeforeNavigate({ live: this.live(deckId), frozen: s.frozen, held: s.webHold })) return
     this.state.setWebHold(true)
-    await this.waitHeld(deckId)
+    const wait = this.waitHeld(deckId)
+      .then(() => undefined)
+      .finally(() => this.holding.delete(deckId))
+    this.holding.set(deckId, wait)
+    return wait
   }
 
   async reload(deckId: string): Promise<void> {

@@ -550,6 +550,9 @@ export function toPrepareChar(e: KeyboardEvent): PrepareInput | null {
 export const WEB_LIVE_NEXT = 'Web page: Next goes to the page. Press D to take the next deck.'
 /** Up next copy when the next take is a web deck whose page is not ready. */
 export const WEB_NOT_READY = 'Web page not ready'
+/** HOLD warning when the page is not in error (a deliberate Reload, Back, Forward or new URL). */
+export const WEB_HOLD_NAVIGATING_TEXT =
+  'The output holds the last good frame while the web page changes. Resume web when the page is ready.'
 /** HOLD warning: the live page lost its connection. */
 export const WEB_HOLD_TEXT =
   'Web page lost its connection. The output holds the last good frame. Press K for the key visual or take the next deck.'

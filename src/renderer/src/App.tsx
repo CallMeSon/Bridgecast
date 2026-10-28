@@ -661,6 +661,7 @@ function App(): React.JSX.Element {
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />
           {program.webHold && (
             <HoldWarning
+              lost={!!program.shown?.web && pages.statuses[program.shown.web.deckId] === 'error'}
               canResume={canResumeWeb(program, pages.statuses)}
               onResume={() => dispatch({ type: 'resumeWeb' })}
             />
