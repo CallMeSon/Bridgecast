@@ -717,7 +717,7 @@ export function Library(p: Props): React.JSX.Element {
     const active = document.activeElement
     if (active && active !== document.body) return
     focusRow(key)
-  }, [renaming, renamingSection])
+  }, [renaming, renamingSection, confirmRevert])
 
   // Row that takes focus again after a keyboard move (the DOM node is re-inserted).
   const movedFocus = useRef<string | null>(null)
@@ -891,7 +891,8 @@ export function Library(p: Props): React.JSX.Element {
               deck={d}
               onConfirm={() => {
                 setConfirmRevert(null)
-                focusRow(`deck:${d.id}`)
+                // The confirm row is still mounted: focus returns once it has gone.
+                refocus.current = `deck:${d.id}`
                 p.onRevertDeck(d.id)
               }}
               onCancel={() => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { bumpVersion } from './model'
 import type { DeckEditErrorEvent } from '../../shared/ipc'
 import type { SlideshowStatus } from '../../shared/playback'
 
@@ -43,7 +44,7 @@ export function useSlideshow(onApplied: (deckId: string) => void): {
         on ? (xs.includes(deckId) ? xs : [...xs, deckId]) : xs.filter((x) => x !== deckId)
       )
       if (!on) {
-        setVersions((v) => ({ ...v, [deckId]: (v[deckId] ?? 0) + 1 }))
+        setVersions((v) => bumpVersion(v, deckId))
         onApplied(deckId)
       } else {
         setEditError((e) => (e?.deckId === deckId ? null : e))
@@ -58,4 +59,18 @@ export function useSlideshow(onApplied: (deckId: string) => void): {
 
   const clearEditError = useCallback(() => setEditError(null), [])
   return { status, pending, editError, clearEditError, versions }
+}
+
+/** Output windows: per deck, bumped when its files were replaced under the same names. */
+export function useDeckVersions(): Record<string, number> {
+  const api = window.api
+  const [versions, setVersions] = useState<Record<string, number>>({})
+  useEffect(
+    () =>
+      api.onDeckPending(({ deckId, pending }) => {
+        if (!pending) setVersions((v) => bumpVersion(v, deckId))
+      }),
+    [api]
+  )
+  return versions
 }

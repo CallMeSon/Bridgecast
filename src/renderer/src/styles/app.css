@@ -2261,3 +2261,21 @@ footer .empty {
 .deck-row > .deck:has(.pb) {
   padding-right: 44px;
 }
+/* The chip may not widen the row: the slide count beside it would run under the options button. */
+.deck .sub {
+  min-width: 0;
+}
+.deck .pb {
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 18px;
+  padding-block: 2px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+.deck .meta {
+  text-align: right;
+  min-width: 0;
+}

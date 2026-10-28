@@ -48,7 +48,10 @@ import {
   stepLabel,
   nextStepText,
   playbackChip,
-  nativeNotice
+  nativeNotice,
+  editingAfter,
+  bumpVersion,
+  sumVersions
 } from './model'
 
 const deck = (id: string, n: number, name = id): DeckMeta => ({
@@ -1035,5 +1038,59 @@ describe('nextView and hidden slides', () => {
     } as ProgramState
     const v = nextView([d], s)
     expect(v.kind === 'slide' && v.index).toBe(3)
+  })
+})
+
+describe('nextView matches the reducer around hidden slides', () => {
+  it('trailing hidden slides: nothing is up next and Next does not move', () => {
+    const d = deck('h', 3)
+    d.slides[1].hidden = true
+    d.slides[2].hidden = true
+    const s = at('h', 0)
+    expect(nextView([d], s).kind).toBe('end')
+    expect(canNext([d], s)).toBe(false)
+    expect(reduce(s, { type: 'next' }, [d], [])).toBe(s)
+  })
+  it('next deck whose first slide is hidden: end of deck names it, Next lands on its first shown slide', () => {
+    const a = deck('a', 1)
+    const b = deck('b', 3)
+    b.slides[0].hidden = true
+    const s = at('a', 0, { autoAdvance: true })
+    const v = nextView([a, b], s)
+    expect(v).toMatchObject({ kind: 'end', nextDeck: 'b', auto: true })
+    const n = reduce(s, { type: 'next' }, [a, b], [])
+    expect([n.shown?.deckId, n.shown?.index]).toEqual(['b', 1])
+  })
+})
+
+describe('editingAfter', () => {
+  it('a saved edit that is applied keeps the session; Done editing and Revert end it', () => {
+    let e = editingAfter([], 'start', 'a')
+    expect(e).toEqual(['a'])
+    e = editingAfter(e, 'applied', 'a')
+    expect(e).toEqual(['a'])
+    expect(editingAfter(e, 'start', 'a')).toEqual(['a'])
+    expect(editingAfter(e, 'done', 'a')).toEqual([])
+    expect(editingAfter(e, 'revert', 'a')).toEqual([])
+    expect(editingAfter(['a', 'b'], 'done', 'a')).toEqual(['b'])
+  })
+})
+
+describe('deck versions', () => {
+  it('bump and sum', () => {
+    expect(bumpVersion({ a: 1 }, 'a')).toEqual({ a: 2 })
+    expect(bumpVersion({}, 'b')).toEqual({ b: 1 })
+    expect(sumVersions({ a: 1, w: 2 }, { a: 3 })).toEqual({ a: 4, w: 2 })
+  })
+  it('outputSource versions the files of a replaced deck, not the KV', () => {
+    const s = at('a', 0)
+    const plain = outputSource(s, 0)
+    const bumped = outputSource(s, 2)
+    expect(plain && plain.kind === 'image' && plain.url).not.toContain('?v=')
+    expect(bumped && bumped.kind === 'image' && bumped.url).toContain('?v=2')
+    const v = outputSource({ ...s, shown: { ...s.shown!, playback: 'vector' } }, 3)
+    expect(
+      v && v.kind === 'pdf' && v.url.endsWith('source.pdf?v=3') && v.poster.endsWith('?v=3')
+    ).toBe(true)
   })
 })

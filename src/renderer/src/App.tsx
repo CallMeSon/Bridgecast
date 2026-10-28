@@ -32,6 +32,7 @@ import {
   canPrevSection,
   canResumeWeb,
   currentDeck,
+  editingAfter,
   errorMessage,
   fileKind,
   holdDeckId,
@@ -42,6 +43,7 @@ import {
   stepLabel,
   outputSource,
   SAVED,
+  sumVersions,
   tally,
   UNSUPPORTED,
   visibleCaptureWarnings
@@ -462,7 +464,7 @@ function App(): React.JSX.Element {
   const editDeck = useCallback(
     (deckId: string) => {
       api.editDeck(deckId).then(
-        () => setEditing((xs) => (xs.includes(deckId) ? xs : [...xs, deckId])),
+        () => setEditing((xs) => editingAfter(xs, 'start', deckId)),
         (e) => reportError('Edit in PowerPoint', e)
       )
     },
@@ -470,14 +472,14 @@ function App(): React.JSX.Element {
   )
   const editDeckDone = useCallback(
     (deckId: string) => {
-      setEditing((xs) => xs.filter((x) => x !== deckId))
+      setEditing((xs) => editingAfter(xs, 'done', deckId))
       api.editDeckDone(deckId).catch((e) => reportError('Edit in PowerPoint', e))
     },
     [api, reportError]
   )
   const revertDeck = useCallback(
     (deckId: string) => {
-      setEditing((xs) => xs.filter((x) => x !== deckId))
+      setEditing((xs) => editingAfter(xs, 'revert', deckId))
       api.revertDeck(deckId).catch((e) => reportError('Revert', e))
     },
     [api, reportError]
@@ -617,21 +619,16 @@ function App(): React.JSX.Element {
   // output is active this window is the one whose first frames open the ready gate.
   const pages = useWebPages()
   const slideshow = useSlideshow(
-    useCallback(
-      (deckId: string) => {
-        // The deck's files were replaced: read slides, clicks and hidden flags again.
-        const target = eventRef.current
-        if (target) reloadDecks(target).catch((e) => reportError('Decks', e))
-        setEditing((xs) => xs.filter((x) => x !== deckId))
-      },
-      [reloadDecks, reportError]
-    )
+    useCallback(() => {
+      // The deck's files were replaced: read slides, clicks and hidden flags again.
+      // The edit session goes on (the working copy is still watched): `editing` stays.
+      const target = eventRef.current
+      if (target) reloadDecks(target).catch((e) => reportError('Decks', e))
+    }, [reloadDecks, reportError])
   )
   // Per deck: bumped when a web snapshot or an edited deck's images were rewritten under the same names.
   const versions = useMemo(() => {
-    const out: Record<string, number> = { ...pages.versions }
-    for (const [id, v] of Object.entries(slideshow.versions)) out[id] = (out[id] ?? 0) + v
-    return out
+    return sumVersions(pages.versions, slideshow.versions)
   }, [pages.versions, slideshow.versions])
   const outputs = useWebOutputs()
   const liveWeb = program.shown?.web?.deckId ?? null

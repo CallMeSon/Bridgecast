@@ -334,7 +334,7 @@ export function outputSource(s: ProgramState, posterVersion = 0): OutputMedia | 
       kind: 'stream',
       source: 'desktop',
       deckId: s.shown.deckId,
-      poster: slideUrl(s.shown.deckId, s.shown.file),
+      poster: posterWithVersion(slideUrl(s.shown.deckId, s.shown.file), posterVersion),
       paused: s.frozen,
       take: s.take
     }
@@ -342,18 +342,21 @@ export function outputSource(s: ProgramState, posterVersion = 0): OutputMedia | 
   if (s.shown) {
     const { deckId, file, video } = s.shown
     const fit = s.shown.fit ?? 'fit'
-    const poster = slideUrl(deckId, file)
+    // An edited deck's files are replaced under the same names: the version reloads them.
+    const versioned = (name: string): string =>
+      posterWithVersion(slideUrl(deckId, name), posterVersion)
+    const poster = versioned(file)
     if (s.shown.playback === 'vector' && !video) {
       return {
         kind: 'pdf',
-        url: slideUrl(deckId, 'source.pdf'),
+        url: versioned('source.pdf'),
         page: s.shown.index + 1,
         poster,
         fit
       }
     }
     return video
-      ? { kind: 'video', url: slideUrl(deckId, video), poster, take: s.take, fit }
+      ? { kind: 'video', url: versioned(video), poster, take: s.take, fit }
       : { kind: 'image', url: poster, fit }
   }
   return s.kvUrl ? { kind: 'image', url: s.kvUrl, fit: 'fit' } : null
@@ -714,4 +717,30 @@ export function nativeNotice(
   if (!d || playbackOf(d) !== 'native') return null
   if (status?.helperError) return 'helper'
   return status?.decks[d.id] === 'fallback' ? 'notResponding' : 'notReady'
+}
+
+/** The deck's version goes up by one (its files were replaced under the same names). */
+export function bumpVersion(v: Record<string, number>, deckId: string): Record<string, number> {
+  return { ...v, [deckId]: (v[deckId] ?? 0) + 1 }
+}
+
+/** Sum of version maps (web snapshots and replaced deck files) per deck id. */
+export function sumVersions(...maps: Record<string, number>[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const m of maps) for (const [id, v] of Object.entries(m)) out[id] = (out[id] ?? 0) + v
+  return out
+}
+
+/**
+ * Decks the operator has open in PowerPoint (Done editing shows). A save that is applied
+ * (`deck:pending` false) keeps the session: the working copy is still being watched.
+ */
+export function editingAfter(
+  editing: string[],
+  event: 'start' | 'applied' | 'done' | 'revert',
+  deckId: string
+): string[] {
+  if (event === 'start') return editing.includes(deckId) ? editing : [...editing, deckId]
+  if (event === 'applied') return editing
+  return editing.filter((x) => x !== deckId)
 }

@@ -11,6 +11,7 @@ import { AUDIO_SETUP_MS, outputGateOpen, pickSink, useAudioOutputs } from './aud
 import { SlideLayers, type ShownMedia, type StreamOptions } from './components/SlideLayers'
 import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
+import { useDeckVersions } from './slideshow'
 import { capturesForGate, precaptureIds, streamFps } from './stream'
 
 const timingId = (key: number): string => `layer-${key}`
@@ -267,8 +268,10 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
   // main counts it as an active output, the pages not on air yet (ready gate).
   const pages = useWebPages()
   const webOutputs = useWebOutputs()
+  const deckVersions = useDeckVersions()
+  const shownId = program?.shown?.deckId ?? ''
   const media = program
-    ? outputSource(program, pages.versions[program.shown?.web?.deckId ?? ''] ?? 0)
+    ? outputSource(program, (pages.versions[shownId] ?? 0) + (deckVersions[shownId] ?? 0))
     : null
   const streaming = media?.kind === 'stream' ? media.deckId : null
   const precapture = capturesForGate(role, webOutputs)
