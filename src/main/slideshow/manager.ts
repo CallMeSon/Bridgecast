@@ -92,8 +92,10 @@ export class SlideShowManager {
   }
 
   /**
-   * An output window captured the first frame of the deck's slide show window. Telemetry
-   * for now: readiness stays `ready`, and an output without a frame shows the slide's PNG.
+   * An output window captured the first frame of the deck's slide show window.
+   * TELEMETRY ONLY: nothing reads it yet. The spec's first-frame ready gate (a native
+   * take waits for a captured frame) is deferred to the Windows precapture work; until
+   * then `ready()` means "session open" and an output without a frame shows the slide's PNG.
    */
   frameSeen(deckId: string): void {
     if (this.entries.has(deckId)) this.framed.add(deckId)

@@ -230,6 +230,13 @@ describe('soundWanted', () => {
     expect(soundWanted(st({ shown: { ...shown } }))).toBe(false)
     expect(soundWanted(st())).toBe(false)
   })
+  it('not while Black or a KV with an image covers it; Freeze and a KV without an image do not', () => {
+    const shownNative = { ...shown, playback: 'native' as const }
+    expect(soundWanted(st({ shown: shownNative, black: true }))).toBe(false)
+    expect(soundWanted(st({ shown: shownNative, kv: true, kvUrl: 'slide://kv/k.png' }))).toBe(false)
+    expect(soundWanted(st({ shown: shownNative, kv: true, kvUrl: null }))).toBe(true)
+    expect(soundWanted(st({ shown: shownNative, frozen: true }))).toBe(true)
+  })
 })
 
 describe('fallbackVolume', () => {
@@ -243,6 +250,15 @@ describe('fallbackVolume', () => {
     const s = { ...initialState, shown: { ...shown, audio: { volume: 50, muted: true } } }
     expect(fallbackVolume(s, audio)).toBe(0)
     expect(fallbackVolume({ ...initialState, shown }, { ...audio, muted: true })).toBe(0)
+  })
+  it('is 0 while Black or a KV with an image covers the slide, and comes back after', () => {
+    const base = { ...initialState, shown }
+    expect(fallbackVolume({ ...base, black: true }, audio)).toBe(0)
+    expect(fallbackVolume({ ...base, kv: true, kvUrl: 'slide://kv/k.png' }, audio)).toBe(0)
+    expect(fallbackVolume(base, audio)).toBe(1)
+  })
+  it('a KV without an image does not cover the slide (sound continues)', () => {
+    expect(fallbackVolume({ ...initialState, shown, kv: true, kvUrl: null }, audio)).toBe(1)
   })
   it('is null when no native deck is live', () => {
     expect(fallbackVolume(initialState, audio)).toBeNull()
@@ -304,6 +320,30 @@ describe('SlideSound', () => {
     expect(volumes).toHaveLength(1)
     expect(volumes[0]).toBeCloseTo(0.4)
     expect(notes.at(-1)).toBe(COPY)
+  })
+  it('pipe mode: Black and KV stop the forwarded sound and it resumes after', () => {
+    const { sound, sockets, ports } = setup()
+    sound.engineAudio({ mode: 'pipe', pipe: 'p', note: null })
+    sound.program(live(), DEFAULT_AUDIO)
+    sound.program({ ...live(), black: true }, DEFAULT_AUDIO)
+    sockets[0].emit('data', pcm(PCM_FRAMES))
+    expect(ports[0].sent).toHaveLength(0)
+    sound.program({ ...live(), kv: true, kvUrl: 'slide://kv/k.png' }, DEFAULT_AUDIO)
+    sockets[0].emit('data', pcm(PCM_FRAMES))
+    expect(ports[0].sent).toHaveLength(0)
+    sound.program(live(), DEFAULT_AUDIO)
+    sockets[0].emit('data', pcm(PCM_FRAMES))
+    expect(ports[0].sent).toHaveLength(1)
+  })
+  it('fallback: level 0 on Black or KV, then the effective gain again', () => {
+    const { sound, volumes } = setup()
+    sound.engineAudio({ mode: 'fallback', pipe: null, note: null })
+    sound.program(live(50), DEFAULT_AUDIO)
+    sound.program({ ...live(50), black: true }, DEFAULT_AUDIO)
+    sound.program(live(50), DEFAULT_AUDIO)
+    sound.program({ ...live(50), kv: true, kvUrl: 'slide://kv/k.png' }, DEFAULT_AUDIO)
+    sound.program({ ...live(50), kv: true, kvUrl: null }, DEFAULT_AUDIO)
+    expect(volumes).toEqual([0.5, 0, 0.5, 0, 0.5])
   })
   it('sends a level only when it changes, and 0 on mute', () => {
     const { sound, volumes } = setup()

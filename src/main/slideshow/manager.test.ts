@@ -84,7 +84,7 @@ describe('SlideShowManager', () => {
     expect(mgr.windowId('a')).toBeNull()
     await vi.advanceTimersByTimeAsync(500)
     expect(mgr.ready('a')).toBe(true)
-    expect(mgr.windowId('a')).toBe('win-a')
+    expect(mgr.windowId('a')).toMatch(/^\d+$/)
   })
 
   it('records the first captured frame of an open deck and forgets it with the session', async () => {

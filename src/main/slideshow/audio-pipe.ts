@@ -1,6 +1,6 @@
 import nodeNet from 'node:net'
 import { effectiveGain, DEFAULT_DECK_AUDIO } from '../../shared/audio-levels'
-import type { ProgramState } from '../../shared/program'
+import { kvOnAir, type ProgramState } from '../../shared/program'
 import type { AudioSettings } from '../../shared/settings'
 import { DEFAULT_DEVICE_SOUND } from './powerpoint-engine'
 
@@ -208,17 +208,28 @@ export class PcmFanout {
   }
 }
 
-/** PowerPoint's sound is wanted in the outputs while a native deck's slide is on air. */
-export function soundWanted(s: ProgramState): boolean {
+/** A native deck's slide is the shown slide (it may be hidden by Black or KV). */
+export function nativeLive(s: ProgramState): boolean {
   return s.shown?.playback === 'native'
 }
 
 /**
+ * PowerPoint's sound is wanted in the outputs while a native deck's slide is on air:
+ * not while Black or the KV covers it (same predicate as the picture: `black || kvOnAir`),
+ * as with the other decks. Freeze does not silence it (frozen picture, sound continues).
+ */
+export function soundWanted(s: ProgramState): boolean {
+  return nativeLive(s) && !(s.black || kvOnAir(s))
+}
+
+/**
  * Level (0-1) for PowerPoint's own audio session when the pipe is not available: the live
- * native deck's level times the master, 0 when either is muted. Null when no native slide is on air.
+ * native deck's level times the master, 0 when either is muted or Black/KV covers the
+ * slide (restored when they end). Null when no native slide is shown.
  */
 export function fallbackVolume(s: ProgramState, audio: AudioSettings): number | null {
-  if (!soundWanted(s)) return null
+  if (!nativeLive(s)) return null
+  if (!soundWanted(s)) return 0
   return effectiveGain(s.shown?.audio ?? DEFAULT_DECK_AUDIO, audio)
 }
 
@@ -273,12 +284,13 @@ export class SlideSound {
     this.last = { state, audio }
     const wanted = soundWanted(state)
     this.fanout.setWanted(wanted && this.route.mode === 'pipe')
+    const live = nativeLive(state)
     const degraded =
       this.route.mode === 'fallback' ||
       this.route.mode === 'device' ||
       this.route.note !== null ||
       (this.route.mode === 'pipe' && !this.route.pipe)
-    this.setNote(wanted && degraded ? DEFAULT_DEVICE_SOUND : null)
+    this.setNote(live && degraded ? DEFAULT_DEVICE_SOUND : null)
     if (this.route.mode !== 'fallback') return
     const v = fallbackVolume(state, audio)
     if (v === null || v === this.lastVolume) return

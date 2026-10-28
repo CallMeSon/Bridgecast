@@ -103,7 +103,7 @@ export class FakeEngine implements SlideShowEngine {
     }
     return {
       deckId,
-      windowId: `win-${deckId}`,
+      windowId: fakeWindowId(deckId),
       next: async () => {
         await guard(`next:${deckId}`)
         if (step < clicks(index)) step++
@@ -143,4 +143,15 @@ export class FakeEngine implements SlideShowEngine {
       }
     }
   }
+}
+
+/** Window ids are decimal handles like the bridge's HWNDs (`slideshow:sourceId` rejects anything else); stable per deck. */
+const windowIds = new Map<string, string>()
+function fakeWindowId(deckId: string): string {
+  let id = windowIds.get(deckId)
+  if (!id) {
+    id = String(1000 + windowIds.size)
+    windowIds.set(deckId, id)
+  }
+  return id
 }
