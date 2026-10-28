@@ -38,6 +38,8 @@ type DeckInput = {
   /** PDF export of a PowerPoint file; stored as source.pdf. */
   pdfPath?: string
   playback?: Playback
+  /** The import found no animation, transition or media (`ImportedDeck.isStatic`). */
+  isStatic?: boolean
 }
 
 type WebDeckInput = {
@@ -113,12 +115,16 @@ export type ThumbWriter = (src: string, dest: string) => void
 
 export class Library {
   private events: EventMeta[]
+  /** Decks whose old edit.* could not be deleted (still open in PowerPoint); see `discardEdit`. */
+  private staleEdits = new Set<string>()
   /** Thumbnails being generated, by thumbnail path (one job per file). */
   private thumbJobs = new Map<string, Promise<boolean>>()
 
   constructor(
     private root: string,
-    private makeThumb: ThumbWriter = writeThumbnail
+    private makeThumb: ThumbWriter = writeThumbnail,
+    /** Deletes a file; replaceable in tests to simulate a file PowerPoint holds open. */
+    private removeFile: (file: string) => void = (f) => fs.rmSync(f, { force: true })
   ) {
     fs.mkdirSync(path.join(root, 'decks'), { recursive: true })
     this.events = this.loadEvents()
@@ -177,8 +183,10 @@ export class Library {
       throw new Error('Deck not found. Reload the deck list, or import the deck again.')
     const deck = JSON.parse(fs.readFileSync(file, 'utf8')) as DeckMeta
     // Fields added after the first release: keep only valid values, never throw on old or damaged files.
-    const { fit, audio, web, playback } = deck
+    const { fit, audio, web, playback, importStatic } = deck
     delete deck.playback
+    delete deck.importStatic
+    if (typeof importStatic === 'boolean') deck.importStatic = importStatic
     if (isPlayback(playback) && (playback !== 'native' || canNative(deck))) deck.playback = playback
     if (Array.isArray(deck.slides)) {
       for (const s of deck.slides) {
@@ -322,6 +330,7 @@ export class Library {
       }
       if (web) deck.web = web
       if (d.playback) deck.playback = d.playback
+      if (typeof d.isStatic === 'boolean') deck.importStatic = d.isStatic
       this.writeDeck(deck)
       ev.deckIds.push(id)
       this.saveEvents()
@@ -801,34 +810,70 @@ export class Library {
     for (const other of POWERPOINT_EXTS) {
       if (other !== ext) fs.rmSync(path.join(dir, `edit${other}`), { force: true })
     }
-    if (fs.existsSync(file)) return { file, fresh: false }
+    const stale = this.isEditStale(deckId)
+    if (!stale && fs.existsSync(file)) return { file, fresh: false }
     try {
+      // A stale copy (old edits that could not be deleted) is overwritten from the file in use.
       fs.copyFileSync(source, file)
     } catch {
+      if (stale) {
+        throw new Error('Close the PowerPoint window that has the old edit open, then try again.')
+      }
       fs.rmSync(file, { force: true })
       throw new Error(
         'The working copy could not be prepared. Close the deck in PowerPoint, then try again.'
       )
     }
+    this.clearEditStale(deckId)
     return { file, fresh: true }
+  }
+
+  private staleMarker(deckId: string): string {
+    return path.join(this.deckDir(deckId), 'edit.stale')
+  }
+
+  /** The working copy holds edits that were discarded but could not be deleted. */
+  private isEditStale(deckId: string): boolean {
+    return this.staleEdits.has(deckId) || fs.existsSync(this.staleMarker(deckId))
+  }
+
+  private clearEditStale(deckId: string): void {
+    this.staleEdits.delete(deckId)
+    fs.rmSync(this.staleMarker(deckId), { force: true })
   }
 
   /** The working copy exists and differs from the file in use. */
   editChanged(deckId: string): boolean {
     const edit = this.deckFile(deckId, 'edit')
-    if (!edit) return false
+    if (!edit || this.isEditStale(deckId)) return false
     const source = this.sourceFilePath(deckId)
     return !sameFile(edit, source)
   }
 
-  /** Removes the working copy; a copy PowerPoint still holds open is left alone. */
+  /**
+   * Removes the working copy. A copy PowerPoint still holds open cannot be deleted: the deck is
+   * then marked stale (in memory and in `edit.stale`, which survives a restart and goes with the
+   * deck folder), so the next `beginEdit` overwrites it instead of showing discarded edits again.
+   */
   discardEdit(deckId: string): void {
+    const dir = this.deckDir(deckId)
+    let failed = false
     for (const ext of POWERPOINT_EXTS) {
       try {
-        fs.rmSync(path.join(this.deckDir(deckId), `edit${ext}`), { force: true })
+        this.removeFile(path.join(dir, `edit${ext}`))
       } catch {
-        /* still open in PowerPoint */
+        failed = true // still open in PowerPoint
       }
+    }
+    if (!failed) {
+      this.clearEditStale(deckId)
+      return
+    }
+    this.staleEdits.add(deckId)
+    try {
+      fs.writeFileSync(this.staleMarker(deckId), 'stale', 'utf8')
+    } catch {
+      /* the in-memory marker still covers this run */
     }
   }
 
@@ -878,9 +923,13 @@ export class Library {
         slides
       }
       delete deck.playback
+      delete deck.importStatic
+      if (typeof imported.isStatic === 'boolean') deck.importStatic = imported.isStatic
       if (current.playback !== undefined) {
-        deck.playback =
-          current.playback === 'vector' && imported.isStatic === false ? 'native' : current.playback
+        // Only the import default (a static deck imported as vector) follows the deck to native
+        // once it has animation; a mode the operator chose, and older decks, stay as they are.
+        const defaultVector = current.playback === 'vector' && current.importStatic === true
+        deck.playback = defaultVector && imported.isStatic === false ? 'native' : current.playback
       }
 
       // Swap: old files into the backup folder, new ones in, then deck.json. A failure undoes it.

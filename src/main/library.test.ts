@@ -1037,17 +1037,29 @@ describe('Library replaceDeckFiles, revertDeck and isEdited', () => {
   }
 
   const setup = (
-    playback: DeckMeta['playback'] = 'native'
+    playback: DeckMeta['playback'] = 'native',
+    isStatic?: boolean,
+    removeFile?: (file: string) => void
   ): { lib: Library; deck: DeckMeta; dir: string; evId: string } => {
     const sourcePath = path.join(src, 'orig.pptx')
     const pdfPath = path.join(src, 'orig.pdf')
     fs.writeFileSync(sourcePath, 'ORIG')
     fs.writeFileSync(pdfPath, 'OLDPDF')
-    const lib = new Library(root, () => {
-      throw new Error('no thumbs in tests')
-    })
+    const lib = new Library(
+      root,
+      () => {
+        throw new Error('no thumbs in tests')
+      },
+      removeFile
+    )
     const ev = lib.createEvent('E')
-    const deck = lib.addDeck(ev.id, { ...deckInput(2, 'My deck'), sourcePath, pdfPath, playback })
+    const deck = lib.addDeck(ev.id, {
+      ...deckInput(2, 'My deck'),
+      sourcePath,
+      pdfPath,
+      playback,
+      ...(isStatic === undefined ? {} : { isStatic })
+    })
     return { lib, deck, dir: path.join(root, 'decks', deck.id), evId: ev.id }
   }
 
@@ -1090,23 +1102,54 @@ describe('Library replaceDeckFiles, revertDeck and isEdited', () => {
     expect(fs.existsSync(path.join(dir, 'thumbs', '001.jpg'))).toBe(false)
   })
 
-  it('playback: vector becomes native when the deck is no longer static, otherwise it is kept', () => {
-    const vec = setup('vector')
-    expect(vec.lib.replaceDeckFiles(vec.deck.id, imported({ isStatic: false })).playback).toBe(
-      'native'
-    )
-    const still = setup('vector')
+  it('playback: the import default vector becomes native when the deck is no longer static', () => {
+    const vec = setup('vector', true)
+    const next = vec.lib.replaceDeckFiles(vec.deck.id, imported({ isStatic: false }))
+    expect(next.playback).toBe('native')
+    expect(next.importStatic).toBe(false)
+    const still = setup('vector', true)
     expect(still.lib.replaceDeckFiles(still.deck.id, imported({ isStatic: true })).playback).toBe(
       'vector'
     )
-    const nat = setup('native')
+    const nat = setup('native', false)
     expect(nat.lib.replaceDeckFiles(nat.deck.id, imported({ isStatic: true })).playback).toBe(
       'native'
     )
-    const img = setup('images')
+    const img = setup('images', true)
     expect(img.lib.replaceDeckFiles(img.deck.id, imported({ isStatic: false })).playback).toBe(
       'images'
     )
+  })
+
+  it('playback: a vector mode the operator chose on an animated deck stays vector', () => {
+    const { lib, deck, evId } = setup('native', false)
+    expect(lib.setPlayback(evId, deck.id, 'vector').playback).toBe('vector')
+    const next = lib.replaceDeckFiles(deck.id, imported({ isStatic: false }))
+    expect(next.playback).toBe('vector')
+    expect(new Library(root).getDeck(deck.id).playback).toBe('vector')
+  })
+
+  it('playback: an older deck without importStatic never switches', () => {
+    const { lib, deck } = setup('vector')
+    expect(deck.importStatic).toBeUndefined()
+    const next = lib.replaceDeckFiles(deck.id, imported({ isStatic: false }))
+    expect(next.playback).toBe('vector')
+    // The re-import now records what it found.
+    expect(next.importStatic).toBe(false)
+  })
+
+  it('importStatic is persisted, updated on every replace and sanitized on read', () => {
+    const { lib, deck, dir } = setup('vector', true)
+    expect(deck.importStatic).toBe(true)
+    expect(new Library(root).getDeck(deck.id).importStatic).toBe(true)
+    lib.replaceDeckFiles(deck.id, imported({ isStatic: true }))
+    expect(lib.getDeck(deck.id).importStatic).toBe(true)
+    lib.replaceDeckFiles(deck.id, imported({ isStatic: false }))
+    expect(lib.getDeck(deck.id).importStatic).toBe(false)
+    const file = path.join(dir, 'deck.json')
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
+    fs.writeFileSync(file, JSON.stringify({ ...raw, importStatic: 'yes' }))
+    expect(new Library(root).getDeck(deck.id).importStatic).toBeUndefined()
   })
 
   it('a failing copy keeps every old file and the old deck.json', () => {
@@ -1198,6 +1241,83 @@ describe('Library replaceDeckFiles, revertDeck and isEdited', () => {
     lib.discardEdit(deck.id)
     expect(fs.existsSync(first.file)).toBe(false)
     expect(lib.editChanged(deck.id)).toBe(false)
+  })
+
+  describe('a working copy that cannot be deleted', () => {
+    const lockedRemove =
+      (state: { locked: boolean }) =>
+      (file: string): void => {
+        if (state.locked && /edit\.pptx?$/.test(file)) throw new Error('EBUSY')
+        fs.rmSync(file, { force: true })
+      }
+
+    it('the next beginEdit overwrites the old edits from source', () => {
+      const lockState = { locked: true }
+      const { lib, deck, dir } = setup('native', false, lockedRemove(lockState))
+      const first = lib.beginEdit(deck.id)
+      fs.writeFileSync(first.file, 'REVERTED EDITS')
+      lib.discardEdit(deck.id) // the window is still open: the delete fails
+      expect(fs.readFileSync(first.file, 'utf8')).toBe('REVERTED EDITS')
+      expect(fs.existsSync(path.join(dir, 'edit.stale'))).toBe(true)
+      expect(lib.editChanged(deck.id)).toBe(false)
+      const again = lib.beginEdit(deck.id)
+      expect(again).toEqual({ file: first.file, fresh: true })
+      expect(fs.readFileSync(first.file, 'utf8')).toBe('ORIG')
+      expect(fs.existsSync(path.join(dir, 'edit.stale'))).toBe(false)
+      // Cleared: unsaved work in this new copy is kept from now on.
+      fs.writeFileSync(first.file, 'NEW WORK')
+      expect(lib.beginEdit(deck.id)).toEqual({ file: first.file, fresh: false })
+    })
+
+    it('the marker survives a restart', () => {
+      const lockState = { locked: true }
+      const { lib, deck } = setup('native', false, lockedRemove(lockState))
+      const first = lib.beginEdit(deck.id)
+      fs.writeFileSync(first.file, 'REVERTED EDITS')
+      lib.discardEdit(deck.id)
+      const restarted = new Library(root)
+      expect(restarted.beginEdit(deck.id).fresh).toBe(true)
+      expect(fs.readFileSync(first.file, 'utf8')).toBe('ORIG')
+    })
+
+    it('a copy that is still locked gives a clear error and keeps the marker', () => {
+      const lockState = { locked: true }
+      const { lib, deck, dir } = setup('native', false, lockedRemove(lockState))
+      const first = lib.beginEdit(deck.id)
+      fs.writeFileSync(first.file, 'REVERTED EDITS')
+      lib.discardEdit(deck.id)
+      hooks.copy = (_s, d) => {
+        if (d.endsWith('edit.pptx')) throw new Error('EBUSY')
+      }
+      expect(() => lib.beginEdit(deck.id)).toThrow(
+        'Close the PowerPoint window that has the old edit open, then try again.'
+      )
+      hooks.copy = null
+      expect(fs.existsSync(path.join(dir, 'edit.stale'))).toBe(true)
+      expect(lib.beginEdit(deck.id).fresh).toBe(true)
+    })
+
+    it('a later successful delete clears the marker', () => {
+      const lockState = { locked: true }
+      const { lib, deck, dir } = setup('native', false, lockedRemove(lockState))
+      const first = lib.beginEdit(deck.id)
+      lib.discardEdit(deck.id)
+      expect(fs.existsSync(path.join(dir, 'edit.stale'))).toBe(true)
+      lockState.locked = false
+      lib.discardEdit(deck.id)
+      expect(fs.existsSync(first.file)).toBe(false)
+      expect(fs.existsSync(path.join(dir, 'edit.stale'))).toBe(false)
+      expect(lib.beginEdit(deck.id)).toEqual({ file: first.file, fresh: true })
+    })
+
+    it('removeDeck takes the marker with the deck folder', () => {
+      const lockState = { locked: true }
+      const { lib, deck, dir, evId } = setup('native', false, lockedRemove(lockState))
+      lib.beginEdit(deck.id)
+      lib.discardEdit(deck.id)
+      lib.removeDeck(evId, deck.id)
+      expect(fs.existsSync(dir)).toBe(false)
+    })
   })
 
   it('setPlayback still answers a friendly error for a wrong mode', () => {

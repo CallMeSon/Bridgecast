@@ -589,8 +589,17 @@ function registerIpc(
   handle(Invoke.decksRemove, (eventId, deckId) => {
     assertString(eventId, 'Event ID')
     assertString(deckId, 'Deck ID')
-    state.removeDeck(eventId, deckId)
-    editor.forget(deckId)
+    try {
+      state.removeDeck(eventId, deckId)
+    } finally {
+      // Even when deleting the folder failed part way: a deck that is gone must not keep a
+      // watcher or a staged temp folder. A deck still there (wrong event) keeps its edit session.
+      try {
+        lib.getDeck(deckId)
+      } catch {
+        editor.forget(deckId)
+      }
+    }
     syncWeb()
   })
 

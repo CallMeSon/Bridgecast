@@ -20,6 +20,7 @@ let events: string[]
 let editor: DeckEditor
 let openError: Error | null
 let depsOver: Partial<EditorDeps>
+let locked: boolean
 
 const read = (f: string): string => fs.readFileSync(path.join(dir, f), 'utf8')
 
@@ -90,9 +91,17 @@ beforeEach(() => {
   const sourcePath = path.join(srcDir, 'deck.pptx')
   fs.writeFileSync(png, 'png:ORIG')
   fs.writeFileSync(sourcePath, 'ORIG')
-  lib = new Library(root, () => {
-    throw new Error('no thumbs')
-  })
+  locked = false
+  lib = new Library(
+    root,
+    () => {
+      throw new Error('no thumbs')
+    },
+    (file) => {
+      if (locked && /edit\.pptx$/.test(file)) throw new Error('EBUSY')
+      fs.rmSync(file, { force: true })
+    }
+  )
   const ev = lib.createEvent('E')
   const deck = lib.addDeck(ev.id, {
     name: 'Keynote',
@@ -427,6 +436,17 @@ describe('DeckEditor', () => {
       await editor.leftAir()
       expect(read('source.pptx')).toBe('ORIG')
       expect(editor.pending(deckId)).toBe(false)
+    })
+
+    it('the old window still open: the next edit does not bring the reverted edits back', async () => {
+      await edited()
+      locked = true // PowerPoint keeps edit.pptx open, the delete fails
+      await editor.revert(deckId)
+      expect(read('source.pptx')).toBe('ORIG')
+      expect(read('edit.pptx')).toBe('V2')
+      await editor.edit(deckId)
+      expect(read('edit.pptx')).toBe('ORIG')
+      expect(lib.editChanged(deckId)).toBe(false)
     })
 
     it('a failing export keeps the edited version', async () => {

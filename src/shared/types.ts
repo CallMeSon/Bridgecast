@@ -30,6 +30,12 @@ export interface DeckMeta {
   audio?: DeckAudio
   /** How the deck plays; absent = 'images'. */
   playback?: Playback
+  /**
+   * The deck had no animation, transition or media when its file was last imported or re-imported
+   * (`ImportedDeck.isStatic`). Absent on older decks. Lets an edit switch the import default
+   * `vector` to `native` without touching a mode the operator chose.
+   */
+  importStatic?: boolean
   /** The page of a web deck (source 'web'). */
   web?: { url: string }
 }
