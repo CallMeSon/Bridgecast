@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { DeckMeta, SectionMeta } from '../../shared/types'
-import { initialState, reduce, type ProgramState } from '../../shared/program'
+import { initialState, reduce, type ProgramState, type ShownSlide } from '../../shared/program'
 import type { DeckFit } from '../../shared/canvas'
 import type { AudioSettings } from '../../shared/settings'
 import {
@@ -345,6 +345,47 @@ describe('outputSource with a web deck', () => {
   it('KV and Black still win over the page', () => {
     expect(outputSource({ ...initialState, shown, kvUrl, kv: true, take: 4 })).toEqual(img(kvUrl))
     expect(outputSource({ ...initialState, shown, black: true, take: 4 })).toBeNull()
+  })
+})
+
+describe('outputSource with a native slide show', () => {
+  const deckId = '66666666-6666-6666-6666-666666666666'
+  const shown = { deckId, index: 2, file: '003.png', playback: 'native' as const, step: 1 }
+  const kvUrl = 'slide://kv/22222222-2222-2222-2222-222222222222/k.png'
+  const poster = `slide://${deckId}/003.png`
+  const stream = (paused: boolean): OutputMedia => ({
+    kind: 'stream',
+    source: 'desktop',
+    deckId,
+    poster,
+    paused,
+    take: 9
+  })
+  it('a live native deck is the desktop capture, the PNG of the same slide as poster', () => {
+    expect(outputSource({ ...initialState, shown, take: 9 })).toEqual(stream(false))
+  })
+  it('a missing step reads as step 0 and still streams', () => {
+    const noStep: ShownSlide = { ...shown }
+    delete noStep.step
+    expect(outputSource({ ...initialState, shown: noStep, take: 9 })).toEqual(stream(false))
+  })
+  it('Freeze pauses the capture; HOLD (web only) does not', () => {
+    expect(outputSource({ ...initialState, shown, take: 9, frozen: true })).toEqual(stream(true))
+    expect(outputSource({ ...initialState, shown, take: 9, webHold: true })).toEqual(stream(false))
+  })
+  it('a deck that fell back to images shows the PNG as today', () => {
+    expect(outputSource({ ...initialState, shown: { ...shown, playback: 'images' } })).toEqual(
+      img(poster)
+    )
+  })
+  it('a vector deck shows the PNG (its own layer comes later)', () => {
+    expect(outputSource({ ...initialState, shown: { ...shown, playback: 'vector' } })).toEqual(
+      img(poster)
+    )
+  })
+  it('KV and Black still win over the capture', () => {
+    expect(outputSource({ ...initialState, shown, kvUrl, kv: true })).toEqual(img(kvUrl))
+    expect(outputSource({ ...initialState, shown, black: true })).toBeNull()
   })
 })
 

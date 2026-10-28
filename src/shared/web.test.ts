@@ -58,4 +58,12 @@ describe('captureWarningText', () => {
       'The web page cannot be shown on OMT. It shows the last snapshot.'
     )
   })
+  it('a slide show has its own copy', () => {
+    expect(captureWarningText('hdmi', 'slides')).toBe(
+      'The slide show cannot be shown on HDMI. It shows still slides.'
+    )
+    expect(captureWarningText('omt', 'slides')).toBe(
+      'The slide show cannot be shown on OMT. It shows still slides.'
+    )
+  })
 })

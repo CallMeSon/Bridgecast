@@ -48,6 +48,8 @@ export class SlideShowManager {
   /** nativeFallback was dispatched for these decks and not yet resumed. */
   private fallen = new Set<string>()
   private down = false
+  /** Decks whose slide show window an output has captured (cleared when the session ends). */
+  private framed = new Set<string>()
   /** Decks whose open failed or errored; not reopened until the retry timer fires. */
   private blocked = new Set<string>()
   private lastOk: number
@@ -87,6 +89,19 @@ export class SlideShowManager {
   windowId(deckId: string): string | null {
     const e = this.entries.get(deckId)
     return e?.session && !e.closing ? e.session.windowId : null
+  }
+
+  /**
+   * An output window captured the first frame of the deck's slide show window. Telemetry
+   * for now: readiness stays `ready`, and an output without a frame shows the slide's PNG.
+   */
+  frameSeen(deckId: string): void {
+    if (this.entries.has(deckId)) this.framed.add(deckId)
+  }
+
+  /** The deck's slide show window has been captured at least once since it opened. */
+  hasFrame(deckId: string): boolean {
+    return this.framed.has(deckId)
   }
 
   dispose(): void {
@@ -185,7 +200,10 @@ export class SlideShowManager {
 
   private finishClose(e: Entry): void {
     const done = (): void => {
-      if (this.entries.get(e.deckId) === e) this.entries.delete(e.deckId)
+      if (this.entries.get(e.deckId) === e) {
+        this.entries.delete(e.deckId)
+        this.framed.delete(e.deckId)
+      }
       this.sync()
     }
     e.session!.close().then(done, done)
@@ -208,6 +226,7 @@ export class SlideShowManager {
   private failDeck(deckId: string): void {
     const e = this.entries.get(deckId)
     this.blocked.add(deckId)
+    this.framed.delete(deckId)
     if (e) {
       this.entries.delete(deckId)
       // Do not leak the window: a retry opens a fresh session.
@@ -226,6 +245,7 @@ export class SlideShowManager {
     this.pingInFlight = false
     const live = this.liveNative(this.state.state, this.decks())
     this.entries.clear()
+    this.framed.clear()
     if (live) this.fallBack(live)
     // A hung shutdown must not keep the engine down forever.
     const restart = (): void => {

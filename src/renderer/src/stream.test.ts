@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   capturesForGate,
+  desktopConstraints,
   posterWithVersion,
   precaptureIds,
   recaptureNeeded,
@@ -52,6 +53,34 @@ describe('tabConstraints', () => {
       maxFrameRate: 60
     })
     expect(v(tabConstraints('x', canvas, Number.NaN, false)).maxFrameRate).toBe(30)
+  })
+})
+
+describe('desktopConstraints', () => {
+  it('video only, from the desktop source, capped at the canvas and fps', () => {
+    const c = desktopConstraints('window:1324:0', canvas, 30)
+    expect('audio' in c).toBe(false)
+    expect(c).toEqual({
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: 'window:1324:0',
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFrameRate: 30
+        }
+      }
+    })
+  })
+  it('keeps the size and frame rate in range', () => {
+    const m = (c: MediaStreamConstraints): Record<string, unknown> =>
+      (c.video as { mandatory: Record<string, unknown> }).mandatory
+    expect(m(desktopConstraints('x', { width: 0, height: 99999 }, 240))).toMatchObject({
+      maxWidth: 1,
+      maxHeight: 7680,
+      maxFrameRate: 60
+    })
+    expect(m(desktopConstraints('x', canvas, Number.NaN)).maxFrameRate).toBe(30)
   })
 })
 

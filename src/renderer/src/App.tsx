@@ -222,7 +222,12 @@ function App(): React.JSX.Element {
           data,
           IMPORT_WIDTH,
           (done, total) =>
-            upsertImport({ id, name, percent: 5 + Math.round((85 * done) / total), status: 'busy' }),
+            upsertImport({
+              id,
+              name,
+              percent: 5 + Math.round((85 * done) / total),
+              status: 'busy'
+            }),
           api.pathForFile(f) || undefined
         )
         upsertImport({ id, name, percent: 95, status: 'busy' })
@@ -569,11 +574,18 @@ function App(): React.JSX.Element {
       fps: 30,
       generation: (id) => pages.generations[id] ?? 0,
       // Main counts these only while no output is active.
-      onFrame: (id) => void api.webFrame(id).catch(() => undefined),
-      onEnded: (id) => void api.webEnded(id).catch(() => undefined),
+      onFrame: (id, source) =>
+        void (source === 'desktop' ? api.slideshowFrame(id) : api.webFrame(id)).catch(
+          () => undefined
+        ),
+      onEnded: (id, source) => {
+        if (source === 'tab') void api.webEnded(id).catch(() => undefined)
+      },
       // Main waits for this only while no output is active.
-      onPaused: (id) => void api.webHeld(id).catch(() => undefined),
-      label: 'Web page on Program'
+      onPaused: (id, source) => {
+        if (source === 'tab') void api.webHeld(id).catch(() => undefined)
+      },
+      label: 'Live page on Program'
     }),
     [api, program.canvas, pages.generations]
   )
@@ -612,6 +624,23 @@ function App(): React.JSX.Element {
         if (fresh) setCaptureWarnings(w)
       })
       .catch((e: unknown) => console.warn('[web] capture warnings failed to load:', e))
+    return off
+  }, [api])
+
+  // Why PowerPoint's sound plays on this PC's default device only (null = nothing to say).
+  const [slideNote, setSlideNote] = useState<string | null>(null)
+  useEffect(() => {
+    let fresh = true
+    const off = api.onSlideshowNote((n) => {
+      fresh = false
+      setSlideNote(n)
+    })
+    api
+      .slideshowNote()
+      .then((n) => {
+        if (fresh) setSlideNote(n)
+      })
+      .catch((e: unknown) => console.warn('[slideshow] sound note failed to load:', e))
     return off
   }, [api])
 
@@ -673,7 +702,11 @@ function App(): React.JSX.Element {
           )}
           <CaptureWarning
             warnings={visibleCaptureWarnings(captureWarnings, program)}
-            extra={Object.values(pages.warnings)}
+            extra={
+              slideNote
+                ? [...Object.values(pages.warnings), slideNote]
+                : Object.values(pages.warnings)
+            }
           />
           <Program
             state={program}

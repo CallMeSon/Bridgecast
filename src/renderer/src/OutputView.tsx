@@ -6,6 +6,7 @@ import { outputGain, outputSource } from './model'
 import { OutputAudio } from './output-audio'
 import { stageRect } from './stage'
 import tapModuleUrl from './omt-tap.worklet.ts?worker&url'
+import pcmModuleUrl from './pcm-source.worklet.ts?worker&url'
 import { AUDIO_SETUP_MS, outputGateOpen, pickSink, useAudioOutputs } from './audio'
 import { SlideLayers, type ShownMedia, type StreamOptions } from './components/SlideLayers'
 import { WebPrecapture } from './components/WebPrecapture'
@@ -86,6 +87,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     () =>
       new OutputAudio(undefined, {
         tapModuleUrl,
+        pcmModuleUrl,
         onWarning: (w) => window.api.reportOmtWarning(w)
       })
   )
@@ -193,6 +195,33 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     }
   }, [role])
 
+  // PowerPoint's sound (a native deck): main sends it over a MessagePort to both output
+  // windows, which play it through the same gain as a video. A new port replaces the old.
+  useEffect(() => {
+    let current: MessagePort | null = null
+    const onMessage = (e: MessageEvent): void => {
+      if (e.data !== 'slideshow:audio-port' || !e.ports[0]) return
+      const port = e.ports[0]
+      if (current && current !== port) current.close()
+      current = port
+      out
+        .setPcmPort(port)
+        .then((ok) => {
+          // No sound path here: close the port so main's blocks are not queued unread.
+          if (!ok && current === port) port.close()
+        })
+        .catch((err: unknown) => console.warn('[audio] PowerPoint sound failed:', err))
+    }
+    window.addEventListener('message', onMessage)
+    window.api.requestSlideshowAudioPort()
+    return () => {
+      window.removeEventListener('message', onMessage)
+      current?.close()
+      current = null
+      void out.setPcmPort(null)
+    }
+  }, [out])
+
   // One window plays the sound here (HDMI while it shows, else OMT while a
   // network sender runs); the OMT window also taps it for the sender.
   const route = audio?.route ?? 'local'
@@ -250,10 +279,18 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
         canvas: program.canvas,
         fps: streamFps(netFps, networkRunning(omtState, ndiState)),
         generation: (id) => pages.generations[id] ?? 0,
-        onFrame: (id) => void window.api.webFrame(id).catch(() => undefined),
-        onEnded: (id) => void window.api.webEnded(id).catch(() => undefined),
+        onFrame: (id, source) =>
+          void (
+            source === 'desktop' ? window.api.slideshowFrame(id) : window.api.webFrame(id)
+          ).catch(() => undefined),
+        // A slide show capture that ends shows the slide's PNG; only a web page goes on HOLD.
+        onEnded: (id, source) => {
+          if (source === 'tab') void window.api.webEnded(id).catch(() => undefined)
+        },
         // HOLD before a Reload, Back, Forward or new URL waits for this pause.
-        onPaused: (id) => void window.api.webHeld(id).catch(() => undefined),
+        onPaused: (id, source) => {
+          if (source === 'tab') void window.api.webHeld(id).catch(() => undefined)
+        },
         onFailed: (id, failed) =>
           void window.api.webCaptureFailed(id, failed).catch(() => undefined)
       }

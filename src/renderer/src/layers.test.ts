@@ -84,6 +84,26 @@ describe('layerFor', () => {
     expect(layerFor(s(2), new Set([2]), 'slide://kv/k.png')?.kind).toBe('stream')
     expect(layerFor(s(3), new Set(), null)?.id).toBe('s:tab:w#3')
   })
+  it('a desktop capture keeps one layer for the whole deck: a new slide or take only changes the poster', () => {
+    const d = (take: number, poster: string): OutputMedia => ({
+      kind: 'stream',
+      source: 'desktop',
+      deckId: 'n',
+      poster,
+      paused: false,
+      take
+    })
+    const a = layerFor(d(4, 'slide://n/001.png'), new Set(), null)
+    const b = layerFor(d(5, 'slide://n/002.png'), new Set(), null)
+    expect(a).toMatchObject({
+      id: 's:desktop:n',
+      kind: 'stream',
+      source: 'desktop',
+      fit: 'stretch'
+    })
+    expect(b?.id).toBe('s:desktop:n')
+    expect(b?.poster).toBe('slide://n/002.png')
+  })
   it('a poster for a played take keeps the fit', () => {
     const v = { ...video(4), fit: 'stretch' as const }
     expect(layerFor(v, new Set([4]), null)).toMatchObject({ kind: 'image', fit: 'stretch' })

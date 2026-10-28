@@ -50,6 +50,12 @@ export interface CaptureHost {
   onPaused?(): void
   /** Still of the last frame; default: the canvas given to `bindStill`. */
   tap?: FrameTap
+  /**
+   * An ended track keeps showing the still of its last frame (default; a web page held
+   * on HOLD). False for a slide show: a frame of an earlier slide would be wrong, so the
+   * poster (the slide's PNG) shows until a new capture has a frame.
+   */
+  holdOnEnd?: boolean
   /** Plays a stream in a <video> and resolves on its first frame (tests pass a fake). */
   play?(v: HTMLVideoElement, stream: MediaStream): Promise<void>
 }
@@ -373,7 +379,8 @@ export class StreamCapture {
 
   private emit(): void {
     if (!this.alive) return
-    const still = this.hasStill && (this.shownGone || this.host.paused())
+    const still =
+      this.hasStill && ((this.shownGone && this.host.holdOnEnd !== false) || this.host.paused())
     this.host.onView({
       entries: [...this.entries],
       shownKey: this.shown,

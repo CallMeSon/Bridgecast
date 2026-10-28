@@ -33,7 +33,7 @@ const flush = async (): Promise<void> => {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type -- fakes
-function setup(opts: { paused?: boolean; tap?: boolean } = {}) {
+function setup(opts: { paused?: boolean; tap?: boolean; holdOnEnd?: boolean } = {}) {
   const opened: ReturnType<typeof fakeStream>[] = []
   const frames = new Map<MediaStream, () => void>()
   let failOpen = false
@@ -66,6 +66,7 @@ function setup(opts: { paused?: boolean; tap?: boolean } = {}) {
     onEnded: vi.fn(),
     onFailed: vi.fn(),
     onPaused: vi.fn(),
+    ...(opts.holdOnEnd === undefined ? {} : { holdOnEnd: opts.holdOnEnd }),
     ...(opts.tap
       ? {
           tap: {
@@ -339,5 +340,27 @@ describe('StreamCapture', () => {
     await t.frame(1)
     expect(t.view().still).toBe(false)
     expect(t.view().shownKey).toBe(2)
+  })
+
+  it('a slide show capture that ends shows the poster (the slide), never a stale frame', async () => {
+    const t = setup({ tap: true, holdOnEnd: false })
+    t.c.start()
+    await flush()
+    t.render()
+    await t.frame(0)
+    t.opened[0].end()
+    expect(t.view().still).toBe(false)
+    expect(t.view().poster).toBe(true)
+    expect(t.host.onFailed).toHaveBeenLastCalledWith(true)
+  })
+
+  it('a slide show capture still holds its frame while paused (Freeze)', async () => {
+    const t = setup({ tap: true, holdOnEnd: false })
+    t.c.start()
+    await flush()
+    t.render()
+    await t.frame(0)
+    t.setPaused(true)
+    expect(t.view().still).toBe(true)
   })
 })

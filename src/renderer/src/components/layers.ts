@@ -23,7 +23,7 @@ export interface LayerSpec {
  * frame), e.g. after Black or KV, unless that video layer is still on top
  * (`topId`), where it stays as it is. A new take is a new video layer. The
  * deck's `fit` is copied but is not part of the id: a fit change keeps the layer.
- * A stream is one layer per source and take: its poster and pause change in
+ * A stream is one layer per source and take (per deck for a slide show window): its poster and pause change in
  * place; it is live, so it never turns into its poster (it is captured again).
  * The captured page has the canvas size, so it fills the stage (`stretch`).
  */
@@ -37,7 +37,12 @@ export function layerFor(
     return { id: media.url, kind: 'image', url: media.url, fit: media.fit }
   if (media.kind === 'stream') {
     return {
-      id: `s:${media.source}:${media.deckId}#${media.take}`,
+      // A slide show window is one capture for the whole deck (its slides change the poster
+      // in place); a web page is one capture per take.
+      id:
+        media.source === 'desktop'
+          ? `s:desktop:${media.deckId}`
+          : `s:${media.source}:${media.deckId}#${media.take}`,
       kind: 'stream',
       source: media.source,
       deckId: media.deckId,

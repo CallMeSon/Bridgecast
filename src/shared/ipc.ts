@@ -55,7 +55,10 @@ export const Invoke = {
   webStatuses: 'web:statuses',
   webOutputs: 'web:outputs',
   webCaptureFailed: 'web:captureFailed',
-  webCaptureWarnings: 'web:captureWarnings'
+  webCaptureWarnings: 'web:captureWarnings',
+  slideshowSourceId: 'slideshow:sourceId',
+  slideshowFrame: 'slideshow:frame',
+  slideshowNote: 'slideshow:note'
 } as const
 
 /**
@@ -72,7 +75,9 @@ export const Send = {
   /** OMT output window: asks main for a fresh audio MessagePort (answered by `omt:audio-port`). */
   omtAudioPortRequest: 'omt:audio-port-request',
   /** OMT output window: its sound tap failed to load (payload 'no-sound'; anything else is ignored). */
-  omtAudioWarning: 'omt:audio-warning'
+  omtAudioWarning: 'omt:audio-warning',
+  /** HDMI or OMT output window: asks main for a fresh MessagePort carrying PowerPoint's sound. */
+  slideshowAudioPortRequest: 'slideshow:audio-port-request'
 } as const
 
 /** Main → renderer broadcasts (webContents.send ↔ ipcRenderer.on). */
@@ -86,11 +91,19 @@ export const Broadcast = {
   ndiStatus: 'ndi:status',
   webStatus: 'web:status',
   webOutputs: 'web:outputs',
-  webCaptureWarnings: 'web:captureWarnings'
+  webCaptureWarnings: 'web:captureWarnings',
+  slideshowNote: 'slideshow:note'
 } as const
 
 /** Main → OMT output window: carries the MessagePort the window sends program sound on. */
 export const OMT_AUDIO_PORT = 'omt:audio-port'
+
+/**
+ * Main → output window (HDMI, OMT): carries the MessagePort that streams PowerPoint's
+ * sound as planar 10 ms blocks `{ data: Float32Array, samples: 480 }`. The preload forwards
+ * it to the page as `window.postMessage('slideshow:audio-port', '*', ports)`.
+ */
+export const SLIDESHOW_AUDIO_PORT = 'slideshow:audio-port'
 
 export interface ImportProgress {
   id: string
@@ -217,6 +230,16 @@ export interface InvokeMap {
   'web:captureFailed': { args: [deckId: string, failed: boolean]; result: void }
   /** Current capture warnings (later changes arrive as `web:captureWarnings`). */
   'web:captureWarnings': { args: []; result: WebCaptureWarning[] }
+  /**
+   * Capture id (`window:<hwnd>:<n>`, the deck's PowerPoint slide show window only) for the
+   * calling app window. Refused for any other window; rejects when the deck has no slide
+   * show window (the caller then shows the slide's PNG). Never a screen.
+   */
+  'slideshow:sourceId': { args: [deckId: string]; result: string }
+  /** The calling window received the first captured frame of the deck's slide show. */
+  'slideshow:frame': { args: [deckId: string]; result: void }
+  /** Why the app cannot control PowerPoint's sound (operator copy), or null. */
+  'slideshow:note': { args: []; result: string | null }
 }
 
 export interface BroadcastMap {
@@ -230,6 +253,7 @@ export interface BroadcastMap {
   'web:status': WebStatusEvent
   'web:outputs': WebOutputs
   'web:captureWarnings': WebCaptureWarning[]
+  'slideshow:note': string | null
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -341,5 +365,17 @@ export interface Api {
   webCaptureFailed(deckId: string, failed: boolean): Promise<void>
   webCaptureWarnings(): Promise<WebCaptureWarning[]>
   onWebCaptureWarnings(cb: (w: WebCaptureWarning[]) => void): () => void
+  /** Capture id of a native deck's slide show window (see `slideshow:sourceId`). */
+  slideshowSourceId(deckId: string): Promise<string>
+  /** Ready gate: report the first frame of a slide show's capture. */
+  slideshowFrame(deckId: string): Promise<void>
+  /**
+   * HDMI or OMT output window: asks main for a MessagePort with PowerPoint's sound; the
+   * preload forwards it as `window.postMessage('slideshow:audio-port', '*', ports)`.
+   */
+  requestSlideshowAudioPort(): void
+  /** Why PowerPoint's sound cannot be controlled by the app (copy), or null. */
+  slideshowNote(): Promise<string | null>
+  onSlideshowNote(cb: (note: string | null) => void): () => void
   pathForFile(file: File): string
 }

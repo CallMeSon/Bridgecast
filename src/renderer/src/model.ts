@@ -281,8 +281,9 @@ export type OutputMedia =
   | { kind: 'image'; url: string; fit: DeckFit }
   | { kind: 'video'; url: string; poster: string; take: number; fit: DeckFit }
   /**
-   * A live capture (a web deck's page). `poster` is the deck's snapshot, shown when
-   * the capture fails; `paused` holds the last frame (Freeze or HOLD).
+   * A live capture (a web deck's page, or a native deck's slide show window). `poster`
+   * is the deck's snapshot or the slide's PNG, shown when the capture fails; `paused`
+   * holds the last frame (Freeze, or HOLD for a web page).
    */
   | {
       kind: 'stream'
@@ -301,6 +302,8 @@ export type OutputMedia =
  * The `shown` slide carries its deck's `fit` (missing = `fit`); the KV is always `fit`.
  * A web deck's page is a stream, paused while frozen or held; its poster (the
  * snapshot, rewritten under the same name) carries `posterVersion` to reload it.
+ * A native deck (`shown.playback === 'native'`) is a desktop stream of its slide show
+ * window with the slide's PNG as poster; once it has fallen back (`images`) it is that PNG.
  */
 export function outputSource(s: ProgramState, posterVersion = 0): OutputMedia | null {
   if (s.black) return null
@@ -313,6 +316,17 @@ export function outputSource(s: ProgramState, posterVersion = 0): OutputMedia | 
       deckId,
       poster: posterWithVersion(slideUrl(s.shown.deckId, s.shown.file), posterVersion),
       paused: s.frozen || s.webHold,
+      take: s.take
+    }
+  }
+  // A native deck's slide show window, captured. `images` (fallen back) and `vector` use the PNG.
+  if (s.shown?.playback === 'native') {
+    return {
+      kind: 'stream',
+      source: 'desktop',
+      deckId: s.shown.deckId,
+      poster: slideUrl(s.shown.deckId, s.shown.file),
+      paused: s.frozen,
       take: s.take
     }
   }

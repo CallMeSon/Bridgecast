@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import {
   Broadcast,
   OMT_AUDIO_PORT,
+  SLIDESHOW_AUDIO_PORT,
   Invoke,
   Send,
   type Api,
@@ -36,6 +37,11 @@ function subscribe<C extends keyof BroadcastMap>(
 // no port is missed.
 ipcRenderer.on(OMT_AUDIO_PORT, (e) => {
   window.postMessage('omt:audio-port', '*', [...e.ports])
+})
+
+// PowerPoint sound port: same contract as the OMT one, for the HDMI and OMT output windows.
+ipcRenderer.on(SLIDESHOW_AUDIO_PORT, (e) => {
+  window.postMessage('slideshow:audio-port', '*', [...e.ports])
 })
 
 const api: Api = {
@@ -102,6 +108,11 @@ const api: Api = {
   webCaptureFailed: (deckId, failed) => invoke(Invoke.webCaptureFailed, deckId, failed),
   webCaptureWarnings: () => invoke(Invoke.webCaptureWarnings),
   onWebCaptureWarnings: (cb) => subscribe(Broadcast.webCaptureWarnings, cb),
+  slideshowSourceId: (deckId) => invoke(Invoke.slideshowSourceId, deckId),
+  slideshowFrame: (deckId) => invoke(Invoke.slideshowFrame, deckId),
+  requestSlideshowAudioPort: () => ipcRenderer.send(Send.slideshowAudioPortRequest),
+  slideshowNote: () => invoke(Invoke.slideshowNote),
+  onSlideshowNote: (cb) => subscribe(Broadcast.slideshowNote, cb),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }

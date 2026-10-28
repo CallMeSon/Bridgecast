@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'url'
 import { DECK_NAME_MAX } from '../../shared/types'
-import { webDomain, type WebCaptureWarning } from '../../shared/web'
+import { webDomain, type CaptureKind, type WebCaptureWarning } from '../../shared/web'
 
 /** Pure decisions of WebHost, kept apart so they can be unit tested without Electron. */
 
@@ -112,12 +112,15 @@ export function updateCaptureWarnings(
   output: 'hdmi' | 'omt' | null,
   deckId: string,
   failed: boolean,
-  outputsActive: { hdmi: boolean; omt: boolean }
+  outputsActive: { hdmi: boolean; omt: boolean },
+  kind: CaptureKind = 'web'
 ): WebCaptureWarning[] {
   let next = [...list]
   if (output) {
-    if (failed) next = [...next.filter((w) => w.output !== output), { output, deckId }]
-    else next = next.filter((w) => !(w.output === output && w.deckId === deckId))
+    if (failed) {
+      const w: WebCaptureWarning = kind === 'slides' ? { output, deckId, kind } : { output, deckId }
+      next = [...next.filter((x) => x.output !== output), w]
+    } else next = next.filter((w) => !(w.output === output && w.deckId === deckId))
   }
   return next.filter((w) => outputsActive[w.output])
 }

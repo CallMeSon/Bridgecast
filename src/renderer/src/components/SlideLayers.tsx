@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { OutputMedia } from '../model'
 import type { OutputAudio } from '../output-audio'
 import { layerFor, type LayerSpec } from './layers'
+import type { StreamSourceKind } from '../stream'
 import { StreamLayer } from './StreamLayer'
 
 /** Crossfade length for a 'fade' transition (spec: 250 ms); the CSS animations match. */
@@ -27,11 +28,12 @@ export interface StreamOptions {
   fps: number
   /** Bumped per captured id to capture again with a new source id. */
   generation?: (id: string) => number
-  onFrame?: (id: string) => void
-  onEnded?: (id: string) => void
+  /** Each callback also gets what the layer captures: a web page (`tab`) or a slide show (`desktop`). */
+  onFrame?: (id: string, source: StreamSourceKind) => void
+  onEnded?: (id: string, source: StreamSourceKind) => void
   onFailed?: (id: string, failed: boolean) => void
   /** The layer paused its stream (HOLD, Freeze). */
-  onPaused?: (id: string) => void
+  onPaused?: (id: string, source: StreamSourceKind) => void
   /** Accessible name of a stream layer (the operator monitor). */
   label?: string
 }
@@ -72,7 +74,14 @@ const shownOf = (l: Layer): ShownMedia =>
         : { kind: 'image', url: l.spec.poster ?? l.spec.url }
 
 const DEFAULT_CANVAS = { width: 1920, height: 1080 }
-const streamCb = (cb: ((id: string) => void) | undefined, id: string) => (): void => cb?.(id)
+const streamCb =
+  (
+    cb: ((id: string, source: StreamSourceKind) => void) | undefined,
+    id: string,
+    source: StreamSourceKind
+  ) =>
+  (): void =>
+    cb?.(id, source)
 
 /**
  * Longest a video layer may stay pending (neither `loadeddata` nor `error`)
@@ -372,10 +381,10 @@ export function SlideLayers({
               muted={muted}
               generation={stream?.generation?.(l.spec.deckId) ?? 0}
               onReady={() => reveal(l.key)}
-              onFrame={streamCb(stream?.onFrame, l.spec.deckId)}
-              onEnded={streamCb(stream?.onEnded, l.spec.deckId)}
+              onFrame={streamCb(stream?.onFrame, l.spec.deckId, l.spec.source)}
+              onEnded={streamCb(stream?.onEnded, l.spec.deckId, l.spec.source)}
               onFailed={(f) => stream?.onFailed?.(l.spec?.deckId ?? '', f)}
-              onPaused={streamCb(stream?.onPaused, l.spec.deckId)}
+              onPaused={streamCb(stream?.onPaused, l.spec.deckId, l.spec.source)}
               label={stream?.label}
             />
           ) : l.spec?.kind === 'video' && !l.failed ? (

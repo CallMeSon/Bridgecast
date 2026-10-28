@@ -4,11 +4,11 @@ import { openStream, type StreamSourceKind } from '../stream'
 import { StreamCapture, type CaptureView } from '../stream-capture'
 
 export interface StreamLayerProps {
-  /** What is captured (`tab` = a web deck's page; the native slideshow adds `desktop`). */
+  /** What is captured: `tab` = a web deck's page, `desktop` = a native deck's slide show window. */
   source: StreamSourceKind
-  /** The captured thing's id (the web deck id for `tab`). */
+  /** The captured thing's id (the deck id for both). */
   id: string
-  /** Shown when capture fails or ends (the deck's snapshot); never black. */
+  /** Shown when capture fails or ends (the deck's snapshot, or the slide's PNG); never black. */
   poster: string
   /** Hold the last frame (Freeze, HOLD): the <video> is paused, not removed. */
   paused: boolean
@@ -62,11 +62,14 @@ export function StreamLayer(props: StreamLayerProps): React.JSX.Element {
       paused: () => p().paused,
       sound: (stream) => {
         const a = p().audio
-        const want = a && !p().muted ? stream : null
+        // A slide show capture is video only; PowerPoint's sound comes through the PCM port.
+        const want = a && !p().muted && source === 'tab' ? stream : null
         if (attached.current === want) return
         if (attached.current) a?.detachStream(attached.current)
         attached.current = want && a?.attachStream(want) ? want : null
       },
+      // A web page keeps its last frame when it ends (HOLD); a slide show shows the slide's PNG.
+      holdOnEnd: source === 'tab',
       onView: setView,
       onReady: () => p().onReady(),
       onFrame: () => p().onFrame?.(),

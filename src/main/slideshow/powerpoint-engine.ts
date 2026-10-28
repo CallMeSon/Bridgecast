@@ -61,6 +61,12 @@ export interface PowerPointEngineOptions {
   restoreAudio?: (exe: string) => Promise<void>
   /** How long shutdown waits for the helper to exit before killing it. */
   shutdownMs?: number
+  /** The sound route changed: a session opened, the helper stopped, or a foreign PowerPoint refused a level. */
+  onAudio?: (a: {
+    mode: 'pipe' | 'fallback' | 'device' | 'none'
+    pipe: string | null
+    note: string | null
+  }) => void
 }
 
 const OPEN_MS = 60_000
@@ -199,6 +205,7 @@ export class PowerPointEngine implements SlideShowEngine {
     if (this.live === live) this.live = null
     this.audioPipe = null
     this.audioMode = 'none'
+    this.reportAudio()
     if (startFailure) {
       console.error('[ppt-bridge] start failed:', reason)
       this.startError = HELPER_START_FAILED
@@ -283,6 +290,7 @@ export class PowerPointEngine implements SlideShowEngine {
         : 'none'
     this.audioNote = this.audioMode === 'device' ? DEFAULT_DEVICE_SOUND : null
     this.audioPipe = typeof res.audioPipe === 'string' ? res.audioPipe : null
+    this.reportAudio()
     if (this.audioMode === 'fallback') void this.setVolume(this.volume).catch(() => {})
     const call = async (cmd: 'next' | 'prev' | 'goto' | 'close', args: object): Promise<void> => {
       if (this.live !== live || live.exited) {
@@ -316,9 +324,15 @@ export class PowerPointEngine implements SlideShowEngine {
       await live.client.request('setVolume', { volume: this.volume }, MOVE_MS)
     } catch (e) {
       // The operator's own PowerPoint: its volume is not changed, the sound stays on the default device.
-      if (e instanceof BridgeError && e.code === 'foreignapp') this.audioNote = DEFAULT_DEVICE_SOUND
-      else throw e
+      if (e instanceof BridgeError && e.code === 'foreignapp') {
+        this.audioNote = DEFAULT_DEVICE_SOUND
+        this.reportAudio()
+      } else throw e
     }
+  }
+
+  private reportAudio(): void {
+    this.opts.onAudio?.({ mode: this.audioMode, pipe: this.audioPipe, note: this.audioNote })
   }
 
   /** Opens the deck's working copy (`edit.pptx`) in a normal PowerPoint window. */
@@ -339,6 +353,7 @@ export class PowerPointEngine implements SlideShowEngine {
     this.audioPipe = null
     this.audioMode = 'none'
     this.audioNote = null
+    this.reportAudio()
     if (!live || live.exited) return
     live.stopping = true
     live.client.failAll('exited', 'The slide show helper is shutting down.')

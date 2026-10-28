@@ -143,6 +143,14 @@ describe('updateCaptureWarnings', () => {
       { output: 'hdmi', deckId: 'b' }
     ])
   })
+  it('a slide show warning keeps its kind; a web one has none', () => {
+    const w = updateCaptureWarnings([], 'hdmi', 'a', true, on, 'slides')
+    expect(w).toEqual([{ output: 'hdmi', deckId: 'a', kind: 'slides' }])
+    expect(updateCaptureWarnings(w, 'hdmi', 'a', false, on, 'slides')).toEqual([])
+    expect(updateCaptureWarnings([], 'omt', 'b', true, on, 'web')).toEqual([
+      { output: 'omt', deckId: 'b' }
+    ])
+  })
   it('a recovery clears only that output and deck', () => {
     const w = updateCaptureWarnings([{ output: 'hdmi', deckId: 'a' }], 'hdmi', 'b', false, on)
     expect(w).toEqual([{ output: 'hdmi', deckId: 'a' }])

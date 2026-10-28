@@ -52,15 +52,25 @@ export interface WebOutputs {
   omt: boolean
 }
 
-/** An output that shows a web deck's snapshot because it cannot capture the page. */
+/** What an output captures: a web deck's page, or a native deck's PowerPoint slide show. */
+export type CaptureKind = 'web' | 'slides'
+
+/**
+ * An output that shows a still (a web deck's snapshot, or the PNG of a native
+ * slide) because it cannot capture the live picture. `kind` is absent for a web deck.
+ */
 export interface WebCaptureWarning {
   output: 'hdmi' | 'omt'
   deckId: string
+  kind?: 'slides'
 }
 
 /** Operator warning for a failed capture on one output (spec 6). */
-export function captureWarningText(output: 'hdmi' | 'omt'): string {
-  return `The web page cannot be shown on ${output === 'hdmi' ? 'HDMI' : 'OMT'}. It shows the last snapshot.`
+export function captureWarningText(output: 'hdmi' | 'omt', kind: CaptureKind = 'web'): string {
+  const where = output === 'hdmi' ? 'HDMI' : 'OMT'
+  return kind === 'slides'
+    ? `The slide show cannot be shown on ${where}. It shows still slides.`
+    : `The web page cannot be shown on ${where}. It shows the last snapshot.`
 }
 
 /** One input event from the Prepare preview, coordinates 0 to 1 of the preview (checked in main). */

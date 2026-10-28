@@ -2,12 +2,15 @@ import {
   app,
   shell,
   BrowserWindow,
+  desktopCapturer,
   dialog,
   ipcMain,
+  MessageChannelMain,
   nativeImage,
   protocol,
   screen,
   session,
+  type IpcMainEvent,
   type IpcMainInvokeEvent
 } from 'electron'
 import * as path from 'path'
@@ -22,6 +25,8 @@ import { FakeEngine } from './slideshow/fake-engine'
 import { SlideShowManager } from './slideshow/manager'
 import type { SlideShowEngine } from './slideshow/engine'
 import { PowerPointEngine, bridgeExePath } from './slideshow/powerpoint-engine'
+import { SlideSound } from './slideshow/audio-pipe'
+import { slideshowSourceId } from './slideshow/capture'
 import { importPptx } from './import/pptx'
 import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
@@ -58,6 +63,8 @@ import {
 import {
   Broadcast,
   Invoke,
+  SLIDESHOW_AUDIO_PORT,
+  Send,
   type BroadcastMap,
   type ImportProgress,
   type ImportRequest,
@@ -68,7 +75,7 @@ import {
 } from '../shared/ipc'
 import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
-import { defaultPlayback } from '../shared/playback'
+import { defaultPlayback, playbackOf } from '../shared/playback'
 import { pdfSourceFields } from './import/pdf-source'
 import { sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
@@ -145,7 +152,7 @@ const NOT_APP_WINDOW = 'This window cannot control web pages.'
  * OMT, Prepare): the app renderer page in its top frame. A web deck page has no
  * preload and cannot reach IPC; this check refuses it even if it could.
  */
-function fromAppWindow(e: IpcMainInvokeEvent): boolean {
+function fromAppWindow(e: Pick<IpcMainInvokeEvent, 'senderFrame'>): boolean {
   const frame = e.senderFrame
   if (!frame || frame.parent !== null) return false
   return isAppPageUrl(frame.url, {
@@ -281,6 +288,7 @@ function registerIpc(
   hdmi: HdmiOutput,
   net: NetOutput,
   web: WebHost,
+  slideShow: SlideShowHost,
   syncWeb: () => void,
   operatorWindow: () => BrowserWindow | null
 ): void {
@@ -504,20 +512,18 @@ function registerIpc(
     syncWeb()
   })
 
-  registerWebIpc(
-    lib,
-    state,
-    web,
-    syncWeb,
-    (wc) => {
-      if (hdmi.ownsWebContents(wc)) return 'hdmi'
-      if (net.ownsWebContents(wc.id)) return 'omt'
-      // Any other app window is a Prepare window.
-      return operatorWindow()?.webContents === wc ? 'operator' : 'prepare'
-    },
-    () => ({ hdmi: hdmi.getStatus().state === 'showing', omt: net.windowActive }),
-    operatorWindow
-  )
+  const roleOf = (wc: Electron.WebContents): AppWindowRole => {
+    if (hdmi.ownsWebContents(wc)) return 'hdmi'
+    if (net.ownsWebContents(wc.id)) return 'omt'
+    // Any other app window is a Prepare window.
+    return operatorWindow()?.webContents === wc ? 'operator' : 'prepare'
+  }
+  const outputsActive = (): { hdmi: boolean; omt: boolean } => ({
+    hdmi: hdmi.getStatus().state === 'showing',
+    omt: net.windowActive
+  })
+  registerWebIpc(lib, state, web, syncWeb, roleOf, outputsActive, operatorWindow)
+  registerSlideshowIpc(slideShow, roleOf, outputsActive)
 
   handle(Invoke.settingsGet, () => settings.get())
 
@@ -539,6 +545,7 @@ function registerIpc(
   handle(Invoke.audioSet, (input: AudioSettings) => {
     const saved = settings.saveAudio(sanitizeAudio(input))
     broadcast(Broadcast.audioSettings, saved.audio)
+    slideShow.syncSound()
     return saved
   })
 
@@ -689,9 +696,72 @@ function registerWebIpc(
     const role = roleOf(e.sender)
     // Only the outputs show the page to the audience; other windows have no warning.
     if (role !== 'hdmi' && role !== 'omt') return
-    setWarnings(updateCaptureWarnings(warnings, role, deckId, failed === true, outputsActive()))
+    // A native deck's slide show has its own warning copy.
+    const deck = state.decks().find((d) => d.id === deckId)
+    const kind = deck && playbackOf(deck) === 'native' ? 'slides' : 'web'
+    setWarnings(
+      updateCaptureWarnings(warnings, role, deckId, failed === true, outputsActive(), kind)
+    )
   })
   appHandle(Invoke.webCaptureWarnings, () => warnings)
+}
+
+/** The native slide show pieces the IPC and the output windows use. */
+interface SlideShowHost {
+  engine: SlideShowEngine
+  manager: SlideShowManager
+  /** PowerPoint's sound: the audio pipe, the output windows' ports and the level fallback. */
+  sound: SlideSound
+  /** Hands the current program state and sound settings to `sound`. */
+  syncSound(): void
+}
+
+/** The copy shown while PowerPoint's sound cannot be routed by the app (see SlideSound). */
+let slideNote: string | null = null
+
+/**
+ * slideshow:* channels. The capture id answers app windows only (never a web page), only
+ * for the deck's own slide show window, and rejects otherwise (the output shows the PNG).
+ * The sound port goes to the HDMI and OMT windows.
+ */
+function registerSlideshowIpc(
+  host: SlideShowHost,
+  roleOf: (wc: Electron.WebContents) => AppWindowRole,
+  outputsActive: () => { hdmi: boolean; omt: boolean }
+): void {
+  appHandle(Invoke.slideshowSourceId, (e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    // Prepare windows never show a slide show; the operator and outputs do.
+    if (roleOf(e.sender) === 'prepare') throw new Error(NOT_APP_WINDOW)
+    return slideshowSourceId(host.manager.windowId(deckId), (types) =>
+      desktopCapturer.getSources({ types, thumbnailSize: { width: 0, height: 0 } })
+    )
+  })
+  // Same rule as web:frame: only a window that puts the slide show on air counts.
+  appHandle(Invoke.slideshowFrame, (e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    if (frameSenderAllowed(roleOf(e.sender), outputsActive())) host.manager.frameSeen(deckId)
+  })
+  appHandle(Invoke.slideshowNote, () => slideNote)
+
+  // Each output window asks for a fresh port (on mount, and again after a reload).
+  const known = new Set<number>()
+  ipcMain.on(Send.slideshowAudioPortRequest, (e: IpcMainEvent) => {
+    if (!fromAppWindow(e)) return
+    const role = roleOf(e.sender)
+    if (role !== 'hdmi' && role !== 'omt') return
+    const { port1, port2 } = new MessageChannelMain()
+    const id = e.sender.id
+    host.sound.fanout.add(id, port2)
+    if (!known.has(id)) {
+      known.add(id)
+      e.sender.once('destroyed', () => {
+        known.delete(id)
+        host.sound.fanout.remove(id)
+      })
+    }
+    e.sender.postMessage(SLIDESHOW_AUDIO_PORT, null, [port1])
+  })
 }
 
 /** settings.json: loaded once, saved atomically on every change. */
@@ -788,14 +858,19 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
  * elsewhere and with PPT_OUTPUT_DUMP + PPT_ENGINE_FAKE=1 (e2e). A helper that cannot start
  * leaves every native deck on still images (the engine rejects its opens, nothing is ready).
  */
-function createSlideShow(
-  lib: Library,
-  state: AppState
-): { engine: SlideShowEngine; manager: SlideShowManager } {
+function createSlideShow(lib: Library, state: AppState, settings: SettingsStore): SlideShowHost {
   const fake =
     process.platform !== 'win32' ||
     (!!process.env['PPT_OUTPUT_DUMP'] && process.env['PPT_ENGINE_FAKE'] === '1')
   let helperError: string | null = null
+  const sound = new SlideSound({
+    setVolume: (v) =>
+      engine instanceof PowerPointEngine ? engine.setVolume(v) : Promise.resolve(),
+    onNote: (n) => {
+      slideNote = n
+      broadcast(Broadcast.slideshowNote, n)
+    }
+  })
   const engine: SlideShowEngine = fake
     ? new FakeEngine(() => state.decks())
     : new PowerPointEngine({
@@ -808,7 +883,8 @@ function createSlideShow(
         onStartFailure: (message) => {
           helperError = message
           console.error('[slideshow]', message)
-        }
+        },
+        onAudio: (a) => sound.engineAudio(a)
       })
   const manager = new SlideShowManager(
     engine,
@@ -830,7 +906,9 @@ function createSlideShow(
       get: () => ({ fake, helperError, opens: engine instanceof FakeEngine ? engine.opens : [] })
     })
   }
-  return { engine, manager }
+  const syncSound = (): void => sound.program(state.state, settings.get().audio)
+  state.onChange(syncSound)
+  return { engine, manager, sound, syncSound }
 }
 
 /**
@@ -967,7 +1045,7 @@ Location: ${root}`
     (deckId, key) => web?.key(deckId, key),
     (deckId) => slides?.ready(deckId) ?? false
   )
-  const slideShow = createSlideShow(lib, state)
+  const slideShow = createSlideShow(lib, state, settings)
   slides = slideShow.manager
   // The auto advance toggle is part of the program state; keep it saved.
   state.onChange((s) => {
@@ -1024,6 +1102,7 @@ Location: ${root}`
     hdmi.shutdown()
     host.shutdown()
     slideShow.manager.dispose()
+    slideShow.sound.dispose()
     if (omtDone) return
     e.preventDefault()
     if (!omtStopping) {
@@ -1038,7 +1117,7 @@ Location: ${root}`
     }
   })
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state, settings, hdmi, net, host, syncWeb, () => operator)
+  registerIpc(lib, state, settings, hdmi, net, host, slideShow, syncWeb, () => operator)
 
   const startOutputs = (): void => {
     hdmi.start()

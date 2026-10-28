@@ -1,10 +1,10 @@
 import type { WebStatus } from '../../shared/web'
 
 /**
- * What a stream layer captures. Only `tab` (a web deck's hidden page) exists now;
- * the native slideshow plan adds `desktop` here and in `openStream`.
+ * What a stream layer captures: `tab` (a web deck's hidden page) or `desktop`
+ * (a native deck's PowerPoint slide show window, never a screen).
  */
-export type StreamSourceKind = 'tab'
+export type StreamSourceKind = 'tab' | 'desktop'
 
 const MAX_SIDE = 7680
 const clampInt = (n: number, lo: number, hi: number, fallback: number): number =>
@@ -35,6 +35,28 @@ export function tabConstraints(
   const c: Record<string, unknown> = { video }
   if (audio) c.audio = { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: sourceId } }
   return c as MediaStreamConstraints
+}
+
+/**
+ * getUserMedia constraints for a native deck's slide show window (a source id from
+ * `slideshow:sourceId`, `chromeMediaSource: 'desktop'`). Video only: the sound comes
+ * from the bridge's audio pipe. Capped at the canvas and `fps` like the tab capture.
+ */
+export function desktopConstraints(
+  sourceId: string,
+  canvas: { width: number; height: number },
+  fps: number
+): MediaStreamConstraints {
+  const video = {
+    mandatory: {
+      chromeMediaSource: 'desktop',
+      chromeMediaSourceId: sourceId,
+      maxWidth: clampInt(canvas.width, 1, MAX_SIDE, 1920),
+      maxHeight: clampInt(canvas.height, 1, MAX_SIDE, 1080),
+      maxFrameRate: clampInt(fps, 1, 60, 30)
+    }
+  }
+  return { video } as MediaStreamConstraints
 }
 
 /** Output capture frame rate: the network fps while OMT or NDI runs, else 30 (spec 3). */
@@ -103,6 +125,11 @@ export async function openStream(
     case 'tab': {
       const sourceId = await window.api.webSourceId(id)
       return navigator.mediaDevices.getUserMedia(tabConstraints(sourceId, canvas, fps, audio))
+    }
+    case 'desktop': {
+      // Video only: PowerPoint's sound arrives through the audio pipe, not the capture.
+      const sourceId = await window.api.slideshowSourceId(id)
+      return navigator.mediaDevices.getUserMedia(desktopConstraints(sourceId, canvas, fps))
     }
   }
 }

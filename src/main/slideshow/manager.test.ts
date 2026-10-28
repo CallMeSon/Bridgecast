@@ -87,6 +87,20 @@ describe('SlideShowManager', () => {
     expect(mgr.windowId('a')).toBe('win-a')
   })
 
+  it('records the first captured frame of an open deck and forgets it with the session', async () => {
+    app.dispatch({ type: 'selectDeck', deckId: 'a' })
+    await flush()
+    mgr.frameSeen('nope') // no session: ignored
+    expect(mgr.hasFrame('nope')).toBe(false)
+    expect(mgr.hasFrame('a')).toBe(false)
+    mgr.frameSeen('a')
+    expect(mgr.hasFrame('a')).toBe(true)
+    app.dispatch({ type: 'selectDeck', deckId: 'c' })
+    await flush()
+    await flush()
+    expect(mgr.hasFrame('a')).toBe(false)
+  })
+
   it('pre-opens the next native deck and never has more than 2 sessions', async () => {
     app.dispatch({ type: 'selectDeck', deckId: 'a' })
     await flush()

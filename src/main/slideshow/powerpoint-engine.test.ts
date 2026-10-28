@@ -464,6 +464,45 @@ describe('PowerPointEngine', () => {
       expect(child.written.at(-1)).toMatchObject({ cmd: 'setVolume', volume: 1 })
     })
 
+    it('reports the sound route to the app: pipe, then none after shutdown', async () => {
+      const seen: unknown[] = []
+      make({ onAudio: (a) => seen.push(a) })
+      child.reply = openReply({ audio: 'pipe', audioPipe: '\\\\.\\pipe\\pptshare-audio-42' })
+      await engine.open('d1', 'f.pptx', canvas)
+      expect(seen.at(-1)).toEqual({
+        mode: 'pipe',
+        pipe: '\\\\.\\pipe\\pptshare-audio-42',
+        note: null
+      })
+      const done = engine.shutdown()
+      child.exit(0)
+      await done
+      expect(seen.at(-1)).toEqual({ mode: 'none', pipe: null, note: null })
+    })
+
+    it('reports the default-device copy for the fallback and a foreign PowerPoint', async () => {
+      const seen: { mode: string; pipe: string | null; note: string | null }[] = []
+      make({ onAudio: (a) => seen.push(a) })
+      child.reply = openReply({ audio: 'fallback' })
+      await engine.open('d1', 'f.pptx', canvas)
+      expect(seen.at(-1)).toEqual({ mode: 'fallback', pipe: null, note: null })
+      child.reply = (m) =>
+        m.cmd === 'setVolume'
+          ? { id: m.id, ok: false, code: 'foreignapp', message: 'x' }
+          : { id: m.id, ok: true }
+      await engine.setVolume(0.3)
+      expect(seen.at(-1)?.note).toBe("PowerPoint sound plays on this PC's default device only.")
+    })
+
+    it('a helper that exits unexpectedly reports no sound route', async () => {
+      const seen: { mode: string }[] = []
+      make({ onAudio: (a) => seen.push(a) })
+      child.reply = openReply({ audio: 'pipe', audioPipe: 'p' })
+      await engine.open('d1', 'f.pptx', canvas)
+      child.exit(1)
+      expect(seen.at(-1)?.mode).toBe('none')
+    })
+
     it('edit sends the file', async () => {
       await engine.edit('C:\\lib\\edit.pptx')
       expect(child.written.at(-1)).toMatchObject({ cmd: 'edit', file: 'C:\\lib\\edit.pptx' })

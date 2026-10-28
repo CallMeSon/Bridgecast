@@ -442,3 +442,69 @@ describe('OutputAudio.attachStream', () => {
     expect(f.sources[0].disconnect).toHaveBeenCalled()
   })
 })
+
+describe('OutputAudio PowerPoint sound (PCM port)', () => {
+  function pcmSetup(opts: Parameters<typeof fakeContext>[0] = {}): {
+    f: ReturnType<typeof fakeContext>
+    a: OutputAudio
+    node: {
+      connect: ReturnType<typeof vi.fn>
+      disconnect: ReturnType<typeof vi.fn>
+      port: { postMessage: ReturnType<typeof vi.fn> }
+    }
+    made: number[]
+  } {
+    const f = fakeContext(opts)
+    const node = { connect: vi.fn(), disconnect: vi.fn(), port: { postMessage: vi.fn() } }
+    const made: number[] = []
+    const a = new OutputAudio(() => asCtx(f.ctx), {
+      pcmModuleUrl: 'pcm-source.worklet.js',
+      makePcmNode: () => {
+        made.push(1)
+        return node as unknown as AudioWorkletNode
+      }
+    })
+    return { f, a, node, made }
+  }
+  const port = (): MessagePort => ({ id: 'p' }) as unknown as MessagePort
+
+  it('loads the worklet, feeds the shared gain and hands it the port', async () => {
+    const { f, a, node } = pcmSetup()
+    const p = port()
+    expect(await a.setPcmPort(p)).toBe(true)
+    expect(f.ctx.audioWorklet.addModule).toHaveBeenCalledWith('pcm-source.worklet.js')
+    expect(node.connect).toHaveBeenCalledWith(f.gainNode)
+    expect(node.port.postMessage).toHaveBeenCalledWith({ port: p }, [p])
+  })
+  it('a new port goes to the same worklet node; the module loads once', async () => {
+    const { f, a, node, made } = pcmSetup()
+    await a.setPcmPort(port())
+    await a.setPcmPort(port())
+    expect(made).toHaveLength(1)
+    expect(f.ctx.audioWorklet.addModule).toHaveBeenCalledTimes(1)
+    expect(node.port.postMessage).toHaveBeenCalledTimes(2)
+  })
+  it('a null port disconnects the worklet', async () => {
+    const { a, node } = pcmSetup()
+    await a.setPcmPort(port())
+    expect(await a.setPcmPort(null)).toBe(true)
+    expect(node.disconnect).toHaveBeenCalled()
+  })
+  it('a worklet that cannot load only loses the PowerPoint sound (false, no throw)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { a } = pcmSetup({ moduleRejects: true })
+    expect(await a.setPcmPort(port())).toBe(false)
+    warn.mockRestore()
+  })
+  it('without Web Audio there is no PowerPoint sound (false)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const a = new OutputAudio(
+      () => {
+        throw new Error('no audio')
+      },
+      { pcmModuleUrl: 'x' }
+    )
+    expect(await a.setPcmPort(port())).toBe(false)
+    warn.mockRestore()
+  })
+})

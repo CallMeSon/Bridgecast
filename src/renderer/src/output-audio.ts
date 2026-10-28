@@ -10,6 +10,10 @@ export interface OutputAudioOptions {
   tapModuleUrl?: string
   /** Builds the tap node; tests pass a fake. */
   makeTapNode?: (ctx: AudioContext) => AudioWorkletNode
+  /** URL of the bundled `pcm-source.worklet` module (PowerPoint's sound). */
+  pcmModuleUrl?: string
+  /** Builds the PowerPoint sound node; tests pass a fake. */
+  makePcmNode?: (ctx: AudioContext) => AudioWorkletNode
   /** Reports a problem the operator should see (once per kind). */
   onWarning?: (w: 'no-sound') => void
 }
@@ -51,6 +55,9 @@ export class OutputAudio {
   private tapSink: GainNode | null = null
   private tapLoad: Promise<boolean> | null = null
   private tapFailed = false
+  private pcmNode: AudioWorkletNode | null = null
+  private pcmLoad: Promise<boolean> | null = null
+  private pcmPort: MessagePort | null = null
 
   constructor(
     private readonly create: () => AudioContext = () =>
@@ -168,6 +175,77 @@ export class OutputAudio {
     this.tapSink = null
   }
 
+  /**
+   * Plays PowerPoint's sound (blocks main sends over `port`) through the shared gain, so the
+   * deck level, master and route apply to it like any video. A new port replaces the old one;
+   * null disconnects. False when Web Audio or the worklet is not usable: only the sound is
+   * lost, the picture is unaffected.
+   */
+  async setPcmPort(port: MessagePort | null): Promise<boolean> {
+    if (!port) {
+      this.pcmPort = null
+      this.removePcm()
+      return true
+    }
+    this.pcmPort = port
+    if (!this.fallback && !this.ctx) this.open()
+    if (!this.ctx || !this.node) return false
+    this.resume()
+    if (!this.pcmNode) {
+      this.pcmLoad ??= this.loadPcm()
+      if (!(await this.pcmLoad)) return false
+      // A newer port (or null) arrived while the module was loading.
+      if (this.pcmPort !== port || !this.ctx || !this.node) return this.pcmPort !== null
+      if (!this.pcmNode && !this.addPcm()) return false
+    }
+    this.pcmNode?.port.postMessage({ port }, [port])
+    return true
+  }
+
+  private async loadPcm(): Promise<boolean> {
+    try {
+      if (!this.ctx) return false
+      if (!this.opts.pcmModuleUrl) throw new Error('no PCM module')
+      await this.ctx.audioWorklet.addModule(this.opts.pcmModuleUrl)
+      return true
+    } catch (e) {
+      this.pcmLoad = null
+      console.warn('[audio] PowerPoint sound could not be loaded:', e)
+      return false
+    }
+  }
+
+  private addPcm(): boolean {
+    if (!this.ctx || !this.node) return false
+    try {
+      const node =
+        this.opts.makePcmNode?.(this.ctx) ??
+        new AudioWorkletNode(this.ctx, 'pcm-source', {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [2]
+        })
+      node.connect(this.node)
+      this.pcmNode = node
+      return true
+    } catch (e) {
+      console.warn('[audio] PowerPoint sound could not be started:', e)
+      return false
+    }
+  }
+
+  private removePcm(): void {
+    const node = this.pcmNode
+    if (!node) return
+    this.pcmNode = null
+    try {
+      node.port.postMessage({ port: null })
+      node.disconnect()
+    } catch {
+      // Already disconnected.
+    }
+  }
+
   /** Routes a video's sound into the shared gain. Safe to call on every render. */
   attach(v: HTMLVideoElement): void {
     if (this.sources.has(v)) return
@@ -266,6 +344,8 @@ export class OutputAudio {
     for (const v of [...this.sources.keys()]) this.detach(v)
     for (const st of [...this.streams.keys()]) this.detachStream(st)
     this.removeTap()
+    this.pcmPort = null
+    this.removePcm()
     const ctx = this.ctx
     this.ctx = null
     this.node = null
