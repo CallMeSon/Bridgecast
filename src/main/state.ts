@@ -133,6 +133,16 @@ export class AppState {
     if (web && hidden(this.current) && !hidden(next) && !this.webReady(web.deckId)) {
       return this.current
     }
+    // Unfreeze would show the page again (it may have been reloaded while frozen): only when ready.
+    if (
+      a.type === 'toggleFreeze' &&
+      this.current.frozen &&
+      !next.frozen &&
+      web &&
+      !this.webReady(web.deckId)
+    ) {
+      return this.current
+    }
     // Resume web only once the page has recovered.
     const held = this.current.shown?.web
     if (a.type === 'resumeWeb' && held && !this.webReady(held.deckId)) return this.current

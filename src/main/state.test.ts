@@ -747,6 +747,21 @@ describe('AppState web decks', () => {
     expect(s.shown?.web?.deckId).toBe(w)
   })
 
+  it('Unfreeze is refused while the live page is not ready', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    let ready = true
+    const app = new AppState(lib, false, undefined, () => ready)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    const frozen = app.dispatch({ type: 'toggleFreeze' })
+    expect(frozen.frozen).toBe(true)
+    ready = false
+    expect(app.dispatch({ type: 'toggleFreeze' })).toBe(frozen)
+    ready = true
+    expect(app.dispatch({ type: 'toggleFreeze' }).frozen).toBe(false)
+  })
+
   it('B off after HOLD without a KV is refused while the page is not ready', () => {
     const lib = new Library(root)
     const a = lib.createEvent('A')

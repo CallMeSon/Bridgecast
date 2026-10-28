@@ -58,3 +58,12 @@ Re-review atas final fix wave menyatakan semua butir ADDRESSED, tetapi menemukan
 2. Penting: Resume web aktif dalam jendela ack (sampai 1 detik) karena halaman lama masih `ready`. Menekannya membatalkan HOLD, lalu navigasi berjalan tanpa HOLD. Perbaikan: tolak Resume web selama navigasi hold-first masih menunggu.
 3. Penting (UX): setelah Reload yang disengaja pada halaman sehat, operator melihat pita "Web page lost its connection. ..." (`HoldWarning.tsx`), padahal koneksi tidak putus. Perlu teks terpisah untuk HOLD karena operator, dan spec (daftar pemicu HOLD) perlu diperbarui.
 4. Kecil: Reload saat Black atau KV aktif tetap memasang HOLD dan menunggu 1 detik penuh; kilatan satu frame hitam mungkin saat `promote()` melepas video lama; pemeriksaan piksel di e2e Edit URL hampir kosong; `PRODUCT.md` baris 50 masih menyebut "D / Shift+D (atau memilih deck lain)" sebagai satu-satunya cara keluar; Unfreeze ke halaman yang di-reload saat frozen dan belum ready belum dijaga ready gate.
+
+## Status native-slideshow (3a) dan sisa web-source (2026-10-28)
+Plan `2026-10-27-native-slideshow.md` selesai di kode: task 1 (spike Windows, dilewati atas keputusan pengguna) dan 2 sampai 10 dikomit. Task 10: `npm run test:e2e:native` (`e2e/native.mjs`, `PPT_ENGINE_FAKE=1`, terpisah dari smoke) lulus di Linux/xvfb; dokumen dan butir checklist "Putar PPT asli" ditulis. Ledger rulings dan minor yang ditunda: `2026-10-28-native-slideshow-sdd-ledger.md`. Semua jalur Windows (capture jendela PowerPoint, suara, klik) belum diverifikasi.
+
+Perubahan perilaku dari e2e: setelah engine crash atau hang, deck yang sedang native tetap di Still images sampai operator menekan **Resume PowerPoint** (`manualResume` di `SlideShowManager`); sebelumnya kembali sendiri sehingga tombol tidak berguna. Suspend/resume untuk Edit dan retry error per deck tetap kembali sendiri.
+
+Temuan sisa web-source: butir 1 sampai 3 sudah diperbaiki di `e017e20` (HOLD bersama untuk navigasi berdekatan, Resume web ditolak selama HOLD menunggu ack, banner netral). Butir kecil terakhir diperbaiki sekarang: Unfreeze ke halaman web yang belum Ready ditolak (`state.ts`), spec memuat HOLD sengaja.
+
+Langkah berikutnya: 3b (`2026-10-27-libreoffice-linux.md`), mulai dari spike Task 1. Catatan: sesi cloud punya LibreOffice 24.2 (plan menulis 26.2), tanpa sesi X11 asli dan tanpa PulseAudio.
