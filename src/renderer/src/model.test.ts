@@ -378,10 +378,20 @@ describe('outputSource with a native slide show', () => {
       img(poster)
     )
   })
-  it('a vector deck shows the PNG (its own layer comes later)', () => {
-    expect(outputSource({ ...initialState, shown: { ...shown, playback: 'vector' } })).toEqual(
-      img(poster)
-    )
+  it('a vector deck is its source.pdf page (index + 1) with the PNG as poster', () => {
+    expect(outputSource({ ...initialState, shown: { ...shown, playback: 'vector' } })).toEqual({
+      kind: 'pdf',
+      url: `slide://${deckId}/source.pdf`,
+      page: 3,
+      poster,
+      fit: 'fit'
+    })
+  })
+  it('a vector deck carries its fit; KV and Black still win', () => {
+    const v = { ...shown, playback: 'vector' as const, fit: 'fill' as const }
+    expect(outputSource({ ...initialState, shown: v })).toMatchObject({ kind: 'pdf', fit: 'fill' })
+    expect(outputSource({ ...initialState, shown: v, kvUrl, kv: true })).toEqual(img(kvUrl))
+    expect(outputSource({ ...initialState, shown: v, black: true })).toBeNull()
   })
   it('KV and Black still win over the capture', () => {
     expect(outputSource({ ...initialState, shown, kvUrl, kv: true })).toEqual(img(kvUrl))

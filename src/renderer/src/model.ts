@@ -281,6 +281,11 @@ export type OutputMedia =
   | { kind: 'image'; url: string; fit: DeckFit }
   | { kind: 'video'; url: string; poster: string; take: number; fit: DeckFit }
   /**
+   * A vector deck: page `page` (1-based) of its source.pdf drawn by pdf.js. `poster` is
+   * the slide's PNG, shown while the page is not drawn and when it cannot be.
+   */
+  | { kind: 'pdf'; url: string; page: number; poster: string; fit: DeckFit }
+  /**
    * A live capture (a web deck's page, or a native deck's slide show window). `poster`
    * is the deck's snapshot or the slide's PNG, shown when the capture fails; `paused`
    * holds the last frame (Freeze, or HOLD for a web page).
@@ -319,7 +324,7 @@ export function outputSource(s: ProgramState, posterVersion = 0): OutputMedia | 
       take: s.take
     }
   }
-  // A native deck's slide show window, captured. `images` (fallen back) and `vector` use the PNG.
+  // A native deck's slide show window, captured. `images` (fallen back) uses the PNG; `vector` is a PDF page.
   if (s.shown?.playback === 'native') {
     return {
       kind: 'stream',
@@ -334,6 +339,15 @@ export function outputSource(s: ProgramState, posterVersion = 0): OutputMedia | 
     const { deckId, file, video } = s.shown
     const fit = s.shown.fit ?? 'fit'
     const poster = slideUrl(deckId, file)
+    if (s.shown.playback === 'vector' && !video) {
+      return {
+        kind: 'pdf',
+        url: slideUrl(deckId, 'source.pdf'),
+        page: s.shown.index + 1,
+        poster,
+        fit
+      }
+    }
     return video
       ? { kind: 'video', url: slideUrl(deckId, video), poster, take: s.take, fit }
       : { kind: 'image', url: poster, fit }

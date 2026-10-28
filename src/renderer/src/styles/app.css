@@ -1087,6 +1087,7 @@ main {
   background: var(--letterbox);
 }
 .slide img,
+.slide canvas,
 .slide video {
   position: absolute;
   inset: 0;
@@ -1212,12 +1213,24 @@ main {
   position: absolute;
   inset: 0;
 }
+.screen .pgm-layer .pdf-box {
+  position: absolute;
+  inset: 0;
+}
+.screen .pgm-layer canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 /* The deck's fit on the monitor, same mapping as the output (thumbnails and the Next card stay contain). */
 .screen .pgm-layer[data-fit='fill'] img,
+.screen .pgm-layer[data-fit='fill'] canvas,
 .screen .pgm-layer[data-fit='fill'] video {
   object-fit: cover;
 }
 .screen .pgm-layer[data-fit='stretch'] img,
+.screen .pgm-layer[data-fit='stretch'] canvas,
 .screen .pgm-layer[data-fit='stretch'] video {
   object-fit: fill;
 }

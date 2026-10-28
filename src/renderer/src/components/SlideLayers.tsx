@@ -4,6 +4,7 @@ import type { OutputAudio } from '../output-audio'
 import { layerFor, type LayerSpec } from './layers'
 import type { StreamSourceKind } from '../stream'
 import { StreamLayer } from './StreamLayer'
+import { PdfLayer } from './PdfLayer'
 
 /** Crossfade length for a 'fade' transition (spec: 250 ms); the CSS animations match. */
 export const FADE_MS = 250
@@ -386,6 +387,14 @@ export function SlideLayers({
               onFailed={(f) => stream?.onFailed?.(l.spec?.deckId ?? '', f)}
               onPaused={streamCb(stream?.onPaused, l.spec.deckId, l.spec.source)}
               label={stream?.label}
+            />
+          ) : l.spec?.kind === 'pdf' ? (
+            <PdfLayer
+              url={l.spec.url}
+              page={l.spec.page ?? 1}
+              poster={l.spec.poster ?? l.spec.url}
+              fit={l.spec.fit}
+              onReady={() => reveal(l.key)}
             />
           ) : l.spec?.kind === 'video' && !l.failed ? (
             <video

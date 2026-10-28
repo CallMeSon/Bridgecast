@@ -5,10 +5,12 @@ import type { StreamSourceKind } from '../stream'
 /** One slide layer to put on screen; `id` tells whether it is a new layer. */
 export interface LayerSpec {
   id: string
-  kind: 'image' | 'video' | 'stream'
+  kind: 'image' | 'video' | 'stream' | 'pdf'
   url: string
   poster?: string
   take?: number
+  /** PDF layers: 1-based page of `url`. */
+  page?: number
   /** Stream layers: what is captured, and whether the last frame is held. */
   source?: StreamSourceKind
   deckId?: string
@@ -35,6 +37,17 @@ export function layerFor(
   if (!media) return null
   if (media.kind === 'image')
     return { id: media.url, kind: 'image', url: media.url, fit: media.fit }
+  // One layer per page: a page change is a new layer, so it reveals (and fades) like an image.
+  if (media.kind === 'pdf') {
+    return {
+      id: `p:${media.url}#${media.page}`,
+      kind: 'pdf',
+      url: media.url,
+      page: media.page,
+      poster: media.poster,
+      fit: media.fit
+    }
+  }
   if (media.kind === 'stream') {
     return {
       // A slide show window is one capture for the whole deck (its slides change the poster
