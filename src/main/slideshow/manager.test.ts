@@ -176,13 +176,18 @@ describe('SlideShowManager', () => {
     expect(mgr.ready('a')).toBe(false)
   })
 
-  it('restarts the engine in the background and resumes once a session is ready', async () => {
+  it('restarts the engine in the background and waits for Resume PowerPoint', async () => {
     await goLive('a')
+    dispatched.length = 0
     engine.hang()
     await vi.advanceTimersByTimeAsync(4500)
     expect(engine.shutdowns).toBeGreaterThan(0)
     await vi.advanceTimersByTimeAsync(1500)
-    expect(dispatched).toContain('resumeNative')
+    expect(mgr.sessionOpen('a')).toBe(true)
+    expect(dispatched).not.toContain('resumeNative')
+    expect(app.state.shown?.playback).toBe('images')
+    expect(mgr.ready('a')).toBe(false)
+    mgr.resumeNative('a')
     expect(app.state.shown?.playback).toBe('native')
     expect(mgr.ready('a')).toBe(true)
   })
@@ -251,6 +256,7 @@ describe('SlideShowManager', () => {
     await vi.advanceTimersByTimeAsync(3100)
     expect(dispatched).toContain('nativeFallback')
     await vi.advanceTimersByTimeAsync(2000)
+    mgr.resumeNative('a')
     expect(app.state.shown?.playback).toBe('native')
     engine.calls.length = 0
     app.dispatch({ type: 'goto', index: 2 })
@@ -265,6 +271,7 @@ describe('SlideShowManager', () => {
     await vi.advanceTimersByTimeAsync(4500)
     await vi.advanceTimersByTimeAsync(20_000)
     expect(dispatched.filter((t) => t === 'nativeFallback')).toHaveLength(1)
+    mgr.resumeNative('a')
     expect(app.state.shown?.playback).toBe('native')
     expect(mgr.ready('a')).toBe(true)
   })
@@ -276,6 +283,7 @@ describe('SlideShowManager', () => {
     await vi.advanceTimersByTimeAsync(3100)
     expect(app.state.shown?.playback).toBe('images')
     await vi.advanceTimersByTimeAsync(4000)
+    mgr.resumeNative('a')
     expect(app.state.shown?.playback).toBe('native')
     expect(mgr.ready('a')).toBe(true)
   })

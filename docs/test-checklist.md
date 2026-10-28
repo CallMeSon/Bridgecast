@@ -109,6 +109,22 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] **Prepare hanya untuk event yang terbuka**: deck web live dari event lain (setelah ganti event) tidak bisa dibuka di Prepare ("This web page is not part of the open event. Close this window."). Batas yang diketahui: untuk menyiapkannya, buka lagi event deck itu.
 - [ ] Prepare: saat deck live dan tidak frozen, klik dan ketik di jendela Prepare ditolak (banner "ON AIR: input locked. Press F to freeze before you click."); setelah Freeze (F) diterima; pop-up yang dibuka halaman saat tidak live muncul sebagai jendela biasa di layar operator, bukan di HDMI.
 
+## Putar PPT asli (Native)
+
+**BELUM DIJALANKAN di Windows.** Otomatis di Linux dengan engine palsu: `npm run test:e2e:native` (tidak ikut `npm run test:e2e`). Yang diuji otomatis: langkah Next, crash lalu PNG lalu Resume, edit pending, PDF vector, PDF rusak. Yang hanya bisa dicek di Windows ada di bawah. Fixture `fixtures/sample-anim.pptx` dibuat manual di PowerPoint (On Click, After Previous, trigger, Morph, slide hidden, video dengan suara).
+
+- [ ] **Impor sample-anim.pptx** dan **sample-4x3.pptx**: manifest benar (jumlah klik per slide, slide hidden, deteksi statis). Chip deck: sample-anim `Native`, sample-4x3 (statis) `Vector`.
+- [ ] **Jendela slide show ter-capture penuh** seukuran Canvas, tidak mencuri fokus, tidak di taskbar, Presenter View tidak muncul di HDMI. Canvas lebih besar dari layar (mis. 3840×1080) tetap utuh.
+- [ ] **Klik per langkah** (clicker): On Click, After Previous, trigger, Morph. Posisi `Slide N · step a/b` sama dengan yang tampil di PowerPoint, tidak ada langkah yang hilang atau ganda.
+- [ ] **Video dan suara** di slide: ke Local, OMT, Both. Volume deck dan master berlaku. Black dan KV membisukan suara PowerPoint; Freeze menahan gambar dan suara tetap jalan.
+- [ ] **Frame pertama**: take deck native yang baru dibuka. Catat apakah ada frame hitam atau belum tergambar di HDMI (ready gate frame pertama belum dibangun).
+- [ ] **Latensi** dari tekan Next sampai output berubah: catat.
+- [ ] **PowerPoint dimatikan paksa saat live**: output langsung PNG slide yang sama (tidak hitam, tidak desktop), muncul "PowerPoint is not responding. ...". Tidak kembali sendiri. Setelah chip kembali siap, **Resume PowerPoint** aktif dan mengembalikan ke native di slide yang sama.
+- [ ] **PowerPoint milik operator terbuka bersamaan** dengan file lain yang belum disimpan: app tidak menutup atau mengubah file itu, tidak ada dialog yang tersangkut. Bila PowerPoint macet, pemulihan butuh operator menutupnya sendiri.
+- [ ] **Edit in PowerPoint saat live**: simpan perubahan; muncul "Changes apply when this deck leaves air."; turun dari live lalu perubahan masuk. **Apply now** minta konfirmasi. `original.*` tidak berubah. **Revert to imported file** mengembalikan deck.
+- [ ] **Protected View** tidak muncul pada file impor; **file berpassword** memberi pesan "This presentation has a password. ...".
+- [ ] **Dua sesi terbuka** (deck live dan deck berikutnya) dan perpindahan di antaranya tanpa kedip.
+
 ## Library dan event
 
 - [ ] Urutkan deck dan slide dengan drag. Output tidak berubah saat mengurutkan.

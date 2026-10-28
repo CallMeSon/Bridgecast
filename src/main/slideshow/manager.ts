@@ -47,6 +47,8 @@ export class SlideShowManager {
   private entries = new Map<string, Entry>()
   /** nativeFallback was dispatched for these decks and not yet resumed. */
   private fallen = new Set<string>()
+  /** Fell back because the engine died or hung: stays on images until the operator presses Resume. */
+  private manualResume = new Set<string>()
   private down = false
   /** Decks whose slide show window an output has captured (cleared when the session ends). */
   private framed = new Set<string>()
@@ -116,6 +118,7 @@ export class SlideShowManager {
   resumeNative(deckId: string): void {
     if (!this.sessionOpen(deckId)) return
     this.fallen.delete(deckId)
+    this.manualResume.delete(deckId)
     this.state.dispatch({ type: 'resumeNative', deckId })
     this.sync()
   }
@@ -197,6 +200,7 @@ export class SlideShowManager {
 
     // A fallback only lasts while its deck is on air.
     for (const id of [...this.fallen]) if (id !== live) this.fallen.delete(id)
+    for (const id of [...this.manualResume]) if (id !== live) this.manualResume.delete(id)
 
     for (const e of this.entries.values()) {
       const keep = wanted.includes(e.deckId) && !this.held.has(e.deckId)
@@ -262,7 +266,11 @@ export class SlideShowManager {
     if (this.disposed) return
     const live = this.liveNative(this.state.state, this.decks())
     const shown = this.state.state.shown
-    if (live === deckId && (this.fallen.has(deckId) || shown?.playback === 'images')) {
+    if (
+      live === deckId &&
+      !this.manualResume.has(deckId) &&
+      (this.fallen.has(deckId) || shown?.playback === 'images')
+    ) {
       // Taken before the session was ready, or fell back: native again. Clear the
       // fallback first, the reducer asks `ready`.
       this.fallen.delete(deckId)
@@ -330,7 +338,12 @@ export class SlideShowManager {
     this.entries.clear()
     this.framed.clear()
     for (const id of gone) this.notifyGone(id)
-    if (live) this.fallBack(live)
+    if (live) {
+      // Only a deck that was playing natively needs the operator's Resume; a deck taken
+      // while the engine was down goes native by itself once its session opens.
+      if (this.state.state.shown?.playback === 'native') this.manualResume.add(live)
+      this.fallBack(live)
+    }
     this.notifyStatus()
     // A hung shutdown must not keep the engine down forever.
     const restart = (): void => {

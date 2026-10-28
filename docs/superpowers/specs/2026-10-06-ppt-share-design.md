@@ -10,7 +10,7 @@ Operator PPT standby di event harus pindah-pindah window PowerPoint supaya layar
 - **Input:** `.pptx`, `.ppt`, `.pdf`, dan halaman web (lihat Deck web). Semua dikonversi ke gambar PNG saat import, lalu aplikasi merender slide sendiri.
   - PPT/PPTX: diekspor lewat PowerPoint yang terinstal (COM). Notes slide ikut diambil.
   - PDF: dirender dengan pdf.js.
-  - Animasi dan video di dalam slide tidak didukung (slide menjadi gambar statis).
+  - Animasi, video, dan suara di dalam slide: sejak 2026-10-28 deck PPT/PPTX/PPT bisa diputar **Native** (slide show PowerPoint asli di jendela yang di-capture ke semua output) atau **Vector**/**Still images**. Desain: `docs/superpowers/specs/2026-10-27-native-slideshow-design.md`. PNG tetap menjadi fallback.
 - **Output:** HDMI saja. Program tampil fullscreen tanpa bingkai di layar kedua (Windows mode Extend). Isinya Program, termasuk Freeze/Black/Fade. Operator memilih layar tujuan. Jika layar HDMI hilang saat acara, jendela output disembunyikan (tidak pindah ke layar operator) dan otomatis muncul lagi fullscreen saat layar itu tersambung kembali. Tidak ada output pembicara/transcript (dibatalkan).
 - **NDI:** dihapus 2026-10-08 (kode, dependency `grandi`, UI, tes) karena lisensi NDI SDK, riwayatnya ada di git. Ditambahkan lagi 2026-10-27 oleh plan `ndi-output` tanpa menyertakan runtime: NDI Runtime tidak pernah ikut dalam aplikasi dan dipasang dari ndi.video oleh installer Windows. NDI® adalah merek dagang terdaftar Vizrt NDI AB.
 - **Tanpa Preview/Program ala vMix.** Next/Prev langsung mengganti slide di Program. Panel Next menampilkan slide berikutnya beserta notes.
@@ -35,6 +35,6 @@ Sebuah deck bisa berupa halaman web (Canva mode present, YouTube, halaman https 
 
 ## Di luar cakupan
 
-Output kedua dengan isi berbeda, transcript/speech-to-text, mode Live PowerPoint (animasi), timer, playlist bertingkat, remote control dari perangkat lain.
+Output kedua dengan isi berbeda, transcript/speech-to-text, timer, playlist bertingkat, remote control dari perangkat lain.
 
-Animasi lewat slide video (MP4 per halaman, mis. dari Canva) dikerjakan terpisah: `2026-10-09-video-slides-design.md`.
+Animasi lewat slide video (MP4 per halaman, mis. dari Canva) dikerjakan terpisah: `2026-10-09-video-slides-design.md`. Mode Live PowerPoint (animasi) sudah masuk cakupan lewat playback Native (`2026-10-27-native-slideshow-design.md`).

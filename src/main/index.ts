@@ -402,7 +402,18 @@ function registerIpc(
   const fakeExport =
     process.env['PPT_OUTPUT_DUMP'] && process.env['PPT_ENGINE_FAKE'] === '1'
       ? async (file: string, outDir: string): Promise<ImportedDeck> => {
-          const dir = path.dirname(file)
+          // `file` is a snapshot copy in a temp dir: the deck is the one whose edit.* equals it.
+          const snap = fs.readFileSync(file)
+          const owner = state.decks().find((d) => {
+            const dd = path.dirname(lib.sourceFilePath(d.id))
+            return fs
+              .readdirSync(dd)
+              .some(
+                (f) => /^edit\.pptx?$/i.test(f) && fs.readFileSync(path.join(dd, f)).equals(snap)
+              )
+          })
+          if (!owner) throw new Error('fake export: no deck has this edit file')
+          const dir = path.dirname(lib.sourceFilePath(owner.id))
           const deck = JSON.parse(fs.readFileSync(path.join(dir, 'deck.json'), 'utf8')) as DeckMeta
           fs.mkdirSync(outDir, { recursive: true })
           const slides = deck.slides.map((s) => {
