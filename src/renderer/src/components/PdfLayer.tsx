@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DeckFit } from '../../../shared/canvas'
+import { showPdfPage } from './pdf-page'
 import { acquirePdf, releasePdf, renderPdfPage, type PdfEntry } from './pdf-doc'
-
-/** Longest a page may take to draw before the layer gives up and shows its poster. */
-export const PDF_PENDING_MS = 3000
 
 interface Props {
   url: string
@@ -58,46 +56,28 @@ export function PdfLayer({ url, page, poster, fit, onReady }: Props): React.JSX.
     }
   }, [url])
 
-  const signalled = useRef(false)
   useEffect(() => {
     const entry = held.current
     if (!size || !entry) return
     const dpr = window.devicePixelRatio || 1
-    let live = true
-    const signal = (): void => {
-      if (signalled.current) return
-      signalled.current = true
-      ready.current()
-    }
-    const giveUp = setTimeout(() => {
-      if (!live || signalled.current) return
-      console.error(`[pdf] ${url} page ${page} took over ${PDF_PENDING_MS} ms, showing its poster`)
-      setFailed(true)
-      signal()
-    }, PDF_PENDING_MS)
-    renderPdfPage(entry, page, size, fit, dpr)
-      .then((src) => {
-        const dst = canvas.current
-        if (!live || !dst) return
-        dst.width = src.width
-        dst.height = src.height
-        dst.getContext('2d')?.drawImage(src, 0, 0)
-        setFailed(false)
-        signal()
-        // Next page ahead, off screen; a failure there surfaces when that page is shown.
-        renderPdfPage(entry, page + 1, size, fit, dpr).catch(() => undefined)
-      })
-      .catch((e: unknown) => {
-        if (!live) return
-        console.error(`[pdf] ${url} page ${page} could not be drawn, showing its poster:`, e)
-        setFailed(true)
-        signal()
-      })
-      .finally(() => clearTimeout(giveUp))
-    return () => {
-      live = false
-      clearTimeout(giveUp)
-    }
+    return showPdfPage(
+      {
+        render: () => renderPdfPage(entry, page, size, fit, dpr),
+        onDrawn: (src) => {
+          const dst = canvas.current
+          if (!dst) return
+          dst.width = src.width
+          dst.height = src.height
+          dst.getContext('2d')?.drawImage(src, 0, 0)
+          setFailed(false)
+          // Next page ahead, off screen; a failure there surfaces when that page is shown.
+          renderPdfPage(entry, page + 1, size, fit, dpr).catch(() => undefined)
+        },
+        onFailed: () => setFailed(true),
+        onReady: () => ready.current()
+      },
+      `${url} page ${page}`
+    )
   }, [url, page, fit, size])
 
   return (

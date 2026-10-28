@@ -102,8 +102,8 @@ export function renderPdfPage(
       await render.promise
     } finally {
       e.renders.delete(render)
+      p.cleanup()
     }
-    p.cleanup()
     return canvas
   }
   const key = `${page}:${Math.round(stage.width)}x${Math.round(stage.height)}:${fit}:${dpr}`
