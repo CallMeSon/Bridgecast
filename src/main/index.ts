@@ -31,6 +31,7 @@ import { slideshowSourceId } from './slideshow/capture'
 import { importPptx } from './import/pptx'
 import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
+import type { DeckMeta } from '../shared/types'
 import { DeckEditor } from './slideshow/editor'
 import type { ImportedDeck } from './import/pptx'
 import {
@@ -396,14 +397,40 @@ function registerIpc(
   }
 
   const slideManager = slideShow.manager
+  // e2e only (PPT_OUTPUT_DUMP + PPT_ENGINE_FAKE=1): no PowerPoint to export an edited file, so
+  // the "export" re-uses the deck's current slides; the new source file is the saved working copy.
+  const fakeExport =
+    process.env['PPT_OUTPUT_DUMP'] && process.env['PPT_ENGINE_FAKE'] === '1'
+      ? async (file: string, outDir: string): Promise<ImportedDeck> => {
+          const dir = path.dirname(file)
+          const deck = JSON.parse(fs.readFileSync(path.join(dir, 'deck.json'), 'utf8')) as DeckMeta
+          fs.mkdirSync(outDir, { recursive: true })
+          const slides = deck.slides.map((s) => {
+            const pngPath = path.join(outDir, s.file)
+            fs.copyFileSync(path.join(dir, s.file), pngPath)
+            return { pngPath, notes: s.notes, clicks: s.clicks ?? 0, hidden: !!s.hidden }
+          })
+          return {
+            name: deck.name,
+            width: deck.width,
+            height: deck.height,
+            slides,
+            pdfPath: '',
+            isStatic: false,
+            sourcePath: file
+          }
+        }
+      : null
   const editor = new DeckEditor({
     library: lib,
     exportDeck: (file, outDir) =>
-      new Promise<ImportedDeck>((resolve, reject) => {
-        const id = randomUUID()
-        exportJobs.set(id, { outDir, resolve, reject })
-        queue.add({ id, name: path.basename(file), path: file })
-      }),
+      fakeExport
+        ? fakeExport(file, outDir)
+        : new Promise<ImportedDeck>((resolve, reject) => {
+            const id = randomUUID()
+            exportJobs.set(id, { outDir, resolve, reject })
+            queue.add({ id, name: path.basename(file), path: file })
+          }),
     openInPowerPoint: (file) => slideManager.edit(file),
     isLive: (deckId) => state.state.shown?.deckId === deckId,
     suspend: (deckId) => slideManager.suspend(deckId),
@@ -1004,7 +1031,13 @@ function createSlideShow(lib: Library, state: AppState, settings: SettingsStore)
   if (process.env['PPT_OUTPUT_DUMP']) {
     Object.defineProperty(globalThis, '__pptEngine', {
       configurable: true,
-      get: () => ({ fake, helperError, opens: engine instanceof FakeEngine ? engine.opens : [] })
+      get: () => ({
+        fake,
+        helperError,
+        opens: engine instanceof FakeEngine ? engine.opens : [],
+        // e2e: the engine dies (FakeEngine only); the manager falls back and restarts it.
+        crash: () => (engine instanceof FakeEngine ? engine.crash() : undefined)
+      })
     })
   }
   const syncSound = (): void => sound.program(state.state, settings.get().audio)

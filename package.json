@@ -24,6 +24,7 @@
     "test:e2e": "electron-vite build && node e2e/smoke.mjs",
     "test:e2e:network": "electron-vite build && node e2e/network.mjs",
     "test:e2e:web": "electron-vite build && node e2e/web.mjs",
+    "test:e2e:native": "electron-vite build && node e2e/native.mjs",
     "test:packaged": "node e2e/packaged.mjs"
   },
   "dependencies": {
