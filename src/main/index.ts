@@ -17,6 +17,7 @@ import * as path from 'path'
 import { join } from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import { randomUUID } from 'crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { Library } from './library'
@@ -30,6 +31,8 @@ import { slideshowSourceId } from './slideshow/capture'
 import { importPptx } from './import/pptx'
 import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
+import { DeckEditor } from './slideshow/editor'
+import type { ImportedDeck } from './import/pptx'
 import {
   VIDEO_CHUNK_BYTES,
   capRange,
@@ -317,8 +320,27 @@ function registerIpc(
   // A folder of page-NN.png / page-NN.mp4 goes through the same queue.
   // Both the "Add files" dialog and drag and drop end up here.
   const jobEvent = new Map<string, string>()
+  // Re-exports of edited decks (Edit in PowerPoint, Revert) wait in the same queue: PowerPoint
+  // runs one job at a time. Their result goes to the editor, not to the library list.
+  const exportJobs = new Map<
+    string,
+    {
+      outDir: string
+      resolve: (deck: ImportedDeck) => void
+      reject: (err: unknown) => void
+    }
+  >()
   const queue = new ImportQueue(
     async (job) => {
+      const exportJob = exportJobs.get(job.id)
+      if (exportJob) {
+        try {
+          exportJob.resolve(await importPptx(job.path, exportJob.outDir, IMPORT_WIDTH))
+        } catch (err) {
+          exportJob.reject(err)
+        }
+        return
+      }
       const eventId = jobEvent.get(job.id)
       if (!eventId) throw new Error('Target event not found. Choose an event, then import again.')
       if (isDirectory(job.path)) {
@@ -347,6 +369,11 @@ function registerIpc(
     },
     1,
     (job, status, error) => {
+      if (exportJobs.has(job.id)) {
+        // Not an import row; the editor reports its own result.
+        if (status !== 'busy') exportJobs.delete(job.id)
+        return
+      }
       if (status !== 'busy') jobEvent.delete(job.id)
       progress({
         id: job.id,
@@ -360,6 +387,60 @@ function registerIpc(
   if (process.env['PPT_OUTPUT_DUMP']) {
     Object.defineProperty(globalThis, '__pptImportQueue', { configurable: true, value: queue })
   }
+
+  const slideManager = slideShow.manager
+  const editor = new DeckEditor({
+    library: lib,
+    exportDeck: (file, outDir) =>
+      new Promise<ImportedDeck>((resolve, reject) => {
+        const id = randomUUID()
+        exportJobs.set(id, { outDir, resolve, reject })
+        queue.add({ id, name: path.basename(file), path: file })
+      }),
+    openInPowerPoint: (file) => slideManager.edit(file),
+    isLive: (deckId) => state.state.shown?.deckId === deckId,
+    suspend: (deckId) => slideManager.suspend(deckId),
+    resume: (deckId) => slideManager.resume(deckId),
+    applied: () => {
+      state.refresh()
+    },
+    onPending: (deckId, pending) => broadcast(Broadcast.deckPending, { deckId, pending }),
+    onError: (deckId, message) => broadcast(Broadcast.deckEditError, { deckId, message })
+  })
+  // A saved edit waits while its deck is on air and is applied once it is not.
+  state.onChange(() => {
+    editor.leftAir().catch((err) => console.error('[editor] pending edit:', err))
+  })
+  app.on('before-quit', () => editor.dispose())
+
+  // Edit in PowerPoint, Revert and the playback mode: app windows only.
+  appHandle(Invoke.deckEdit, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    return editor.edit(deckId)
+  })
+  appHandle(Invoke.deckEditDone, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    return editor.done(deckId)
+  })
+  appHandle(Invoke.deckApplyNow, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    return editor.applyNow(deckId)
+  })
+  appHandle(Invoke.deckRevert, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    return editor.revert(deckId)
+  })
+  appHandle(Invoke.deckIsEdited, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    return lib.isEdited(deckId)
+  })
+  appHandle(Invoke.deckSetPlayback, (_e, eventId, deckId, playback) => {
+    assertString(eventId, 'Event ID')
+    assertString(deckId, 'Deck ID')
+    const deck = lib.setPlayback(eventId, deckId, playback)
+    state.refresh()
+    return deck
+  })
 
   handle(Invoke.decksImport, (eventId, files: ImportRequest[]) => {
     assertString(eventId, 'Event ID')
@@ -509,6 +590,7 @@ function registerIpc(
     assertString(eventId, 'Event ID')
     assertString(deckId, 'Deck ID')
     state.removeDeck(eventId, deckId)
+    editor.forget(deckId)
     syncWeb()
   })
 

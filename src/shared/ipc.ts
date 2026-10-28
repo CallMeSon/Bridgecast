@@ -1,4 +1,4 @@
-import type { DeckMeta, EventMeta } from './types'
+import type { DeckMeta, EventMeta, Playback } from './types'
 import type { OrderItem } from './sections'
 import type { Action, ProgramState } from './program'
 import type { NdiSettings, NdiStatus, OmtSettings, OmtStatus } from './omt'
@@ -58,7 +58,13 @@ export const Invoke = {
   webCaptureWarnings: 'web:captureWarnings',
   slideshowSourceId: 'slideshow:sourceId',
   slideshowFrame: 'slideshow:frame',
-  slideshowNote: 'slideshow:note'
+  slideshowNote: 'slideshow:note',
+  deckEdit: 'deck:edit',
+  deckEditDone: 'deck:editDone',
+  deckApplyNow: 'deck:applyNow',
+  deckRevert: 'deck:revert',
+  deckIsEdited: 'deck:isEdited',
+  deckSetPlayback: 'deck:setPlayback'
 } as const
 
 /**
@@ -92,7 +98,9 @@ export const Broadcast = {
   webStatus: 'web:status',
   webOutputs: 'web:outputs',
   webCaptureWarnings: 'web:captureWarnings',
-  slideshowNote: 'slideshow:note'
+  slideshowNote: 'slideshow:note',
+  deckPending: 'deck:pending',
+  deckEditError: 'deck:editError'
 } as const
 
 /** Main → OMT output window: carries the MessagePort the window sends program sound on. */
@@ -104,6 +112,19 @@ export const OMT_AUDIO_PORT = 'omt:audio-port'
  * it to the page as `window.postMessage('slideshow:audio-port', '*', ports)`.
  */
 export const SLIDESHOW_AUDIO_PORT = 'slideshow:audio-port'
+
+/** A saved edit (or a revert) of a deck waits for the deck to leave air (`deck:pending`). */
+export interface DeckPendingEvent {
+  deckId: string
+  pending: boolean
+}
+
+/** A background re-export of an edited deck failed; the previous version is still used (`deck:editError`). */
+export interface DeckEditErrorEvent {
+  deckId: string
+  /** User-facing message with the fix. */
+  message: string
+}
 
 export interface ImportProgress {
   id: string
@@ -240,6 +261,21 @@ export interface InvokeMap {
   'slideshow:frame': { args: [deckId: string]; result: void }
   /** Why the app cannot control PowerPoint's sound (operator copy), or null. */
   'slideshow:note': { args: []; result: string | null }
+  /** Opens the deck's working copy in a PowerPoint window; every save is exported again. PowerPoint decks only. */
+  'deck:edit': { args: [deckId: string]; result: void }
+  /** Stops watching the working copy and exports the last saved version now; rejects when that fails. */
+  'deck:editDone': { args: [deckId: string]; result: void }
+  /** Applies the saved version now even though the deck is on air (the caller confirms first). */
+  'deck:applyNow': { args: [deckId: string]; result: void }
+  /** Goes back to the imported file; on air it is applied when the deck leaves air. Rejects when it fails. */
+  'deck:revert': { args: [deckId: string]; result: void }
+  /** The deck's file differs from the imported one (Revert is available). */
+  'deck:isEdited': { args: [deckId: string]; result: boolean }
+  /** How the deck plays; rejects with the library's message for a mode the deck cannot use. */
+  'deck:setPlayback': {
+    args: [eventId: string, deckId: string, playback: Playback]
+    result: DeckMeta
+  }
 }
 
 export interface BroadcastMap {
@@ -254,6 +290,8 @@ export interface BroadcastMap {
   'web:outputs': WebOutputs
   'web:captureWarnings': WebCaptureWarning[]
   'slideshow:note': string | null
+  'deck:pending': DeckPendingEvent
+  'deck:editError': DeckEditErrorEvent
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -377,5 +415,18 @@ export interface Api {
   /** Why PowerPoint's sound cannot be controlled by the app (copy), or null. */
   slideshowNote(): Promise<string | null>
   onSlideshowNote(cb: (note: string | null) => void): () => void
+  /** Opens the deck in a PowerPoint window for editing (PowerPoint decks). */
+  editDeck(deckId: string): Promise<void>
+  /** Done editing: export the last saved version now. */
+  editDeckDone(deckId: string): Promise<void>
+  /** Apply the saved version now, even though the deck is on air (confirm first). */
+  applyDeckNow(deckId: string): Promise<void>
+  /** Back to the imported file (confirm first: "Undo all edits and go back to the imported file?"). */
+  revertDeck(deckId: string): Promise<void>
+  isDeckEdited(deckId: string): Promise<boolean>
+  setDeckPlayback(eventId: string, deckId: string, playback: Playback): Promise<DeckMeta>
+  /** "Changes apply when this deck leaves air." while `pending` is true. */
+  onDeckPending(cb: (e: DeckPendingEvent) => void): () => void
+  onDeckEditError(cb: (e: DeckEditErrorEvent) => void): () => void
   pathForFile(file: File): string
 }

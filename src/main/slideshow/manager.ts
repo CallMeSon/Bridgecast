@@ -60,6 +60,10 @@ export class SlideShowManager {
   private disposed = false
   /** Bumped when the engine goes down; work from an older generation is abandoned. */
   private gen = 0
+  /** Decks whose file is being replaced: no session is opened for them until `resume`. */
+  private held = new Set<string>()
+  /** Callers of `suspend` waiting for a deck's session to be gone. */
+  private goneWaiters = new Map<string, (() => void)[]>()
 
   constructor(
     private engine: SlideShowEngine,
@@ -106,6 +110,46 @@ export class SlideShowManager {
     return this.framed.has(deckId)
   }
 
+  /** Opens the deck's working copy for editing in a normal window. */
+  async edit(file: string): Promise<void> {
+    if (!this.engine.edit) {
+      throw new Error('Editing in PowerPoint is not available on this computer.')
+    }
+    await this.engine.edit(file)
+  }
+
+  /**
+   * Closes the deck's session and keeps it closed (its files are about to be replaced).
+   * A deck on air falls back to images meanwhile; `resume` brings the slide show back.
+   */
+  async suspend(deckId: string): Promise<void> {
+    this.held.add(deckId)
+    if (this.liveNative(this.state.state, this.decks()) === deckId && !this.fallen.has(deckId)) {
+      this.fallBack(deckId)
+    }
+    this.sync()
+    if (!this.entries.has(deckId)) return
+    const gone = new Promise<void>((resolve) => {
+      this.goneWaiters.set(deckId, [...(this.goneWaiters.get(deckId) ?? []), resolve])
+    })
+    // A hung engine is left to the heartbeat; the files are replaced anyway.
+    await this.withTimeout(gone).catch(() => {})
+  }
+
+  /** The deck's files are replaced (or kept): sessions may open for it again. */
+  resume(deckId: string): void {
+    this.held.delete(deckId)
+    this.blocked.delete(deckId)
+    this.sync()
+  }
+
+  private notifyGone(deckId: string): void {
+    const waiters = this.goneWaiters.get(deckId)
+    if (!waiters) return
+    this.goneWaiters.delete(deckId)
+    for (const w of waiters) w()
+  }
+
   dispose(): void {
     this.disposed = true
     this.timers.clearInterval(this.heartbeat)
@@ -125,13 +169,13 @@ export class SlideShowManager {
     for (const id of [...this.fallen]) if (id !== live) this.fallen.delete(id)
 
     for (const e of this.entries.values()) {
-      const keep = wanted.includes(e.deckId)
+      const keep = wanted.includes(e.deckId) && !this.held.has(e.deckId)
       const stale = e.deckId !== live && !sameCanvas(e.canvas, canvas)
       if (!e.closing && (!keep || stale)) this.closeEntry(e)
     }
     if (!this.down) {
       for (const id of wanted) {
-        if (this.entries.has(id) || this.blocked.has(id)) continue
+        if (this.entries.has(id) || this.blocked.has(id) || this.held.has(id)) continue
         if (this.entries.size >= MAX_SESSIONS) break // wait for a close to finish
         this.openEntry(id, canvas)
       }
@@ -174,6 +218,7 @@ export class SlideShowManager {
       () => {
         if (this.entries.get(deckId) !== e) return
         this.entries.delete(deckId)
+        this.notifyGone(deckId)
         this.blocked.add(deckId)
         if (this.liveNative(this.state.state, this.decks()) === deckId) this.fallBack(deckId)
         this.scheduleRetry()
@@ -205,6 +250,7 @@ export class SlideShowManager {
       if (this.entries.get(e.deckId) === e) {
         this.entries.delete(e.deckId)
         this.framed.delete(e.deckId)
+        this.notifyGone(e.deckId)
       }
       this.sync()
     }
@@ -231,6 +277,7 @@ export class SlideShowManager {
     this.framed.delete(deckId)
     if (e) {
       this.entries.delete(deckId)
+      this.notifyGone(deckId)
       // Do not leak the window: a retry opens a fresh session.
       if (e.session) void this.withTimeout(e.session.close()).catch(() => {})
     }
@@ -246,8 +293,10 @@ export class SlideShowManager {
     this.chain = Promise.resolve() // abandon moves stuck on the dead engine
     this.pingInFlight = false
     const live = this.liveNative(this.state.state, this.decks())
+    const gone = [...this.entries.keys()]
     this.entries.clear()
     this.framed.clear()
+    for (const id of gone) this.notifyGone(id)
     if (live) this.fallBack(live)
     // A hung shutdown must not keep the engine down forever.
     const restart = (): void => {

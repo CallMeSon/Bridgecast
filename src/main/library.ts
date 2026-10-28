@@ -17,6 +17,7 @@ import { canNative, isPlayback } from '../shared/playback'
 import { sanitizeDeckAudio } from '../shared/audio-levels'
 import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections'
 import { sanitizeWebUrl } from '../shared/web'
+import type { ImportedDeck } from './import/pptx'
 import { thumbFileName } from './slide-protocol'
 import { writeThumbnail } from './thumbnail'
 
@@ -63,8 +64,38 @@ const slideName = (i: number, ext = 'png'): string => `${String(i + 1).padStart(
 
 function writeJsonAtomic(file: string, data: unknown): void {
   const tmp = `${file}.${randomUUID()}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8')
-  fs.renameSync(tmp, file)
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8')
+    fs.renameSync(tmp, file)
+  } catch (err) {
+    fs.rmSync(tmp, { force: true })
+    throw err
+  }
+}
+
+const POWERPOINT_EXTS = ['.pptx', '.ppt']
+
+/** True when both files have the same bytes (size first, then 1 MB at a time). */
+function sameFile(a: string, b: string): boolean {
+  const sa = fs.statSync(a)
+  const sb = fs.statSync(b)
+  if (sa.size !== sb.size) return false
+  const fa = fs.openSync(a, 'r')
+  const fb = fs.openSync(b, 'r')
+  try {
+    const ba = Buffer.alloc(1 << 20)
+    const bb = Buffer.alloc(1 << 20)
+    for (;;) {
+      const na = fs.readSync(fa, ba, 0, ba.length, null)
+      const nb = fs.readSync(fb, bb, 0, bb.length, null)
+      if (na !== nb) return false
+      if (na === 0) return true
+      if (!ba.subarray(0, na).equals(bb.subarray(0, nb))) return false
+    }
+  } finally {
+    fs.closeSync(fa)
+    fs.closeSync(fb)
+  }
 }
 
 export { DECK_NAME_MAX }
@@ -722,5 +753,178 @@ export class Library {
       if (fs.existsSync(file)) return file
     }
     throw new Error('The PowerPoint file of this deck was not found. Import the deck again.')
+  }
+
+  /** The PowerPoint file `base.<ext>` in the deck folder (`original`, `source` or `edit`), if there is one. */
+  private deckFile(deckId: string, base: string): string | null {
+    for (const ext of POWERPOINT_EXTS) {
+      const file = path.join(this.deckDir(deckId), `${base}${ext}`)
+      if (fs.existsSync(file)) return file
+    }
+    return null
+  }
+
+  /** The deck's file differs from the imported one (it was edited in PowerPoint). */
+  isEdited(deckId: string): boolean {
+    const original = this.deckFile(deckId, 'original')
+    if (!original) return false
+    const source = path.join(path.dirname(original), `source${path.extname(original)}`)
+    if (!fs.existsSync(source)) return true
+    return !sameFile(original, source)
+  }
+
+  /**
+   * Path of the imported file (`original.*`, never changed), to import again as the deck's new
+   * version. The copy over `source.*` happens inside `replaceDeckFiles` when that import succeeds,
+   * so a failed import keeps the edited version with matching slides.
+   */
+  revertDeck(deckId: string): string {
+    const original = this.deckFile(deckId, 'original')
+    if (!original) {
+      throw new Error('The imported file of this deck was not found. Import the deck again.')
+    }
+    if (!this.isEdited(deckId)) {
+      throw new Error('This deck has not been edited, so there is nothing to undo.')
+    }
+    return original
+  }
+
+  /**
+   * Prepares the working copy `edit.<ext>` from `source.<ext>`. An earlier working copy that
+   * holds changes is kept (`fresh: false`), so unsaved work from a former session is not lost.
+   */
+  beginEdit(deckId: string): { file: string; fresh: boolean } {
+    const source = this.sourceFilePath(deckId)
+    const ext = path.extname(source)
+    const dir = this.deckDir(deckId)
+    const file = path.join(dir, `edit${ext}`)
+    for (const other of POWERPOINT_EXTS) {
+      if (other !== ext) fs.rmSync(path.join(dir, `edit${other}`), { force: true })
+    }
+    if (fs.existsSync(file)) return { file, fresh: false }
+    try {
+      fs.copyFileSync(source, file)
+    } catch {
+      fs.rmSync(file, { force: true })
+      throw new Error(
+        'The working copy could not be prepared. Close the deck in PowerPoint, then try again.'
+      )
+    }
+    return { file, fresh: true }
+  }
+
+  /** The working copy exists and differs from the file in use. */
+  editChanged(deckId: string): boolean {
+    const edit = this.deckFile(deckId, 'edit')
+    if (!edit) return false
+    const source = this.sourceFilePath(deckId)
+    return !sameFile(edit, source)
+  }
+
+  /** Removes the working copy; a copy PowerPoint still holds open is left alone. */
+  discardEdit(deckId: string): void {
+    for (const ext of POWERPOINT_EXTS) {
+      try {
+        fs.rmSync(path.join(this.deckDir(deckId), `edit${ext}`), { force: true })
+      } catch {
+        /* still open in PowerPoint */
+      }
+    }
+  }
+
+  /**
+   * Replaces the deck's slides (PNGs, notes, clicks, hidden), `source.*` and `source.pdf` with a
+   * new import of the edited (or imported) file. Name, fit, audio and `original.*` stay.
+   * All new files are built next to the deck first and swapped in at the end; if anything fails
+   * the old files and `deck.json` are put back, so the deck is never half replaced.
+   * Playback stays, except `vector` becomes `native` when the new version is not static.
+   */
+  replaceDeckFiles(deckId: string, imported: ImportedDeck): DeckMeta {
+    const current = this.readDeck(deckId)
+    if (current.source !== 'pptx') {
+      throw new Error('Only a PowerPoint deck can be replaced from a PowerPoint file.')
+    }
+    if (!Array.isArray(imported.slides) || imported.slides.length === 0) {
+      throw new Error('The new version has no slides. Save the file with at least one slide.')
+    }
+    const ext = path.extname(String(imported.sourcePath)).toLowerCase()
+    if (!POWERPOINT_EXTS.includes(ext)) {
+      throw new Error('The new version is not a PowerPoint file. Save it as PPTX or PPT.')
+    }
+    const dir = this.deckDir(deckId)
+    const tag = randomUUID()
+    const stage = path.join(dir, `.new-${tag}`)
+    const backup = path.join(dir, `.old-${tag}`)
+    let keepBackup = false
+    try {
+      fs.mkdirSync(stage)
+      const slides: SlideMeta[] = imported.slides.map((s, i) => {
+        const file = slideName(i)
+        fs.copyFileSync(s.pngPath, path.join(stage, file))
+        const meta: SlideMeta = { file, notes: typeof s.notes === 'string' ? s.notes : '' }
+        if (typeof s.clicks === 'number' && Number.isInteger(s.clicks) && s.clicks > 0) {
+          meta.clicks = s.clicks
+        }
+        if (s.hidden === true) meta.hidden = true
+        return meta
+      })
+      fs.copyFileSync(imported.sourcePath, path.join(stage, `source${ext}`))
+      if (imported.pdfPath) fs.copyFileSync(imported.pdfPath, path.join(stage, 'source.pdf'))
+
+      const deck: DeckMeta = {
+        ...current,
+        width: imported.width,
+        height: imported.height,
+        slides
+      }
+      delete deck.playback
+      if (current.playback !== undefined) {
+        deck.playback =
+          current.playback === 'vector' && imported.isStatic === false ? 'native' : current.playback
+      }
+
+      // Swap: old files into the backup folder, new ones in, then deck.json. A failure undoes it.
+      const old = fs
+        .readdirSync(dir)
+        .filter((n) => /^\d{3}\.(png|mp4)$/.test(n) || n.startsWith('source.') || n === 'thumbs')
+      const moved: string[] = []
+      const placed: string[] = []
+      fs.mkdirSync(backup)
+      try {
+        for (const n of old) {
+          fs.renameSync(path.join(dir, n), path.join(backup, n))
+          moved.push(n)
+        }
+        for (const n of fs.readdirSync(stage)) {
+          fs.renameSync(path.join(stage, n), path.join(dir, n))
+          placed.push(n)
+        }
+        this.writeDeck(deck)
+      } catch (err) {
+        for (const n of placed) fs.rmSync(path.join(dir, n), { recursive: true, force: true })
+        for (const n of moved) {
+          try {
+            fs.renameSync(path.join(backup, n), path.join(dir, n))
+          } catch {
+            keepBackup = true // never delete the only copy of a file
+          }
+        }
+        throw err
+      }
+      this.dropThumbJobs(deckId)
+      void this.generateThumbs(deck)
+      return deck
+    } finally {
+      fs.rmSync(stage, { recursive: true, force: true })
+      if (!keepBackup) fs.rmSync(backup, { recursive: true, force: true })
+    }
+  }
+
+  /** Forgets thumbnail jobs of a deck whose slide files were replaced. */
+  private dropThumbJobs(deckId: string): void {
+    const prefix = path.join(this.deckDir(deckId), 'thumbs')
+    for (const key of [...this.thumbJobs.keys()]) {
+      if (key.startsWith(prefix)) this.thumbJobs.delete(key)
+    }
   }
 }

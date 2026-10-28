@@ -10,13 +10,21 @@ import { CANVAS_INVALID } from '../shared/canvas'
 
 // fs namespace objects cannot be spied on in ESM; route copyFileSync through a hook.
 const hooks = vi.hoisted(() => ({
-  copy: null as null | ((src: string, dest: string) => void)
+  copy: null as null | ((src: string, dest: string) => void),
+  rename: null as null | ((src: string, dest: string) => void)
 }))
 vi.mock('fs', async (orig) => {
   const actual = await orig<typeof import('fs')>()
   const copyFileSync: typeof actual.copyFileSync = (s, d, m) =>
     hooks.copy ? hooks.copy(String(s), String(d)) : actual.copyFileSync(s, d, m)
-  return { ...actual, default: { ...actual, copyFileSync }, copyFileSync }
+  const renameSync: typeof actual.renameSync = (s, d) =>
+    hooks.rename ? hooks.rename(String(s), String(d)) : actual.renameSync(s, d)
+  return {
+    ...actual,
+    default: { ...actual, copyFileSync, renameSync },
+    copyFileSync,
+    renameSync
+  }
 })
 
 let root: string
@@ -46,6 +54,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  hooks.copy = null
+  hooks.rename = null
   fs.rmSync(root, { recursive: true, force: true })
   fs.rmSync(src, { recursive: true, force: true })
 })
@@ -993,5 +1003,207 @@ describe('Library import files and playback', () => {
     expect(() => lib.setPlayback(ev.id, pdf.id, 'native')).toThrow(BAD)
     expect(() => lib.setPlayback(ev.id, pptx.id, 'bogus')).toThrow(BAD)
     expect(() => lib.setPlayback(ev.id, pptx.id, 3)).toThrow(BAD)
+  })
+})
+
+describe('Library replaceDeckFiles, revertDeck and isEdited', () => {
+  const imported = (
+    over: Partial<Parameters<Library['replaceDeckFiles']>[1]> = {}
+  ): Parameters<Library['replaceDeckFiles']>[1] => {
+    const out = fs.mkdtempSync(path.join(src, 'imp-'))
+    const pngs = ['A', 'B', 'C'].map((t, i) => {
+      const p = path.join(out, `${i + 1}.png`)
+      fs.writeFileSync(p, `new-${t}`)
+      return p
+    })
+    const sourcePath = path.join(out, 'edit.pptx')
+    const pdfPath = path.join(out, 'x.pdf')
+    fs.writeFileSync(sourcePath, 'EDITED')
+    fs.writeFileSync(pdfPath, 'NEWPDF')
+    return {
+      name: 'edit',
+      width: 1280,
+      height: 720,
+      slides: [
+        { pngPath: pngs[0], notes: 'n0', clicks: 2, hidden: false },
+        { pngPath: pngs[1], notes: 'n1', clicks: 0, hidden: true },
+        { pngPath: pngs[2], notes: 'n2', clicks: 1.5, hidden: false }
+      ],
+      pdfPath,
+      isStatic: false,
+      sourcePath,
+      ...over
+    }
+  }
+
+  const setup = (
+    playback: DeckMeta['playback'] = 'native'
+  ): { lib: Library; deck: DeckMeta; dir: string; evId: string } => {
+    const sourcePath = path.join(src, 'orig.pptx')
+    const pdfPath = path.join(src, 'orig.pdf')
+    fs.writeFileSync(sourcePath, 'ORIG')
+    fs.writeFileSync(pdfPath, 'OLDPDF')
+    const lib = new Library(root, () => {
+      throw new Error('no thumbs in tests')
+    })
+    const ev = lib.createEvent('E')
+    const deck = lib.addDeck(ev.id, { ...deckInput(2, 'My deck'), sourcePath, pdfPath, playback })
+    return { lib, deck, dir: path.join(root, 'decks', deck.id), evId: ev.id }
+  }
+
+  it('replaces PNGs, notes, clicks, hidden, source and source.pdf and keeps name, fit and audio', () => {
+    const { lib, deck, dir, evId } = setup('native')
+    lib.setDeckFit(evId, deck.id, 'fill')
+    lib.setDeckAudio(evId, deck.id, { volume: 40, muted: true })
+    const next = lib.replaceDeckFiles(deck.id, imported())
+    expect(next.name).toBe('My deck')
+    expect(next.fit).toBe('fill')
+    expect(next.audio).toEqual({ volume: 40, muted: true })
+    expect(next.width).toBe(1280)
+    expect(next.slides.map((s) => s.file)).toEqual(['001.png', '002.png', '003.png'])
+    expect(next.slides.map((s) => s.notes)).toEqual(['n0', 'n1', 'n2'])
+    // clicks and hidden are sanitized like readDeck does: only a whole number above 0, only true
+    expect(next.slides.map((s) => s.clicks)).toEqual([2, undefined, undefined])
+    expect(next.slides.map((s) => s.hidden)).toEqual([undefined, true, undefined])
+    expect(fs.readFileSync(path.join(dir, '001.png'), 'utf8')).toBe('new-A')
+    expect(fs.readFileSync(path.join(dir, '003.png'), 'utf8')).toBe('new-C')
+    expect(fs.readFileSync(path.join(dir, 'source.pptx'), 'utf8')).toBe('EDITED')
+    expect(fs.readFileSync(path.join(dir, 'source.pdf'), 'utf8')).toBe('NEWPDF')
+    expect(new Library(root).getDeck(deck.id)).toEqual(next)
+  })
+
+  it('never touches original.* and leaves no staging folders', () => {
+    const { lib, deck, dir } = setup()
+    lib.replaceDeckFiles(deck.id, imported())
+    expect(fs.readFileSync(path.join(dir, 'original.pptx'), 'utf8')).toBe('ORIG')
+    expect(fs.readdirSync(dir).filter((f) => f.startsWith('.'))).toEqual([])
+  })
+
+  it('drops slides and thumbnails the new version no longer has', () => {
+    const { lib, deck, dir } = setup()
+    fs.mkdirSync(path.join(dir, 'thumbs'))
+    fs.writeFileSync(path.join(dir, 'thumbs', '001.jpg'), 'oldthumb')
+    const one = imported()
+    one.slides = one.slides.slice(0, 1)
+    lib.replaceDeckFiles(deck.id, one)
+    expect(fs.existsSync(path.join(dir, '002.png'))).toBe(false)
+    expect(fs.existsSync(path.join(dir, 'thumbs', '001.jpg'))).toBe(false)
+  })
+
+  it('playback: vector becomes native when the deck is no longer static, otherwise it is kept', () => {
+    const vec = setup('vector')
+    expect(vec.lib.replaceDeckFiles(vec.deck.id, imported({ isStatic: false })).playback).toBe(
+      'native'
+    )
+    const still = setup('vector')
+    expect(still.lib.replaceDeckFiles(still.deck.id, imported({ isStatic: true })).playback).toBe(
+      'vector'
+    )
+    const nat = setup('native')
+    expect(nat.lib.replaceDeckFiles(nat.deck.id, imported({ isStatic: true })).playback).toBe(
+      'native'
+    )
+    const img = setup('images')
+    expect(img.lib.replaceDeckFiles(img.deck.id, imported({ isStatic: false })).playback).toBe(
+      'images'
+    )
+  })
+
+  it('a failing copy keeps every old file and the old deck.json', () => {
+    const { lib, deck, dir } = setup()
+    const before = lib.getDeck(deck.id)
+    const inp = imported()
+    hooks.copy = (s, d) => {
+      if (d.endsWith('source.pdf')) throw new Error('disk full')
+      fs.writeFileSync(d, fs.readFileSync(s))
+    }
+    expect(() => lib.replaceDeckFiles(deck.id, inp)).toThrow('disk full')
+    hooks.copy = null
+    expect(lib.getDeck(deck.id)).toEqual(before)
+    expect(fs.readFileSync(path.join(dir, '001.png'), 'utf8')).toBe('png-0')
+    expect(fs.readFileSync(path.join(dir, 'source.pptx'), 'utf8')).toBe('ORIG')
+    expect(fs.readFileSync(path.join(dir, 'source.pdf'), 'utf8')).toBe('OLDPDF')
+    expect(fs.readdirSync(dir).filter((f) => f.startsWith('.'))).toEqual([])
+  })
+
+  it('a failure while swapping rolls back to the old files', () => {
+    const { lib, deck, dir } = setup()
+    const before = lib.getDeck(deck.id)
+    fs.mkdirSync(path.join(dir, 'thumbs'))
+    fs.writeFileSync(path.join(dir, 'thumbs', '001.jpg'), 'oldthumb')
+    const inp = imported()
+    // The hook calls the mocked renameSync again, so route to the real one.
+    hooks.rename = (s, d) => {
+      if (d.endsWith('deck.json')) throw new Error('locked')
+      const real = hooks.rename
+      hooks.rename = null
+      try {
+        fs.renameSync(s, d)
+      } finally {
+        hooks.rename = real
+      }
+    }
+    expect(() => lib.replaceDeckFiles(deck.id, inp)).toThrow('locked')
+    hooks.rename = null
+    expect(lib.getDeck(deck.id)).toEqual(before)
+    expect(fs.readFileSync(path.join(dir, '001.png'), 'utf8')).toBe('png-0')
+    expect(fs.existsSync(path.join(dir, '003.png'))).toBe(false)
+    expect(fs.readFileSync(path.join(dir, 'source.pptx'), 'utf8')).toBe('ORIG')
+    expect(fs.readFileSync(path.join(dir, 'source.pdf'), 'utf8')).toBe('OLDPDF')
+    expect(fs.readFileSync(path.join(dir, 'thumbs', '001.jpg'), 'utf8')).toBe('oldthumb')
+    expect(fs.readdirSync(dir).filter((f) => f.startsWith('.'))).toEqual([])
+  })
+
+  it('refuses a deck that is not a PowerPoint deck and an empty slide list', () => {
+    const { lib, deck } = setup()
+    const pdf = lib.addDeck(lib.listEvents()[0].id, { ...deckInput(1), source: 'pdf' })
+    expect(() => lib.replaceDeckFiles(pdf.id, imported())).toThrow(/PowerPoint deck/)
+    expect(() => lib.replaceDeckFiles(deck.id, imported({ slides: [] }))).toThrow(/no slides/i)
+  })
+
+  it('isEdited is false until source differs from original; revertDeck gives the original to import', () => {
+    const { lib, deck, dir } = setup()
+    expect(lib.isEdited(deck.id)).toBe(false)
+    expect(() => lib.revertDeck(deck.id)).toThrow(/not been edited/)
+    lib.replaceDeckFiles(deck.id, imported())
+    expect(lib.isEdited(deck.id)).toBe(true)
+    const original = lib.revertDeck(deck.id)
+    expect(original).toBe(path.join(dir, 'original.pptx'))
+    // Reverting is complete once the original is installed as the new source.
+    const back = imported()
+    back.sourcePath = original
+    lib.replaceDeckFiles(deck.id, back)
+    expect(lib.isEdited(deck.id)).toBe(false)
+    expect(fs.readFileSync(path.join(dir, 'source.pptx'), 'utf8')).toBe('ORIG')
+    expect(fs.readFileSync(path.join(dir, 'original.pptx'), 'utf8')).toBe('ORIG')
+  })
+
+  it('isEdited is false for a deck without an imported file', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const d = lib.addDeck(ev.id, deckInput(1))
+    expect(lib.isEdited(d.id)).toBe(false)
+  })
+
+  it('beginEdit copies source to edit, reuses unsaved changes and discardEdit removes it', () => {
+    const { lib, deck, dir } = setup()
+    const first = lib.beginEdit(deck.id)
+    expect(first).toEqual({ file: path.join(dir, 'edit.pptx'), fresh: true })
+    expect(fs.readFileSync(first.file, 'utf8')).toBe('ORIG')
+    expect(lib.editChanged(deck.id)).toBe(false)
+    fs.writeFileSync(first.file, 'MY WORK')
+    expect(lib.editChanged(deck.id)).toBe(true)
+    expect(lib.beginEdit(deck.id)).toEqual({ file: first.file, fresh: false })
+    expect(fs.readFileSync(first.file, 'utf8')).toBe('MY WORK')
+    lib.discardEdit(deck.id)
+    expect(fs.existsSync(first.file)).toBe(false)
+    expect(lib.editChanged(deck.id)).toBe(false)
+  })
+
+  it('setPlayback still answers a friendly error for a wrong mode', () => {
+    const { lib, deck, evId } = setup()
+    expect(() => lib.setPlayback(evId, deck.id, 'sideways')).toThrow(
+      'The playback mode is not valid for this deck.'
+    )
   })
 })

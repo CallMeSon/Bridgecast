@@ -19,6 +19,8 @@ export class FakeEngine implements SlideShowEngine {
   maxOpen = 0
   opens: { deckId: string; file: string; canvas: Canvas }[] = []
   calls: string[] = []
+  /** Files opened with `edit`. */
+  edits: string[] = []
   shutdowns = 0
 
   constructor(private decks: () => DeckMeta[]) {}
@@ -65,6 +67,13 @@ export class FakeEngine implements SlideShowEngine {
 
   async ping(): Promise<void> {
     if (this.hung) return never()
+  }
+
+  async edit(file: string): Promise<void> {
+    this.calls.push('edit')
+    if (this.hung) return never()
+    if (this.crashed) throw new Error('engine crashed')
+    this.edits.push(file)
   }
 
   async shutdown(): Promise<void> {

@@ -300,4 +300,63 @@ describe('SlideShowManager', () => {
     await flush()
     expect(vi.getTimerCount()).toBe(0)
   })
+  describe('edit and suspend', () => {
+    it('edit opens the working copy through the engine', async () => {
+      await mgr.edit('/lib/edit.pptx')
+      expect(engine.edits).toEqual(['/lib/edit.pptx'])
+    })
+
+    it('edit says so when the engine cannot edit', async () => {
+      const plain = {
+        on: () => {},
+        open: async () => {
+          throw new Error('no')
+        },
+        shutdown: async () => {}
+      } as unknown as FakeEngine
+      const m = new SlideShowManager(
+        plain,
+        app,
+        () => decks,
+        () => canvas,
+        (id) => `${id}.pptx`
+      )
+      await expect(m.edit('/x')).rejects.toThrow(/not available/)
+      m.dispose()
+    })
+
+    it('suspend closes an off-air session and keeps it closed until resume', async () => {
+      app.dispatch({ type: 'selectDeck', deckId: 'a' })
+      await flush()
+      expect(mgr.ready('b')).toBe(true)
+      await mgr.suspend('b')
+      expect(mgr.ready('b')).toBe(false)
+      expect(engine.calls).toContain('close:b')
+      mgr.sync()
+      await flush()
+      expect(mgr.ready('b')).toBe(false)
+      const opens = engine.opens.length
+      mgr.resume('b')
+      await flush()
+      expect(engine.opens.length).toBe(opens + 1)
+      expect(mgr.ready('b')).toBe(true)
+    })
+
+    it('suspend of the deck on air falls back to images and resume brings native back', async () => {
+      await goLive('a')
+      await mgr.suspend('a')
+      expect(app.state.shown?.playback).toBe('images')
+      expect(mgr.ready('a')).toBe(false)
+      mgr.resume('a')
+      await flush()
+      await flush()
+      expect(mgr.ready('a')).toBe(true)
+      expect(app.state.shown?.playback).toBe('native')
+    })
+
+    it('suspend of a deck without a session returns at once', async () => {
+      await mgr.suspend('c')
+      mgr.resume('c')
+    })
+  })
 })

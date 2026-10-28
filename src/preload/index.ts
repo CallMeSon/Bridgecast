@@ -113,6 +113,15 @@ const api: Api = {
   requestSlideshowAudioPort: () => ipcRenderer.send(Send.slideshowAudioPortRequest),
   slideshowNote: () => invoke(Invoke.slideshowNote),
   onSlideshowNote: (cb) => subscribe(Broadcast.slideshowNote, cb),
+  editDeck: (deckId) => invoke(Invoke.deckEdit, deckId),
+  editDeckDone: (deckId) => invoke(Invoke.deckEditDone, deckId),
+  applyDeckNow: (deckId) => invoke(Invoke.deckApplyNow, deckId),
+  revertDeck: (deckId) => invoke(Invoke.deckRevert, deckId),
+  isDeckEdited: (deckId) => invoke(Invoke.deckIsEdited, deckId),
+  setDeckPlayback: (eventId, deckId, playback) =>
+    invoke(Invoke.deckSetPlayback, eventId, deckId, playback),
+  onDeckPending: (cb) => subscribe(Broadcast.deckPending, cb),
+  onDeckEditError: (cb) => subscribe(Broadcast.deckEditError, cb),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }
