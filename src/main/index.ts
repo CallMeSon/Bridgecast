@@ -29,6 +29,8 @@ import { PowerPointEngine, bridgeExePath } from './slideshow/powerpoint-engine'
 import { SlideSound } from './slideshow/audio-pipe'
 import { slideshowSourceId } from './slideshow/capture'
 import { importPptx, configureImport } from './import'
+import { importPptxPowerPoint } from './import/pptx'
+import { importPptxLibreOffice, installedFonts } from './import/libreoffice'
 import { detectEngine, probeLinux, type EngineInfo } from './platform'
 import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
@@ -61,9 +63,11 @@ import {
 import { CANVAS_INVALID, sanitizeCanvas, type Canvas } from '../shared/canvas'
 import {
   sanitizeAudio,
+  sanitizePptImportFormat,
   sanitizeSettings,
   type AudioSettings,
-  type HdmiSettings
+  type HdmiSettings,
+  type PptImportFormat
 } from '../shared/settings'
 import {
   Broadcast,
@@ -329,6 +333,8 @@ function registerIpc(
   // A folder of page-NN.png / page-NN.mp4 goes through the same queue.
   // Both the "Add files" dialog and drag and drop end up here.
   const jobEvent = new Map<string, string>()
+  // Import warnings (missing fonts): reported with the finished row.
+  const importWarnings = new Map<string, string>()
   // Re-exports of edited decks (Edit in PowerPoint, Revert) wait in the same queue: PowerPoint
   // runs one job at a time. Their result goes to the editor, not to the library list.
   const exportJobs = new Map<
@@ -344,7 +350,12 @@ function registerIpc(
       const exportJob = exportJobs.get(job.id)
       if (exportJob) {
         try {
-          exportJob.resolve(await importPptx(job.path, exportJob.outDir, IMPORT_WIDTH))
+          exportJob.resolve(
+            // An edit stays in the format the operator saved; Revert (original.*) converts again.
+            await importPptx(job.path, exportJob.outDir, IMPORT_WIDTH, {
+              keepFormat: /^edit\./i.test(path.basename(job.path))
+            })
+          )
         } catch (err) {
           exportJob.reject(err)
         }
@@ -372,6 +383,7 @@ function registerIpc(
           playback: defaultPlayback('pptx', deck.isStatic)
         })
         state.refresh()
+        if (deck.warning) importWarnings.set(job.id, deck.warning)
       } finally {
         fs.rmSync(out, { recursive: true, force: true })
       }
@@ -384,12 +396,15 @@ function registerIpc(
         return
       }
       if (status !== 'busy') jobEvent.delete(job.id)
+      const warning = status === 'done' ? importWarnings.get(job.id) : undefined
+      if (status !== 'busy') importWarnings.delete(job.id)
       progress({
         id: job.id,
         name: job.name,
         percent: status === 'busy' ? 10 : 100,
         status,
-        ...(error ? { message: error.message } : {})
+        ...(error ? { message: error.message } : {}),
+        ...(warning ? { message: warning } : {})
       })
     }
   )
@@ -620,6 +635,9 @@ function registerIpc(
     state.refresh()
     return saved
   })
+  handle(Invoke.importSetFormat, (format) =>
+    settings.savePptImportFormat(sanitizePptImportFormat(format))
+  )
   handle(Invoke.kvSet, (eventId, file) => {
     assertString(eventId, 'Event ID')
     assertString(file, 'File location')
@@ -853,6 +871,8 @@ interface SlideShowHost {
   sound: SlideSound
   /** Hands the current program state and sound settings to `sound`. */
   syncSound(): void
+  /** The bridge `import` command of the LibreOffice engine (rejects when there is none). */
+  libreOfficeImport(req: Record<string, unknown>): Promise<Record<string, unknown>>
   /** Session state of the native decks and the helper start failure. */
   status(): SlideshowStatus
 }
@@ -936,6 +956,10 @@ class SettingsStore {
   }
 
   /** Saves the machine default canvas (validated by the caller). */
+  savePptImportFormat(pptImportFormat: PptImportFormat): Settings {
+    return this.save({ ...this.settings, pptImportFormat })
+  }
+
   saveCanvas(canvas: Canvas): Settings {
     return this.save({ ...this.settings, canvas })
   }
@@ -1079,7 +1103,8 @@ function createSlideShow(
       resumable: Object.keys(decks).filter((id) => manager.fellBack(id) && manager.sessionOpen(id)),
       helperError:
         (engine instanceof PowerPointEngine ? engine.helperError : null) ??
-        (e2eFake ? null : (info.message ?? null))
+        (e2eFake ? null : (info.message ?? null)),
+      engine: e2eFake ? 'powerpoint' : info.engine
     }
   }
   let lastStatus = JSON.stringify(status())
@@ -1092,7 +1117,10 @@ function createSlideShow(
   }
   manager.onStatus(pushStatus)
   state.onChange(pushStatus)
-  return { engine, manager, sound, syncSound, status }
+  const libreOfficeImport = async (): Promise<Record<string, unknown>> => {
+    throw new Error('LibreOffice is not available. Restart PPT Share, then try again.')
+  }
+  return { engine, manager, sound, syncSound, status, libreOfficeImport }
 }
 
 /**
@@ -1209,7 +1237,6 @@ app.whenReady().then(async () => {
     sessionType: process.env['XDG_SESSION_TYPE'],
     ...(process.platform === 'linux' ? await probeLinux() : { hasSoffice: false, hasPyUno: false })
   })
-  configureImport({ engine: engineInfo, format: () => 'odp' })
   let lib: Library
   try {
     lib = new Library(root)
@@ -1237,6 +1264,16 @@ Location: ${root}`
     (deckId) => slides?.ready(deckId) ?? false
   )
   const slideShow = createSlideShow(lib, state, settings, engineInfo)
+  configureImport({
+    engine: engineInfo,
+    format: () => settings.get().pptImportFormat,
+    powerPoint: importPptxPowerPoint,
+    libreOffice: (file, outDir, width, opts) =>
+      importPptxLibreOffice(file, outDir, width, opts, {
+        bridgeImport: (req) => slideShow.libreOfficeImport(req),
+        installedFonts: installedFonts
+      })
+  })
   slides = slideShow.manager
   // The auto advance toggle is part of the program state; keep it saved.
   state.onChange((s) => {

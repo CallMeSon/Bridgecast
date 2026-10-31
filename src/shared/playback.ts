@@ -24,6 +24,9 @@ export function isPlayback(v: unknown): v is Playback {
 /** State of a native deck's slide show session. */
 export type EngineState = 'opening' | 'ready' | 'fallback'
 
+/** Which program plays and imports PowerPoint files on this computer. */
+export type EngineKind = 'powerpoint' | 'libreoffice' | 'none'
+
 /** What the operator window learns about the native slide shows (`slideshow:status`). */
 export interface SlideshowStatus {
   /** Per native deck. */
@@ -32,6 +35,8 @@ export interface SlideshowStatus {
   resumable: string[]
   /** The helper could not start (operator copy), or null. */
   helperError: string | null
+  /** The program that plays PowerPoint decks here (labels: Edit in ..., Resume ...). */
+  engine: EngineKind
 }
 
 /**

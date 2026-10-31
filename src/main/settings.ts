@@ -3,7 +3,13 @@ import { dirname } from 'path'
 import { randomUUID } from 'crypto'
 import { DEFAULT_CANVAS } from '../shared/canvas'
 import { DEFAULT_NDI, DEFAULT_OMT } from '../shared/omt'
-import { DEFAULT_AUDIO, DEFAULT_HDMI, sanitizeSettings, type Settings } from '../shared/settings'
+import {
+  DEFAULT_AUDIO,
+  DEFAULT_HDMI,
+  DEFAULT_PPT_IMPORT_FORMAT,
+  sanitizeSettings,
+  type Settings
+} from '../shared/settings'
 
 export type { Settings } from '../shared/settings'
 
@@ -14,7 +20,8 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   audio: DEFAULT_AUDIO,
   canvas: DEFAULT_CANVAS,
   omt: DEFAULT_OMT,
-  ndi: DEFAULT_NDI
+  ndi: DEFAULT_NDI,
+  pptImportFormat: DEFAULT_PPT_IMPORT_FORMAT
 })
 
 /**

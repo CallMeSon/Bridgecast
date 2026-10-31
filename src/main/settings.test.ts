@@ -23,7 +23,8 @@ describe('loadSettings / saveSettings', () => {
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'PPT Share', fps: 30 },
-      ndi: { enabled: false, name: 'PPT Share' }
+      ndi: { enabled: false, name: 'PPT Share' },
+      pptImportFormat: 'odp'
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
   })
@@ -35,7 +36,8 @@ describe('loadSettings / saveSettings', () => {
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: true, name: 'Aula', fps: 60 as const },
-      ndi: { enabled: true, name: 'Sala NDI' }
+      ndi: { enabled: true, name: 'Sala NDI' },
+      pptImportFormat: 'original' as const
     }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
@@ -79,7 +81,8 @@ describe('hdmi settings', () => {
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'PPT Share', fps: 30 },
-      ndi: { enabled: false, name: 'Aula' }
+      ndi: { enabled: false, name: 'Aula' },
+      pptImportFormat: 'odp'
     })
   })
 
@@ -92,7 +95,8 @@ describe('hdmi settings', () => {
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'PPT Share', fps: 30 },
-      ndi: { enabled: true, name: 'PPT Share' }
+      ndi: { enabled: true, name: 'PPT Share' },
+      pptImportFormat: 'odp'
     })
   })
 
@@ -303,5 +307,13 @@ describe('ndi setting', () => {
       enabled: true,
       name: 'PPT Share'
     })
+  })
+
+  it('defaults the Linux import format to odp and sanitizes bad values', () => {
+    expect(DEFAULT_SETTINGS.pptImportFormat).toBe('odp')
+    fs.writeFileSync(file, JSON.stringify({ pptImportFormat: 'docx' }))
+    expect(loadSettings(file).pptImportFormat).toBe('odp')
+    fs.writeFileSync(file, JSON.stringify({ pptImportFormat: 'original' }))
+    expect(loadSettings(file).pptImportFormat).toBe('original')
   })
 })

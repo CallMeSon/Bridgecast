@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import {
   DECK_NAME_MAX,
   KV_FILE_RE,
@@ -33,8 +33,14 @@ type DeckInput = {
     clicks?: number
     hidden?: boolean
   }[]
-  /** The imported file; stored as original.<ext> and source.<ext>. */
+  /** The working file; stored as source.<ext> (and as original.<ext> unless `originalPath` is set). */
   sourcePath?: string
+  /**
+   * The file the user imported, when `sourcePath` is a conversion of it (Linux: PowerPoint to
+   * .odp). Stored as original.<ext>, never modified. `source.pristine` then holds the hash of the
+   * converted file, so the deck is not "edited" just because it differs from the original.
+   */
+  originalPath?: string
   /** PDF export of a PowerPoint file; stored as source.pdf. */
   pdfPath?: string
   playback?: Playback
@@ -75,7 +81,14 @@ function writeJsonAtomic(file: string, data: unknown): void {
   }
 }
 
-const POWERPOINT_EXTS = ['.pptx', '.ppt']
+/** Files a deck's slide show can be made from (`.odp`: a PowerPoint file converted for LibreOffice). */
+const POWERPOINT_EXTS = ['.pptx', '.ppt', '.odp']
+
+const PRISTINE = 'source.pristine'
+
+function sha256File(file: string): string {
+  return createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+}
 
 /** True when both files have the same bytes (size first, then 1 MB at a time). */
 function sameFile(a: string, b: string): boolean {
@@ -316,8 +329,10 @@ export class Library {
       })
       if (d.sourcePath) {
         const ext = path.extname(d.sourcePath).toLowerCase()
-        fs.copyFileSync(d.sourcePath, path.join(dir, `original${ext}`))
+        const orig = d.originalPath ?? d.sourcePath
+        fs.copyFileSync(orig, path.join(dir, `original${path.extname(orig).toLowerCase()}`))
         fs.copyFileSync(d.sourcePath, path.join(dir, `source${ext}`))
+        if (d.originalPath) fs.writeFileSync(path.join(dir, PRISTINE), sha256File(d.sourcePath))
       }
       if (d.pdfPath) fs.copyFileSync(d.pdfPath, path.join(dir, 'source.pdf'))
       const deck: DeckMeta = {
@@ -757,7 +772,7 @@ export class Library {
   /** Path of the deck's PowerPoint working copy (`source.pptx` or `source.ppt`), the file the slide show opens. */
   sourceFilePath(deckId: string): string {
     const dir = this.deckDir(deckId)
-    for (const ext of ['.pptx', '.ppt']) {
+    for (const ext of POWERPOINT_EXTS) {
       const file = path.join(dir, `source${ext}`)
       if (fs.existsSync(file)) return file
     }
@@ -777,7 +792,17 @@ export class Library {
   isEdited(deckId: string): boolean {
     const original = this.deckFile(deckId, 'original')
     if (!original) return false
-    const source = path.join(path.dirname(original), `source${path.extname(original)}`)
+    const dir = path.dirname(original)
+    const pristine = path.join(dir, PRISTINE)
+    if (fs.existsSync(pristine)) {
+      // The working file is a conversion of the original: edited when it no longer is that conversion.
+      try {
+        return sha256File(this.sourceFilePath(deckId)) !== fs.readFileSync(pristine, 'utf8').trim()
+      } catch {
+        return true
+      }
+    }
+    const source = path.join(dir, `source${path.extname(original)}`)
     if (!fs.existsSync(source)) return true
     return !sameFile(original, source)
   }
@@ -914,6 +939,7 @@ export class Library {
         return meta
       })
       fs.copyFileSync(imported.sourcePath, path.join(stage, `source${ext}`))
+      if (imported.converted) fs.writeFileSync(path.join(stage, PRISTINE), sha256File(imported.sourcePath))
       if (imported.pdfPath) fs.copyFileSync(imported.pdfPath, path.join(stage, 'source.pdf'))
 
       const deck: DeckMeta = {

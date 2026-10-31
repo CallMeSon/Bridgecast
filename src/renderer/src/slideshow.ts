@@ -3,7 +3,7 @@ import { bumpVersion } from './model'
 import type { DeckEditErrorEvent } from '../../shared/ipc'
 import type { SlideshowStatus } from '../../shared/playback'
 
-const NONE: SlideshowStatus = { decks: {}, resumable: [], helperError: null }
+const NONE: SlideshowStatus = { decks: {}, resumable: [], helperError: null, engine: 'powerpoint' }
 
 /**
  * What the operator window knows about native decks: each session's state, decks whose edit

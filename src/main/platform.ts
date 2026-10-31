@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process'
 
-/** Which program plays and imports PowerPoint files on this computer. */
-export type EngineKind = 'powerpoint' | 'libreoffice' | 'none'
+import type { EngineKind } from '../shared/playback'
+
+export type { EngineKind }
 
 export const INSTALL_LIBREOFFICE =
   'Install LibreOffice Impress and python3-uno to import PowerPoint files, or export the file to PDF and import the PDF.'

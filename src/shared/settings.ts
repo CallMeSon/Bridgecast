@@ -30,6 +30,19 @@ export interface AudioSettings {
   route: AudioRoute
 }
 
+/**
+ * Linux only: what happens to a PowerPoint file (.pptx/.ppt) when it is imported. `odp` converts
+ * it to a LibreOffice presentation (.odp) that becomes the deck's working copy; `original` keeps
+ * the PowerPoint file as imported. The imported file itself is always stored unchanged.
+ */
+export type PptImportFormat = 'odp' | 'original'
+
+export const DEFAULT_PPT_IMPORT_FORMAT: PptImportFormat = 'odp'
+
+export function sanitizePptImportFormat(raw: unknown): PptImportFormat {
+  return raw === 'original' || raw === 'odp' ? raw : DEFAULT_PPT_IMPORT_FORMAT
+}
+
 export interface Settings {
   hdmi: HdmiSettings
   /** Next/Prev may leave the live deck (see ProgramState.autoAdvance). Default off. */
@@ -41,6 +54,8 @@ export interface Settings {
   omt: OmtSettings
   /** NDI network output. */
   ndi: NdiSettings
+  /** Linux: convert imported PowerPoint files to .odp (default) or keep them as imported. */
+  pptImportFormat: PptImportFormat
 }
 
 export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
@@ -100,6 +115,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     audio: sanitizeAudio(r.audio),
     canvas: sanitizeCanvas(r.canvas) ?? { ...DEFAULT_CANVAS },
     omt: sanitizeOmt(r.omt),
-    ndi: sanitizeNdi(r.ndi)
+    ndi: sanitizeNdi(r.ndi),
+    pptImportFormat: sanitizePptImportFormat(r.pptImportFormat)
   }
 }

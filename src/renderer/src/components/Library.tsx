@@ -54,6 +54,8 @@ import {
 import { orderItems, type OrderItem } from '../../../shared/sections'
 import { onMenuKeyDown, useContextMenu } from './menuNav'
 import { DeckSound } from './DeckSound'
+import { ImportFormat } from './ImportFormat'
+import type { PptImportFormat } from '../../../shared/settings'
 import { AddWebDialog } from './AddWebDialog'
 import { SectionMenu, SectionRenameRow, SectionRow, type SectionMenuAt } from './SectionRow'
 
@@ -82,6 +84,8 @@ interface Props {
   onSelectDeck(deckId: string): void
   onDismissImport(id: string): void
   onFiles(files: File[]): void
+  /** Linux only (LibreOffice engine): what an imported PowerPoint file becomes; absent elsewhere. */
+  importFormat?: { value: PptImportFormat; onChange(v: PptImportFormat): void }
   /** Indices are into the ordered list of decks and sections (`orderItems`). */
   onMoveItem(from: number, to: number): void
   onRemoveDeck(deckId: string): void
@@ -1210,6 +1214,9 @@ export function Library(p: Props): React.JSX.Element {
             ? 'Or drag .pptx, .ppt, or .pdf files into this window.'
             : 'Create an event in the Event menu to enable importing.'}
         </p>
+        {p.importFormat && (
+          <ImportFormat value={p.importFormat.value} onChange={p.importFormat.onChange} />
+        )}
       </div>
       <input
         ref={input}

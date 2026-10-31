@@ -1326,4 +1326,78 @@ describe('Library replaceDeckFiles, revertDeck and isEdited', () => {
       'The playback mode is not valid for this deck.'
     )
   })
+
+  it('odp conversion: original.pptx stays, source.odp is the working copy, and it is not "edited" until it changes', () => {
+    const orig = path.join(src, 'client.pptx')
+    const odp = path.join(src, 'client.odp')
+    fs.writeFileSync(orig, 'PPTX')
+    fs.writeFileSync(odp, 'ODP')
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const deck = lib.addDeck(ev.id, {
+      ...deckInput(1),
+      sourcePath: odp,
+      originalPath: orig,
+      playback: 'native'
+    })
+    const dir = path.join(root, 'decks', deck.id)
+    expect(fs.readFileSync(path.join(dir, 'original.pptx'), 'utf8')).toBe('PPTX')
+    expect(fs.readFileSync(path.join(dir, 'source.odp'), 'utf8')).toBe('ODP')
+    expect(lib.sourceFilePath(deck.id)).toBe(path.join(dir, 'source.odp'))
+    expect(lib.isEdited(deck.id)).toBe(false)
+    expect(() => lib.revertDeck(deck.id)).toThrow(/not been edited/)
+    // an edit saved in the working copy
+    fs.writeFileSync(path.join(dir, 'source.odp'), 'ODP EDITED')
+    expect(lib.isEdited(deck.id)).toBe(true)
+    expect(lib.revertDeck(deck.id)).toBe(path.join(dir, 'original.pptx'))
+    expect(fs.readFileSync(path.join(dir, 'original.pptx'), 'utf8')).toBe('PPTX')
+  })
+
+  it('replaceDeckFiles with a fresh conversion (Revert) makes the deck unedited again', () => {
+    const orig = path.join(src, 'client.pptx')
+    const odp = path.join(src, 'client.odp')
+    fs.writeFileSync(orig, 'PPTX')
+    fs.writeFileSync(odp, 'ODP')
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const deck = lib.addDeck(ev.id, { ...deckInput(1), sourcePath: odp, originalPath: orig })
+    const dir = path.join(root, 'decks', deck.id)
+    // an edit is applied as a normal (non-converted) replacement of source.odp
+    const edited = path.join(src, 'edit.odp')
+    fs.writeFileSync(edited, 'ODP EDITED')
+    const png = path.join(src, 'n.png')
+    fs.writeFileSync(png, 'N')
+    const base = {
+      name: 'x',
+      width: 10,
+      height: 10,
+      slides: [{ pngPath: png, notes: '', clicks: 0, hidden: false }],
+      pdfPath: '',
+      isStatic: false
+    }
+    lib.replaceDeckFiles(deck.id, { ...base, sourcePath: edited })
+    expect(lib.isEdited(deck.id)).toBe(true)
+    // Revert: the original is converted again; the new conversion is the pristine one
+    const again = path.join(src, 'again.odp')
+    fs.writeFileSync(again, 'ODP AGAIN')
+    lib.replaceDeckFiles(deck.id, {
+      ...base,
+      sourcePath: again,
+      originalPath: orig,
+      converted: true
+    })
+    expect(fs.readFileSync(path.join(dir, 'source.odp'), 'utf8')).toBe('ODP AGAIN')
+    expect(fs.readFileSync(path.join(dir, 'original.pptx'), 'utf8')).toBe('PPTX')
+    expect(lib.isEdited(deck.id)).toBe(false)
+  })
+
+  it('keeping the PowerPoint format: no pristine marker, same rule as before', () => {
+    const orig = path.join(src, 'client.pptx')
+    fs.writeFileSync(orig, 'PPTX')
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const deck = lib.addDeck(ev.id, { ...deckInput(1), sourcePath: orig })
+    expect(fs.existsSync(path.join(root, 'decks', deck.id, 'source.pristine'))).toBe(false)
+    expect(lib.isEdited(deck.id)).toBe(false)
+  })
 })

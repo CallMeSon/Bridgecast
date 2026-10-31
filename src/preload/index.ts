@@ -63,6 +63,7 @@ const api: Api = {
   setDeckAudio: (eventId, deckId, audio) => invoke(Invoke.decksSetAudio, eventId, deckId, audio),
   setEventCanvas: (eventId, canvas) => invoke(Invoke.eventsSetCanvas, eventId, canvas),
   setDefaultCanvas: (canvas) => invoke(Invoke.canvasSetDefault, canvas),
+  setImportFormat: (format) => invoke(Invoke.importSetFormat, format),
   setKv: (eventId, path) => invoke(Invoke.kvSet, eventId, path),
   clearKv: (eventId) => invoke(Invoke.kvClear, eventId),
   dispatch: (action) => invoke(Invoke.programDispatch, action),

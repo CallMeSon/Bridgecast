@@ -13,7 +13,7 @@ export const EDIT_FAILED =
 export const REVERT_FAILED =
   'The imported file could not be restored. The previous version is still used. Try Revert again.'
 
-const EDIT_FILE_RE = /^edit\.(pptx|ppt)$/i
+const EDIT_FILE_RE = /^edit\.(pptx|ppt|odp)$/i
 
 /** The parts of the library the editor uses. */
 export type EditorLibrary = Pick<

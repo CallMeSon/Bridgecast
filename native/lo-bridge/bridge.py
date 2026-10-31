@@ -15,12 +15,14 @@ import ctypes
 import json
 import os
 import queue
+import re
 import shutil
 import signal
 import subprocess
 import sys
 import threading
 import time
+import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from steps import StepCounter  # noqa: E402
@@ -186,6 +188,76 @@ def node_types(page):
 
 def click_count(page):
     return sum(1 for t in node_types(page) if t == 1)
+
+
+# ---------------------------------------------------------------------------------------------
+# import helpers
+
+
+def pptx_fonts(path):
+    """Font names from the `typeface` attributes of a .pptx (theme, masters, layouts, slides).
+
+    Theme placeholders (`+mn-lt`, ...) are left out. A .ppt (binary) or a file that is not a zip
+    gives [].
+    """
+    if not path.lower().endswith('.pptx'):
+        return []
+    names = set()
+    try:
+        with zipfile.ZipFile(path) as z:
+            for n in z.namelist():
+                if not n.endswith('.xml') or not re.match(
+                    r'ppt/(theme|slideMasters|slideLayouts|slides|notesSlides)/', n
+                ):
+                    continue
+                text = z.read(n).decode('utf-8', 'replace')
+                for m in re.finditer(r'typeface="([^"]*)"', text):
+                    name = m.group(1).strip()
+                    if name and not name.startswith('+'):
+                        names.add(name)
+    except (zipfile.BadZipFile, OSError, KeyError) as e:
+        log('fonts not read:', e)
+        return []
+    return sorted(names)
+
+
+def has_media(shape):
+    try:
+        if shape.getShapeType() == 'com.sun.star.drawing.MediaShape':
+            return True
+        if shape.getShapeType() == 'com.sun.star.drawing.GroupShape':
+            return any(has_media(shape.getByIndex(i)) for i in range(shape.getCount()))
+    except Exception:  # noqa: BLE001
+        pass
+    return False
+
+
+def page_is_static(page, nodes):
+    """No animation, no transition, no media (the PowerPoint import's rule)."""
+    # 5 = timing root and 4 = main sequence exist on every slide; anything else is an effect
+    if any(t not in (4, 5) for t in nodes):
+        return False
+    try:
+        if page.getPropertyValue('TransitionType') != 0:
+            return False
+        if page.getPropertyValue('Change') != 0:  # timed advance
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+    return not any(has_media(page.getByIndex(i)) for i in range(page.getCount()))
+
+
+def notes_text(page):
+    try:
+        notes = page.getNotesPage()
+        out = []
+        for i in range(notes.getCount()):
+            sh = notes.getByIndex(i)
+            if sh.getShapeType() == 'com.sun.star.presentation.NotesShape':
+                out.append(sh.getString())
+        return '\n'.join(t for t in out if t)
+    except Exception:  # noqa: BLE001
+        return ''
 
 
 # ---------------------------------------------------------------------------------------------
@@ -370,6 +442,7 @@ class Bridge:
             'close': self.cmd_close,
             'edit': self.cmd_edit,
             'setVolume': self.cmd_set_volume,
+            'import': self.cmd_import,
         }
 
     # -- plumbing ------------------------------------------------------------------------------
@@ -635,6 +708,115 @@ class Bridge:
         subprocess.Popen([exe, '--impress', path], env=env, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         return {}
+
+    def cmd_import(self, req):
+        """Opens a PowerPoint file hidden and returns what the app needs to make a deck of it.
+
+        `format` odp: the file is saved as `<outDir>/<name>.odp` first and everything below is read
+        from that copy, because that is the file the slide show will play. The imported file itself
+        is never written.
+        """
+        path, out_dir = req.get('path'), req.get('outDir')
+        fmt = req.get('format') if req.get('format') in ('odp', 'original') else 'original'
+        width = int(req.get('width') or 1920)
+        if isinstance(path, str) and path.lower().endswith('.odp'):
+            fmt = 'original'  # already a LibreOffice file: nothing to convert
+        if not isinstance(path, str) or not os.path.isfile(path):
+            raise BridgeError('notfound', 'File not found. Check the file location, then choose it again.')
+        if not isinstance(out_dir, str):
+            raise BridgeError('args', 'outDir is required.')
+        os.makedirs(out_dir, exist_ok=True)
+        desktop = self.office.ensure()
+        uno = self.office.uno
+        fonts = pptx_fonts(path)
+        name = os.path.splitext(os.path.basename(path))[0]
+
+        def load(p):
+            try:
+                doc = desktop.loadComponentFromURL(
+                    uno.systemPathToFileUrl(p), '_blank', 0,
+                    (prop('Hidden', True), prop('ReadOnly', True), prop('MacroExecutionMode', 0),
+                     prop('UpdateDocMode', 0)),
+                )
+            except Exception as e:  # noqa: BLE001
+                log('import load failed: %r' % e)
+                doc = None
+            if doc is None or not hasattr(doc, 'getDrawPages'):
+                if doc is not None:
+                    try:
+                        doc.close(True)
+                    except Exception:  # noqa: BLE001
+                        pass
+                raise BridgeError('open', OPEN_FAILED)
+            return doc
+
+        doc = load(path)
+        working = path
+        try:
+            if fmt == 'odp':
+                working = os.path.join(out_dir, name + '.odp')
+                try:
+                    doc.storeToURL(uno.systemPathToFileUrl(working), (prop('FilterName', 'impress8'),))
+                except Exception as e:  # noqa: BLE001
+                    log('odp conversion failed: %r' % e)
+                    raise BridgeError('open', OPEN_FAILED)
+                doc.close(True)
+                doc = load(working)
+            pages = doc.getDrawPages()
+            n = pages.getCount()
+            if n == 0:
+                raise BridgeError('open', 'No slides were exported. Make sure the file contains slides, then try again.')
+            first = pages.getByIndex(0)
+            pw, ph = int(first.Width), int(first.Height)
+            if pw <= 0 or ph <= 0:
+                raise BridgeError('open', OPEN_FAILED)
+            height = max(1, int(round(width * ph / pw)))
+            notes, clicks, hidden = [], [], []
+            static = True
+            for i in range(n):
+                page = pages.getByIndex(i)
+                nodes = node_types(page)
+                clicks.append(sum(1 for t in nodes if t == 1))
+                if not page_is_static(page, nodes):
+                    static = False
+                try:
+                    hidden.append(not bool(page.getPropertyValue('Visible')))
+                except Exception:  # noqa: BLE001
+                    hidden.append(False)
+                notes.append(notes_text(page))
+            pdf = os.path.join(out_dir, 'source.pdf')
+            fd = uno.Any('[]com.sun.star.beans.PropertyValue', (prop('ExportHiddenSlides', True),))
+            doc.storeToURL(uno.systemPathToFileUrl(pdf),
+                           (prop('FilterName', 'impress_pdf_Export'), prop('FilterData', fd)))
+            exporter = self.office.ctx.ServiceManager.createInstanceWithContext(
+                'com.sun.star.drawing.GraphicExportFilter', self.office.ctx
+            )
+            size = uno.Any('[]com.sun.star.beans.PropertyValue',
+                           (prop('PixelWidth', width), prop('PixelHeight', height)))
+            pngs = []
+            for i in range(n):
+                png = os.path.join(out_dir, '%03d.png' % (i + 1))
+                exporter.setSourceDocument(pages.getByIndex(i))
+                exporter.filter((prop('URL', uno.systemPathToFileUrl(png)),
+                                 prop('MediaType', 'image/png'), prop('FilterData', size)))
+                if not os.path.isfile(png):
+                    raise BridgeError('export', 'LibreOffice could not export the slides. Make sure the file is not damaged and there is enough disk space, then try again.')
+                pngs.append(png)
+        except BridgeError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            log('import failed: %r' % e)
+            raise BridgeError('open', OPEN_FAILED)
+        finally:
+            try:
+                doc.close(True)
+            except Exception:  # noqa: BLE001
+                pass
+        return {
+            'name': name, 'width': width, 'height': height, 'pdf': pdf, 'pngs': pngs,
+            'notes': notes, 'clicks': clicks, 'hidden': hidden, 'isStatic': static,
+            'fonts': fonts, 'source': working,
+        }
 
     def cmd_set_volume(self, req):
         return {'applied': 'ignored'}  # the level is applied in the output window

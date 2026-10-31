@@ -2279,3 +2279,18 @@ footer .empty {
   text-align: right;
   min-width: 0;
 }
+
+/* Linux: what an imported PowerPoint file becomes */
+.import-format {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.import-format-label {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.add .import-format p {
+  margin-top: 0;
+}

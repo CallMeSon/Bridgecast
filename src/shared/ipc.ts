@@ -2,7 +2,7 @@ import type { DeckMeta, EventMeta, Playback } from './types'
 import type { OrderItem } from './sections'
 import type { Action, ProgramState } from './program'
 import type { NdiSettings, NdiStatus, OmtSettings, OmtStatus } from './omt'
-import type { AudioSettings, HdmiSettings, Settings } from './settings'
+import type { AudioSettings, HdmiSettings, PptImportFormat, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
 import type { DeckAudio } from './audio-levels'
@@ -25,6 +25,7 @@ export const Invoke = {
   decksSetAudio: 'decks:setAudio',
   eventsSetCanvas: 'events:setCanvas',
   canvasSetDefault: 'canvas:setDefault',
+  importSetFormat: 'import:setFormat',
   sectionsAdd: 'sections:add',
   sectionsRename: 'sections:rename',
   sectionsRemove: 'sections:remove',
@@ -198,6 +199,8 @@ export interface InvokeMap {
   'events:setCanvas': { args: [eventId: string, canvas: Canvas | null]; result: EventMeta }
   /** Machine default canvas; sanitized, saved, then applied to every event without an override. */
   'canvas:setDefault': { args: [canvas: Canvas]; result: Settings }
+  /** Linux: what to do with imported PowerPoint files (.odp or as imported); saved, applies to the next import. */
+  'import:setFormat': { args: [format: PptImportFormat]; result: Settings }
   'sections:add': {
     args: [eventId: string, at: number | 'end']
     result: { event: EventMeta; sectionId: string }
@@ -351,6 +354,7 @@ export interface Api {
   setEventCanvas(eventId: string, canvas: Canvas | null): Promise<EventMeta>
   /** Machine default canvas size; validated in main. */
   setDefaultCanvas(canvas: Canvas): Promise<Settings>
+  setImportFormat(format: PptImportFormat): Promise<Settings>
   /** Set the event's KV image from an absolute path (`pathForFile`); validated in main. */
   setKv(eventId: string, path: string): Promise<EventMeta>
   clearKv(eventId: string): Promise<EventMeta>

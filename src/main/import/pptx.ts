@@ -11,8 +11,12 @@ export type ImportedDeck = {
   pdfPath: string
   /** No animation, transition or media anywhere in the deck. */
   isStatic: boolean
-  /** The imported file (kept as original.pptx / source.pptx). */
+  /** The working file (kept as source.<ext>; also original.<ext> unless `originalPath` is set). */
   sourcePath: string
+  /** The imported file when `sourcePath` is a conversion of it (Linux: .odp). */
+  originalPath?: string
+  /** `sourcePath` is a fresh conversion of the imported file (not an edit of it). */
+  converted?: boolean
 }
 
 export interface Manifest {

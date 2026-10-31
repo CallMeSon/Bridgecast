@@ -19,6 +19,7 @@ import { CaptureWarning } from './components/CaptureWarning'
 import { HoldWarning } from './components/HoldWarning'
 import { EditErrorBanner, NativeFallbackWarning, PendingBanner } from './components/NativeNotices'
 import { useSlideshow } from './slideshow'
+import type { PptImportFormat } from '../../shared/settings'
 import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import type { StreamOptions } from './components/SlideLayers'
@@ -139,7 +140,12 @@ function App(): React.JSX.Element {
   useEffect(() => {
     const offState = api.onProgramState(setProgram)
     const offProgress = api.onImportProgress((p) => {
-      upsertImport(p)
+      // A finished import with a message is a warning (missing fonts): keep its row until dismissed.
+      upsertImport(
+        p.status === 'done' && p.message
+          ? { ...p, status: 'error', meta: 'Imported, check the fonts' }
+          : p
+      )
       if (p.status === 'done') reloadDecks(eventRef.current).catch((e) => reportError(p.name, e))
     })
     ;(async () => {
@@ -618,6 +624,24 @@ function App(): React.JSX.Element {
   // Web deck pages: the monitor shows the live one (video only, 30 fps). While no
   // output is active this window is the one whose first frames open the ready gate.
   const pages = useWebPages()
+  const [importFormat, setImportFormat] = useState<PptImportFormat>('odp')
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((s) => setImportFormat(s.pptImportFormat))
+      .catch((e: unknown) => console.warn('[settings] import format failed to load:', e))
+  }, [api])
+  const changeImportFormat = useCallback(
+    (format: PptImportFormat) => {
+      const before = importFormat
+      setImportFormat(format)
+      api.setImportFormat(format).catch((e) => {
+        setImportFormat(before)
+        reportError('Import format', e)
+      })
+    },
+    [api, importFormat, reportError]
+  )
   const slideshow = useSlideshow(
     useCallback(() => {
       // The deck's files were replaced: read slides, clicks and hidden flags again.
@@ -748,6 +772,11 @@ function App(): React.JSX.Element {
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}
           onDismissImport={(id) => setImports((xs) => xs.filter((x) => x.id !== id))}
           onFiles={importFiles}
+          importFormat={
+            slideshow.status.engine === 'libreoffice'
+              ? { value: importFormat, onChange: changeImportFormat }
+              : undefined
+          }
           onMoveItem={moveListItem}
           sections={sections}
           onAddSection={addSection}
