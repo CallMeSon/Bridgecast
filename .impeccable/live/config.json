@@ -1,0 +1,6 @@
+{
+  "files": ["mockups/operator-redesign/index.html"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}

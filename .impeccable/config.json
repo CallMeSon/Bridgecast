@@ -17,6 +17,15 @@
         "value": "geist",
         "createdAt": "2026-10-30T10:26:49.325Z",
         "reason": "Geist is the project's existing bundled UI font in DESIGN.md; the redesign keeps it, user did not ask to change the typeface"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "mockups/operator-redesign/index.html"
+        ],
+        "createdAt": "2026-10-31T16:33:02.854Z",
+        "reason": "user confirmed: .seg 3px inset, .tabs and .sec 48px header buttons are deliberate; detector gives no per-value key"
       }
     ]
   }
