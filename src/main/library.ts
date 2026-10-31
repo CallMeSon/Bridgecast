@@ -8,6 +8,7 @@ import {
   KV_MIME,
   type DeckMeta,
   type EventMeta,
+  type EventSummary,
   type Playback,
   type SectionMeta,
   type SlideMeta
@@ -170,6 +171,12 @@ export class Library {
           if (canvas) ev.canvas = canvas
           else delete ev.canvas
         }
+        const e = ev as { createdAt?: unknown; lastOpened?: unknown; archived?: unknown }
+        for (const k of ['createdAt', 'lastOpened'] as const) {
+          const v = e[k]
+          if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) delete e[k]
+        }
+        if (e.archived !== true) delete e.archived
       }
       return events
     } catch {
@@ -232,10 +239,16 @@ export class Library {
     writeJsonAtomic(path.join(this.deckDir(deck.id), 'deck.json'), deck)
   }
 
-  createEvent(name: string): EventMeta {
+  createEvent(name: string, now = Date.now()): EventMeta {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Event name is empty. Type a name for the event.')
-    const ev: EventMeta = { id: randomUUID(), name: trimmed, deckIds: [] }
+    const ev: EventMeta = {
+      id: randomUUID(),
+      name: trimmed,
+      deckIds: [],
+      createdAt: now,
+      lastOpened: now
+    }
     this.events.push(ev)
     this.saveEvents()
     return copyEvent(ev)
@@ -243,6 +256,52 @@ export class Library {
 
   listEvents(): EventMeta[] {
     return this.events.map(copyEvent)
+  }
+
+  touchEvent(eventId: string, now = Date.now()): EventMeta {
+    const ev = this.findEvent(eventId)
+    ev.lastOpened = now
+    this.saveEvents()
+    return copyEvent(ev)
+  }
+
+  setArchived(eventId: string, archived: boolean): EventMeta {
+    const ev = this.findEvent(eventId)
+    if (archived) ev.archived = true
+    else delete ev.archived
+    this.saveEvents()
+    return copyEvent(ev)
+  }
+
+  eventOfDeck(deckId: string): string | null {
+    return this.events.find((e) => e.deckIds.includes(deckId))?.id ?? null
+  }
+
+  eventSummaries(): EventSummary[] {
+    return this.events.map((ev) => {
+      const decks: DeckMeta[] = []
+      for (const id of ev.deckIds) {
+        try {
+          decks.push(this.readDeck(id))
+        } catch {
+          // A deck folder removed by hand must not break Home.
+        }
+      }
+      const withSlide = decks.find((d) => d.slides.length > 0)
+      return {
+        id: ev.id,
+        deckCount: decks.length,
+        deckNames: decks.map((d) => d.name),
+        hasWeb: decks.some((d) => d.source === 'web'),
+        first: withSlide
+          ? {
+              deckId: withSlide.id,
+              file: withSlide.slides[0].file,
+              web: withSlide.source === 'web'
+            }
+          : null
+      }
+    })
   }
 
   getDecks(eventId: string): DeckMeta[] {

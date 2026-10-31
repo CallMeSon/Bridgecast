@@ -4,7 +4,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { randomUUID } from 'crypto'
 import { Library } from './library'
-import { DECK_NAME_MAX, type DeckMeta, type EventMeta } from '../shared/types'
+import { DECK_NAME_MAX, type DeckMeta, type EventMeta, type EventSummary } from '../shared/types'
 import { orderItems } from '../shared/sections'
 import { CANVAS_INVALID } from '../shared/canvas'
 
@@ -1399,5 +1399,106 @@ describe('Library replaceDeckFiles, revertDeck and isEdited', () => {
     const deck = lib.addDeck(ev.id, { ...deckInput(1), sourcePath: orig })
     expect(fs.existsSync(path.join(root, 'decks', deck.id, 'source.pristine'))).toBe(false)
     expect(lib.isEdited(deck.id)).toBe(false)
+  })
+})
+
+describe('Library event fields and summaries', () => {
+  const writeEvents = (events: unknown[]): void => {
+    fs.mkdirSync(path.join(root, 'decks'), { recursive: true })
+    fs.writeFileSync(path.join(root, 'events.json'), JSON.stringify(events))
+  }
+  const base = (extra: object = {}): object => ({
+    id: randomUUID(),
+    name: 'E',
+    deckIds: [],
+    ...extra
+  })
+  const noThumb = (s: string, d: string): void => fs.copyFileSync(s, d)
+
+  it('loads an old events.json without the new fields', () => {
+    writeEvents([base()])
+    const [ev] = new Library(root).listEvents()
+    expect(ev).not.toHaveProperty('createdAt')
+    expect(ev).not.toHaveProperty('lastOpened')
+    expect(ev).not.toHaveProperty('archived')
+  })
+
+  it('drops wrong types and keeps valid values', () => {
+    writeEvents([
+      base({ lastOpened: 'yesterday', createdAt: null, archived: 1 }),
+      base({ archived: false }),
+      base({ lastOpened: 1730000000000, archived: true })
+    ])
+    const [a, b, c] = new Library(root).listEvents()
+    for (const ev of [a, b]) {
+      expect(ev).not.toHaveProperty('createdAt')
+      expect(ev).not.toHaveProperty('lastOpened')
+      expect(ev).not.toHaveProperty('archived')
+    }
+    expect(c.lastOpened).toBe(1730000000000)
+    expect(c.archived).toBe(true)
+  })
+
+  it('stamps createdAt and lastOpened, and touchEvent persists', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('A', 5)
+    expect(ev.createdAt).toBe(5)
+    expect(ev.lastOpened).toBe(5)
+    expect(lib.touchEvent(ev.id, 9).lastOpened).toBe(9)
+    expect(new Library(root).listEvents()[0].lastOpened).toBe(9)
+  })
+
+  it('setArchived sets and removes the key', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('A')
+    expect(lib.setArchived(ev.id, true).archived).toBe(true)
+    lib.setArchived(ev.id, false)
+    const raw = JSON.parse(fs.readFileSync(path.join(root, 'events.json'), 'utf8'))
+    expect(raw[0]).not.toHaveProperty('archived')
+  })
+
+  it('touchEvent and setArchived throw on an unknown id', () => {
+    const lib = new Library(root)
+    expect(() => lib.touchEvent(randomUUID())).toThrow('Event not found')
+    expect(() => lib.setArchived(randomUUID(), true)).toThrow('Event not found')
+  })
+
+  it('eventOfDeck finds the owner, else null', () => {
+    const lib = new Library(root, noThumb)
+    const ev = lib.createEvent('A')
+    const deck = lib.addDeck(ev.id, deckInput(1))
+    expect(lib.eventOfDeck(deck.id)).toBe(ev.id)
+    expect(lib.eventOfDeck(randomUUID())).toBeNull()
+    lib.removeDeck(ev.id, deck.id)
+    expect(lib.eventOfDeck(deck.id)).toBeNull()
+  })
+
+  it('eventSummaries covers empty, pdf, web and missing-folder events', () => {
+    const lib = new Library(root, noThumb)
+    const empty = lib.createEvent('Empty')
+    const pdf = lib.createEvent('Pdf')
+    const d1 = lib.addDeck(pdf.id, { ...deckInput(2, 'P'), source: 'pdf' })
+    const web = lib.createEvent('Web')
+    const snap = path.join(src, 'snap.png')
+    fs.writeFileSync(snap, 'snap')
+    const w = lib.addWebDeck(web.id, {
+      name: 'W',
+      url: 'https://example.com/x',
+      snapshotPath: snap,
+      width: 1920,
+      height: 1080
+    })
+    const broken = lib.createEvent('Broken')
+    const d2 = lib.addDeck(broken.id, deckInput(1, 'Gone'))
+    fs.rmSync(path.join(root, 'decks', d2.id), { recursive: true, force: true })
+
+    const s: EventSummary[] = lib.eventSummaries()
+    expect(s.map((x) => x.id)).toEqual([empty.id, pdf.id, web.id, broken.id])
+    expect(s[0]).toMatchObject({ deckCount: 0, first: null, hasWeb: false })
+    expect(s[1]).toMatchObject({ deckCount: 1, deckNames: ['P'], hasWeb: false })
+    expect(s[1].first).toEqual({ deckId: d1.id, file: '001.png', web: false })
+    expect(s[2].hasWeb).toBe(true)
+    expect(s[2].first).toEqual({ deckId: w.id, file: '001.png', web: true })
+    expect(s[3]).toMatchObject({ deckCount: 0, first: null })
   })
 })

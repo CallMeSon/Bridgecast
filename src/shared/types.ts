@@ -57,6 +57,22 @@ export interface EventMeta {
   kv?: string
   /** Output canvas for this event; absent = the machine default. */
   canvas?: Canvas
+  /** Creation time, ms since epoch; absent on events made before this field existed. */
+  createdAt?: number
+  /** Last time the operator opened the event, ms since epoch. */
+  lastOpened?: number
+  /** Hidden from Recent; absent = not archived (never stored as false). */
+  archived?: true
+}
+
+/** What Home needs to draw an event card. */
+export interface EventSummary {
+  id: string
+  deckCount: number
+  deckNames: string[]
+  hasWeb: boolean
+  /** First slide of the first deck that has one (a web deck's snapshot counts). */
+  first: { deckId: string; file: string; web: boolean } | null
 }
 
 /** Largest KV image accepted, in bytes (50 MB). */
