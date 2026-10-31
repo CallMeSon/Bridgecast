@@ -193,7 +193,36 @@ namespace PptBridge
                 Watch(main, true);
                 ReportApp(pid);
             }
-            catch (Exception e) { Io.Log("app hwnd: " + Clean(e)); }
+            catch (Exception e)
+            {
+                // Application.HWND can fail right after the process starts; the process id is enough to report.
+                Io.Log("app hwnd: " + Clean(e));
+                try
+                {
+                    var ps = Process.GetProcessesByName("POWERPNT");
+                    if (ps.Length > 0) ReportApp((uint)ps[0].Id);
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>
+        /// SlideShowWindow has no HWND member in current PowerPoint, so the window is found by class
+        /// (PPTFrameClass) among the PowerPoint processes, skipping windows of other sessions. Opens are
+        /// serialized, so the one window not yet claimed is the new show (retried while it appears).
+        /// </summary>
+        IntPtr FindShowWindow()
+        {
+            var pids = new HashSet<uint>();
+            foreach (var p in Process.GetProcessesByName("POWERPNT")) pids.Add((uint)p.Id);
+            var taken = new HashSet<IntPtr>();
+            foreach (var other in sessions.Values) if (other.Hwnd != IntPtr.Zero) taken.Add(other.Hwnd);
+            for (int i = 0; i < 40; i++)
+            {
+                foreach (var h in Native.ShowWindows(pids)) if (!taken.Contains(h)) return h;
+                System.Threading.Thread.Sleep(50);
+            }
+            throw new BridgeException("open", "The slide show window was not found.");
         }
 
         /// <summary>Tells the app which PowerPoint process this is and whether the bridge launched it (once).</summary>
@@ -316,7 +345,7 @@ namespace PptBridge
                     throw new BridgeException("open", "The slide show window could not be sized to the Canvas: " + Clean(e));
                 }
 
-                s.Hwnd = new IntPtr((int)s.Win.HWND);
+                s.Hwnd = FindShowWindow();
                 ToolWindow(s.Hwnd, behind);
                 Watch(s.Hwnd, true);
                 if (prevFg != IntPtr.Zero) Native.SetForegroundWindow(prevFg); // focus back to the operator window

@@ -74,9 +74,22 @@ try {
   }
   $pdfPath = Join-Path $OutDir 'source.pdf'
   try {
-    # ExportAsFixedFormat(Path, FixedFormatType=ppFixedFormatTypePDF 2, Intent=ppFixedFormatIntentScreen 1,
-    #   FrameSlides=false, HandoutOrder=1, OutputType=ppPrintOutputSlides 1, PrintHiddenSlides=true)
-    $pres.ExportAsFixedFormat($pdfPath, 2, 1, 0, 1, 1, -1)
+    # PDF of the whole deck, hidden slides included. ExportAsFixedFormat cannot be called from
+    # PowerShell (its optional Variant arguments fail to convert), and SaveCopyAs(..., ppSaveAsPDF 32)
+    # skips hidden slides, so unhide them on this working copy for the save and put the flags back.
+    $wasHidden = @()
+    foreach ($sl in $pres.Slides) {
+      $h = ([int]$sl.SlideShowTransition.Hidden -eq -1)
+      $wasHidden += $h
+      if ($h) { $sl.SlideShowTransition.Hidden = 0 }
+    }
+    try {
+      $pres.SaveCopyAs($pdfPath, 32)
+    } finally {
+      for ($i = 0; $i -lt $wasHidden.Count; $i++) {
+        if ($wasHidden[$i]) { try { $pres.Slides.Item($i + 1).SlideShowTransition.Hidden = -1 } catch {} }
+      }
+    }
   } catch {
     Fail 'EXPORT' $_.Exception.Message
   }
