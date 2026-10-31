@@ -37,6 +37,8 @@
   --standby: #0d0d0d;
   /* Text on the standby/black cards, which stay dark in both themes. */
   --standby-ink: #9a9a98;
+  /* Logo dot. Fixed brand orange in both themes; never follows the accent preset. */
+  --brand-signal: #f26f1c;
 }
 
 /* Light: soft cool-grey ground, white panels. */

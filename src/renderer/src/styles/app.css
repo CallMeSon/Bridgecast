@@ -57,10 +57,20 @@ header > .grow {
   min-width: 0;
 }
 .brand {
+  gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.035em;
   white-space: nowrap;
+}
+.brand-mark {
+  flex: none;
+  color: var(--text);
+}
+@media (max-width: 899px) {
+  .brand-word {
+    display: none;
+  }
 }
 /* The event name is the only header item that gives way: a long name is cut with an
    ellipsis so the HDMI, theme and settings controls never leave the window. */
@@ -2424,6 +2434,20 @@ footer .empty {
   border: 1px solid var(--edge);
   border-radius: var(--r);
   background: var(--bg);
+}
+.about-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.about-brand .brand-mark {
+  color: var(--text);
+}
+.about-name {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  color: var(--text);
 }
 .about-line {
   font-size: 14px;

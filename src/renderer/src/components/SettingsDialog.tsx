@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { XIcon } from '@phosphor-icons/react'
+import { BrandMark } from './BrandMark'
 import { AppearanceSection } from './AppearanceSection'
 import type { AccentId, Theme, ThemePref } from '../appearance'
 
@@ -19,7 +20,7 @@ interface Props {
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
-/** About: the app version. Task B2 adds the logo and tagline here. */
+/** About: mark, name, version and tagline. */
 function AboutSection(): React.JSX.Element {
   const [version, setVersion] = useState('')
   useEffect(() => {
@@ -31,7 +32,14 @@ function AboutSection(): React.JSX.Element {
   return (
     <section className="set-section about" aria-labelledby="set-about">
       <h3 id="set-about">About</h3>
-      <p className="about-line">Bridgecast {version && <span className="num">{version}</span>}</p>
+      <div className="about-brand">
+        <BrandMark size={48} />
+        <div>
+          <p className="about-name">Bridgecast</p>
+          {version && <p className="about-line num">{version}</p>}
+          <p className="about-line">From slide to screen, live.</p>
+        </div>
+      </div>
     </section>
   )
 }

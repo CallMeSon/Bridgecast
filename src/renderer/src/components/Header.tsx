@@ -2,6 +2,7 @@ import { GearSixIcon, MoonIcon, SunIcon } from '@phosphor-icons/react'
 import type { EventMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import type { Theme } from '../theme'
+import { BrandMark } from './BrandMark'
 import { EventMenu } from './EventMenu'
 import { OutputMenu } from './OutputMenu'
 
@@ -18,9 +19,14 @@ interface Props {
   onOpenSettings?(): void
 }
 
-/** The brand slot. Task B2 swaps the text for the logo mark here and nowhere else. */
+/** The brand: mark plus word. The word hides under 900px; the mark stays. */
 function Brand(): React.JSX.Element {
-  return <span className="brand">Bridgecast</span>
+  return (
+    <span className="brand">
+      <BrandMark size={28} />
+      <span className="brand-word">Bridgecast</span>
+    </span>
+  )
 }
 
 /** Light / Dark, each with icon and label. There is no Auto here; Auto lives in Settings. */
