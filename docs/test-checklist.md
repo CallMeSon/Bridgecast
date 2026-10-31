@@ -158,6 +158,17 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] `.deb` terpasang bersih dan AppImage berjalan; keduanya bisa impor dan memutar.
 - [ ] HDMI di X11: jendela slide show tidak pernah terlihat di layar operator atau HDMI di luar Program.
 
+## Jendela operator yang didesain ulang (Windows)
+
+Hanya bisa dicek di Windows. Tangkapan layar Electron di Linux dan Windows sudah dibandingkan dengan mockup; hal di bawah bergantung pada OS dan layar sungguhan.
+
+- [ ] Tema mengikuti sistem: Settings → Theme = Auto, lalu ganti Windows antara mode terang dan gelap (Settings → Personalization → Colors). Jendela ikut berganti tanpa restart; pilihan Light atau Dark di header menimpa Auto dan bertahan setelah restart.
+- [ ] Skala layar 125% dan 150%: tidak ada teks terpotong, tombol tumpang tindih, atau scroll horizontal di kolom Decks, Program dan panel kanan. Cek juga baris deck (tag LIVE, FROZEN, HOLD dan chip Vector tetap utuh) dan dialog Settings.
+- [ ] Transport bar di jendela selebar 1180px (dan skala 125%): Prev, posisi, Next, Freeze, KV, Black dan ikon suara muat satu baris di kolom Program; tidak ada tombol yang terpotong.
+- [ ] Ikon aplikasi di taskbar pada 16px dan 24px (skala 100% dan 125%): lengkungan ikon menyatu pada 16px, titik oranye tetap terlihat dan ikon tetap bisa dikenali. Cek juga ikon di Alt+Tab, jendela output dan installer.
+- [ ] Dialog Settings (ikon gerigi): terbuka di tengah, Tab tidak keluar dari dialog, Esc menutup dan fokus kembali ke gerigi; tema, aksen (termasuk Custom) dan Reduce motion tersimpan setelah restart; About menampilkan logo Bridgecast dan versi.
+- [ ] Mode kontras tinggi Windows aktif: status LIVE, FROZEN, BLACK, KV dan NEXT masih terbaca (ikon dan kata, tidak hanya warna).
+
 ## Selesai
 
 - [ ] Uninstall lewat Settings → Apps berjalan bersih.
