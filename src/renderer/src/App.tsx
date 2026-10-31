@@ -50,7 +50,14 @@ import {
   UNSUPPORTED,
   visibleCaptureWarnings
 } from './model'
-import { applyTheme, loadTheme, type Theme } from './theme'
+import {
+  applyAppearance,
+  loadAccent,
+  loadThemePref,
+  saveThemePref,
+  type Theme,
+  type ThemePref
+} from './theme'
 import { renderPdf } from './import/pdf'
 
 const IMPORT_WIDTH = 1920
@@ -67,7 +74,12 @@ function App(): React.JSX.Element {
   const [decksEventId, setDecksEventId] = useState<string | null>(null)
   const [program, setProgram] = useState<ProgramState>(initialState)
   const [imports, setImports] = useState<ImportRow[]>([])
-  const [theme, setTheme] = useState<Theme>(loadTheme)
+  const [themePref, setThemePref] = useState<ThemePref>(loadThemePref)
+  const [accent] = useState(loadAccent)
+  const [theme, setTheme] = useState<Theme>(
+    () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark')
+  )
+  useEffect(() => applyAppearance(themePref, accent, setTheme), [themePref, accent])
   const sections = useMemo<SectionMeta[]>(
     () => events.find((e) => e.id === decksEventId)?.sections ?? [],
     [events, decksEventId]
@@ -618,8 +630,8 @@ function App(): React.JSX.Element {
   )
 
   const chooseTheme = (t: Theme): void => {
-    applyTheme(t)
-    setTheme(t)
+    saveThemePref(t)
+    setThemePref(t)
   }
 
   // Web deck pages: the monitor shows the live one (video only, 30 fps). While no
