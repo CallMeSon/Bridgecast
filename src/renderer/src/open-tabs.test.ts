@@ -1,0 +1,93 @@
+import { describe, expect, it } from 'vitest'
+import { closeTab, loadOpenTabs, MAX_TABS, openTab, saveOpenTabs } from './open-tabs'
+
+const store = (raw: string | null): { getItem: () => string | null } => ({ getItem: () => raw })
+const ids = (n: number): string[] => Array.from({ length: n }, (_, i) => `e${i}`)
+
+describe('loadOpenTabs', () => {
+  it('garbage JSON gives only the current event', () => {
+    expect(loadOpenTabs(store('{nope'), ['a', 'b'], 'b')).toEqual(['b'])
+  })
+  it('missing key, null storage, throwing storage', () => {
+    expect(loadOpenTabs(store(null), ['a'], 'a')).toEqual(['a'])
+    expect(loadOpenTabs(null, ['a'], null)).toEqual([])
+    const bad = {
+      getItem: () => {
+        throw new Error('x')
+      }
+    }
+    expect(loadOpenTabs(bad, ['a'], 'a')).toEqual(['a'])
+  })
+  it('wrong shapes give a valid list', () => {
+    expect(loadOpenTabs(store('{"ids":"a"}'), ['a'], null)).toEqual([])
+    expect(loadOpenTabs(store('{"ids":[1,null,"a"]}'), ['a'], null)).toEqual(['a'])
+    expect(loadOpenTabs(store('null'), ['a'], 'a')).toEqual(['a'])
+  })
+  it('drops deleted and duplicate ids, keeps order, appends current', () => {
+    const raw = JSON.stringify({ ids: ['b', 'gone', 'a', 'b'] })
+    expect(loadOpenTabs(store(raw), ['a', 'b', 'c'], 'c')).toEqual(['b', 'a', 'c'])
+  })
+  it('20 ids cap at 8 and keep the current event', () => {
+    const all = ids(20)
+    const raw = JSON.stringify({ ids: all })
+    const out = loadOpenTabs(store(raw), all, 'e0')
+    expect(out).toHaveLength(MAX_TABS)
+    expect(out).toContain('e0')
+    expect(new Set(out).size).toBe(MAX_TABS)
+  })
+  it('ignores a current event that does not exist', () => {
+    expect(loadOpenTabs(store(null), ['a'], 'zzz')).toEqual([])
+  })
+})
+
+describe('saveOpenTabs', () => {
+  it('round-trips and survives a throwing store', () => {
+    let saved = ''
+    saveOpenTabs({ setItem: (_k, v) => (saved = v) }, ['a'])
+    expect(loadOpenTabs(store(saved), ['a'], null)).toEqual(['a'])
+    const full = {
+      setItem: () => {
+        throw new Error('full')
+      }
+    }
+    expect(() => saveOpenTabs(full, ['a'])).not.toThrow()
+  })
+})
+
+describe('openTab', () => {
+  it('does not duplicate', () => {
+    expect(openTab(['a', 'b'], 'a', [])).toEqual(['a', 'b'])
+  })
+  it('over the cap drops the oldest not in keep', () => {
+    const out = openTab(ids(8), 'new', ['e0', 'e1'])
+    expect(out).toHaveLength(8)
+    expect(out).toContain('e0')
+    expect(out).toContain('e1')
+    expect(out).not.toContain('e2')
+    expect(out[out.length - 1]).toBe('new')
+  })
+  it('never drops current or air event', () => {
+    const out = openTab(ids(8), 'new', ['e0', 'e7'])
+    expect(out).toContain('e0')
+    expect(out).toContain('e7')
+    expect(out).toHaveLength(8)
+  })
+})
+
+describe('closeTab', () => {
+  it('current selects the left neighbour', () => {
+    expect(closeTab(['a', 'b', 'c'], 'b', 'b')).toEqual({ ids: ['a', 'c'], next: 'a' })
+  })
+  it('first current selects the new first', () => {
+    expect(closeTab(['a', 'b'], 'a', 'a')).toEqual({ ids: ['b'], next: 'b' })
+  })
+  it('another tab leaves the current one', () => {
+    expect(closeTab(['a', 'b', 'c'], 'c', 'a')).toEqual({ ids: ['a', 'b'], next: 'a' })
+  })
+  it('last tab gives Home', () => {
+    expect(closeTab(['a'], 'a', 'a')).toEqual({ ids: [], next: null })
+  })
+  it('unknown id changes nothing', () => {
+    expect(closeTab(['a'], 'x', 'a')).toEqual({ ids: ['a'], next: 'a' })
+  })
+})
