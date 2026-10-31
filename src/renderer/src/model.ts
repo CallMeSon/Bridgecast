@@ -142,8 +142,10 @@ export function tally(s: ProgramState): Tally {
 /**
  * Changing the canvas resizes what the audience sees, so it needs a confirm
  * unless nothing of the show is visible: STANDBY and BLACK show no slide.
+ * Another event's canvas (not the air event) never touches the output.
  */
-export function needsCanvasConfirm(s: ProgramState): boolean {
+export function needsCanvasConfirm(s: ProgramState, eventId?: string): boolean {
+  if (eventId !== undefined && eventId !== s.airEvent) return false
   const t = tally(s)
   return t !== 'idle' && t !== 'black'
 }

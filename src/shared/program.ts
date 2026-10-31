@@ -73,6 +73,11 @@ export interface ProgramState {
    * Set by main, never by the reducer.
    */
   canvas: ResolvedCanvas
+  /**
+   * The event the output belongs to: the event of the slide on air, of the KV
+   * on air, or (at STANDBY) of the last one. Set by main, never by the reducer.
+   */
+  airEvent: string | null
 }
 
 export type Action =
@@ -118,7 +123,8 @@ export const initialState: ProgramState = {
   autoAdvance: false,
   take: 0,
   webHold: false,
-  canvas: { ...DEFAULT_CANVAS, origin: 'default' }
+  canvas: { ...DEFAULT_CANVAS, origin: 'default' },
+  airEvent: null
 }
 
 /** Move the operator position (index must exist in deck); `shown` follows unless frozen. */

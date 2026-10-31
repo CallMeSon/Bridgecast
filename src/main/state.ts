@@ -25,6 +25,7 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.black === b.black &&
     a.kv === b.kv &&
     a.kvUrl === b.kvUrl &&
+    a.airEvent === b.airEvent &&
     a.transition === b.transition &&
     a.autoAdvance === b.autoAdvance &&
     a.take === b.take &&
@@ -47,8 +48,9 @@ function same(a: ProgramState, b: ProgramState): boolean {
 
 /**
  * Holds the active event and the Program state. The operator position always
- * belongs to the active event; `shown` (what is on the output) may still point
- * at a deck of another event and is only cleared when that slide disappears.
+ * belongs to the active event; the output belongs to `airEvent`. `shown` (what is
+ * on the output) may still point at a deck of another event and is only cleared
+ * when that slide disappears. Switching events never changes the output.
  */
 export class AppState {
   private current: ProgramState
@@ -257,10 +259,42 @@ export class AppState {
     return ev?.kv ? kvImageUrl(ev.id, ev.kv) : null
   }
 
-  /** The active event's canvas override, else the machine default. */
-  private activeCanvas(): ProgramState['canvas'] {
-    const ev = this.lib.listEvents().find((e) => e.id === this.activeEvent)
-    return resolveCanvas(ev?.canvas, this.machineCanvas())
+  /** The event whose KV image has this URL, or null. */
+  private kvOwner(url: string | null): string | null {
+    if (!url) return null
+    return this.lib.listEvents().find((e) => e.kv && kvImageUrl(e.id, e.kv) === url)?.id ?? null
+  }
+
+  /**
+   * What belongs to the output, not to the visible event: the air event, its
+   * canvas and the KV image. A pressed KV keeps its image; a slide on the output
+   * belongs to its deck's event; STANDBY keeps the previous air event.
+   */
+  private resolveAir(s: ProgramState): Pick<ProgramState, 'airEvent' | 'kvUrl' | 'kv' | 'canvas'> {
+    const events = this.lib.listEvents()
+    const has = (id: string | null): id is string => !!id && events.some((e) => e.id === id)
+    const prev = has(s.airEvent) ? s.airEvent : null
+    const pressed = s.kv && !s.black && s.kvUrl !== null
+    let air: string | null
+    if (pressed) air = this.kvOwner(s.kvUrl) ?? this.activeEvent
+    else if (s.shown) air = this.lib.eventOfDeck(s.shown.deckId) ?? prev ?? this.activeEvent
+    else air = prev ?? this.activeEvent
+    // Visible STANDBY shows the air event's KV by itself; otherwise the active
+    // event's KV is ready for K.
+    const kvUrl = pressed
+      ? s.kvUrl
+      : !s.shown && !s.black
+        ? air
+          ? this.kvUrlOf(air)
+          : null
+        : this.activeKvUrl()
+    const canvasOf = events.find((e) => e.id === (air ?? this.activeEvent))?.canvas
+    return {
+      airEvent: air,
+      kvUrl,
+      kv: s.kv && kvUrl !== null,
+      canvas: resolveCanvas(canvasOf, this.machineCanvas())
+    }
   }
 
   private normalize(s: ProgramState): ProgramState {
@@ -268,34 +302,22 @@ export class AppState {
     // reconcile moves it to the first ready deck at index 0 (no selectDeck, so
     // `shown` stays untouched).
     const pos = reconcile({ ...s, shown: null }, this.decks())
-    // The KV belongs to the active event; KV on needs one (a removed KV turns it off).
-    // The KV on air keeps its image when the event changes; otherwise the
-    // active event's KV is applied.
-    const kvUrl = kvOnAir(s) ? s.kvUrl : this.activeKvUrl()
     const shown = this.locate(s)
     return {
       ...pos,
       shown,
       // A hold belongs to a web page on air; it goes when that page leaves the output.
       webHold: s.webHold && !!shown?.web,
-      kvUrl,
-      kv: s.kv && kvUrl !== null,
-      canvas: this.activeCanvas()
+      ...this.resolveAir({ ...s, shown })
     }
   }
 
   /**
-   * After a dispatch: once the KV is no longer on air, apply the active event's
-   * KV. The canvas is re-resolved too, so it is right even if the machine
-   * default changed since the last `refresh()`.
+   * After a dispatch: re-resolve the air event, its canvas and the KV (the
+   * canvas is right even if the machine default changed since the last `refresh()`).
    */
   private normalizeKv(s: ProgramState): ProgramState {
-    const withCanvas = { ...s, canvas: this.activeCanvas() }
-    if (kvOnAir(withCanvas)) return withCanvas
-    const kvUrl = this.activeKvUrl()
-    return kvUrl === withCanvas.kvUrl
-      ? withCanvas
-      : { ...withCanvas, kvUrl, kv: withCanvas.kv && kvUrl !== null }
+    return { ...s, ...this.resolveAir(s) }
   }
 
   private commit(next: ProgramState): ProgramState {

@@ -54,6 +54,7 @@ describe('initialState', () => {
       autoAdvance: false,
       take: 0,
       webHold: false,
+      airEvent: null,
       canvas: { width: 1920, height: 1080, origin: 'default' }
     })
   })

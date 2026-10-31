@@ -39,7 +39,8 @@ const flush = async (): Promise<void> => {
 function setup(): void {
   const lib = {
     listEvents: () => [{ id: 'e', name: 'E', deckIds: decks.map((d) => d.id) }],
-    getDecks: () => decks
+    getDecks: () => decks,
+    eventOfDeck: () => 'e'
   } as unknown as Library
   engine = new FakeEngine(() => decks)
   app = new AppState(lib, false, undefined, undefined, undefined, (id) => mgr.ready(id))

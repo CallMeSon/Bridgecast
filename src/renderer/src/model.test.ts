@@ -197,6 +197,12 @@ describe('needsCanvasConfirm', () => {
     expect(needsCanvasConfirm(at('a', 0, { shown, black: true }))).toBe(false)
     expect(needsCanvasConfirm(at('a', 0, { shown: null, kvUrl, black: true }))).toBe(false)
   })
+  it('knows which event is edited: only the air event needs a confirm', () => {
+    const live = at('a', 0, { shown, airEvent: 'air' })
+    expect(needsCanvasConfirm(live, 'other-id')).toBe(false)
+    expect(needsCanvasConfirm(live, live.airEvent!)).toBe(true)
+    expect(needsCanvasConfirm(live)).toBe(true)
+  })
   it('is true while live, frozen or showing KV', () => {
     expect(needsCanvasConfirm(at('a', 0, { shown }))).toBe(true)
     expect(needsCanvasConfirm(at('a', 0, { shown, frozen: true }))).toBe(true)

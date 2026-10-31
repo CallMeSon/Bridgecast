@@ -4,6 +4,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { Library } from './library'
 import { AppState } from './state'
+import { kvOnAir } from '../shared/program'
 
 let root: string
 let src: string
@@ -516,18 +517,25 @@ describe('AppState sections', () => {
       expect(app.state.canvas).toEqual({ width: 1920, height: 1080, origin: 'default' })
     })
 
-    it('an event canvas override is the canvas while that event is active', () => {
+    it('an event canvas override is the canvas while that event owns the output', () => {
       const lib = new Library(root)
       const a = lib.createEvent('A')
       const b = lib.createEvent('B')
       lib.setEventCanvas(b.id, { width: 3840, height: 1080 })
       const app = new AppState(lib)
+      const db = addDeck(lib, b.id, 2, 'b')
       expect(app.state.canvas.origin).toBe('default')
-      expect(app.setEvent(b.id).canvas).toEqual({ width: 3840, height: 1080, origin: 'event' })
-      expect(app.setEvent(a.id).canvas).toEqual({ width: 1920, height: 1080, origin: 'default' })
+      // Selecting B alone does not touch the output.
+      expect(app.setEvent(b.id).canvas).toEqual({ width: 1920, height: 1080, origin: 'default' })
+      expect(app.dispatch({ type: 'selectDeck', deckId: db }).canvas).toEqual({
+        width: 3840,
+        height: 1080,
+        origin: 'event'
+      })
+      expect(app.setEvent(a.id).canvas.origin).toBe('event')
     })
 
-    it('switching to an event without override goes back to default while a slide of the first is shown', () => {
+    it('switching to an event without override keeps the canvas of the event on air', () => {
       const lib = new Library(root)
       const a = lib.createEvent('A')
       const b = lib.createEvent('B')
@@ -539,7 +547,7 @@ describe('AppState sections', () => {
       expect(app.state.canvas.origin).toBe('event')
       const s = app.setEvent(b.id)
       expect(s.shown?.deckId).toBe(da)
-      expect(s.canvas).toEqual({ width: 1920, height: 1080, origin: 'default' })
+      expect(s.canvas).toEqual({ width: 3840, height: 1080, origin: 'event' })
     })
 
     it('a changed machine canvas plus refresh emits a new state', () => {
@@ -839,6 +847,97 @@ describe('AppState web decks', () => {
       expect(app.dispatch({ type: 'resumeNative', deckId: d }).shown?.playback).toBe('images')
       ready = true
       expect(app.dispatch({ type: 'resumeNative', deckId: d }).shown?.playback).toBe('native')
+    })
+  })
+
+  describe('air event', () => {
+    const img = (n: string): string => {
+      const p = path.join(src, n)
+      fs.writeFileSync(p, 'kv')
+      return p
+    }
+    const c720 = { width: 1280, height: 720 }
+
+    it('switching events keeps the output canvas and shown; a take moves the air', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      addDeck(lib, a.id, 2, 'a')
+      addDeck(lib, b.id, 2, 'b')
+      lib.setEventCanvas(b.id, c720)
+      const app = new AppState(lib)
+      app.dispatch({ type: 'next' })
+      const before = app.state
+      const s = app.setEvent(b.id)
+      expect(s.airEvent).toBe(a.id)
+      expect(s.shown).toEqual(before.shown)
+      expect(s.canvas).toEqual(before.canvas)
+      const t = app.dispatch({ type: 'next' })
+      expect(t.airEvent).toBe(b.id)
+      expect(t.canvas).toMatchObject(c720)
+    })
+
+    it('STANDBY: selecting an event with a KV does not put it on air', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      lib.setKv(b.id, img('b.png'))
+      const app = new AppState(lib)
+      app.setEvent(b.id)
+      expect(kvOnAir(app.state)).toBe(false)
+      app.dispatch({ type: 'setTransition', transition: 'fade' })
+      expect(kvOnAir(app.state)).toBe(false)
+      expect(app.state.airEvent).toBe(a.id)
+    })
+
+    it('STANDBY KV of A stays on air when B (no KV) is selected', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      const kvA = lib.setKv(a.id, img('a.png')).kv
+      const app = new AppState(lib)
+      app.setEvent(b.id)
+      expect(kvOnAir(app.state)).toBe(true)
+      expect(app.state.kvUrl).toBe(`slide://kv/${a.id}/${kvA}`)
+    })
+
+    it('Black at STANDBY stays black and keeps the air event', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      const app = new AppState(lib)
+      app.dispatch({ type: 'toggleBlack' })
+      app.setEvent(b.id)
+      expect(app.state).toMatchObject({ black: true, airEvent: a.id })
+    })
+
+    it('K in B while A is live puts B on air; K off returns to A', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      lib.setKv(b.id, img('b.png'))
+      addDeck(lib, a.id, 2, 'a')
+      const app = new AppState(lib)
+      app.dispatch({ type: 'next' })
+      app.setEvent(b.id)
+      app.dispatch({ type: 'toggleKv' })
+      expect(app.state).toMatchObject({ kv: true, airEvent: b.id })
+      app.dispatch({ type: 'toggleKv' })
+      expect(app.state.airEvent).toBe(a.id)
+    })
+
+    it('removing the live deck keeps the air event; no events gives null', () => {
+      const lib = new Library(root)
+      expect(new AppState(lib).state.airEvent).toBeNull()
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      const d = addDeck(lib, a.id, 2, 'a')
+      const app = new AppState(lib)
+      app.dispatch({ type: 'selectDeck', deckId: d })
+      app.setEvent(b.id)
+      const s = app.removeDeck(a.id, d)
+      expect(s.shown).toBeNull()
+      expect(s.airEvent).toBe(a.id)
     })
   })
 })

@@ -95,7 +95,7 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
           allowDefault
           hdmiDisplay={hdmiDisplay}
           defaultCanvas={machine}
-          confirm={needsCanvasConfirm(program)}
+          confirm={needsCanvasConfirm(program, event.id)}
           networkReceivers={hasConnections(omt, ndi)}
           apply={async (c) => onSaved(await api.setEventCanvas(event.id, c))}
         />
