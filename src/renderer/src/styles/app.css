@@ -121,7 +121,7 @@ header > .event {
   z-index: 5;
   background: var(--panel);
   border: 1px solid var(--line-hi);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
   box-shadow: var(--pop-shadow);
 }
 .menu button {
@@ -256,7 +256,7 @@ button.output-btn:hover,
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line-hi);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
   box-shadow: var(--pop-shadow);
 }
 .pop-section {
@@ -297,7 +297,7 @@ button.output-btn:hover,
   width: 40px;
   height: 24px;
   padding: 0;
-  border-radius: var(--r);
+  border-radius: var(--r-round);
   border: 1px solid var(--edge);
   background: var(--raised-hi);
 }
@@ -307,7 +307,7 @@ button.output-btn:hover,
   left: 3px;
   width: 16px;
   height: 16px;
-  border-radius: var(--r);
+  border-radius: var(--r-round);
   background: var(--text-2);
   transition: transform 0.15s;
 }
@@ -366,7 +366,7 @@ button.output-btn:hover,
 .level-range::-webkit-slider-runnable-track {
   height: 8px;
   border: 1px solid var(--edge);
-  border-radius: var(--r);
+  border-radius: var(--r-round);
   background: linear-gradient(to right, var(--text-2) var(--p, 0%), var(--raised-hi) var(--p, 0%));
 }
 .level-range::-webkit-slider-thumb {
@@ -375,7 +375,7 @@ button.output-btn:hover,
   height: 20px;
   margin-top: -7px;
   border: 1px solid var(--bg);
-  border-radius: var(--r);
+  border-radius: var(--r-round);
   background: var(--text);
 }
 /* Deck sound popover: floats over the list at the menu it came from. */
@@ -519,7 +519,7 @@ button.output-btn:hover,
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--edge);
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   overflow-wrap: anywhere;
   user-select: all;
 }
@@ -1001,7 +1001,7 @@ main {
   aspect-ratio: 16/9;
   overflow: hidden;
   border: 1px solid var(--line-hi);
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   background: var(--letterbox);
 }
 .kv-thumb img {
@@ -1105,7 +1105,7 @@ main {
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   background: var(--letterbox);
   color: var(--on-tally);
   pointer-events: none;
@@ -1152,7 +1152,7 @@ main {
   gap: 6px;
   height: 24px;
   padding: 0 10px;
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   font: 700 13px/1 var(--font-mono);
   letter-spacing: 0.06em;
 }
@@ -1167,7 +1167,7 @@ main {
 .t-black,
 .t-kv {
   border: 1.5px solid var(--tally);
-  color: var(--black-tally-ink);
+  color: var(--accent);
   background: var(--letterbox);
 }
 .t-idle {
@@ -1331,7 +1331,7 @@ kbd {
   font: 500 12px/1 var(--font-mono);
   color: var(--text-2);
   border: 1px solid var(--edge);
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   padding: 3px 5px;
   background: var(--bg);
   min-width: 20px;
@@ -1363,9 +1363,9 @@ kbd {
   height: 56px;
   min-width: 176px;
   justify-content: space-between;
-  background: var(--cue);
-  border-color: var(--cue-edge);
-  color: var(--on-cue);
+  background: var(--accent-fill);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 /* Disabled is a different shape, not a dimmer one: no fill (so Next loses its amber),
    a dashed hairline and muted text, in both themes. */
@@ -1383,13 +1383,13 @@ kbd {
   color: var(--text-3);
 }
 .cbtn.next:hover:not(:disabled) {
-  background: var(--cue);
+  background: var(--accent-fill);
   filter: brightness(1.08);
 }
 .cbtn.next kbd {
   background: transparent;
-  border-color: var(--on-cue);
-  color: var(--on-cue);
+  border-color: var(--on-accent);
+  color: var(--on-accent);
 }
 .cbtn.hold[aria-pressed='true'] {
   background: var(--text);
@@ -1453,7 +1453,7 @@ kbd {
 /* next */
 .next-pos {
   font: 600 15px var(--font-mono);
-  color: var(--cue-ink);
+  color: var(--accent-ink);
 }
 .next-body {
   flex: 1;
@@ -1489,7 +1489,7 @@ kbd {
   opacity: 0;
 }
 .next-card[data-kind='slide'] .slide::after {
-  border: 2px solid var(--cue-edge);
+  border: 2px solid var(--accent);
 }
 /* Caption sentences are prose: sans, wrapping at word boundaries. */
 .next-card .cap {
@@ -1570,13 +1570,13 @@ footer .empty {
   width: 12px;
   height: 8px;
   margin-right: 6px;
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
 }
 .sk.live {
   background: var(--tally);
 }
 .sk.next {
-  background: var(--cue-edge);
+  background: var(--accent);
 }
 .sk.frozen {
   background: none;
@@ -1612,7 +1612,7 @@ footer .empty {
   height: max(36px, calc(100cqh - 24px));
   width: auto;
   aspect-ratio: 16/9;
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
 }
 /* The strip clips on its padding box: the ring sits beyond the 2px LIVE/NEXT outline. */
 .th:focus-visible {
@@ -1628,7 +1628,7 @@ footer .empty {
   outline: 2px solid var(--tally);
 }
 .th[data-role='next'] .slide {
-  outline: 2px solid var(--cue-edge);
+  outline: 2px solid var(--accent);
 }
 .th[data-role='pos'] .slide {
   outline: 2px dashed var(--text-2);
@@ -1647,7 +1647,7 @@ footer .empty {
 }
 .th .tg b {
   padding: 3px 5px;
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   font-size: 12px;
   font-weight: 700;
 }
@@ -1656,8 +1656,8 @@ footer .empty {
   color: var(--on-tally);
 }
 .th[data-role='next'] .tg b {
-  background: var(--cue);
-  color: var(--on-cue);
+  background: var(--accent-fill);
+  color: var(--on-accent);
 }
 
 /* splitters: a 12px hit area over the existing 1px panel rule (the visible mark stays
@@ -1730,7 +1730,7 @@ footer .empty {
   display: none;
   place-items: center;
   border: 2px dashed var(--text-2);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
   background: color-mix(in srgb, var(--bg) 85%, transparent);
   backdrop-filter: blur(2px);
   font-size: 18px;
@@ -2041,7 +2041,7 @@ footer .empty {
   height: 22px;
   padding: 0 8px;
   border: 1px solid var(--edge);
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   font: 500 12px/1 var(--font-mono);
   color: var(--text-2);
   white-space: nowrap;
@@ -2215,7 +2215,7 @@ footer .empty {
   height: 18px;
   padding: 0 6px;
   border: 1px solid var(--line-hi);
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   font: 500 12px/1 var(--font-mono);
   color: var(--text-2);
   white-space: nowrap;
@@ -2242,7 +2242,7 @@ footer .empty {
 .th .tg .hid {
   padding: 3px 5px;
   border: 1px dashed var(--edge);
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   color: var(--text-2);
 }
 .th[data-hidden='true'] .slide {

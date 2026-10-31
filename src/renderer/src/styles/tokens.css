@@ -22,75 +22,133 @@
 
 :root {
   --font-sans: 'Geist', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'Cascadia Mono', Consolas, monospace;
-  /* One radius everywhere. */
-  --r: 3px;
-}
-
-/* Graphite neutrals. Red is the Program tally only; amber only means "next". */
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #141414;
-  --panel: #1b1b1b;
-  --raised: #252525;
-  --raised-hi: #2e2e2e;
-  --line: #2f2f2f;
-  --line-hi: #454545;
-  /* Boundary of controls and inputs (WCAG 1.4.11): >= 3:1 on bg, panel, raised and raised-hi. */
-  --edge: #777777;
-  --text: #e8e8e6;
-  --text-2: #b0b0ae;
-  --text-3: #8c8c8a;
-  --tally: #d32f29;
-  --tally-ink: #ff6e66;
-  --on-tally: #fafafa;
-  --cue: #d4a24a;
-  --cue-ink: #d4a24a;
-  /* Ring and outline of "next" (>= 3:1 on every surface); the fill stays --cue. */
-  --cue-edge: #d4a24a;
-  --on-cue: #17130a;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  /* Shape scale. Round only for switches, sliders, progress bars and swatches. */
+  --r-sm: 3px;
+  --r: 4px;
+  --r-lg: 6px;
+  --r-round: 999px;
+  /* Control heights and the panel inset. */
+  --h-sm: 32px;
+  --h-md: 40px;
+  --h-lg: 52px;
+  --pad: 20px;
   --letterbox: #000000;
   --standby: #0d0d0d;
   /* Text on the standby/black cards, which stay dark in both themes. */
   --standby-ink: #9a9a98;
-  --black-tally-ink: #ff7a72;
-  /* Empty-state cards in the side panels follow the theme (the Program monitor stays dark). */
-  --placeholder: #0d0d0d;
-  --placeholder-ink: #9a9a98;
-  --focus: #e8e8e6;
-  --sel: #3d3d3a;
-  --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
+/* Light: soft cool-grey ground, white panels. */
 :root[data-theme='light'] {
   color-scheme: light;
-  --bg: #dcdcda;
-  --panel: #ecece9;
-  --raised: #e0e0dd;
-  --raised-hi: #d3d3d0;
-  --line: #c4c4c0;
-  --line-hi: #9c9c98;
-  --edge: #727270;
-  --text: #1a1a19;
-  --text-2: #444442;
-  --text-3: #5c5c59;
-  --tally: #c3231d;
-  --tally-ink: #b01d17;
-  --on-tally: #fafafa;
-  --cue: #c8922c;
-  --cue-ink: #6f4b08;
-  --cue-edge: #946512;
-  --on-cue: #17130a;
-  --letterbox: #000000;
-  --standby: #0d0d0d;
-  /* Text on the standby/black cards, which stay dark in both themes. */
-  --standby-ink: #9a9a98;
-  --black-tally-ink: #ff7a72;
-  --placeholder: #e0e0dd;
-  --placeholder-ink: #444442;
-  --focus: #1a1a19;
-  --sel: #bcbcb8;
-  --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --bg: #f5f6f9;
+  --panel: #ffffff;
+  --raised: #f3f4f8;
+  --raised-hi: #e8eaf1;
+  --line: #e6e8ee;
+  --line-hi: #d3d6df;
+  /* Boundary of controls and inputs (WCAG 1.4.11): >= 3:1 on bg, panel, raised and raised-hi. */
+  --edge: #7b8091;
+  --text: #1a1c24;
+  --text-2: #4a4e5c;
+  --text-3: #626776;
+  --focus: #1a1c24;
+  --placeholder: #f3f4f8;
+  --placeholder-ink: #4a4e5c;
+  --shadow-1: 0 0 0 1px var(--line);
+  --shadow-0: 0 0 0 1px var(--line-hi);
+  --pop-shadow: 0 12px 36px rgba(24, 28, 48, 0.2);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0e0f12;
+  --panel: #17181d;
+  --raised: #202228;
+  --raised-hi: #2a2c34;
+  --line: #262830;
+  --line-hi: #383b45;
+  --edge: #81869a;
+  --text: #ecedf2;
+  --text-2: #b4b7c4;
+  --text-3: #9195a6;
+  --focus: #ecedf2;
+  --placeholder: #0d0d0d;
+  --placeholder-ink: #9a9a98;
+  --shadow-1: 0 0 0 1px var(--line);
+  --shadow-0: 0 0 0 1px var(--line-hi);
+  --pop-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* Accent presets (same values as ACCENTS in appearance.ts; custom is set at run time).
+   accent = rings and tints, accent-fill = surface behind text, accent-ink = accent as text,
+   on-accent = text on the fill. */
+:root[data-theme='light'][data-accent='orange'] {
+  --accent: #ee6a15;
+  --accent-fill: #c84f0c;
+  --accent-ink: #9a4208;
+  --on-accent: #ffffff;
+}
+:root[data-theme='light'][data-accent='violet'] {
+  --accent: #5b4bd6;
+  --accent-ink: #5342c9;
+  --on-accent: #ffffff;
+}
+:root[data-theme='light'][data-accent='blue'] {
+  --accent: #2160d4;
+  --accent-ink: #1c55bd;
+  --on-accent: #ffffff;
+}
+:root[data-theme='light'][data-accent='rose'] {
+  --accent: #9a4586;
+  --accent-ink: #8d3f7a;
+  --on-accent: #ffffff;
+}
+:root[data-theme='light'][data-accent='sand'] {
+  --accent: #85652a;
+  --accent-ink: #77590f;
+  --on-accent: #ffffff;
+}
+:root[data-theme='dark'][data-accent='orange'] {
+  --accent: #f26f1c;
+  --accent-ink: #ff9d5e;
+  --on-accent: #1a0a00;
+}
+:root[data-theme='dark'][data-accent='violet'] {
+  --accent: #a99cff;
+  --accent-ink: #b9aeff;
+  --on-accent: #16112f;
+}
+:root[data-theme='dark'][data-accent='blue'] {
+  --accent: #82b2ff;
+  --accent-ink: #98c0ff;
+  --on-accent: #08193a;
+}
+:root[data-theme='dark'][data-accent='rose'] {
+  --accent: #e3a3d2;
+  --accent-ink: #ebb6dd;
+  --on-accent: #2b0f25;
+}
+:root[data-theme='dark'][data-accent='sand'] {
+  --accent: #dcc283;
+  --accent-ink: #e5cf9d;
+  --on-accent: #241a07;
+}
+/* Default fill follows the accent; the light orange preset sets its own. A custom colour
+   sets all four inline. */
+:root {
+  --accent-fill: var(--accent);
+}
+/* Names kept so state rules keep their words. */
+:root {
+  --tally: var(--accent);
+  --tally-ink: var(--accent-ink);
+  --on-tally: var(--on-accent);
+  --next-ring: color-mix(in srgb, var(--accent) 45%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
+  --accent-soft-hi: color-mix(in srgb, var(--accent) 22%, transparent);
+  --sel: var(--accent-soft-hi);
 }
 
 * {
