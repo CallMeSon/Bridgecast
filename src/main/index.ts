@@ -27,6 +27,8 @@ import { SlideShowManager } from './slideshow/manager'
 import type { SlideShowEngine } from './slideshow/engine'
 import { PowerPointEngine, bridgeExePath } from './slideshow/powerpoint-engine'
 import { SlideSound } from './slideshow/audio-pipe'
+import { LibreOfficeEngine, loBridgePath } from './slideshow/libreoffice-engine'
+import { PulseSink } from './slideshow/pulse-sink'
 import { slideshowSourceId } from './slideshow/capture'
 import { importPptx, configureImport } from './import'
 import { importPptxPowerPoint } from './import/pptx'
@@ -873,6 +875,8 @@ interface SlideShowHost {
   syncSound(): void
   /** The bridge `import` command of the LibreOffice engine (rejects when there is none). */
   libreOfficeImport(req: Record<string, unknown>): Promise<Record<string, unknown>>
+  /** Shuts the engine down and removes the sound sink. */
+  stop(): Promise<void>
   /** Session state of the native decks and the helper start failure. */
   status(): SlideshowStatus
 }
@@ -1033,7 +1037,8 @@ function createSlideShow(
   const e2eFake = !!process.env['PPT_OUTPUT_DUMP'] && process.env['PPT_ENGINE_FAKE'] === '1'
   // Without a usable engine (or a session that cannot be captured) the manager never opens a
   // slide show, so the FakeEngine stands in without ever being asked.
-  const fake = e2eFake || info.engine !== 'powerpoint'
+  const fake = e2eFake || info.engine === 'none'
+  const pulse = new PulseSink()
   const canCapture = e2eFake || info.canCapture
   let helperError: string | null = null
   const sound = new SlideSound({
@@ -1046,19 +1051,34 @@ function createSlideShow(
   })
   const engine: SlideShowEngine = fake
     ? new FakeEngine(() => state.decks())
-    : new PowerPointEngine({
-        exe: bridgeExePath({
-          packaged: app.isPackaged,
-          resourcesPath: process.resourcesPath,
-          appPath: app.getAppPath()
-        }),
-        dpi: () => screen.getPrimaryDisplay().scaleFactor * 96,
-        onStartFailure: (message) => {
-          helperError = message
-          console.error('[slideshow]', message)
-        },
-        onAudio: (a) => sound.engineAudio(a)
-      })
+    : info.engine === 'libreoffice'
+      ? new LibreOfficeEngine({
+          script: loBridgePath({
+            packaged: app.isPackaged,
+            resourcesPath: process.resourcesPath,
+            appPath: app.getAppPath()
+          }),
+          profile: join(app.getPath('userData'), 'lo-profile'),
+          ensureSink: () => pulse.ensure(),
+          onStartFailure: (message) => {
+            helperError = message
+            console.error('[slideshow]', message)
+          },
+          onAudio: (a) => sound.engineAudio({ mode: a.mode, pipe: null, note: a.note })
+        })
+      : new PowerPointEngine({
+          exe: bridgeExePath({
+            packaged: app.isPackaged,
+            resourcesPath: process.resourcesPath,
+            appPath: app.getAppPath()
+          }),
+          dpi: () => screen.getPrimaryDisplay().scaleFactor * 96,
+          onStartFailure: (message) => {
+            helperError = message
+            console.error('[slideshow]', message)
+          },
+          onAudio: (a) => sound.engineAudio(a)
+        })
   const manager = new SlideShowManager(
     engine,
     state,
@@ -1102,8 +1122,9 @@ function createSlideShow(
       decks,
       resumable: Object.keys(decks).filter((id) => manager.fellBack(id) && manager.sessionOpen(id)),
       helperError:
-        (engine instanceof PowerPointEngine ? engine.helperError : null) ??
-        (e2eFake ? null : (info.message ?? null)),
+        (engine instanceof PowerPointEngine || engine instanceof LibreOfficeEngine
+          ? engine.helperError
+          : null) ?? (e2eFake ? null : (info.message ?? null)),
       engine: e2eFake ? 'powerpoint' : info.engine
     }
   }
@@ -1117,10 +1138,17 @@ function createSlideShow(
   }
   manager.onStatus(pushStatus)
   state.onChange(pushStatus)
-  const libreOfficeImport = async (): Promise<Record<string, unknown>> => {
-    throw new Error('LibreOffice is not available. Restart PPT Share, then try again.')
+  const libreOfficeImport = async (
+    req: Record<string, unknown>
+  ): Promise<Record<string, unknown>> => {
+    if (!(engine instanceof LibreOfficeEngine)) {
+      throw new Error('LibreOffice is not available. Restart PPT Share, then try again.')
+    }
+    return engine.importDeck(req)
   }
-  return { engine, manager, sound, syncSound, status, libreOfficeImport }
+  // Ends the engine, then removes the private sound sink (only the modules this run loaded).
+  const stop = (): Promise<void> => engine.shutdown().finally(() => pulse.remove())
+  return { engine, manager, sound, syncSound, status, libreOfficeImport, stop }
 }
 
 /**
@@ -1337,7 +1365,7 @@ Location: ${root}`
       omtStopping = true
       // Hard cap: a blocked native call in the worker must never keep the app from quitting.
       const cap = new Promise<void>((r) => setTimeout(r, OMT_QUIT_CAP_MS))
-      const engineDone = slideShow.engine.shutdown().catch(() => {})
+      const engineDone = slideShow.stop().catch(() => {})
       void Promise.race([Promise.all([net.shutdown(), engineDone]), cap]).finally(() => {
         omtDone = true
         app.quit()

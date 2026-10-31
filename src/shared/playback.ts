@@ -27,6 +27,11 @@ export type EngineState = 'opening' | 'ready' | 'fallback'
 /** Which program plays and imports PowerPoint files on this computer. */
 export type EngineKind = 'powerpoint' | 'libreoffice' | 'none'
 
+/** "PowerPoint" or "LibreOffice": the name used in Edit in ..., Resume ... and the fallback copy. */
+export function engineName(kind: EngineKind): 'PowerPoint' | 'LibreOffice' {
+  return kind === 'libreoffice' ? 'LibreOffice' : 'PowerPoint'
+}
+
 /** What the operator window learns about the native slide shows (`slideshow:status`). */
 export interface SlideshowStatus {
   /** Per native deck. */

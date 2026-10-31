@@ -692,8 +692,9 @@ export function playbackChip(d: DeckMeta, engine: EngineState | null): string {
 }
 
 export const NATIVE_NOT_READY = 'The slide show is not ready; showing still slides.'
-export const NATIVE_NOT_RESPONDING =
-  'PowerPoint is not responding. Showing still slides. Save your other PowerPoint files, then press Resume PowerPoint.'
+export const nativeNotResponding = (app: 'PowerPoint' | 'LibreOffice'): string =>
+  `${app} is not responding. Showing still slides. Save your other ${app} files, then press Resume ${app}.`
+export const NATIVE_NOT_RESPONDING = nativeNotResponding('PowerPoint')
 export const NATIVE_HELPER_FAILED =
   'The slide show helper could not start. Reinstall PPT Share. Showing still slides.'
 export const NATIVE_PENDING = 'Changes apply when this deck leaves air.'

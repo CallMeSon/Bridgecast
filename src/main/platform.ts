@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process'
 
-import type { EngineKind } from '../shared/playback'
+import { engineName, type EngineKind } from '../shared/playback'
 
+export { engineName }
 export type { EngineKind }
 
 export const INSTALL_LIBREOFFICE =
@@ -43,11 +44,6 @@ export function detectEngine(p: PlatformProbe): EngineInfo {
     return { engine: 'libreoffice', canCapture: true }
   }
   return { engine: 'none', canCapture: false, message: NO_POWERPOINT_ENGINE }
-}
-
-/** "PowerPoint" or "LibreOffice": the name used in Edit in ..., Resume ... and the fallback copy. */
-export function engineName(kind: EngineKind): 'PowerPoint' | 'LibreOffice' {
-  return kind === 'libreoffice' ? 'LibreOffice' : 'PowerPoint'
 }
 
 function run(cmd: string, args: string[]): Promise<boolean> {

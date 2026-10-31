@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { OutputAudio } from './output-audio'
+import { OutputAudio, findMonitor } from './output-audio'
 
 /** A hand-written AudioContext: records the graph the class builds. */
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type -- the inferred type of the recorded fakes is the point
@@ -506,5 +506,29 @@ describe('OutputAudio PowerPoint sound (PCM port)', () => {
     )
     expect(await a.setPcmPort(port())).toBe(false)
     warn.mockRestore()
+  })
+})
+
+describe('findMonitor', () => {
+  const dev = (
+    deviceId: string,
+    label: string,
+    kind = 'audioinput'
+  ): { deviceId: string; label: string; kind: string } => ({ deviceId, label, kind })
+
+  it('finds the audio input of the private LibreOffice sink', () => {
+    expect(
+      findMonitor([
+        dev('default', 'Default'),
+        dev('a', 'Built-in Audio'),
+        dev('m', 'pptshare_lo_input')
+      ])
+    ).toBe('m')
+  })
+
+  it('ignores outputs and returns null when the sink is not there', () => {
+    expect(findMonitor([dev('o', 'pptshare_lo', 'audiooutput')])).toBeNull()
+    expect(findMonitor([dev('a', 'Built-in Audio')])).toBeNull()
+    expect(findMonitor([])).toBeNull()
   })
 })

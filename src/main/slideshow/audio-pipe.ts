@@ -235,7 +235,8 @@ export function fallbackVolume(s: ProgramState, audio: AudioSettings): number | 
 
 /** What the engine reports about PowerPoint's sound route (see PowerPointEngine.onAudio). */
 export interface EngineAudio {
-  mode: 'pipe' | 'fallback' | 'device' | 'none'
+  /** `monitor`: LibreOffice plays into a private sink the output window captures (no pipe here). */
+  mode: 'pipe' | 'fallback' | 'device' | 'monitor' | 'none'
   pipe: string | null
   note: string | null
 }
@@ -290,7 +291,7 @@ export class SlideSound {
       this.route.mode === 'device' ||
       this.route.note !== null ||
       (this.route.mode === 'pipe' && !this.route.pipe)
-    this.setNote(live && degraded ? DEFAULT_DEVICE_SOUND : null)
+    this.setNote(live && degraded ? (this.route.note ?? DEFAULT_DEVICE_SOUND) : null)
     if (this.route.mode !== 'fallback') return
     const v = fallbackVolume(state, audio)
     if (v === null || v === this.lastVolume) return

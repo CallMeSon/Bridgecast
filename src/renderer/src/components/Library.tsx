@@ -84,6 +84,8 @@ interface Props {
   onSelectDeck(deckId: string): void
   onDismissImport(id: string): void
   onFiles(files: File[]): void
+  /** The program of this computer (PowerPoint on Windows, LibreOffice on Linux). */
+  engineName?: 'PowerPoint' | 'LibreOffice'
   /** Linux only (LibreOffice engine): what an imported PowerPoint file becomes; absent elsewhere. */
   importFormat?: { value: PptImportFormat; onChange(v: PptImportFormat): void }
   /** Indices are into the ordered list of decks and sections (`orderItems`). */
@@ -130,14 +132,14 @@ interface MenuAt {
   y: number
 }
 
-const PLAYBACK_NAMES: Record<Playback, { name: string; hint: string }> = {
+const PLAYBACK_NAMES = (app: string): Record<Playback, { name: string; hint: string }> => ({
   native: {
     name: 'Native',
-    hint: 'PowerPoint plays the slide show: animations, transitions and video'
+    hint: `${app} plays the slide show: animations, transitions and video`
   },
   vector: { name: 'Vector', hint: 'Sharp pages drawn from the file, no animation' },
   images: { name: 'Still images', hint: 'The imported pictures of the slides' }
-}
+})
 
 /** The playback modes this deck can use, in menu order (a PDF has no Native). */
 function playbackOptions(d: DeckMeta | undefined): Playback[] {
@@ -164,6 +166,7 @@ function DeckMenu({
   web,
   holdsFirst = false,
   powerPoint,
+  appName,
   options,
   editing,
   edited,
@@ -193,6 +196,8 @@ function DeckMenu({
   holdsFirst?: boolean
   /** A PowerPoint deck: Edit in PowerPoint and Revert. */
   powerPoint: boolean
+  /** The program that plays and edits it on this computer. */
+  appName: string
   /** Opened in PowerPoint and not finished. */
   editing: boolean
   /** The file differs from the imported one; null while that is being read. */
@@ -275,7 +280,7 @@ function DeckMenu({
           <hr />
           <button role="menuitem" onClick={onEdit}>
             <NotePencilIcon className="chk" size={16} />
-            Edit in PowerPoint
+            Edit in {appName}
           </button>
           {editing && (
             <button role="menuitem" onClick={onEditDone}>
@@ -301,7 +306,7 @@ function DeckMenu({
                 key={o}
                 role="menuitemradio"
                 aria-checked={playback === o}
-                title={PLAYBACK_NAMES[o].hint}
+                title={PLAYBACK_NAMES(appName)[o].hint}
                 onClick={() => onPlayback(o)}
               >
                 {playback === o ? (
@@ -309,7 +314,7 @@ function DeckMenu({
                 ) : (
                   <span className="chk" />
                 )}
-                {PLAYBACK_NAMES[o].name}
+                {PLAYBACK_NAMES(appName)[o].name}
               </button>
             ))}
           </div>
@@ -1048,6 +1053,7 @@ export function Library(p: Props): React.JSX.Element {
           web={deckById.get(menu.deckId)?.source === 'web'}
           holdsFirst={p.live?.deckId === menu.deckId}
           powerPoint={deckById.get(menu.deckId)?.source === 'pptx'}
+          appName={p.engineName ?? 'PowerPoint'}
           options={playbackOptions(deckById.get(menu.deckId))}
           editing={p.editing.includes(menu.deckId)}
           edited={menuEdited}

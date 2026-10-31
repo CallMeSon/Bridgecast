@@ -19,6 +19,7 @@ import { CaptureWarning } from './components/CaptureWarning'
 import { HoldWarning } from './components/HoldWarning'
 import { EditErrorBanner, NativeFallbackWarning, PendingBanner } from './components/NativeNotices'
 import { useSlideshow } from './slideshow'
+import { engineName } from '../../shared/playback'
 import type { PptImportFormat } from '../../shared/settings'
 import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
@@ -471,7 +472,7 @@ function App(): React.JSX.Element {
     (deckId: string) => {
       api.editDeck(deckId).then(
         () => setEditing((xs) => editingAfter(xs, 'start', deckId)),
-        (e) => reportError('Edit in PowerPoint', e)
+        (e) => reportError('Edit deck', e)
       )
     },
     [api, reportError]
@@ -479,7 +480,7 @@ function App(): React.JSX.Element {
   const editDeckDone = useCallback(
     (deckId: string) => {
       setEditing((xs) => editingAfter(xs, 'done', deckId))
-      api.editDeckDone(deckId).catch((e) => reportError('Edit in PowerPoint', e))
+      api.editDeckDone(deckId).catch((e) => reportError('Edit deck', e))
     },
     [api, reportError]
   )
@@ -772,6 +773,7 @@ function App(): React.JSX.Element {
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}
           onDismissImport={(id) => setImports((xs) => xs.filter((x) => x.id !== id))}
           onFiles={importFiles}
+          engineName={engineName(slideshow.status.engine)}
           importFormat={
             slideshow.status.engine === 'libreoffice'
               ? { value: importFormat, onChange: changeImportFormat }
@@ -819,6 +821,8 @@ function App(): React.JSX.Element {
               onResume={() =>
                 program.shown && dispatch({ type: 'resumeNative', deckId: program.shown.deckId })
               }
+              app={engineName(slideshow.status.engine)}
+              helperText={slideshow.status.helperError}
             />
           )}
           {pendingLive.map((d) => (

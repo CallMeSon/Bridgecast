@@ -18,6 +18,19 @@ export interface OutputAudioOptions {
   onWarning?: (w: 'no-sound') => void
 }
 
+/**
+ * The capture source of LibreOffice's sound: an audio input whose label contains `pptshare_lo`
+ * (the remap source on the private sink's monitor, see `PulseSink`), or null when it is not there.
+ */
+export function findMonitor(
+  devices: { deviceId: string; label: string; kind: string }[]
+): string | null {
+  return (
+    devices.find((d) => d.kind === 'audioinput' && d.label.toLowerCase().includes('pptshare_lo'))
+      ?.deviceId ?? null
+  )
+}
+
 /** What this window does with the sound: play it here, and/or tap it for OMT. */
 export interface SoundPlan {
   local: boolean

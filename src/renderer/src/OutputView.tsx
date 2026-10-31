@@ -4,6 +4,7 @@ import { audioPlan, networkRunning, type NdiStatus, type OmtStatus } from '../..
 import type { AudioSettings } from '../../shared/settings'
 import { outputGain, outputSource } from './model'
 import { OutputAudio } from './output-audio'
+import { useLibreOfficeSound } from './lo-sound'
 import { stageRect } from './stage'
 import tapModuleUrl from './omt-tap.worklet.ts?worker&url'
 import pcmModuleUrl from './pcm-source.worklet.ts?worker&url'
@@ -249,6 +250,24 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     out.setSink(sink).catch((e: unknown) => console.warn('[audio] audio device failed:', e))
   }, [out, sink])
   const soundReady = outputGateOpen(audio, outputs, setupTimedOut || audioFailed)
+
+  // LibreOffice (Linux): its sound arrives from a private sink, captured while a native deck is
+  // on air and not covered by Black or the KV image.
+  const [engine, setEngine] = useState<string>('powerpoint')
+  useEffect(() => {
+    window.api
+      .slideshowStatus()
+      .then((s) => setEngine(s.engine))
+      .catch(() => undefined)
+  }, [])
+  useLibreOfficeSound(
+    out,
+    engine === 'libreoffice' &&
+      !!program &&
+      program.shown?.playback === 'native' &&
+      !program.black &&
+      !program.kv
+  )
 
   // Tell main once the first layer for a known state is on screen, so the HDMI
   // window is shown without ever flashing a placeholder. An image is decoded

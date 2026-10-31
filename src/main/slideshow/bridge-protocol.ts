@@ -1,5 +1,6 @@
 /** JSON-lines protocol between the main process and the PowerPoint bridge. */
-export type BridgeCmd = 'open' | 'next' | 'prev' | 'goto' | 'close' | 'ping' | 'edit' | 'setVolume'
+export type BridgeCmd =
+  'open' | 'next' | 'prev' | 'goto' | 'close' | 'ping' | 'edit' | 'setVolume' | 'import' // lo-bridge only (the Linux PowerPoint import)
 
 export type BridgeRequest = { id: number; cmd: BridgeCmd } & Record<string, unknown>
 export type BridgeReply =

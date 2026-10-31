@@ -5,16 +5,19 @@ import {
   APPLY_NOW_CONFIRM,
   NATIVE_HELPER_FAILED,
   NATIVE_NOT_READY,
-  NATIVE_NOT_RESPONDING,
+  nativeNotResponding,
   NATIVE_PENDING,
   type NativeNotice
 } from '../model'
 
-const TEXT: Record<NativeNotice, string> = {
-  notReady: NATIVE_NOT_READY,
-  notResponding: NATIVE_NOT_RESPONDING,
-  helper: NATIVE_HELPER_FAILED
-}
+type AppName = 'PowerPoint' | 'LibreOffice'
+
+const textFor = (notice: NativeNotice, app: AppName, helperText: string | null): string =>
+  notice === 'notReady'
+    ? NATIVE_NOT_READY
+    : notice === 'notResponding'
+      ? nativeNotResponding(app)
+      : (helperText ?? NATIVE_HELPER_FAILED)
 
 /**
  * The live native deck shows still slides. Persistent until the operator acts or the slide show
@@ -24,11 +27,17 @@ const TEXT: Record<NativeNotice, string> = {
 export function NativeFallbackWarning({
   notice,
   canResume,
-  onResume
+  onResume,
+  app = 'PowerPoint',
+  helperText = null
 }: {
   notice: NativeNotice
   canResume: boolean
   onResume(): void
+  /** The program that plays the slide show on this computer. */
+  app?: AppName
+  /** The helper's own message (LibreOffice could not start, Wayland, ...). */
+  helperText?: string | null
 }): React.JSX.Element {
   const hintId = useId()
   const resumable = notice === 'notResponding'
@@ -36,9 +45,9 @@ export function NativeFallbackWarning({
     <div className="action-error hold-warning" role="alert" data-testid="native-warning">
       <PauseCircleIcon className="ph" size={20} />
       <div className="txt">
-        <strong>{TEXT[notice]}</strong>
+        <strong>{textFor(notice, app, helperText)}</strong>
         {resumable && !canResume && (
-          <span id={hintId}>Resume PowerPoint is available when the slide show is ready.</span>
+          <span id={hintId}>Resume {app} is available when the slide show is ready.</span>
         )}
       </div>
       {resumable && (
@@ -51,7 +60,7 @@ export function NativeFallbackWarning({
             if (canResume) onResume()
           }}
         >
-          Resume PowerPoint
+          Resume {app}
         </button>
       )}
     </div>
