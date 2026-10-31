@@ -14,8 +14,8 @@ const NARROW = 1400
 
 export function defaultLayout(width: number): Layout {
   return width <= NARROW
-    ? { left: 232, right: 288, strip: 150 }
-    : { left: 256, right: 320, strip: 150 }
+    ? { left: 256, right: 288, strip: 176 }
+    : { left: 288, right: 320, strip: 176 }
 }
 
 /** Allowed range of one axis, given the current size of the others. */

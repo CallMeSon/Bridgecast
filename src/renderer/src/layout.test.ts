@@ -9,12 +9,12 @@ import {
   STEP
 } from './layout'
 
-const cur = { left: 256, right: 320, strip: 150 }
+const cur = { left: 256, right: 320, strip: 176 }
 
 describe('defaultLayout', () => {
   it('uses the wide defaults above 1400px and the tight ones below', () => {
-    expect(defaultLayout(1600)).toEqual({ left: 256, right: 320, strip: 150 })
-    expect(defaultLayout(1400)).toEqual({ left: 232, right: 288, strip: 150 })
+    expect(defaultLayout(1600)).toEqual({ left: 288, right: 320, strip: 176 })
+    expect(defaultLayout(1400)).toEqual({ left: 256, right: 288, strip: 176 })
   })
 })
 
@@ -61,16 +61,16 @@ describe('parseStored', () => {
     expect(parseStored('7')).toEqual({})
   })
   it('round-trips through serializeStored', () => {
-    expect(parseStored(serializeStored({ left: 300, strip: 150 }))).toEqual({
+    expect(parseStored(serializeStored({ left: 300, strip: 176 }))).toEqual({
       left: 300,
-      strip: 150
+      strip: 176
     })
   })
 })
 
 describe('resolveLayout', () => {
   it('falls back to defaults', () => {
-    expect(resolveLayout({}, 1600, 900)).toEqual({ left: 256, right: 320, strip: 150 })
+    expect(resolveLayout({}, 1600, 900)).toEqual({ left: 288, right: 320, strip: 176 })
   })
   it('keeps stored sizes that fit', () => {
     expect(resolveLayout({ left: 400, strip: 200 }, 1600, 900)).toEqual({

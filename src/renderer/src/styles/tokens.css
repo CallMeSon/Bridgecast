@@ -34,6 +34,9 @@
   --h-lg: 52px;
   --pad: 20px;
   --letterbox: #000000;
+  /* Chips on slide thumbnails (number, hidden, clicks): dark in both themes, white text. */
+  --chip: color-mix(in srgb, var(--letterbox) 62%, transparent);
+  --chip-ink: #ffffff;
   --standby: #0d0d0d;
   /* Text on the standby/black cards, which stay dark in both themes. */
   --standby-ink: #9a9a98;

@@ -724,8 +724,10 @@ async function behaviourChecks(win, tally, pos) {
   await win.evaluate(() => document.activeElement?.blur())
   const p0 = await posText()
   const [cur, total] = p0.split(' / ').map(Number)
-  const here = `${cur} / ${total}`
-  const nextPos = `${cur + 1} / ${total}`
+  // The transport bar zero-pads the position ('03 / 12').
+  const [curText, totalText] = p0.split(' / ')
+  const here = p0
+  const nextPos = `${String(cur + 1).padStart(curText.length, '0')} / ${totalText}`
   check(cur >= 1 && cur < total, `behaviour checks start mid-deck (${p0})`)
 
   // 1. The event menu owns the keyboard: Space/arrows never move the on-air slide.
@@ -1776,8 +1778,7 @@ async function videoChecks(win, tally) {
   )
   await win.evaluate(() => window.api.setAudio({ deviceId: null, muted: false }))
   await missing.waitFor({ state: 'detached' })
-  await win.keyboard.press('Escape')
-  await apop.waitFor({ state: 'detached' })
+  // The Output section is inline in the Controls tab now: nothing to close.
   await blur()
 
   // 1c. A hidden output window is silent (I2). Unplugging the display hides the
@@ -2520,7 +2521,7 @@ try {
   // Frozen, the right panel previews the position slide (Unfreeze does not take it live).
   check((await cap.textContent()) === 'Slide 3', 'frozen: Next panel previews the position slide')
   check(
-    (await win.getByTestId('next-pos').textContent()) === '03 / 03',
+    /^0?3 \/ 0?3$/.test(await win.getByTestId('next-pos').textContent()),
     'frozen: Next panel shows the position'
   )
   check(
@@ -2689,7 +2690,7 @@ try {
     () => document.querySelector('footer').getBoundingClientRect().height
   )
   check(
-    Math.abs(sh - 166) <= 1 && (await pos.textContent()) === posBefore,
+    Math.abs(sh - 192) <= 1 && (await pos.textContent()) === posBefore,
     `ArrowUp on the strip splitter resizes it without changing slides (strip ${sh}px)`
   )
   await win.getByTestId('splitter-strip').dblclick()
@@ -2748,7 +2749,7 @@ try {
   const waitPos = (p) =>
     win.waitForFunction((x) => document.querySelector('[data-testid=pos]')?.textContent === x, p)
   const autoSw = win.getByTestId('auto-advance')
-  const nextBtn = win.locator('.cbtn.next')
+  const nextBtn = win.locator('.tbtn.next')
   const savedAuto = () =>
     JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).autoAdvance
   check((await autoSw.getAttribute('aria-checked')) === 'false', 'auto advance is off by default')
@@ -2815,7 +2816,7 @@ try {
   check(true, 'switching back restores the position')
 
   // Theme toggle persists across reloads.
-  await win.getByRole('button', { name: 'Light theme' }).click()
+  await win.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Light' }).click()
   check(
     (await win.evaluate(() => document.documentElement.dataset.theme)) === 'light',
     'theme toggles to light'

@@ -5,6 +5,7 @@ import { thumbUrl } from '../../../shared/ipc'
 import { posterWithVersion } from '../stream'
 import { currentDeck, reorderTarget, slideLabel, slideRole, type SlideRole } from '../model'
 import { SlideImage } from './Slide'
+import { StatusTag } from './StatusTag'
 
 /** '3 clicks': the animation steps the slide has when it plays natively. */
 const clicksText = (n: number): string => `${n} ${n === 1 ? 'click' : 'clicks'}`
@@ -109,20 +110,26 @@ const Thumb = memo(function Thumb({
         onMove(deck.id, Number(from), i, s.file)
       }}
     >
-      <SlideImage
-        src={posterWithVersion(thumbUrl(deck.id, s.file), version)}
-        alt=""
-        lazy
-        video={!!s.video}
-      />
-      <span className="tg">
-        <span className="n">{i + 1}</span>
-        {role === 'live' && <b>LIVE</b>}
-        {role === 'frozen' && <b>FROZEN</b>}
-        {role === 'next' && <b>NEXT</b>}
-        {s.hidden && <i className="hid">Hidden</i>}
-        {!!s.clicks && !s.hidden && <i className="clk">{clicksText(s.clicks)}</i>}
-      </span>
+      <div className="im">
+        <SlideImage
+          src={posterWithVersion(thumbUrl(deck.id, s.file), version)}
+          alt=""
+          lazy
+          video={!!s.video}
+        />
+        <span className="no">{i + 1}</span>
+        {(role === 'live' || role === 'frozen' || role === 'next') && (
+          <span className="tag">
+            <StatusTag kind={role} size="sm" variant="icon" />
+          </span>
+        )}
+        {(s.hidden || !!s.clicks) && (
+          <span className="tg">
+            {s.hidden && <i className="hid">Hidden</i>}
+            {!!s.clicks && !s.hidden && <i className="clk">{clicksText(s.clicks)}</i>}
+          </span>
+        )}
+      </div>
     </button>
   )
 })
@@ -189,25 +196,25 @@ export function Strip({ decks, state, onGoto, onMoveSlide, versions }: Props): R
             />
           ))}
         </div>
-        {/* Legend under the thumbnails: what each mark in the strip means. */}
-        <div className="lg" aria-hidden="true">
-          <span>
-            <i className="sk live" />
+      </div>
+      <div className="sbar">
+        <span className="dn" title={deck.name}>
+          {deck.name}
+        </span>
+        <span className="count">
+          {deck.slides.length} {deck.slides.length === 1 ? 'slide' : 'slides'}
+        </span>
+        {/* What each ring in the strip means. */}
+        <span className="legend" aria-hidden="true">
+          <span className="l">
+            <i />
             Live on Program
           </span>
-          <span>
-            <i className="sk frozen" />
-            Frozen on Program
-          </span>
-          <span>
-            <i className="sk next" />
+          <span className="n">
+            <i />
             Next
           </span>
-          <span>
-            <i className="sk pos" />
-            Position
-          </span>
-        </div>
+        </span>
       </div>
     </footer>
   )

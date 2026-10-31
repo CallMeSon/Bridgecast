@@ -31,7 +31,7 @@ h2 {
   display: grid;
   /* The single column may not grow past the window, so a long header never widens the page. */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--h-lg) minmax(0, 1fr) var(--strip-h, 150px);
+  grid-template-rows: var(--h-lg) minmax(0, 1fr) var(--strip-h, 176px);
 }
 .app[data-resizing] {
   user-select: none;
@@ -630,7 +630,7 @@ header > .theme {
 /* columns */
 main {
   display: grid;
-  grid-template-columns: var(--left-w, 256px) minmax(0, 1fr) var(--right-w, 320px);
+  grid-template-columns: var(--left-w, 288px) minmax(0, 1fr) var(--right-w, 320px);
   min-height: 0;
 }
 .left,
@@ -654,17 +654,40 @@ main {
   container: stage / inline-size;
 }
 .colhead {
-  height: 40px;
+  height: 56px;
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  padding: 0 var(--pad);
 }
-.colhead .meta {
+.iconbtn {
+  width: var(--h-sm);
+  height: var(--h-sm);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+}
+.iconbtn:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+.iconbtn:disabled {
   color: var(--text-3);
-  font: 400 13px var(--font-mono);
+  cursor: not-allowed;
+}
+.colhead h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.colhead .count {
+  flex: 1;
+  font: 400 12px var(--font-mono);
+  color: var(--text-3);
 }
 .tag {
   margin-left: 10px;
@@ -708,27 +731,31 @@ main {
   background: var(--text-2);
 }
 
-/* library */
+/* library: soft rows, a 64x36 tile (first slide or source icon), name and sub line */
 .decks {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding: 0 8px 12px;
+  display: grid;
+  gap: 2px;
+  align-content: start;
 }
 .empty-lib {
-  padding: 12px 16px;
+  padding: 12px;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.5;
 }
 .deck {
   position: relative;
   display: grid;
-  grid-template-columns: 20px 1fr auto;
-  gap: 2px 10px;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 2px 12px;
   align-items: center;
   width: 100%;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
+  padding: 8px 12px;
+  border-radius: var(--r);
   text-align: left;
 }
 .deck:hover {
@@ -738,21 +765,51 @@ main {
 .deck:focus-visible {
   outline-offset: -2px;
 }
-.deck .ph {
+.deck .tile {
   grid-column: 1;
   grid-row: 1 / 3;
-  align-self: start;
-  margin-top: 2px;
-  color: var(--text-3);
+  position: relative;
+  overflow: hidden;
+  width: 64px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+.deck .tile.pv {
+  background: var(--letterbox);
+}
+/* The ring is an overlay: the thumbnail keeps its own 16:9 box. */
+.deck .tile.pv::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-sm);
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--line-hi);
+}
+.deck .tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 .deck .name {
   grid-column: 2;
   grid-row: 1;
+  min-width: 0;
   font-weight: 500;
+  font-size: 14px;
   line-height: 1.3;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* A deck row: the deck button plus its options button (⋮) on the right. */
+/* A deck row: the deck button plus its options button on the right. */
 .deck-row {
   position: relative;
 }
@@ -764,11 +821,11 @@ main {
   top: 50%;
   right: 8px;
   transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
+  width: var(--h-sm);
+  height: var(--h-sm);
   display: grid;
   place-items: center;
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   color: var(--text-3);
 }
 .deck-more:hover,
@@ -779,57 +836,46 @@ main {
 .deck-more:focus-visible {
   outline-offset: -2px;
 }
-/* Sound mark on a deck row: icon beside its words, in mono because it is a level. */
 .deck .sub {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0 10px;
+  gap: 0 8px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-3);
 }
+/* Sound mark on a deck row: icon beside its words, in mono because it is a level. */
 .deck .snd {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font: 400 13px var(--font-mono);
+  font: 400 12px var(--font-mono);
   color: var(--text-2);
-}
-.deck .sub,
-.deck .meta {
-  font-size: 13px;
-  color: var(--text-3);
-}
-.deck .sub {
-  grid-column: 2;
-  grid-row: 2;
 }
 .deck .meta,
 .deck .n {
   grid-column: 3;
   grid-row: 1 / 3;
-  font: 400 13px var(--font-mono);
-  color: var(--text-2);
+  min-width: 0;
+  text-align: right;
+  font: 400 12px var(--font-mono);
+  color: var(--text-3);
 }
+/* The current deck: accent wash. The live deck keeps the wash and shows its tag. */
 .deck[aria-current='true'],
-.deck.live {
-  background: var(--raised);
+.deck.live,
+.deck.frozen {
+  background: var(--accent-soft);
 }
-.deck[aria-current='true']::before,
-.deck.live::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--text-3);
+.deck[aria-current='true'] .tile {
+  color: var(--accent-ink);
 }
-.deck.live::before {
-  background: var(--tally);
-}
-.deck.live .ph {
-  color: var(--text);
-}
-.deck.live .sub {
+.deck.live .sub,
+.deck.frozen .sub {
   color: var(--text-2);
 }
 .deck.busy {
@@ -845,15 +891,20 @@ main {
 .deck.err .meta {
   grid-column: 2;
   grid-row: 2;
-  font: 400 13px var(--font-sans);
+  text-align: left;
+  font: 400 12px var(--font-sans);
   color: var(--text-3);
+}
+.deck.busy .n {
+  grid-column: 3;
+  grid-row: 1;
 }
 .deck .bar {
   grid-column: 2 / 4;
   grid-row: 3;
   height: 4px;
-  margin-top: 6px;
-  border-radius: var(--r);
+  margin-top: 4px;
+  border-radius: var(--r-round);
   background: var(--raised-hi);
   overflow: hidden;
 }
@@ -862,6 +913,7 @@ main {
   height: 100%;
   width: 0;
   background: var(--text-2);
+  border-radius: var(--r-round);
 }
 /* Compositor-only fill: the bar sets style="--p: 0..1" (scaleX from the left edge). */
 .deck .bar i[style*='--p'] {
@@ -870,7 +922,7 @@ main {
   transform-origin: left;
   transition: transform 0.2s linear;
 }
-.deck.err .ph {
+.deck.err .tile {
   color: var(--text);
 }
 .deck.err .name {
@@ -883,7 +935,7 @@ main {
 .deck .msg {
   grid-column: 2 / 4;
   grid-row: 3;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--text-2);
 }
@@ -900,11 +952,13 @@ main {
   outline-offset: 2px;
 }
 .deck.rename {
-  grid-template-columns: 20px 1fr;
+  grid-template-columns: 64px minmax(0, 1fr);
   background: var(--raised);
   cursor: default;
 }
 .deck.rename .text-input {
+  grid-column: 2;
+  grid-row: 1;
   width: 100%;
   min-width: 0;
 }
@@ -913,13 +967,12 @@ main {
   grid-row: 2;
 }
 .deck.confirm {
-  grid-template-columns: 20px 1fr;
+  grid-template-columns: 64px minmax(0, 1fr);
   background: var(--raised-hi);
   cursor: default;
 }
-.deck.confirm .ph {
+.deck.confirm .tile {
   grid-row: 1;
-  margin-top: 0;
   color: var(--text);
 }
 .deck.confirm .name {
@@ -933,7 +986,7 @@ main {
   grid-column: 2;
   grid-row: 3;
   display: flex;
-  gap: 6px;
+  gap: 8px;
   margin-top: 4px;
 }
 /* A section divider in the deck list: thinner than a deck row, no thumbnail. The word
@@ -996,9 +1049,8 @@ main {
 }
 .kv-block {
   flex: none;
-  padding: 10px 16px 12px;
-  border-top: 1px solid var(--line-hi);
-  background: var(--bg);
+  padding: 16px var(--pad) 12px;
+  border-top: 1px solid var(--line);
 }
 .kv-head {
   color: var(--text-3);
@@ -1070,9 +1122,7 @@ main {
 }
 .add {
   flex: none;
-  padding: 12px 16px 14px;
-  border-top: 1px solid var(--line-hi);
-  background: var(--bg);
+  padding: 0 var(--pad) var(--pad);
 }
 .add-row {
   display: flex;
@@ -1123,8 +1173,8 @@ main {
   width: 18px;
   height: 18px;
   border-radius: var(--r-sm);
-  background: var(--letterbox);
-  color: var(--on-tally);
+  background: var(--chip);
+  color: var(--chip-ink);
   pointer-events: none;
 }
 /* Empty-state card: sentences in the sans, sized with floors and caps so it reads at
@@ -1262,8 +1312,7 @@ main {
 }
 /* Rings are overlays, so the slide keeps an exact canvas-aspect box (no black slivers). */
 .screen::after,
-.next-card .slide::after,
-.th .slide::after {
+.next-card .slide::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -1823,129 +1872,182 @@ kbd {
   color: var(--text-3);
 }
 
-/* strip */
+/* strip: a timeline. Thumbnails on top, one 52px bar below. */
 footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--h-lg);
   min-height: 0;
-  border-top: 1px solid var(--line-hi);
+  border-top: 1px solid var(--line);
   background: var(--panel);
 }
 footer .empty {
   grid-column: 1 / -1;
+  grid-row: 1 / -1;
   align-self: center;
-  padding: 0 16px;
+  padding: 0 var(--pad);
   color: var(--text-3);
 }
 .strip-main {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
   min-height: 0;
-}
-.strip-main .lg {
-  flex: none;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 16px;
-  padding: 0 16px 8px;
-  color: var(--text-3);
-  font-size: 12px;
-}
-.sk {
-  display: inline-block;
-  width: 12px;
-  height: 8px;
-  margin-right: 6px;
-  border-radius: var(--r-sm);
-}
-.sk.live {
-  background: var(--tally);
-}
-.sk.next {
-  background: var(--accent);
-}
-.sk.frozen {
-  background: none;
-  border: 1.5px solid var(--tally);
-}
-.sk.pos {
-  background: none;
-  border: 1.5px dashed var(--text-2);
 }
 .thumbs {
-  /* Thumbnails take their size from this row's height (resizable strip). */
-  container-type: size;
   flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 16px 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-.th {
-  flex: 0 0 auto;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border-radius: 0;
+  gap: 8px;
+  padding: 16px var(--pad);
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: center;
+}
+.th {
+  flex: 0 0 140px;
+  width: 140px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
   text-align: left;
 }
-.th .slide {
-  /* 100cqh is the thumbnail row; 24px leaves room for the number and tag row. */
-  height: max(36px, calc(100cqh - 24px));
-  width: auto;
-  aspect-ratio: 16/9;
+.th .im {
+  position: relative;
+  aspect-ratio: 16 / 9;
   border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--letterbox);
 }
-/* The strip clips on its padding box: the ring sits beyond the 2px LIVE/NEXT outline. */
+.th .im .slide {
+  height: 100%;
+}
+/* Rings are overlays on the image, so the slide box stays 16:9. */
+.th .im::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-sm);
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--line-hi);
+}
+.th:hover .im::after {
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+}
+.th[data-role='live'] .im::after,
+.th[data-role='frozen'] .im::after {
+  box-shadow: inset 0 0 0 2px var(--tally);
+}
+.th[data-role='next'] .im::after {
+  box-shadow: inset 0 0 0 2px var(--next-ring);
+}
+.th[data-role='pos'] .im::after {
+  box-shadow: inset 0 0 0 1.5px var(--text-2);
+}
 .th:focus-visible {
-  outline-offset: 4px;
+  outline-offset: 2px;
 }
-.th:hover .slide::after {
-  border-color: var(--text-3);
+/* Slide number inside the thumbnail, on a dark chip so it reads on any slide. */
+.th .no {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 1;
+  min-width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: var(--r-sm);
+  background: var(--chip);
+  color: var(--chip-ink);
+  font: 600 12px / 1 var(--font-mono);
+  pointer-events: none;
 }
-.th[data-role] .slide::after {
-  border-color: transparent;
+.th .tag {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  z-index: 1;
+  display: flex;
+  margin: 0;
 }
-.th[data-role='live'] .slide {
-  outline: 2px solid var(--tally);
-}
-.th[data-role='next'] .slide {
-  outline: 2px solid var(--accent);
-}
-.th[data-role='pos'] .slide {
-  outline: 2px dashed var(--text-2);
+/* Hidden slide and click count: bottom-right, away from the number. */
+.th .tag .stag[data-kind='next'] {
+  background: var(--panel);
 }
 .th .tg {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 1;
+  max-width: calc(100% - 44px);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 18px;
-  font: 500 12px/1 var(--font-mono);
-  color: var(--text-3);
+  pointer-events: none;
 }
-.th[data-role='live'] .tg,
-.th[data-role='next'] .tg {
-  color: var(--text);
-}
-.th .tg b {
+.th .tg .clk,
+.th .tg .hid {
   padding: 3px 5px;
   border-radius: var(--r-sm);
+  background: var(--chip);
+  color: var(--chip-ink);
+  font: 500 12px / 1 var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.th[data-hidden='true'] .slide {
+  opacity: 0.4;
+}
+/* Video mark goes top-left here: the number owns the bottom-left corner. */
+.th .slide .vmark {
+  left: 6px;
+  top: 6px;
+  bottom: auto;
+}
+.sbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 0 var(--pad);
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--text-2);
+}
+.sbar .dn {
+  min-width: 0;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sbar .count {
+  flex: none;
+  white-space: nowrap;
+}
+.sbar .legend {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
   font-size: 12px;
-  font-weight: 700;
+  color: var(--text-2);
+  white-space: nowrap;
 }
-.th[data-role='live'] .tg b {
-  background: var(--tally);
-  color: var(--on-tally);
+.sbar .legend i {
+  display: inline-block;
+  width: 16px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: var(--r-sm);
+  vertical-align: -1px;
+  box-shadow: inset 0 0 0 2px var(--tally);
 }
-.th[data-role='next'] .tg b {
-  background: var(--accent-fill);
-  color: var(--on-accent);
+.sbar .legend .n i {
+  box-shadow: inset 0 0 0 2px var(--next-ring);
 }
 
 /* splitters: a 12px hit area over the existing 1px panel rule (the visible mark stays
@@ -1974,7 +2076,7 @@ footer .empty {
 .splitter[data-axis='left'],
 .splitter[data-axis='right'] {
   top: var(--h-lg);
-  bottom: var(--strip-h, 150px);
+  bottom: var(--strip-h, 176px);
   width: 12px;
   cursor: col-resize;
 }
@@ -1985,7 +2087,7 @@ footer .empty {
   width: 2px;
 }
 .splitter[data-axis='left'] {
-  left: calc(var(--left-w, 256px) - 2px);
+  left: calc(var(--left-w, 288px) - 2px);
 }
 .splitter[data-axis='left']::after {
   left: 1px;
@@ -1999,7 +2101,7 @@ footer .empty {
 .splitter[data-axis='strip'] {
   left: 0;
   right: 0;
-  bottom: calc(var(--strip-h, 150px) - 10px);
+  bottom: calc(var(--strip-h, 176px) - 10px);
   height: 12px;
   cursor: row-resize;
 }
@@ -2038,7 +2140,7 @@ footer .empty {
 /* Narrower windows: tighter side columns. */
 @media (max-width: 1400px) {
   main {
-    grid-template-columns: var(--left-w, 232px) minmax(0, 1fr) var(--right-w, 288px);
+    grid-template-columns: var(--left-w, 256px) minmax(0, 1fr) var(--right-w, 288px);
   }
 }
 /* Decorative UI motion only. The Fade the operator chose is the slide change itself
@@ -2099,35 +2201,6 @@ footer .empty {
 .save-note:empty {
   display: none;
 }
-.th[data-role='frozen'] .slide {
-  outline: 2px solid var(--tally);
-}
-.th[data-role='frozen'] .tg {
-  color: var(--text);
-}
-.th[data-role='frozen'] .tg b {
-  border: 1.5px solid var(--tally);
-  color: var(--tally-ink);
-}
-.deck.frozen {
-  background: var(--raised);
-}
-.deck.frozen::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--tally);
-}
-.deck.frozen .ph {
-  color: var(--text);
-}
-.deck.frozen .sub {
-  color: var(--text-2);
-}
-
 /* Prepare window (PrepareView.tsx): toolbar, on-air banner, page preview in the canvas aspect. */
 .prepare {
   display: flex;
@@ -2368,22 +2441,6 @@ footer .empty {
   border-width: 2px;
   color: var(--text);
   font-weight: 700;
-}
-.th .tg .clk,
-.th .tg .hid {
-  font-style: normal;
-  font-size: 12px;
-  color: var(--text-3);
-  white-space: nowrap;
-}
-.th .tg .hid {
-  padding: 3px 5px;
-  border: 1px dashed var(--edge);
-  border-radius: var(--r-sm);
-  color: var(--text-2);
-}
-.th[data-hidden='true'] .slide {
-  opacity: 0.4;
 }
 .pgm-meta .stp {
   flex: none;

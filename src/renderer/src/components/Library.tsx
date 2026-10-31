@@ -35,7 +35,7 @@ import {
 import { canNative, playbackOf, type EngineState } from '../../../shared/playback'
 import type { ShownSlide } from '../../../shared/program'
 import { webDomain, type WebStatus } from '../../../shared/web'
-import type { ImportProgress } from '../../../shared/ipc'
+import { thumbUrl, type ImportProgress } from '../../../shared/ipc'
 import { DECK_FITS, sanitizeFit, type DeckFit } from '../../../shared/canvas'
 import { sanitizeDeckAudio, type DeckAudio } from '../../../shared/audio-levels'
 import {
@@ -349,11 +349,80 @@ function DeckMenu({
   )
 }
 
-/** Icon of a deck row by source. */
-function DeckIcon({ source }: { source: DeckMeta['source'] }): React.JSX.Element {
-  if (source === 'pdf') return <FilePdfIcon className="ph" size={20} />
-  if (source === 'web') return <GlobeIcon className="ph" size={20} />
-  return <FilePptIcon className="ph" size={20} />
+/** The head "+" menu: the three ways to add to the event. */
+function AddMenu({
+  at,
+  onClose,
+  onFiles,
+  onWeb,
+  onSection
+}: {
+  at: { x: number; y: number }
+  onClose(): void
+  onFiles(): void
+  onWeb(): void
+  onSection(): void
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  useContextMenu(ref, '[data-testid="deck-add"]', onClose)
+  return (
+    <div
+      ref={ref}
+      className="menu ctx-menu"
+      role="menu"
+      aria-label="Add to this event"
+      data-no-shortcuts
+      onKeyDown={onMenuKeyDown}
+      style={{ left: at.x, top: at.y }}
+      data-testid="add-menu"
+    >
+      <button role="menuitem" onClick={onFiles}>
+        <PlusIcon className="chk" size={16} />
+        Add files
+      </button>
+      <button role="menuitem" onClick={onWeb}>
+        <GlobeIcon className="chk" size={16} />
+        Add web page
+      </button>
+      <button role="menuitem" onClick={onSection}>
+        <ListPlusIcon className="chk" size={16} />
+        Add section
+      </button>
+    </div>
+  )
+}
+
+/** The 64x36 tile of a row: the first slide when there is one, else the source icon. */
+function Tile({ children, pv }: { children: React.ReactNode; pv?: boolean }): React.JSX.Element {
+  return <span className={'tile' + (pv ? ' pv' : '')}>{children}</span>
+}
+
+function DeckIcon({ deck }: { deck: DeckMeta }): React.JSX.Element {
+  const first = deck.source === 'web' ? undefined : deck.slides[0]
+  if (first) {
+    return (
+      <Tile pv>
+        <img src={thumbUrl(deck.id, first.file)} alt="" loading="lazy" draggable={false} />
+      </Tile>
+    )
+  }
+  if (deck.source === 'pdf')
+    return (
+      <Tile>
+        <FilePdfIcon className="ph" size={20} />
+      </Tile>
+    )
+  if (deck.source === 'web')
+    return (
+      <Tile>
+        <GlobeIcon className="ph" size={20} />
+      </Tile>
+    )
+  return (
+    <Tile>
+      <FilePptIcon className="ph" size={20} />
+    </Tile>
+  )
 }
 
 const CHIP_ICON: Record<WebChipKind, React.JSX.Element> = {
@@ -443,7 +512,7 @@ function RenameRow({
   }
   return (
     <div className="deck rename" data-no-shortcuts data-testid="rename-deck">
-      <DeckIcon source={deck.source} />
+      <DeckIcon deck={deck} />
       <input
         ref={input}
         className="text-input"
@@ -501,7 +570,9 @@ function ConfirmRemove({
         }
       }}
     >
-      <TrashIcon className="ph" size={20} />
+      <Tile>
+        <TrashIcon className="ph" size={20} />
+      </Tile>
       <span className="name" title={deck.name}>
         Remove this deck?
       </span>
@@ -546,7 +617,9 @@ function ConfirmEdit({
         }
       }}
     >
-      <NotePencilIcon className="ph" size={20} />
+      <Tile>
+        <NotePencilIcon className="ph" size={20} />
+      </Tile>
       <span className="name" title={deck.name}>
         {LO_EDIT_CONFIRM}
       </span>
@@ -589,7 +662,9 @@ function ConfirmRevert({
         }
       }}
     >
-      <ArrowCounterClockwiseIcon className="ph" size={20} />
+      <Tile>
+        <ArrowCounterClockwiseIcon className="ph" size={20} />
+      </Tile>
       <span className="name" title={deck.name}>
         {REVERT_CONFIRM}
       </span>
@@ -730,6 +805,7 @@ export function Library(p: Props): React.JSX.Element {
     }
   }, [menuDeckId, isEdited])
   const [sound, setSound] = useState<MenuAt | null>(null)
+  const [addMenu, setAddMenu] = useState<{ x: number; y: number } | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   // The Add web page dialog, or the Edit URL one of a web deck.
   const [webDialog, setWebDialog] = useState<'add' | { deckId: string } | null>(null)
@@ -868,7 +944,25 @@ export function Library(p: Props): React.JSX.Element {
     <aside className="left" aria-label="Decks">
       <div className="colhead">
         <h2>Decks</h2>
-        <span className="meta">{countOf(count, 'deck')}</span>
+        <span className="count">{countOf(count, 'deck')}</span>
+        <button
+          className="iconbtn"
+          aria-label="Add to this event"
+          aria-haspopup="menu"
+          aria-expanded={addMenu !== null}
+          title="Add to this event"
+          disabled={!p.canImport}
+          data-testid="deck-add"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            setConfirm(null)
+            setMenu(null)
+            setSectionMenu(null)
+            setAddMenu(addMenu ? null : { x: Math.max(8, r.right - 260), y: r.bottom + 4 })
+          }}
+        >
+          <PlusIcon size={18} />
+        </button>
       </div>
       <div className="decks" data-testid="decks">
         {items.length === 0 && p.imports.length === 0 && (
@@ -998,7 +1092,7 @@ export function Library(p: Props): React.JSX.Element {
                 onContextMenu={(e) => openMenu(e, d.id)}
                 {...dragProps(i)}
               >
-                <DeckIcon source={d.source} />
+                <DeckIcon deck={d} />
                 <span className="name" title={d.name}>
                   {d.name}
                 </span>
@@ -1009,7 +1103,12 @@ export function Library(p: Props): React.JSX.Element {
                 ) : p.frozen?.deckId === d.id ? (
                   <StatusTag kind="frozen" size="sm" />
                 ) : (
-                  <span className="meta">{countOf(d.slides.length, 'slide')}</span>
+                  <span className="meta" title={countOf(d.slides.length, 'slide')}>
+                    {d.slides.length}
+                    <span className="visually-hidden">
+                      {d.slides.length === 1 ? ' slide' : ' slides'}
+                    </span>
+                  </span>
                 )}
                 <span className="sub">
                   {d.source === 'web' && p.live?.deckId === d.id && (
@@ -1071,7 +1170,9 @@ export function Library(p: Props): React.JSX.Element {
               data-testid="import-error"
               onClick={() => p.onDismissImport(x.id)}
             >
-              <WarningCircleIcon className="ph" size={20} />
+              <Tile>
+                <WarningCircleIcon className="ph" size={20} />
+              </Tile>
               <span className="name" title={x.name}>
                 {x.name}
               </span>
@@ -1081,11 +1182,13 @@ export function Library(p: Props): React.JSX.Element {
           ) : (
             // Importing rows are not decks yet: no drag, no delete (v1 cannot cancel).
             <div key={x.id} className="deck busy" aria-busy="true" data-testid="import-busy">
-              {fileKind(x.name) === 'pdf' ? (
-                <FilePdfIcon className="ph" size={20} />
-              ) : (
-                <FilePptIcon className="ph" size={20} />
-              )}
+              <Tile>
+                {fileKind(x.name) === 'pdf' ? (
+                  <FilePdfIcon className="ph" size={20} />
+                ) : (
+                  <FilePptIcon className="ph" size={20} />
+                )}
+              </Tile>
               <span className="name" title={x.name}>
                 {x.name}
               </span>
@@ -1243,6 +1346,26 @@ export function Library(p: Props): React.JSX.Element {
             if (!restoreFocus) return
             // Back to the opener: the Add button, or the row of the deck being edited.
             webFocus.current = target
+          }}
+        />
+      )}
+      {addMenu && (
+        <AddMenu
+          at={addMenu}
+          onClose={() => setAddMenu(null)}
+          onFiles={() => {
+            setAddMenu(null)
+            input.current?.click()
+          }}
+          onWeb={() => {
+            setAddMenu(null)
+            setConfirm(null)
+            setMenu(null)
+            setWebDialog('add')
+          }}
+          onSection={() => {
+            setAddMenu(null)
+            addSection('end')
           }}
         />
       )}
