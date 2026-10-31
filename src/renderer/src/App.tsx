@@ -970,6 +970,8 @@ function App(): React.JSX.Element {
         onCustomHex={chooseCustom}
         reduceMotion={reduceMotion}
         onReduceMotion={chooseReduceMotion}
+        audio={outputAudio}
+        onAudioSaved={setOutputAudio}
       />
       {view === 'home' && (
         <Home
@@ -996,9 +998,9 @@ function App(): React.JSX.Element {
           live={tally(program) === 'live' ? program.shown : null}
           frozen={tally(program) === 'frozen' ? program.shown : null}
           canImport={eventId !== null}
+          handle={library}
           kvUrl={program.kvUrl}
           kvOnAir={kvOnAir(program)}
-          handle={library}
           onSetKv={setKv}
           onClearKv={clearKv}
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}
@@ -1056,8 +1058,6 @@ function App(): React.JSX.Element {
               helperText={slideshow.status.helperError}
             />
           )}
-        audio={outputAudio}
-        onAudioSaved={setOutputAudio}
           {pendingLive.map((d) => (
             <PendingBanner key={d.id} deckName={d.name} onApplyNow={() => applyDeckNow(d.id)} />
           ))}
