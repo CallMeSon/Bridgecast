@@ -8,9 +8,6 @@ directories:
 files:
   - out/**
   - package.json
-extraResources:
-  - from: scripts/export-pptx.ps1
-    to: scripts/export-pptx.ps1
 asarUnpack:
   - resources/**
   - node_modules/koffi/**
@@ -18,6 +15,8 @@ asarUnpack:
 win:
   executableName: PPT Share
   extraResources:
+    - from: scripts/export-pptx.ps1
+      to: scripts/export-pptx.ps1
     - from: resources/omt/win
       to: omt
     # PowerPoint slide show helper; build it first: scripts/build-ppt-bridge.sh (npm run build:bridge)
@@ -50,10 +49,19 @@ linux:
   extraResources:
     - from: resources/omt/linux
       to: omt
+    # LibreOffice slide show / import helper (python3 + python3-uno on the target PC)
+    - from: native/lo-bridge
+      to: lo-bridge
+      filter:
+        - bridge.py
+        - steps.py
   target:
     - AppImage
-    - snap
     - deb
+deb:
+  recommends:
+    - libreoffice-impress
+    - python3-uno
   maintainer: electronjs.org
   category: Utility
 appImage:

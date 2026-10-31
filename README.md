@@ -33,6 +33,20 @@ $ npm run build:mac
 $ npm run build:linux
 ```
 
+### Linux: PowerPoint files (LibreOffice)
+
+On Linux, `.pptx` / `.ppt` import and the native slide show use LibreOffice Impress instead of
+PowerPoint. Install it with the Python bridge dependency and the fonts that PowerPoint decks use:
+
+```bash
+sudo apt install libreoffice-impress python3-uno fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation
+```
+
+Use an **X11** session (Ubuntu / Zorin: pick "Ubuntu on Xorg" at the login screen). Wayland is not
+supported yet and the app says so. The `.deb` lists LibreOffice and `python3-uno` as recommended
+packages; the AppImage needs them installed on the PC. Integration tests with a real LibreOffice:
+`xvfb-run -a npx vitest run test/integration` (skipped when `soffice` is missing).
+
 ## OMT native libraries
 
 OMT output (video and sound to vMix / OBS over the LAN) loads two native libraries at run time:

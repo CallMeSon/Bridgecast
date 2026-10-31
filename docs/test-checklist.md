@@ -145,6 +145,19 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] Install per-user (bukan per-mesin) berjalan sebagai pengguna biasa, sedangkan pemasang NDI Runtime butuh admin: muncul prompt UAC, juga pada `/S`. Menolak UAC menghasilkan prompt kode 4 ("could not be installed (code 4)") pada install biasa; pada `/S` install lanjut tanpa NDI.
 - [ ] Install senyap `PPT-Share-setup.exe /S` selesai tanpa prompt apa pun, juga tanpa internet (lanjut tanpa NDI).
 
+## Putar PPT di Linux (LibreOffice)
+
+**BELUM DIJALANKAN: menunggu PC Linux (X11).** Pasang `libreoffice-impress` dan `python3-uno` dulu (lihat `README.md`). Tes integrasi: `xvfb-run -a npx vitest run test/integration`. E2E native dengan LibreOffice sungguhan (`PPT_E2E_LIBREOFFICE=1`) belum disambungkan ke `e2e/native.mjs`.
+
+- [ ] Impor deck klien beranimasi (`.pptx`): jumlah slide, catatan, slide tersembunyi, dan jumlah klik benar; font yang hilang muncul sebagai satu peringatan.
+- [ ] Putar deck itu (Native) ke HDMI dan OMT dengan clicker: tiap klik menjalankan satu langkah animasi, Up next menunjukkan label langkah.
+- [ ] Suara di dalam slide: rute Local, Network, Both. Tidak ganda di perangkat default; tidak ada suara bocor saat deck tidak live.
+- [ ] LibreOffice dimatikan paksa saat live: output memakai PNG slide yang sama (tidak hitam, tidak desktop), lalu kembali ke native.
+- [ ] Edit in LibreOffice: peringatan simpan muncul dulu; simpan memperbarui slide; saat deck live, perubahan menunggu sampai turun dari air; Revert mengembalikan file impor.
+- [ ] Sesi Wayland: pesan "X11 session" benar, deck tetap bisa diputar sebagai Vector / Still images.
+- [ ] `.deb` terpasang bersih dan AppImage berjalan; keduanya bisa impor dan memutar.
+- [ ] HDMI di X11: jendela slide show tidak pernah terlihat di layar operator atau HDMI di luar Program.
+
 ## Selesai
 
 - [ ] Uninstall lewat Settings → Apps berjalan bersih.
