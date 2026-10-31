@@ -65,9 +65,9 @@ export function NetworkSection({ fps, omtStatus, ndiStatus, onSaved }: Props): R
   return (
     <section className="pop-section" aria-labelledby="network-title" data-testid="network-section">
       <div className="pop-head">
-        <h2 className="pop-title" id="network-title">
+        <h3 className="pop-title" id="network-title">
           Network
-        </h2>
+        </h3>
       </div>
 
       <div className="field" ref={fpsBox}>

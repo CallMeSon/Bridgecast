@@ -5,6 +5,7 @@ import type { Theme } from '../theme'
 import { BrandMark } from './BrandMark'
 import { EventMenu } from './EventMenu'
 import { OutputMenu } from './OutputMenu'
+import type { OutputSettingsState } from './useOutputSettings'
 
 interface Props {
   events: EventMeta[]
@@ -13,6 +14,9 @@ interface Props {
   onCreateEvent(name: string): void
   onEventUpdated(ev: EventMeta): void
   program: ProgramState
+  output: OutputSettingsState
+  /** Shows the Output section of the Controls tab. */
+  onOpenOutput(): void
   theme: Theme
   onSetTheme(theme: Theme): void
   /** Opens the Settings dialog (Task 4). No handler yet: the gear stays out of the way. */
@@ -64,7 +68,7 @@ export function Header(p: Props): React.JSX.Element {
         onEventUpdated={p.onEventUpdated}
       />
       <span className="grow" />
-      <OutputMenu program={p.program} />
+      <OutputMenu program={p.program} out={p.output} onOpen={p.onOpenOutput} />
       <ThemeSwitch theme={p.theme} onSet={p.onSetTheme} />
       <button
         className="gear"

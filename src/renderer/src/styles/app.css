@@ -1517,25 +1517,17 @@ main {
   background: var(--raised-hi);
 }
 
-/* Transition and section/deck buttons: they stay here until the Controls tab (Task 6). */
+/* Section and deck buttons under Up next in the Controls tab. */
 .controls-extra {
-  flex: none;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  padding: 8px var(--pad);
-  background: var(--panel);
-  border-top: 1px solid var(--line);
+  flex-direction: column;
+  gap: 8px;
 }
 .controls-extra > div {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-.cl {
-  color: var(--text-3);
-  font-size: 13px;
 }
 kbd {
   font: 500 12px/1 var(--font-mono);
@@ -1624,29 +1616,172 @@ kbd {
   box-shadow: inset 0 -2px 0 var(--text);
 }
 
-/* next */
-.next-pos {
-  font: 600 15px var(--font-mono);
+/* right panel: underlined tabs, then sections (Up next, Transition, Deck settings, ...) */
+.tabs {
+  flex: none;
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+.tabs [role='tab'] {
+  flex: 1;
+  height: var(--h-lg);
+  justify-content: center;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+.tabs [role='tab']:hover {
+  color: var(--text);
+}
+.tabs [role='tab'][aria-selected='true'] {
+  box-shadow: inset 0 -2px 0 var(--accent);
   color: var(--accent-ink);
 }
-.next-body {
+.tabs [role='tab']:focus-visible {
+  outline-offset: -3px;
+}
+.props {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.sec {
+  border-top: 1px solid var(--line);
+}
+.pane > .sec:first-child {
+  border-top: 0;
+}
+.sec-h {
+  margin: 0;
+  font: inherit;
+}
+.sec .sh {
+  width: 100%;
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: 8px;
+  height: var(--h-md);
+  padding: 0 var(--pad);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: left;
+}
+.sec .sh:hover {
+  background: var(--raised);
+}
+.sec .sh:focus-visible {
+  outline-offset: -3px;
+}
+.sec .chev {
+  margin-left: auto;
+  color: var(--text-3);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sec[data-open='false'] .chev {
+  transform: rotate(-90deg);
+}
+.sb {
+  padding: 0 var(--pad) var(--pad);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.sb[hidden] {
+  display: none;
+}
+.sec.static > .sb {
+  padding-top: 16px;
+}
+.ptl {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--h-md);
+}
+.row .k {
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+.row .v {
+  font-size: 14px;
+  font-weight: 500;
+}
+.row .v.mono {
+  font-family: var(--font-mono);
+}
+.lbl {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.note {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+/* The Canvas dialog of the event opens under its row, across the panel. */
+.deck-canvas {
+  position: relative;
+  flex-wrap: wrap;
+}
+.deck-canvas .v {
+  margin-left: auto;
+}
+.deck-canvas .popover.canvas-dialog {
+  left: 0;
+  right: 0;
+  width: auto;
+}
+/* Output sections reused from the old popover: flat inside a panel section. */
+.sb .pop-title {
+  font-size: 14px;
+}
+.sb .pop-section + .pop-section {
+  padding-top: 16px;
+}
+
+/* next */
+.next-pos {
+  font: 600 14px var(--font-mono);
+  color: var(--accent-ink);
 }
 .next-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 .next-card .slide {
   height: auto;
   aspect-ratio: 16/9;
   border-radius: var(--r);
+}
+.nextmeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.nextmeta .t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
 }
 /* Until the first slide has decoded (e.g. coming from the end card) the card shows the
    placeholder, never the letterbox black; decoded layers are opaque and cover it. */
@@ -1678,29 +1813,8 @@ kbd {
   color: var(--text);
   overflow-wrap: anywhere;
 }
-.auto-adv {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--text-2);
-}
-.auto-adv label {
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-}
-.notes {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-}
-.notes h2 {
-  color: var(--text-2);
-  margin-bottom: 6px;
-}
 .notes p {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.5;
   white-space: pre-wrap;
 }

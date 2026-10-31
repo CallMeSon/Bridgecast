@@ -13,6 +13,17 @@ import { DropOverlay } from './components/DropOverlay'
 import { Program } from './components/Program'
 import { Controls } from './components/Controls'
 import { NextPanel } from './components/NextPanel'
+import { DeckSettings } from './components/DeckSettings'
+import { OutputStatus } from './components/OutputStatus'
+import { useOutputSettings } from './components/useOutputSettings'
+import {
+  loadOpenSections,
+  loadPanelTab,
+  saveOpenSection,
+  savePanelTab,
+  type PanelTab,
+  type SectionId
+} from './panel-sections'
 import { Strip } from './components/Strip'
 import { Splitters } from './components/Splitters'
 import { ActionError, SaveNote } from './components/ActionError'
@@ -89,6 +100,26 @@ function App(): React.JSX.Element {
   const [customHex, setCustomHex] = useState(() => loadCustomAccent() ?? DEFAULT_CUSTOM)
   const [reduceMotion, setReduceMotion] = useState(loadReduceMotion)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const output = useOutputSettings()
+  const [panelTab, setPanelTab] = useState<PanelTab>(() => loadPanelTab(localStorage))
+  const [openSections, setOpenSections] = useState(() => loadOpenSections(localStorage))
+  const choosePanelTab = (t: PanelTab): void => {
+    savePanelTab(localStorage, t)
+    setPanelTab(t)
+  }
+  const toggleSection = (id: SectionId, open: boolean): void =>
+    setOpenSections((cur) => saveOpenSection(localStorage, cur, id, open))
+  // The header output status leads to the Output section: open it, read the settings again.
+  const showOutput = (): void => {
+    choosePanelTab('controls')
+    toggleSection('output', true)
+    output.reload()
+    requestAnimationFrame(() => {
+      const sec = document.querySelector<HTMLElement>('[data-testid=output-section]')
+      sec?.scrollIntoView({ block: 'nearest' })
+      sec?.querySelector<HTMLElement>('[role=switch]')?.focus()
+    })
+  }
   const [theme, setTheme] = useState<Theme>(() =>
     document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
   )
@@ -796,6 +827,8 @@ function App(): React.JSX.Element {
         onCreateEvent={createEvent}
         onEventUpdated={replaceEvent}
         program={program}
+        output={output}
+        onOpenOutput={showOutput}
         theme={theme}
         onSetTheme={chooseTheme}
         onOpenSettings={() => setSettingsOpen(true)}
@@ -909,15 +942,6 @@ function App(): React.JSX.Element {
               eventId ? undefined : 'Create an event first from the Event menu at the top left.'
             }
           />
-          <Controls
-            state={program}
-            hasSections={sections.length > 0}
-            canPrevSection={canPrevSection(decks, program, sections)}
-            canNextSection={canNextSection(decks, program, sections)}
-            canPrevDeck={reduce(program, { type: 'prevDeck' }, decks, sections) !== program}
-            canNextDeck={reduce(program, { type: 'nextDeck' }, decks, sections) !== program}
-            onAction={dispatch}
-          />
         </section>
         <NextPanel
           decks={decks}
@@ -926,6 +950,38 @@ function App(): React.JSX.Element {
           webStatuses={pages.statuses}
           versions={versions}
           onAction={dispatch}
+          tab={panelTab}
+          onTab={choosePanelTab}
+          isOpen={(id) => openSections[id]}
+          onToggle={toggleSection}
+          navigation={
+            <Controls
+              hasSections={sections.length > 0}
+              canPrevSection={canPrevSection(decks, program, sections)}
+              canNextSection={canNextSection(decks, program, sections)}
+              canPrevDeck={reduce(program, { type: 'prevDeck' }, decks, sections) !== program}
+              canNextDeck={reduce(program, { type: 'nextDeck' }, decks, sections) !== program}
+              onAction={dispatch}
+            />
+          }
+          deckSettings={
+            <DeckSettings
+              deck={deck ?? undefined}
+              event={events.find((e) => e.id === eventId)}
+              program={program}
+              onSetDeckFit={setDeckFit}
+              onSetDeckAudio={setDeckAudio}
+              onEventUpdated={replaceEvent}
+            />
+          }
+          output={
+            <OutputStatus
+              out={output}
+              program={program}
+              isOpen={(id) => openSections[id]}
+              onToggle={toggleSection}
+            />
+          }
         />
       </main>
       <Strip

@@ -68,9 +68,9 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
   return (
     <section className="pop-section" aria-labelledby="audio-title" data-testid="audio-section">
       <div className="pop-head">
-        <h2 className="pop-title" id="audio-title">
+        <h3 className="pop-title" id="audio-title">
           Audio
-        </h2>
+        </h3>
       </div>
 
       <div className="field">

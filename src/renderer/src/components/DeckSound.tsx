@@ -24,15 +24,7 @@ const WIDTH = 340
  * Focus goes to the volume slider; Escape, a click outside or Tab out closes it.
  */
 export function DeckSound({ deck, at, onSave, onClose }: Props): React.JSX.Element {
-  const [audio, setAudio] = useState<DeckAudio>(() => sanitizeDeckAudio(deck.audio))
   const ref = useRef<HTMLDivElement>(null)
-  const id = useId()
-  const save = useDebouncedSave<DeckAudio>(onSave)
-
-  const change = (next: DeckAudio): void => {
-    setAudio(next)
-    save.schedule(next)
-  }
 
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>('input[type=range]')?.focus()
@@ -82,6 +74,34 @@ export function DeckSound({ deck, at, onSave, onClose }: Props): React.JSX.Eleme
           {deck.name}
         </p>
       </div>
+      <DeckSoundFields deck={deck} onSave={onSave} />
+    </div>
+  )
+}
+
+/**
+ * Volume and mute of one deck. Previews at once, saves 150 ms after the last change and
+ * flushes on unmount. Shared by the deck menu popover and the Deck settings section;
+ * mount it with `key={deck.id}` so a different deck starts from its own level.
+ */
+export function DeckSoundFields({
+  deck,
+  onSave
+}: {
+  deck: DeckMeta
+  onSave(audio: DeckAudio): void
+}): React.JSX.Element {
+  const [audio, setAudio] = useState<DeckAudio>(() => sanitizeDeckAudio(deck.audio))
+  const id = useId()
+  const save = useDebouncedSave<DeckAudio>(onSave)
+
+  const change = (next: DeckAudio): void => {
+    setAudio(next)
+    save.schedule(next)
+  }
+
+  return (
+    <>
       <VolumeSlider
         id={`${id}-volume`}
         label="Volume"
@@ -101,6 +121,6 @@ export function DeckSound({ deck, at, onSave, onClose }: Props): React.JSX.Eleme
           onChange={(muted) => change({ ...audio, muted })}
         />
       </div>
-    </div>
+    </>
   )
 }

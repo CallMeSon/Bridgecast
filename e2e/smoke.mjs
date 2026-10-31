@@ -664,8 +664,6 @@ async function startProbe(win) {
   await select.selectOption(String(PROBE_ID))
   await pop.getByTestId('hdmi-switch').click()
   await win.locator('[data-testid=hdmi-status][data-tone=ok]').waitFor({ timeout: 15_000 })
-  await win.keyboard.press('Escape')
-  await pop.waitFor({ state: 'detached' })
   check(true, 'HDMI output on a simulated second display for the Program checks')
 }
 
@@ -685,9 +683,15 @@ const savedHdmi = () =>
 const savedAudio = () =>
   JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).audio
 
+/** The Output and Network sections of the Controls tab (they replaced the header popover). */
 async function openOutputPopover(win) {
-  const pop = win.getByTestId('output-popover')
-  if (!(await pop.isVisible())) await win.getByTestId('output-status').click()
+  const tab = win.getByRole('tab', { name: 'Controls' })
+  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
+  const pop = win.getByTestId('output-panel')
+  for (const name of ['Output', 'Network']) {
+    const head = pop.getByRole('button', { name, exact: true })
+    if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click()
+  }
   await pop.waitFor()
   return pop
 }
@@ -1311,7 +1315,6 @@ async function simulatedHdmiChecks(win, real) {
   const fake = fakeDisplays
 
   // Something live on Program: deck "dropped", slide 1 (white).
-  if (await win.getByTestId('output-popover').isVisible()) await win.keyboard.press('Escape')
   await win.locator('.deck', { has: win.locator('.name', { hasText: /^dropped$/ }) }).click()
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '01 / 03'
@@ -2521,7 +2524,7 @@ try {
     'frozen: Next panel shows the position'
   )
   check(
-    (await win.locator('aside.right .colhead h2').textContent()) === 'Preview',
+    (await win.locator('aside.right .ptl').textContent()) === 'Preview',
     'frozen: Next panel titled Preview'
   )
   // Unfreeze keeps the held slide (2, blue) live and returns the position to it.
@@ -2536,7 +2539,7 @@ try {
   const uf = await dumpFrame([[10, 10]])
   check(blue(uf.px[0]), 'unfreeze keeps slide 2 on the output; the position returns to 2 / 3')
   check(
-    (await win.locator('aside.right .colhead h2').textContent()) === 'Up next',
+    (await win.locator('aside.right .ptl').textContent()) === 'Up next',
     'unfrozen: Next panel title is back'
   )
   await win.keyboard.press('f')
@@ -2623,7 +2626,7 @@ try {
   check(await kvBtn.isDisabled(), 'KV removed on air: KV button disabled, slide back on the output')
 
   // Layout at 1280×720: controls fully visible above the strip.
-  const ctr = await win.locator('.controls-extra').boundingBox()
+  const ctr = await win.locator('.transport').boundingBox()
   const foot = await win.locator('footer').boundingBox()
   check(ctr && foot && ctr.y + ctr.height <= foot.y, 'transport and controls fit above the strip at 1280×720')
   const stage = await win.locator('.stage-col').evaluate((e) => e.scrollHeight <= e.clientHeight)

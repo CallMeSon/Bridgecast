@@ -55,6 +55,7 @@ import {
 import { orderItems, type OrderItem } from '../../../shared/sections'
 import { onMenuKeyDown, useContextMenu } from './menuNav'
 import { DeckSound } from './DeckSound'
+import { FIT_NAMES } from './deck-fit'
 import { ImportFormat } from './ImportFormat'
 import type { PptImportFormat } from '../../../shared/settings'
 import { AddWebDialog } from './AddWebDialog'
@@ -151,12 +152,6 @@ function playbackOptions(d: DeckMeta | undefined): Playback[] {
   if (d.source === 'pptx' || d.source === 'pdf') out.push('vector')
   out.push('images')
   return out
-}
-
-const FIT_NAMES: Record<DeckFit, { name: string; hint: string }> = {
-  fit: { name: 'Fit', hint: 'Whole slide, black bars where the shapes differ' },
-  fill: { name: 'Fill', hint: 'Fills the canvas, edges may be cropped' },
-  stretch: { name: 'Stretch', hint: 'Fills the canvas, the picture is distorted' }
 }
 
 /** Right-click menu of a deck; closes on Escape, outside click, scroll or blur. */

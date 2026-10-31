@@ -7,15 +7,50 @@ import type { WebStatus } from '../../../shared/web'
 import { EndCard, VideoMark } from './Slide'
 import { SlideLayers } from './SlideLayers'
 import { Switch } from './Switch'
+import { PanelSection } from './PanelSection'
+import { StatusTag } from './StatusTag'
+import type { PanelTab, SectionId } from '../panel-sections'
+import { Segmented } from './Segmented'
 
+const TABS: readonly { id: PanelTab; label: string }[] = [
+  { id: 'info', label: 'Info' },
+  { id: 'controls', label: 'Controls' }
+]
+const TRANSITIONS = [
+  { value: 'cut', label: 'Cut' },
+  { value: 'fade', label: 'Fade' }
+] as const
+
+/**
+ * Right panel: underlined tabs Info (Notes) and Controls (Up next, which never collapses,
+ * then the collapsible Transition, Deck settings, Output and Network sections). Both panes
+ * stay mounted; the unselected one is hidden, so controls keep their state.
+ */
 export function NextPanel({
   decks,
   sections,
   state,
   webStatuses,
   versions,
-  onAction
+  onAction,
+  tab,
+  onTab,
+  isOpen,
+  onToggle,
+  navigation,
+  deckSettings,
+  output
 }: {
+  tab: PanelTab
+  onTab(tab: PanelTab): void
+  isOpen(id: SectionId): boolean
+  onToggle(id: SectionId, open: boolean): void
+  /** Section and deck buttons, shown under Up next. */
+  navigation: React.ReactNode
+  /** Body of the Deck settings section. */
+  deckSettings: React.ReactNode
+  /** The Output and Network sections. */
+  output: React.ReactNode
   decks: DeckMeta[]
   sections: SectionMeta[]
   state: ProgramState
@@ -121,44 +156,123 @@ export function NextPanel({
     cap = webText
   }
 
+  const onTabKey = (e: React.KeyboardEvent): void => {
+    const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    if (!dir) return
+    e.preventDefault()
+    // Handled here: the window-level Prev/Next shortcut must not also fire.
+    e.stopPropagation()
+    const to = TABS[(TABS.findIndex((t) => t.id === tab) + dir + TABS.length) % TABS.length].id
+    onTab(to)
+    requestAnimationFrame(() => document.getElementById(`ptab-${to}`)?.focus())
+  }
+
   return (
-    <aside className="right" aria-label="Up next">
-      <div className="colhead">
-        <h2>{held ? 'Preview' : 'Up next'}</h2>
-        <span className="next-pos" data-testid="next-pos">
-          {nextPos}
-        </span>
+    <aside className="right" aria-label="Info and controls" data-testid="right-panel">
+      <div className="tabs" role="tablist" aria-label="Right panel" onKeyDown={onTabKey}>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            id={`ptab-${t.id}`}
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls={`ppane-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            onClick={() => onTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
-      <div className="next-body">
+      <div className="props">
         <div
-          className="next-card"
-          data-testid="next-card"
-          data-kind={nx.kind}
-          data-web={webText ?? undefined}
-          data-held={held || undefined}
-          data-step={stepText !== null || undefined}
-          data-video={(nx.kind === 'slide' && nx.video) || undefined}
+          className="pane"
+          id="ppane-info"
+          role="tabpanel"
+          aria-labelledby="ptab-info"
+          hidden={tab !== 'info'}
         >
-          {card}
-          <div className="cap">
-            <span>{cap}</span>
-          </div>
+          <PanelSection
+            title="Notes"
+            open={isOpen('notes')}
+            onToggle={(o) => onToggle('notes', o)}
+            testId="notes-section"
+          >
+            <div className="notes">
+              <p>{deck ? notes : ''}</p>
+            </div>
+          </PanelSection>
         </div>
-        <div className="auto-adv">
-          <label id="auto-advance-label" htmlFor="auto-advance">
-            Continue to next deck
-          </label>
-          <Switch
-            id="auto-advance"
-            labelledBy="auto-advance-label"
-            checked={state.autoAdvance}
-            testId="auto-advance"
-            onChange={(on) => onAction({ type: 'setAutoAdvance', on })}
-          />
-        </div>
-        <div className="notes">
-          <h2>Notes</h2>
-          <p>{deck ? notes : ''}</p>
+        <div
+          className="pane"
+          id="ppane-controls"
+          role="tabpanel"
+          aria-labelledby="ptab-controls"
+          hidden={tab !== 'controls'}
+        >
+          <section className="sec static" aria-label={held ? 'Preview' : 'Up next'}>
+            <div className="sb up-next">
+              <h2 className="ptl">{held ? 'Preview' : 'Up next'}</h2>
+              <div
+                className="next-card"
+                data-testid="next-card"
+                data-kind={nx.kind}
+                data-web={webText ?? undefined}
+                data-held={held || undefined}
+                data-step={stepText !== null || undefined}
+                data-video={(nx.kind === 'slide' && nx.video) || undefined}
+              >
+                {card}
+                <div className="nextmeta">
+                  {nx.kind === 'slide' && !held && <StatusTag kind="next" />}
+                  <span className="t" title={deck?.name}>
+                    {deck?.name ?? ''}
+                  </span>
+                  <span className="next-pos" data-testid="next-pos">
+                    {nextPos}
+                  </span>
+                </div>
+                <div className="cap">
+                  <span>{cap}</span>
+                </div>
+              </div>
+              {navigation}
+            </div>
+          </section>
+          <PanelSection
+            title="Transition"
+            open={isOpen('transition')}
+            onToggle={(o) => onToggle('transition', o)}
+            testId="transition-section"
+          >
+            <Segmented<'cut' | 'fade'>
+              label="Transition"
+              value={state.transition}
+              options={TRANSITIONS}
+              onChange={(transition) => onAction({ type: 'setTransition', transition })}
+            />
+            <div className="row">
+              <label className="k" id="auto-advance-label" htmlFor="auto-advance">
+                Continue to next deck
+              </label>
+              <Switch
+                id="auto-advance"
+                labelledBy="auto-advance-label"
+                checked={state.autoAdvance}
+                testId="auto-advance"
+                onChange={(on) => onAction({ type: 'setAutoAdvance', on })}
+              />
+            </div>
+          </PanelSection>
+          <PanelSection
+            title="Deck settings"
+            open={isOpen('deck-settings')}
+            onToggle={(o) => onToggle('deck-settings', o)}
+            testId="deck-settings-section"
+          >
+            {deckSettings}
+          </PanelSection>
+          {output}
         </div>
       </div>
     </aside>
