@@ -1215,17 +1215,42 @@ main {
   box-shadow: inset 0 0 0 1px var(--line-hi);
   color: var(--text-2);
 }
+/* Title row: state tag, deck name (truncates), grey "/ Program". The tag never shrinks. */
+.ptitle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 var(--pad);
+}
+.ptitle .where {
+  min-width: 0;
+  font: 400 16px/1.2 var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ptitle .where .nm {
+  font-weight: 600;
+  color: var(--text);
+}
+.ptitle .where .sub {
+  color: var(--text-3);
+}
 /* The monitor; its width follows the free height so frame and meta line always fit. */
 .pgm-view {
   flex: 1;
   min-height: 0;
   container-type: size;
-  padding: 16px 20px 12px;
+  display: grid;
+  place-items: center;
+  padding: 0 var(--pad);
 }
 .pgm-stack {
   /* --cw / --ch: the canvas size, set by Program (defaults 16:9). */
-  width: min(100cqw, max(0px, calc((100cqh - 40px) * var(--cw, 16) / var(--ch, 9))));
-  margin: 0 auto;
+  width: min(100cqw, max(0px, calc(100cqh * var(--cw, 16) / var(--ch, 9))));
 }
 .screen {
   position: relative;
@@ -1308,61 +1333,205 @@ main {
 .screen[data-black='true'] .shade {
   opacity: 1;
 }
+/* One meta line: canvas size, transition, what Next takes, what the audience sees. */
 .pgm-meta {
-  height: 30px;
-  margin-top: 10px;
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-/* Operator position, not necessarily what is on air (they differ while frozen). */
-.pgm-meta .posg {
   flex: none;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.pgm-meta .pos-lbl {
-  font-size: 13px;
-  color: var(--text-3);
-}
-.pgm-meta .pos {
-  font: 600 20px var(--font-mono);
-}
-.pgm-meta .ttl {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-2);
-  font-size: 15px;
-  white-space: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 16px;
+  height: 40px;
+  padding: 0 var(--pad);
   overflow: hidden;
+  color: var(--text-2);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.pgm-meta > * {
+  min-width: 0;
   text-overflow: ellipsis;
+  overflow: hidden;
+}
+.pgm-meta .mono {
+  color: var(--text-3);
+  font: 500 12px var(--font-mono);
+}
+.pgm-meta .note {
+  flex: 0 1 auto;
 }
 
-/* control deck */
-.controls {
+/* Transport bar (TransportBar.tsx): one 56px row under the monitor. */
+.transport {
+  position: relative;
   flex: none;
-  height: 84px;
-  display: grid;
-  grid-template-columns: auto auto 1fr auto auto;
-  border-top: 1px solid var(--line-hi);
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  height: 56px;
+  padding: 0 var(--pad);
   background: var(--panel);
+  border-top: 1px solid var(--line);
 }
-.controls > * {
+.tbtn {
+  height: var(--h-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: none;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--text-2);
+  font: 600 14px var(--font-sans);
+  white-space: nowrap;
+}
+.tbtn:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+.tbtn:active:not(:disabled) {
+  background: var(--raised-hi);
+}
+.tbtn.icon {
+  width: var(--h-sm);
+  padding: 0;
+}
+.tbtn.next:not(:disabled) {
+  color: var(--accent-ink);
+}
+.tbtn:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+/* Hold buttons (Freeze, KV, Black): default, hover, active, pressed, disabled. */
+.tbtn.hold {
+  padding: 0 12px;
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  color: var(--text);
+}
+.tbtn.hold svg {
+  color: var(--text-2);
+}
+.tbtn.hold:hover:not(:disabled) {
+  background: var(--raised-hi);
+}
+.tbtn.hold:active:not(:disabled) {
+  background: var(--line-hi);
+}
+.tbtn.hold[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.tbtn.hold[aria-pressed='true'] svg {
+  color: var(--accent-ink);
+}
+.tbtn.hold[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--accent-soft-hi);
+}
+.tbtn.hold[aria-pressed='true'] kbd {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+/* Disabled is a different shape, not a dimmer one: no fill, a dashed hairline. */
+.tbtn.hold:disabled {
+  background: transparent;
+  border: 1px dashed var(--line-hi);
+  color: var(--text-3);
+}
+.tbtn.hold:disabled svg,
+.tbtn.hold:disabled kbd {
+  color: var(--text-3);
+}
+.tbtn.hold:disabled kbd {
+  border-color: var(--line);
+}
+.transport .tpos {
+  margin: 0 4px;
+  font: 600 14px/1 var(--font-mono);
+  color: var(--text);
+  white-space: nowrap;
+}
+.transport .tpos small {
+  font: inherit;
+  font-weight: 500;
+  color: var(--text-3);
+}
+.transport .sepv {
+  width: 1px;
+  height: 24px;
+  margin: 0 12px;
+  background: var(--line-hi);
+  flex: none;
+}
+.transport .spacer {
+  flex: 1;
+  min-width: 0;
+}
+.transport kbd {
+  background: transparent;
+}
+/* Key caps only where they fit: a Program column under 560px drops them. */
+@container stage (max-width: 559px) {
+  .transport kbd {
+    display: none;
+  }
+  .transport .sepv {
+    margin: 0 8px;
+  }
+}
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  transform: translateX(-50%);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 8px 8px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r-lg);
+  box-shadow: var(--pop-shadow);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.toast button {
+  height: var(--h-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  background: var(--raised);
+  font-weight: 600;
+}
+.toast button:hover {
+  background: var(--raised-hi);
+}
+
+/* Transition and section/deck buttons: they stay here until the Controls tab (Task 6). */
+.controls-extra {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px var(--pad);
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.controls-extra > div {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px;
-  border-right: 1px solid var(--line);
-}
-.controls > :last-child {
-  border-right: 0;
-}
-.controls > .trans {
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 6px;
 }
 .cl {
   color: var(--text-3);
@@ -1378,70 +1547,34 @@ kbd {
   min-width: 20px;
   text-align: center;
 }
-.keys {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
 .cbtn {
-  height: 52px;
+  height: var(--h-sm);
   padding: 0 12px;
   border: 1px solid var(--edge);
+  border-radius: var(--r);
   background: var(--raised);
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
+  white-space: nowrap;
 }
 .cbtn:hover:not(:disabled) {
   background: var(--raised-hi);
 }
-.cbtn.sec {
-  font-size: 14px;
-}
-.cbtn.next {
-  height: 56px;
-  min-width: 176px;
-  justify-content: space-between;
-  background: var(--accent-fill);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-/* Disabled is a different shape, not a dimmer one: no fill (so Next loses its amber),
-   a dashed hairline and muted text, in both themes. */
-.cbtn:disabled,
-.cbtn.next:disabled {
+.cbtn:disabled {
   background: transparent;
   border: 1px dashed var(--line-hi);
   color: var(--text-3);
   cursor: not-allowed;
 }
-.cbtn:disabled kbd,
-.cbtn.next:disabled kbd {
+.cbtn:disabled kbd {
   background: transparent;
   border-color: var(--line-hi);
   color: var(--text-3);
 }
-.cbtn.next:hover:not(:disabled) {
-  background: var(--accent-fill);
-  filter: brightness(1.08);
-}
-.cbtn.next kbd {
-  background: transparent;
-  border-color: var(--on-accent);
-  color: var(--on-accent);
-}
-.cbtn.hold[aria-pressed='true'] {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--bg);
-}
-.cbtn.hold[aria-pressed='true'] kbd {
-  background: transparent;
-  border-color: var(--bg);
-  color: var(--bg);
-}
+
 /* No overflow:hidden here, it would clip the focus ring; the outer corners are
    rounded on the buttons and the ring sits inside each segment. */
 .seg {
@@ -1788,79 +1921,10 @@ footer .empty {
   align-items: center;
 }
 
-/* Narrower windows: tighter side columns, and the secondary key hints go. */
+/* Narrower windows: tighter side columns. */
 @media (max-width: 1400px) {
   main {
     grid-template-columns: var(--left-w, 232px) minmax(0, 1fr) var(--right-w, 288px);
-  }
-  .controls kbd.opt {
-    display: none;
-  }
-}
-/* Key hints only where they fit: a Program column under 880px drops them. */
-@container stage (max-width: 880px) {
-  .controls kbd.opt {
-    display: none;
-  }
-}
-/*
- * A narrow Program column (panels resized): the control deck takes two rows,
- * Prev/Next on top, Transisi/Freeze/Black below, so Black never scrolls away.
- */
-@container stage (max-width: 700px) {
-  .controls {
-    height: auto;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-  }
-  .controls > * {
-    min-height: 64px;
-  }
-  .controls > :first-child {
-    grid-column: 1 / -1;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .controls > :nth-child(3) {
-    display: none;
-  }
-  .controls kbd.opt {
-    display: none;
-  }
-}
-/*
- * With sections the first group holds four buttons and needs more room: the same
- * two-row layout starts at a wider column.
- */
-@container stage (max-width: 1000px) {
-  .controls.has-sections {
-    height: auto;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-  }
-  .controls.has-sections > * {
-    min-height: 64px;
-  }
-  .controls.has-sections > :first-child {
-    grid-column: 1 / -1;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .controls.has-sections > :nth-child(3) {
-    display: none;
-  }
-  /* Four buttons: they wrap onto a second line instead of pushing anything out of view. */
-  .controls.has-sections > :first-child {
-    flex-wrap: wrap;
-    padding-block: 6px;
-  }
-  .controls.has-sections .cbtn.sec {
-    white-space: nowrap;
-  }
-}
-/* The key hints of the first row come back only where they fit; below 700px the rules
-   above keep hiding them, so Black never scrolls away. */
-@container stage (min-width: 701px) and (max-width: 1000px) {
-  .controls.has-sections > :first-child kbd.opt {
-    display: inline-block;
   }
 }
 /* Decorative UI motion only. The Fade the operator chose is the slide change itself
@@ -2167,87 +2231,6 @@ footer .empty {
   color: var(--bg);
 }
 
-/* Prev deck / Next deck: two small buttons stacked in the spare cell of the control deck. */
-.controls > .decks-nav {
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 4px;
-  padding-block: 6px;
-}
-.decks-nav .cbtn {
-  height: 32px;
-  font-size: 13px;
-  white-space: nowrap;
-  justify-content: space-between;
-}
-/* The narrow layouts hide the spacer cell: the deck buttons take their own full row instead. */
-@container stage (max-width: 700px) {
-  .controls > .decks-nav {
-    display: flex;
-    flex-direction: row;
-    order: 10;
-    grid-column: 1 / -1;
-    min-height: 0;
-    border-right: 0;
-    border-top: 1px solid var(--line);
-  }
-}
-@container stage (max-width: 1000px) {
-  .controls.has-sections > .decks-nav {
-    display: flex;
-    flex-direction: row;
-    order: 10;
-    grid-column: 1 / -1;
-    min-height: 0;
-    border-right: 0;
-    border-top: 1px solid var(--line);
-  }
-}
-/* Medium widths: the spare cell is too small for the deck buttons, so they get a row of their
-   own under the other controls (the other cells keep their columns). Without sections this is
-   701 to 1099px, with sections 1001 to 1189px; narrower layouts are handled above. */
-@container stage (min-width: 701px) and (max-width: 1099px) {
-  .controls:not(.has-sections) {
-    height: auto;
-    grid-template-rows: 84px auto;
-  }
-  .controls:not(.has-sections) > :nth-child(4) {
-    grid-column: 4;
-  }
-  .controls:not(.has-sections) > :nth-child(5) {
-    grid-column: 5;
-  }
-  .controls:not(.has-sections) > .decks-nav {
-    flex-direction: row;
-    order: 10;
-    grid-column: 1 / -1;
-    min-height: 0;
-    border-right: 0;
-    border-top: 1px solid var(--line);
-  }
-}
-@container stage (min-width: 1001px) and (max-width: 1189px) {
-  .controls.has-sections {
-    height: auto;
-    grid-template-rows: 84px auto;
-  }
-  .controls.has-sections > :nth-child(4) {
-    grid-column: 4;
-  }
-  .controls.has-sections > :nth-child(5) {
-    grid-column: 5;
-  }
-  .controls.has-sections > .decks-nav {
-    flex-direction: row;
-    order: 10;
-    grid-column: 1 / -1;
-    min-height: 0;
-    border-right: 0;
-    border-top: 1px solid var(--line);
-  }
-}
-
 /* Native slideshow: playback chip on the deck row, strip marks, step label, banner actions. */
 .deck .pb {
   display: inline-flex;
@@ -2290,7 +2273,7 @@ footer .empty {
 }
 .pgm-meta .stp {
   flex: none;
-  font: 500 15px var(--font-mono);
+  font: 500 14px var(--font-mono);
   color: var(--text);
 }
 .action-error .actions {

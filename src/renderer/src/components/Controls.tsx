@@ -1,11 +1,8 @@
 import { useRef } from 'react'
-import { CaretLeftIcon, EyeSlashIcon, ImageIcon, PauseIcon } from '@phosphor-icons/react'
-import { kvOnAir, type Action, type ProgramState } from '../../../shared/program'
+import type { Action, ProgramState } from '../../../shared/program'
 
 interface Props {
   state: ProgramState
-  canPrev: boolean
-  canNext: boolean
   /** The event has sections: the section buttons show. */
   hasSections: boolean
   canPrevSection: boolean
@@ -13,22 +10,20 @@ interface Props {
   /** D and Shift+D: another deck exists in that direction. */
   canPrevDeck: boolean
   canNextDeck: boolean
-  /** Freezing needs a slide on the output; unfreezing is always possible. */
-  canFreeze: boolean
   onAction(a: Action): void
 }
 
-/** The control deck under Program: Prev/Next, transition, then Freeze and the KV/Black pair. */
+/**
+ * What the transport bar does not hold: section and deck buttons and the transition.
+ * Prev/Next/Freeze/KV/Black live in TransportBar. Transition moves to the Controls tab later.
+ */
 export function Controls({
   state,
-  canPrev,
-  canNext,
   hasSections,
   canPrevSection,
   canNextSection,
   canPrevDeck,
   canNextDeck,
-  canFreeze,
   onAction
 }: Props): React.JSX.Element {
   const transitions = [
@@ -56,42 +51,25 @@ export function Controls({
     seg.current?.querySelectorAll<HTMLElement>('[role=radio]')[to]?.focus()
   }
   return (
-    <div className={'controls' + (hasSections ? ' has-sections' : '')}>
-      <div>
-        {hasSections && (
+    <div className="controls-extra" data-testid="controls-extra">
+      {hasSections && (
+        <div>
           <button
-            className="cbtn sec"
+            className="cbtn"
             disabled={!canPrevSection}
             onClick={() => onAction({ type: 'prevSection' })}
           >
-            Prev section <kbd className="opt">⇧N</kbd>
+            Prev section <kbd>⇧N</kbd>
           </button>
-        )}
-        <button className="cbtn" disabled={!canPrev} onClick={() => onAction({ type: 'prev' })}>
-          <CaretLeftIcon size={16} />
-          Prev <kbd className="opt">←</kbd>
-        </button>
-        <button
-          className="cbtn next"
-          disabled={!canNext}
-          onClick={() => onAction({ type: 'next' })}
-        >
-          Next
-          <span className="keys">
-            <kbd>Space</kbd>
-            <kbd>→</kbd>
-          </span>
-        </button>
-        {hasSections && (
           <button
-            className="cbtn sec"
+            className="cbtn"
             disabled={!canNextSection}
             onClick={() => onAction({ type: 'nextSection' })}
           >
-            Next section <kbd className="opt">N</kbd>
+            Next section <kbd>N</kbd>
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <div className="trans">
         <span className="cl">Transition</span>
         <div
@@ -116,51 +94,18 @@ export function Controls({
       </div>
       <div className="decks-nav">
         <button
-          className="cbtn sec"
+          className="cbtn"
           disabled={!canPrevDeck}
           onClick={() => onAction({ type: 'prevDeck' })}
         >
-          Prev deck <kbd className="opt">Shift+D</kbd>
+          Prev deck <kbd>Shift+D</kbd>
         </button>
         <button
-          className="cbtn sec"
+          className="cbtn"
           disabled={!canNextDeck}
           onClick={() => onAction({ type: 'nextDeck' })}
         >
-          Next deck <kbd className="opt">D</kbd>
-        </button>
-      </div>
-      <div>
-        <button
-          className="cbtn hold"
-          aria-pressed={state.frozen}
-          disabled={!canFreeze}
-          onClick={() => onAction({ type: 'toggleFreeze' })}
-        >
-          <PauseIcon size={16} />
-          Freeze <kbd className="opt">F</kbd>
-        </button>
-      </div>
-      <div>
-        <button
-          className="cbtn hold"
-          aria-pressed={kvOnAir(state)}
-          disabled={state.kvUrl === null}
-          title={
-            state.kvUrl === null ? 'No key visual yet. Add one in the Decks panel.' : undefined
-          }
-          onClick={() => onAction({ type: 'toggleKv' })}
-        >
-          <ImageIcon size={16} />
-          KV <kbd className="opt">K</kbd>
-        </button>
-        <button
-          className="cbtn hold"
-          aria-pressed={state.black}
-          onClick={() => onAction({ type: 'toggleBlack' })}
-        >
-          <EyeSlashIcon size={16} />
-          Black <kbd className="opt">B</kbd>
+          Next deck <kbd>D</kbd>
         </button>
       </div>
     </div>

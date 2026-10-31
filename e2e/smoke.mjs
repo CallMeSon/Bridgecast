@@ -397,7 +397,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     // Reorder slides of the LIVE deck: move the live slide 2 (blue, 002.png) to the front.
     const sample = win.locator('.deck', { has: win.locator('.name', { hasText: /^sample$/ }) })
     const deckId = await sample.getAttribute('data-deck-id')
-    check((await pos.textContent()) === '2 / 3', 'live deck "sample" on slide 2 before reordering')
+    check((await pos.textContent()) === '02 / 03', 'live deck "sample" on slide 2 before reordering')
     const t0 = await thumbs(win)
     check(
       t0.map((t) => t.file).join() === '001.png,002.png,003.png' && t0[1].role === 'live',
@@ -409,7 +409,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
       '[data-testid=strip] .th:nth-child(1)'
     )
     await win.waitForFunction(
-      () => document.querySelector('[data-testid=pos]')?.textContent === '1 / 3'
+      () => document.querySelector('[data-testid=pos]')?.textContent === '01 / 03'
     )
     // The output must keep the same slide the whole time (never another image).
     for (let i = 0; i < 8; i++) {
@@ -476,7 +476,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     // Navigation follows the new order: Space shows 001.png (white), ArrowLeft back to blue.
     await win.keyboard.press('Space')
     await win.waitForFunction(
-      () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+      () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
     )
     await waitFrame([[10, 10]], (px) => !blue(px[0]) && lum(px[0]) > 200, 'Space shows 001.png')
     await win.keyboard.press('ArrowLeft')
@@ -496,7 +496,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
           .join() === '002.png,003.png,001.png'
     )
     check(
-      (await pos.textContent()) === '1 / 3' && blue((await dumpFrame([[10, 10]])).px[0]),
+      (await pos.textContent()) === '01 / 03' && blue((await dumpFrame([[10, 10]])).px[0]),
       'moving another slide keeps the live slide and position'
     )
 
@@ -525,7 +525,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     )
     check(
       (await tally.textContent()) === 'LIVE' &&
-        (await pos.textContent()) === '1 / 3' &&
+        (await pos.textContent()) === '01 / 03' &&
         blue((await dumpFrame([[10, 10]])).px[0]),
       'reordering decks does not change the output or position'
     )
@@ -961,7 +961,7 @@ async function sectionChecks(win, tally, pos) {
   const autoOff = win.locator('[data-testid=auto-advance][aria-checked=false]')
   const firstSlide = () =>
     win.waitForFunction(() =>
-      /^1 \//.test(document.querySelector('[data-testid=pos]')?.textContent ?? '')
+      /^01 \//.test(document.querySelector('[data-testid=pos]')?.textContent ?? '')
     )
 
   // What Program shows, read back from the HDMI window (the probe is on here): a
@@ -1087,7 +1087,7 @@ async function sectionChecks(win, tally, pos) {
   await waitFrame(SG, (px) => sameFrame(px.flat(), frameD2), 'N puts deck 3 slide 1 on Program')
   check(true, 'sections: Program shows deck 3, slide 1 after N')
   check(
-    (await liveDeck()) === d2 && /^1 \//.test(await posText()),
+    (await liveDeck()) === d2 && /^01 \//.test(await posText()),
     'sections: N takes deck 3, slide 1, live'
   )
   await win.keyboard.press('Shift+N')
@@ -1096,7 +1096,7 @@ async function sectionChecks(win, tally, pos) {
   await waitFrame(SG, (px) => sameFrame(px.flat(), frameD0), 'Shift+N puts deck 1 slide 1 on Program')
   check(true, 'sections: Program shows deck 1, slide 1 after Shift+N')
   check(
-    (await liveDeck()) === d0 && /^1 \//.test(await posText()),
+    (await liveDeck()) === d0 && /^01 \//.test(await posText()),
     'sections: Shift+N goes back to deck 1, slide 1, live'
   )
 
@@ -1314,7 +1314,7 @@ async function simulatedHdmiChecks(win, real) {
   if (await win.getByTestId('output-popover').isVisible()) await win.keyboard.press('Escape')
   await win.locator('.deck', { has: win.locator('.name', { hasText: /^dropped$/ }) }).click()
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '1 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '01 / 03'
   )
   await win.keyboard.press('Space')
   await win.waitForFunction(
@@ -1386,7 +1386,7 @@ async function simulatedHdmiChecks(win, real) {
       () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
     )
     // To slide 1 (white), then Space to slide 2 (light blue).
-    while ((await pos.textContent()) !== '1 / 3') {
+    while ((await pos.textContent()) !== '01 / 03') {
       const before = await pos.textContent()
       await win.keyboard.press('ArrowLeft')
       await win.waitForFunction(
@@ -1397,7 +1397,7 @@ async function simulatedHdmiChecks(win, real) {
     await waitHdmiCentre((p) => lum(p) > 200 && !blue(p), 'ArrowLeft shows white slide 1 on HDMI')
     await win.keyboard.press('Space')
     await win.waitForFunction(
-      () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+      () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
     )
     await waitHdmiCentre((p) => blue(p), 'Space takes slide 2 (blue) live on HDMI')
     check(true, 'B and Space in the operator window drive the HDMI window')
@@ -1617,7 +1617,7 @@ async function videoChecks(win, tally) {
     'video slide 1 reaches the output'
   )
   await blur()
-  await waitPos('1 / 5')
+  await waitPos('01 / 05')
   // The strip marks the video slides (1, 3, 4) and leaves the image slides (2, 5) alone.
   const thumbVideo = await win.$$eval('[data-testid=strip] .th', (els) =>
     els.map((e) => ({ v: e.dataset.video ?? null, mark: !!e.querySelector('[aria-label="Video slide"]') }))
@@ -1838,10 +1838,10 @@ async function videoChecks(win, tally) {
 
   // 3. Next to the image slide, Prev back: a new take replays the animation.
   await win.keyboard.press('ArrowRight')
-  await waitPos('2 / 5')
+  await waitPos('02 / 05')
   await waitFrame([[960, 540]], (px) => near(px[0], BLUE), 'slide 2 (blue) on the output')
   await win.keyboard.press('ArrowLeft')
-  await waitPos('1 / 5')
+  await waitPos('01 / 05')
   const again = await firstFrame(
     V_PTS,
     (px) => near(px[3], V_BG, 30),
@@ -1861,7 +1861,7 @@ async function videoChecks(win, tally) {
   //    until the next Next. It must be stopped (paused, src dropped) and removed,
   //    never shown and never playing.
   await win.keyboard.press('ArrowRight')
-  await waitPos('2 / 5')
+  await waitPos('02 / 05')
   await waitFrame([[960, 540]], (px) => near(px[0], BLUE), 'slide 2 (blue) for the pending check')
   await hdmiJs(`(() => {
     const h = (window.__hold = { created: 0, shown: 0, playing: 0, removed: [], on: true })
@@ -1890,7 +1890,7 @@ async function videoChecks(win, tally) {
     requestAnimationFrame(tick)
   })()`)
   await win.keyboard.press('ArrowRight')
-  await waitPos('3 / 5')
+  await waitPos('03 / 05')
   await win.waitForTimeout(400)
   const held3 = await hdmiJs(
     `[...document.querySelectorAll('.output-layer')].map((l) => [l.dataset.state, l.querySelector('video,img')?.getAttribute('src')])`
@@ -1902,7 +1902,7 @@ async function videoChecks(win, tally) {
     `slide 3's video is held pending, slide 2 stays on the output (${JSON.stringify(held3)})`
   )
   await win.keyboard.press('ArrowRight')
-  await waitPos('4 / 5')
+  await waitPos('04 / 05')
   await waitFrame(V_SWEEP, (px) => px.some(isMagenta), 'slide 4 (magenta) after the pending one')
   await win.waitForTimeout(200)
   const hold = await hdmiJs(`(() => {
@@ -1937,7 +1937,7 @@ async function videoChecks(win, tally) {
   })()`)
   const tStuck = Date.now()
   await win.keyboard.press('ArrowLeft')
-  await waitPos('3 / 5')
+  await waitPos('03 / 05')
   await waitOutputTop(
     (t) => t.kind === 'image' && t.src.endsWith('/003.png'),
     'a video that never loads gives up and shows its poster',
@@ -1963,7 +1963,7 @@ async function videoChecks(win, tally) {
     `a video stuck pending for 3 s shows its poster, nothing plays (${stuckMs} ms, ${JSON.stringify(stuck)})`
   )
   await win.keyboard.press('ArrowRight')
-  await waitPos('4 / 5')
+  await waitPos('04 / 05')
   await waitFrame(
     V_SWEEP,
     (px) => px.some(isMagenta),
@@ -1973,9 +1973,9 @@ async function videoChecks(win, tally) {
   // 5. Rapid Next over a video slide: from slide 2, two Nexts within a few ms.
   //    Slide 3 (red) must never show or play; slide 4 does.
   await win.keyboard.press('ArrowLeft')
-  await waitPos('3 / 5')
+  await waitPos('03 / 05')
   await win.keyboard.press('ArrowLeft')
-  await waitPos('2 / 5')
+  await waitPos('02 / 05')
   await waitFrame([[960, 540]], (px) => near(px[0], BLUE), 'back on slide 2 (blue)')
   // The slide 3 video layer of the step before is removed a moment after slide 2 is on screen;
   // wait for it, or the recorder would count that leftover as a layer shown by the Nexts.
@@ -1995,7 +1995,7 @@ async function videoChecks(win, tally) {
     void window.api.dispatch({ type: 'next' })
     void window.api.dispatch({ type: 'next' })
   })
-  await waitPos('4 / 5')
+  await waitPos('04 / 05')
   let reds = 0
   let magenta = 0
   let samples = 0
@@ -2019,7 +2019,7 @@ async function videoChecks(win, tally) {
 
   // 6. Fade, video to video (Review Focus 2): slide 3 (red) to 4 (magenta).
   await win.keyboard.press('ArrowLeft')
-  await waitPos('3 / 5')
+  await waitPos('03 / 05')
   await waitOutputTop(
     (t) => t.kind === 'video' && t.src.endsWith('/003.mp4') && t.ended,
     'slide 3 plays to its end'
@@ -2039,7 +2039,7 @@ async function videoChecks(win, tally) {
     if (f.px.every(isBlack)) blackFrames++
   }
   const fr = await fadeRec
-  await waitPos('4 / 5')
+  await waitPos('04 / 05')
   await waitFrame(V_SWEEP, (px) => px.some(isMagenta), 'Fade reaches slide 4 (magenta)')
   check(
     blackFrames === 0 && fr.frames.length > 10 && fr.frames.every((n) => n === 1),
@@ -2055,11 +2055,11 @@ async function videoChecks(win, tally) {
   fs.rmSync(path.join(userData, 'decks', mId, '003.mp4'))
   await mDeck.click()
   await blur()
-  await waitPos('1 / 5')
+  await waitPos('01 / 05')
   await win.keyboard.press('ArrowRight')
-  await waitPos('2 / 5')
+  await waitPos('02 / 05')
   await win.keyboard.press('ArrowRight')
-  await waitPos('3 / 5')
+  await waitPos('03 / 05')
   const png = await app.evaluate(
     ({ nativeImage }, [file, pts]) => {
       const img = nativeImage.createFromPath(file)
@@ -2089,11 +2089,11 @@ async function videoChecks(win, tally) {
   // Back to the state the next checks expect: the renamed noise deck on 3 / 4, no video deck.
   await liveDeck.click()
   await blur()
-  await waitPos('1 / 4')
+  await waitPos('01 / 04')
   await win.keyboard.press('Space')
-  await waitPos('2 / 4')
+  await waitPos('02 / 04')
   await win.keyboard.press('Space')
-  await waitPos('3 / 4')
+  await waitPos('03 / 04')
   for (const row of [vDeck, mDeck]) {
     await row.click({ button: 'right' })
     await win.getByTestId('deck-menu').getByRole('menuitem', { name: 'Remove deck…' }).click()
@@ -2215,7 +2215,7 @@ async function canvasAndLevelsChecks(win, tally) {
   const { deckId: vId, row: vRow } = await importVideoFixture(win, 'e2e-levels')
   await vRow.click()
   await blur()
-  await waitPos('1 / 5')
+  await waitPos('01 / 05')
   await waitOutputTop(
     (t) => t.kind === 'video' && t.src.endsWith('/001.mp4') && t.ended,
     'the video slide plays to its end before the volume changes'
@@ -2286,11 +2286,11 @@ async function canvasAndLevelsChecks(win, tally) {
   await vRow.waitFor({ state: 'detached' })
   await win.locator(`.deck[data-deck-id="${noiseId}"]`).click()
   await blur()
-  await waitPos('1 / 4')
+  await waitPos('01 / 04')
   await win.keyboard.press('Space')
-  await waitPos('2 / 4')
+  await waitPos('02 / 04')
   await win.keyboard.press('Space')
-  await waitPos('3 / 4')
+  await waitPos('03 / 04')
   check(
     (await tally.textContent()) === 'LIVE',
     'canvas and level checks done, back on the noise deck'
@@ -2355,7 +2355,7 @@ try {
   // -> button disabled and black again.
   const kvPath = path.join(frameDir, 'kv.png')
   await kvPng(kvPath)
-  const kvBtn = win.locator('.controls button', { hasText: 'KV' })
+  const kvBtn = win.locator('.transport button', { hasText: 'KV' })
   // The image on air in the Program monitor: the newest non-pending layer (a fading
   // layer counts, the pending one is not on screen yet).
   const ON_AIR =
@@ -2414,7 +2414,7 @@ try {
   await kvBtn.waitFor()
   await win.waitForFunction(
     () =>
-      [...document.querySelectorAll('.controls button')].find((b) => b.textContent.includes('KV'))
+      [...document.querySelectorAll('.transport button')].find((b) => b.textContent.includes('KV'))
         ?.disabled
   )
   await waitFrame(GRID, (px) => px.every(isBlack), 'removing the KV makes STANDBY black again')
@@ -2423,7 +2423,7 @@ try {
   await win.keyboard.press('b')
   await win.waitForFunction(
     () =>
-      [...document.querySelectorAll('.controls button')]
+      [...document.querySelectorAll('.transport button')]
         .find((b) => b.textContent.includes('Black'))
         ?.getAttribute('aria-pressed') === 'false'
   )
@@ -2444,7 +2444,7 @@ try {
       throw e
     })
   check(true, 'PDF imported as a 3-slide deck')
-  check((await pos.textContent()) === '1 / 3', 'position on slide 1 after import')
+  check((await pos.textContent()) === '01 / 03', 'position on slide 1 after import')
   check((await tally.textContent()) === 'STANDBY', 'import does not change the output')
   check(
     (await cap.textContent()) === 'Slide 1',
@@ -2456,7 +2456,7 @@ try {
   await win.waitForFunction(
     () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
   )
-  check((await pos.textContent()) === '1 / 3', 'first Space takes slide 1 LIVE')
+  check((await pos.textContent()) === '01 / 03', 'first Space takes slide 1 LIVE')
   check((await cap.textContent()) === 'Slide 2', 'Next panel then shows slide 2')
 
   // Output: slide 1 (white 16:9 page) fills the 16:9 HDMI window.
@@ -2472,7 +2472,7 @@ try {
 
   await noBlackGap(win, () => win.keyboard.press('Space'), 'Next with Cut')
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
   )
   check((await tally.textContent()) === 'LIVE', 'Space puts the next slide LIVE')
   check((await cap.textContent()) === 'Slide 3', 'Next panel shows slide 3')
@@ -2492,12 +2492,12 @@ try {
 
   await win.keyboard.press('ArrowRight')
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '3 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '03 / 03'
   )
   check((await cap.textContent()) === 'No next deck', 'end of deck in Next panel')
   await win.keyboard.press('ArrowLeft')
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
   )
   check(true, 'ArrowLeft goes back')
 
@@ -2509,7 +2509,7 @@ try {
   await waitFrame([[10, 10]], (px) => blue(px[0]), 'frozen output still slide 2')
   await win.keyboard.press('Space')
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '3 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '03 / 03'
   )
   await sleep(800)
   const fz = await dumpFrame([[10, 10]])
@@ -2517,7 +2517,7 @@ try {
   // Frozen, the right panel previews the position slide (Unfreeze does not take it live).
   check((await cap.textContent()) === 'Slide 3', 'frozen: Next panel previews the position slide')
   check(
-    (await win.getByTestId('next-pos').textContent()) === '3 / 3',
+    (await win.getByTestId('next-pos').textContent()) === '03 / 03',
     'frozen: Next panel shows the position'
   )
   check(
@@ -2530,7 +2530,7 @@ try {
     () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
   )
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
   )
   await sleep(800)
   const uf = await dumpFrame([[10, 10]])
@@ -2545,7 +2545,7 @@ try {
   )
   await win.keyboard.press('ArrowRight')
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '3 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '03 / 03'
   )
   await win.keyboard.press('b')
   await win.waitForFunction(
@@ -2585,7 +2585,7 @@ try {
   await tallyIs('KV')
   await waitFrame(GRID, (px) => px.every(isKv), 'K after B shows the KV again')
   check(
-    (await win.locator('.controls button', { hasText: 'Black' }).getAttribute('aria-pressed')) ===
+    (await win.locator('.transport button', { hasText: 'Black' }).getAttribute('aria-pressed')) ===
       'false',
     'K turns Black off'
   )
@@ -2623,9 +2623,9 @@ try {
   check(await kvBtn.isDisabled(), 'KV removed on air: KV button disabled, slide back on the output')
 
   // Layout at 1280×720: controls fully visible above the strip.
-  const ctr = await win.locator('.controls').boundingBox()
+  const ctr = await win.locator('.controls-extra').boundingBox()
   const foot = await win.locator('footer').boundingBox()
-  check(ctr && foot && ctr.y + ctr.height <= foot.y, 'controls fit above the strip at 1280×720')
+  check(ctr && foot && ctr.y + ctr.height <= foot.y, 'transport and controls fit above the strip at 1280×720')
   const stage = await win.locator('.stage-col').evaluate((e) => e.scrollHeight <= e.clientHeight)
   check(stage, 'stage column does not scroll at 1280×720')
 
@@ -2664,7 +2664,7 @@ try {
   const narrow = await win.evaluate(() => {
     const stage = document.querySelector('.stage-col')
     const box = stage.getBoundingClientRect()
-    const btns = [...document.querySelectorAll('.controls button')].map((b) =>
+    const btns = [...document.querySelectorAll('.transport button')].map((b) =>
       b.getBoundingClientRect()
     )
     return {
@@ -2734,11 +2734,11 @@ try {
   // Back to the 16:9 deck at slide 2 for the remaining steps.
   await win.locator('.deck', { has: win.locator('.name', { hasText: /^sample$/ }) }).click()
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '1 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '01 / 03'
   )
   await win.keyboard.press('Space')
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
   )
 
   // Auto advance (default off): a clicker cannot run into the next deck.
@@ -2750,7 +2750,7 @@ try {
     JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).autoAdvance
   check((await autoSw.getAttribute('aria-checked')) === 'false', 'auto advance is off by default')
   await win.keyboard.press('PageDown') // clicker Next
-  await waitPos('3 / 3')
+  await waitPos('03 / 03')
   check(
     (await cap.textContent()) === 'Next stops here. Choose sample-4x3 to continue.' &&
       (await nextBtn.isDisabled()),
@@ -2760,7 +2760,7 @@ try {
   await win.keyboard.press('Space')
   await sleep(300)
   check(
-    (await pos.textContent()) === '3 / 3' &&
+    (await pos.textContent()) === '03 / 03' &&
       (await win.locator('.deck.live .name').textContent()) === 'sample',
     'off: PageDown and Space on the last slide stay in the live deck'
   )
@@ -2771,17 +2771,17 @@ try {
     'on: Next panel names the next deck, Next enabled'
   )
   await win.keyboard.press('PageDown')
-  await waitPos('1 / 2')
+  await waitPos('01 / 02')
   check(true, 'on: PageDown on the last slide goes on to the next deck')
   await win.keyboard.press('PageUp')
-  await waitPos('3 / 3')
+  await waitPos('03 / 03')
   check(true, 'on: PageUp on the first slide goes back to the previous deck')
   check(savedAuto() === true, 'auto advance saved in settings.json')
   await autoSw.click()
   await win.locator('[data-testid=auto-advance][aria-checked=false]').waitFor()
   check(savedAuto() === false, 'turning it off is saved too')
   await win.keyboard.press('PageUp')
-  await waitPos('2 / 3')
+  await waitPos('02 / 03')
 
   // Optional: PPTX through PowerPoint COM (needs PowerPoint installed).
   if (process.env.PPT_E2E === '1') {
@@ -2807,7 +2807,7 @@ try {
   await win.click('.event-btn')
   await win.getByRole('menuitem', { name: 'Smoke Event' }).click()
   await win.waitForFunction(
-    () => document.querySelector('[data-testid=pos]')?.textContent === '2 / 3'
+    () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
   )
   check(true, 'switching back restores the position')
 
@@ -2953,7 +2953,7 @@ try {
     }
 
     // End card to slide: from the last slide (card = end of deck) back and forth.
-    await toPos('4 / 4', 'ArrowRight')
+    await toPos('04 / 04', 'ArrowRight')
     const e = await upNextRun(['ArrowLeft', 'ArrowLeft', 'ArrowRight', 'ArrowRight'])
     check(
       e.lums.length > 20 && e.swaps >= 1 && e.kinds.includes('end') && e.black === 0,
@@ -2961,7 +2961,7 @@ try {
     )
 
     // Slide to slide: slide 1 live, the card shows slide 2; 2 > 3 > 4, then back. No end card.
-    await toPos('1 / 4', 'ArrowLeft')
+    await toPos('01 / 04', 'ArrowLeft')
     const m = await upNextRun(['ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowLeft'])
     check(
       m.lums.length > 20 &&

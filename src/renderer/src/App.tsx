@@ -43,6 +43,7 @@ import {
   moveItem,
   moveOrder,
   nativeNotice,
+  nextView,
   stepLabel,
   outputSource,
   SAVED,
@@ -777,6 +778,8 @@ function App(): React.JSX.Element {
   }, [api])
 
   const deck = currentDeck(decks, program)
+  const nx = nextView(decks, program, sections)
+  const nextLabel = nx.kind === 'slide' && !nx.held ? `Next: slide ${nx.index + 1}` : null
   const ready = deck !== null
   const notice = nativeNotice(program, decks, slideshow.status)
   // Saved edits that wait because their deck is on air (Apply now).
@@ -896,6 +899,11 @@ function App(): React.JSX.Element {
             deck={deck}
             posterVersion={program.shown ? (versions[program.shown.deckId] ?? 0) : 0}
             stepLabel={stepLabel(program, decks)}
+            nextLabel={nextLabel}
+            canPrev={canPrev(decks, program, sections)}
+            canNext={canNext(decks, program, sections)}
+            canFreeze={reduce(program, { type: 'toggleFreeze' }, decks, sections) !== program}
+            onAction={dispatch}
             stream={monitorStream}
             emptyHint={
               eventId ? undefined : 'Create an event first from the Event menu at the top left.'
@@ -903,14 +911,11 @@ function App(): React.JSX.Element {
           />
           <Controls
             state={program}
-            canPrev={canPrev(decks, program, sections)}
-            canNext={canNext(decks, program, sections)}
             hasSections={sections.length > 0}
             canPrevSection={canPrevSection(decks, program, sections)}
             canNextSection={canNextSection(decks, program, sections)}
             canPrevDeck={reduce(program, { type: 'prevDeck' }, decks, sections) !== program}
             canNextDeck={reduce(program, { type: 'nextDeck' }, decks, sections) !== program}
-            canFreeze={reduce(program, { type: 'toggleFreeze' }, decks, sections) !== program}
             onAction={dispatch}
           />
         </section>
