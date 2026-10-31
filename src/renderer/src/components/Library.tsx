@@ -58,6 +58,7 @@ import { DeckSound } from './DeckSound'
 import { ImportFormat } from './ImportFormat'
 import type { PptImportFormat } from '../../../shared/settings'
 import { AddWebDialog } from './AddWebDialog'
+import { StatusTag } from './StatusTag'
 import { SectionMenu, SectionRenameRow, SectionRow, type SectionMenuAt } from './SectionRow'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
@@ -1008,20 +1009,26 @@ export function Library(p: Props): React.JSX.Element {
                 </span>
                 {d.source === 'web' ? (
                   <WebChip kind={webChip(p.webStatuses[d.id], p.holdDeckId === d.id)} />
+                ) : p.live?.deckId === d.id ? (
+                  <StatusTag kind="live" size="sm" />
+                ) : p.frozen?.deckId === d.id ? (
+                  <StatusTag kind="frozen" size="sm" />
                 ) : (
                   <span className="meta">{countOf(d.slides.length, 'slide')}</span>
                 )}
                 <span className="sub">
+                  {d.source === 'web' && p.live?.deckId === d.id && (
+                    <StatusTag kind="live" size="sm" />
+                  )}
+                  {d.source === 'web' && p.frozen?.deckId === d.id && (
+                    <StatusTag kind="frozen" size="sm" />
+                  )}
                   {d.source === 'web'
-                    ? (p.live?.deckId === d.id
-                        ? 'LIVE, '
-                        : p.frozen?.deckId === d.id
-                          ? 'FROZEN, '
-                          : '') + webDomain(d.web?.url ?? '')
+                    ? webDomain(d.web?.url ?? '')
                     : p.live?.deckId === d.id
-                      ? `LIVE, slide ${p.live.index + 1}`
+                      ? `Slide ${p.live.index + 1} of ${d.slides.length}`
                       : p.frozen?.deckId === d.id
-                        ? `FROZEN, slide ${p.frozen.index + 1}`
+                        ? `Slide ${p.frozen.index + 1} of ${d.slides.length}`
                         : `.${d.source}`}
                   {d.source !== 'web' && (
                     <span

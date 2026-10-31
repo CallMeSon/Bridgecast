@@ -1,15 +1,10 @@
-import { EyeSlashIcon, ImageIcon, PauseIcon, SnowflakeIcon } from '@phosphor-icons/react'
+import { PauseIcon } from '@phosphor-icons/react'
 import type { DeckMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
-import { outputSource, TALLY_TEXT, tally, type Tally } from '../model'
+import { outputSource, tally } from '../model'
 import { EndCard } from './Slide'
+import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
-
-const TALLY_ICON: Partial<Record<Tally, React.JSX.Element>> = {
-  frozen: <SnowflakeIcon size={14} />,
-  black: <EyeSlashIcon size={14} />,
-  kv: <ImageIcon size={14} />
-}
 
 /**
  * The Program column: tally in the head, the monitor, and the operator position.
@@ -52,10 +47,7 @@ export function Program({
               HOLD
             </span>
           )}
-          <span className={`tally t-${t}`} data-testid="tally">
-            {TALLY_ICON[t]}
-            {TALLY_TEXT[t]}
-          </span>
+          <StatusTag kind={t === 'idle' ? 'standby' : t} variant="icon" data-testid="tally" />
         </span>
       </div>
       <div className="pgm-view">

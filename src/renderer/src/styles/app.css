@@ -1,5 +1,5 @@
-/* Broadcast console. Tokens live in tokens.css: graphite neutrals, one 3px radius,
-   structure by 1px rules. Red is the Program tally only; amber only means "next". */
+/* Operator console. Tokens live in tokens.css: soft neutrals, a 3 / 4 / 6px radius scale,
+   structure by 1px rules. One accent colour carries every state (on air, frozen, next). */
 
 button {
   font: inherit;
@@ -31,16 +31,19 @@ h2 {
   display: grid;
   /* The single column may not grow past the window, so a long header never widens the page. */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 44px minmax(0, 1fr) var(--strip-h, 150px);
+  grid-template-rows: var(--h-lg) minmax(0, 1fr) var(--strip-h, 150px);
 }
 .app[data-resizing] {
   user-select: none;
 }
 
-/* top bar */
+/* top bar: 52px, flat, one rule below */
 header {
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--pad);
+  min-width: 0;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
@@ -48,51 +51,40 @@ header > * {
   display: flex;
   flex: none;
   align-items: center;
-  padding: 0 16px;
-  border-right: 1px solid var(--line);
 }
 header > .grow {
   flex: 1 1 0;
   min-width: 0;
-  padding: 0;
-  border-right: 0;
 }
 .brand {
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
 }
 /* The event name is the only header item that gives way: a long name is cut with an
-   ellipsis so the HDMI and theme controls never leave the window. */
+   ellipsis so the HDMI, theme and settings controls never leave the window. */
 header > .event {
   position: relative;
   flex: 0 1 auto;
   min-width: 0;
-  padding: 0;
 }
 .event-btn,
 .event-new {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 100%;
-  padding: 0 16px;
+  gap: 8px;
+  height: var(--h-sm);
+  padding: 0 12px;
 }
 .event-btn {
   min-width: 0;
   max-width: 100%;
-  border-radius: 0;
   color: var(--text);
 }
 .event-btn:hover,
 .event-btn[aria-expanded='true'] {
-  background: var(--raised);
-}
-/* Full-bleed header buttons touch the window edge: their ring sits inside. */
-.event-btn:focus-visible,
-.output-btn:focus-visible,
-.theme button:focus-visible {
-  outline-offset: -3px;
+  background: var(--raised-hi);
 }
 .event .lbl {
   flex: none;
@@ -208,23 +200,20 @@ select.text-input:disabled {
 /* HDMI status + output popover */
 header > .output-menu {
   position: relative;
-  padding: 0;
-  border-left: 1px solid var(--line);
 }
 .output-btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 100%;
+  height: var(--h-sm);
   max-width: 100%;
-  padding: 0 16px;
-  border-radius: 0;
+  padding: 0 12px;
   font-weight: 500;
   white-space: nowrap;
 }
 button.output-btn:hover,
 .output-btn[aria-expanded='true'] {
-  background: var(--raised);
+  background: var(--raised-hi);
 }
 .ind {
   display: inline-flex;
@@ -584,29 +573,48 @@ button.output-btn:hover,
   color: var(--text-3);
 }
 
-/* theme toggle */
+/* theme switch: two labelled segments, the pressed one is the active theme */
 header > .theme {
-  padding: 0;
-  border-right: 0;
-  border-left: 1px solid var(--line);
+  gap: 2px;
+  padding: 3px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
 }
 .theme button {
-  height: 100%;
-  width: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 0;
-  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-2);
 }
 .theme button:hover {
-  background: var(--raised);
-}
-.theme button[aria-pressed='true'] {
   background: var(--raised-hi);
   color: var(--text);
 }
-.theme button + button {
-  border-left: 1px solid var(--line);
+.theme button[aria-pressed='true'] {
+  background: var(--panel);
+  box-shadow: var(--shadow-0);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.gear {
+  width: var(--h-sm);
+  height: var(--h-sm);
+  justify-content: center;
+  color: var(--text-2);
+}
+.gear:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+.gear:disabled {
+  color: var(--text-3);
+  cursor: default;
 }
 
 /* columns */
@@ -812,8 +820,7 @@ main {
   color: var(--text);
 }
 .deck.live .sub {
-  color: var(--tally-ink);
-  font-weight: 600;
+  color: var(--text-2);
 }
 .deck.busy {
   cursor: default;
@@ -1151,27 +1158,51 @@ main {
   align-items: center;
   gap: 6px;
   height: 24px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: var(--r-sm);
-  font: 700 13px/1 var(--font-mono);
+  font: 700 12px/1 var(--font-mono);
   letter-spacing: 0.06em;
 }
-.t-live {
-  background: var(--tally);
-  color: var(--on-tally);
+/* State tag (StatusTag.tsx). Fill = on air, outline = Next or held. State is never
+   colour alone: the icon and the word (visually hidden when icon-only) say it too. */
+.stag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  font: 700 12px/1 var(--font-sans);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
-.t-frozen {
-  border: 1.5px solid var(--tally);
-  color: var(--tally-ink);
+.stag[data-size='sm'] {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 12px;
 }
-.t-black,
-.t-kv {
-  border: 1.5px solid var(--tally);
-  color: var(--accent);
-  background: var(--letterbox);
+.stag[data-icon-only] {
+  width: 24px;
+  padding: 0;
+  justify-content: center;
 }
-.t-idle {
-  border: 1px solid var(--line-hi);
+.stag[data-icon-only][data-size='sm'] {
+  width: 20px;
+}
+.stag[data-kind='live'],
+.stag[data-kind='black'],
+.stag[data-kind='kv'] {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+.stag[data-kind='frozen'],
+.stag[data-kind='next'] {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--accent-ink);
+}
+.stag[data-kind='standby'] {
+  box-shadow: inset 0 0 0 1px var(--line-hi);
   color: var(--text-2);
 }
 /* The monitor; its width follows the free height so frame and meta line always fit. */
@@ -1685,7 +1716,7 @@ footer .empty {
 }
 .splitter[data-axis='left'],
 .splitter[data-axis='right'] {
-  top: 44px;
+  top: var(--h-lg);
   bottom: var(--strip-h, 150px);
   width: 12px;
   cursor: col-resize;
@@ -1906,8 +1937,7 @@ footer .empty {
   color: var(--text);
 }
 .deck.frozen .sub {
-  color: var(--tally-ink);
-  font-weight: 600;
+  color: var(--text-2);
 }
 
 /* Prepare window (PrepareView.tsx): toolbar, on-air banner, page preview in the canvas aspect. */

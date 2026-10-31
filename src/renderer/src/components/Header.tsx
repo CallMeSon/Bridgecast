@@ -1,4 +1,4 @@
-import { MoonIcon, SunIcon } from '@phosphor-icons/react'
+import { GearSixIcon, MoonIcon, SunIcon } from '@phosphor-icons/react'
 import type { EventMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import type { Theme } from '../theme'
@@ -14,10 +14,17 @@ interface Props {
   program: ProgramState
   theme: Theme
   onSetTheme(theme: Theme): void
+  /** Opens the Settings dialog (Task 4). No handler yet: the gear stays out of the way. */
+  onOpenSettings?(): void
 }
 
-/** Two segments, sun and moon; the pressed one is the active theme. */
-function ThemeToggle({
+/** The brand slot. Task B2 swaps the text for the logo mark here and nowhere else. */
+function Brand(): React.JSX.Element {
+  return <span className="brand">Bridgecast</span>
+}
+
+/** Light / Dark, each with icon and label. There is no Auto here; Auto lives in Settings. */
+export function ThemeSwitch({
   theme,
   onSet
 }: {
@@ -26,15 +33,13 @@ function ThemeToggle({
 }): React.JSX.Element {
   return (
     <div className="theme" role="group" aria-label="Theme">
-      <button
-        aria-label="Light theme"
-        aria-pressed={theme === 'light'}
-        onClick={() => onSet('light')}
-      >
+      <button aria-pressed={theme === 'light'} onClick={() => onSet('light')}>
         <SunIcon size={16} />
+        Light
       </button>
-      <button aria-label="Dark theme" aria-pressed={theme === 'dark'} onClick={() => onSet('dark')}>
+      <button aria-pressed={theme === 'dark'} onClick={() => onSet('dark')}>
         <MoonIcon size={16} />
+        Dark
       </button>
     </div>
   )
@@ -43,7 +48,7 @@ function ThemeToggle({
 export function Header(p: Props): React.JSX.Element {
   return (
     <header>
-      <span className="brand">Bridgecast</span>
+      <Brand />
       <EventMenu
         events={p.events}
         eventId={p.eventId}
@@ -54,7 +59,17 @@ export function Header(p: Props): React.JSX.Element {
       />
       <span className="grow" />
       <OutputMenu program={p.program} />
-      <ThemeToggle theme={p.theme} onSet={p.onSetTheme} />
+      <ThemeSwitch theme={p.theme} onSet={p.onSetTheme} />
+      <button
+        className="gear"
+        aria-label="Settings"
+        title="Settings"
+        aria-haspopup="dialog"
+        onClick={p.onOpenSettings}
+        disabled={!p.onOpenSettings}
+      >
+        <GearSixIcon size={18} />
+      </button>
     </header>
   )
 }
