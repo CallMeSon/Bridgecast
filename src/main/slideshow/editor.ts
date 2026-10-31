@@ -13,6 +13,11 @@ export const EDIT_FAILED =
 export const REVERT_FAILED =
   'The imported file could not be restored. The previous version is still used. Try Revert again.'
 
+/** LibreOffice may rewrite a PowerPoint file when it saves: the operator must agree first. */
+export const LO_EDIT_CONFIRM =
+  "LibreOffice may change animations or layout when it saves a PowerPoint file. The client's original file is not changed."
+export const EDIT_NEEDS_CONFIRM = `${LO_EDIT_CONFIRM} Confirm to open the deck in LibreOffice.`
+
 const EDIT_FILE_RE = /^edit\.(pptx|ppt|odp)$/i
 
 /** The parts of the library the editor uses. */
@@ -25,6 +30,8 @@ export interface EditorDeps {
   library: EditorLibrary
   /** Exports a PowerPoint file to PNGs, PDF and metadata (the import queue: one PowerPoint job at a time). */
   exportDeck(file: string, outDir: string): Promise<ImportedDeck>
+  /** Edit asks the operator first (LibreOffice): `edit` then needs `confirmed`. */
+  confirmEdit?: () => boolean
   /** Opens the working copy in a normal PowerPoint window. */
   openInPowerPoint(file: string): Promise<void>
   /** The deck is on air (shown on an output). */
@@ -94,7 +101,8 @@ export class DeckEditor {
   }
 
   /** Opens the deck's working copy in PowerPoint and exports it again on every save. */
-  async edit(deckId: string): Promise<void> {
+  async edit(deckId: string, confirmed = false): Promise<void> {
+    if (this.deps.confirmEdit?.() && !confirmed) throw new Error(EDIT_NEEDS_CONFIRM)
     const lib = this.deps.library
     if (!canNative(lib.getDeck(deckId))) {
       throw new Error(

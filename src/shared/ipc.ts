@@ -270,7 +270,7 @@ export interface InvokeMap {
   /** Session state of each native deck and the helper start failure, if any. */
   'slideshow:status': { args: []; result: SlideshowStatus }
   /** Opens the deck's working copy in a PowerPoint window; every save is exported again. PowerPoint decks only. */
-  'deck:edit': { args: [deckId: string]; result: void }
+  'deck:edit': { args: [deckId: string, confirmed?: boolean]; result: void }
   /** Stops watching the working copy and exports the last saved version now; rejects when that fails. */
   'deck:editDone': { args: [deckId: string]; result: void }
   /** Applies the saved version now even though the deck is on air (the caller confirms first). */
@@ -428,7 +428,7 @@ export interface Api {
   slideshowStatus(): Promise<SlideshowStatus>
   onSlideshowStatus(cb: (s: SlideshowStatus) => void): () => void
   /** Opens the deck in a PowerPoint window for editing (PowerPoint decks). */
-  editDeck(deckId: string): Promise<void>
+  editDeck(deckId: string, confirmed?: boolean): Promise<void>
   /** Done editing: export the last saved version now. */
   editDeckDone(deckId: string): Promise<void>
   /** Apply the saved version now, even though the deck is on air (confirm first). */

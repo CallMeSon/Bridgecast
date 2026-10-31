@@ -462,6 +462,7 @@ function registerIpc(
             exportJobs.set(id, { outDir, resolve, reject })
             queue.add({ id, name: path.basename(file), path: file })
           }),
+    confirmEdit: () => slideShow.status().engine === 'libreoffice',
     openInPowerPoint: (file) => slideManager.edit(file),
     isLive: (deckId) => state.state.shown?.deckId === deckId,
     suspend: (deckId) => slideManager.suspend(deckId),
@@ -479,9 +480,9 @@ function registerIpc(
   app.on('before-quit', () => editor.dispose())
 
   // Edit in PowerPoint, Revert and the playback mode: app windows only.
-  appHandle(Invoke.deckEdit, (_e, deckId) => {
+  appHandle(Invoke.deckEdit, (_e, deckId, confirmed) => {
     assertString(deckId, 'Deck ID')
-    return editor.edit(deckId)
+    return editor.edit(deckId, confirmed === true)
   })
   appHandle(Invoke.deckEditDone, (_e, deckId) => {
     assertString(deckId, 'Deck ID')

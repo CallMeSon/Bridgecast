@@ -116,7 +116,10 @@ const api: Api = {
   onSlideshowNote: (cb) => subscribe(Broadcast.slideshowNote, cb),
   slideshowStatus: () => invoke(Invoke.slideshowStatus),
   onSlideshowStatus: (cb) => subscribe(Broadcast.slideshowStatus, cb),
-  editDeck: (deckId) => invoke(Invoke.deckEdit, deckId),
+  editDeck: (deckId, confirmed) =>
+    confirmed === undefined
+      ? invoke(Invoke.deckEdit, deckId)
+      : invoke(Invoke.deckEdit, deckId, confirmed),
   editDeckDone: (deckId) => invoke(Invoke.deckEditDone, deckId),
   applyDeckNow: (deckId) => invoke(Invoke.deckApplyNow, deckId),
   revertDeck: (deckId) => invoke(Invoke.deckRevert, deckId),

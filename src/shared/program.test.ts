@@ -816,7 +816,12 @@ describe('web decks', () => {
 })
 
 describe('native steps, hidden slides and fallback', () => {
-  const sl = (clicks: number, hidden = false) => ({ file: `${clicks}-${hidden}.png`, notes: '', clicks, hidden })
+  const sl = (clicks: number, hidden = false) => ({
+    file: `${clicks}-${hidden}.png`,
+    notes: '',
+    clicks,
+    hidden
+  })
   const nd = [
     {
       id: 'N',
@@ -878,7 +883,11 @@ describe('native steps, hidden slides and fallback', () => {
 
   it('hidden slide is skipped forward and back in every mode', () => {
     const img = [{ id: 'I', slides: [sl(0), sl(0, true), sl(0)] }]
-    const a = reduce({ ...initialState, deckId: 'I', index: 0, shown: sh('I', 0, img[0].slides[0].file) }, { type: 'next' }, img)
+    const a = reduce(
+      { ...initialState, deckId: 'I', index: 0, shown: sh('I', 0, img[0].slides[0].file) },
+      { type: 'next' },
+      img
+    )
     expect(a.index).toBe(2)
     expect(reduce(a, { type: 'prev' }, img).index).toBe(0)
   })
@@ -907,7 +916,9 @@ describe('native steps, hidden slides and fallback', () => {
     expect(r2.shown?.step).toBe(2)
     expect(r2.take).toBe(5)
     const other = live(0, 1)
-    expect(reduce(other, { type: 'enginePosition', deckId: 'X', index: 3, step: 0 }, nd)).toBe(other)
+    expect(reduce(other, { type: 'enginePosition', deckId: 'X', index: 3, step: 0 }, nd)).toBe(
+      other
+    )
   })
 
   it('fallback then next moves per slide; resume goes back to native fully built', () => {

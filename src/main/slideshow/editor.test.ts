@@ -4,7 +4,14 @@ import * as os from 'os'
 import * as path from 'path'
 import { Library } from '../library'
 import type { ImportedDeck } from '../import/pptx'
-import { DeckEditor, EDIT_FAILED, EDIT_DEBOUNCE_MS, type EditorDeps } from './editor'
+import {
+  DeckEditor,
+  EDIT_FAILED,
+  EDIT_DEBOUNCE_MS,
+  EDIT_NEEDS_CONFIRM,
+  LO_EDIT_CONFIRM,
+  type EditorDeps
+} from './editor'
 
 let root: string
 let tmp: string
@@ -138,6 +145,31 @@ describe('DeckEditor', () => {
     expect(read('edit.pptx')).toBe('ORIG')
     expect(events).toEqual(['open:edit.pptx'])
     expect(watchCb).not.toBeNull()
+  })
+
+  it('LibreOffice: edit is refused without the confirm flag and nothing is prepared', async () => {
+    depsOver = { confirmEdit: () => true }
+    make()
+    await expect(editor.edit(deckId)).rejects.toThrow(EDIT_NEEDS_CONFIRM)
+    expect(fs.existsSync(path.join(dir, 'edit.pptx'))).toBe(false)
+    expect(events).toEqual([])
+    expect(watchCb).toBeNull()
+    await editor.edit(deckId, true)
+    expect(read('edit.pptx')).toBe('ORIG')
+    expect(events).toEqual(['open:edit.pptx'])
+  })
+
+  it('the LibreOffice save warning is the exact copy', () => {
+    expect(LO_EDIT_CONFIRM).toBe(
+      "LibreOffice may change animations or layout when it saves a PowerPoint file. The client's original file is not changed."
+    )
+  })
+
+  it('PowerPoint needs no confirm', async () => {
+    depsOver = { confirmEdit: () => false }
+    make()
+    await editor.edit(deckId)
+    expect(events).toEqual(['open:edit.pptx'])
   })
 
   it('a deck that is not a PowerPoint deck cannot be edited', async () => {

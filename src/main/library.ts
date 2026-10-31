@@ -939,7 +939,8 @@ export class Library {
         return meta
       })
       fs.copyFileSync(imported.sourcePath, path.join(stage, `source${ext}`))
-      if (imported.converted) fs.writeFileSync(path.join(stage, PRISTINE), sha256File(imported.sourcePath))
+      if (imported.converted)
+        fs.writeFileSync(path.join(stage, PRISTINE), sha256File(imported.sourcePath))
       if (imported.pdfPath) fs.copyFileSync(imported.pdfPath, path.join(stage, 'source.pdf'))
 
       const deck: DeckMeta = {
