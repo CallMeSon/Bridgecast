@@ -1,9 +1,9 @@
 {
-  "name": "ppt-share",
+  "name": "bridgecast",
   "version": "1.0.0",
-  "description": "PPT Share: slide deck output to a second display (HDMI)",
+  "description": "Bridgecast: slide deck output to a second display (HDMI)",
   "main": "./out/main/index.js",
-  "author": "PPT Share",
+  "author": "Bridgecast",
   "homepage": "https://electron-vite.org",
   "scripts": {
     "format": "prettier --write .",

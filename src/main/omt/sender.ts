@@ -16,7 +16,7 @@ type Timers = {
   clearInterval: (id: ReturnType<typeof setInterval>) => void
 }
 
-const LIBRARY_MISSING = 'OMT could not start: its library is missing. Reinstall PPT Share.'
+const LIBRARY_MISSING = 'OMT could not start: its library is missing. Reinstall Bridgecast.'
 const CREATE_FAILED =
   'OMT could not start. Close other apps that send OMT, then turn OMT off and on.'
 function loadMessage(id: SendTarget['id'], e: unknown): string {

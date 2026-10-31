@@ -27,7 +27,7 @@ function check(cond, msg) {
   console.log(`ok - ${msg}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const HDMI_TITLE = 'PPT Share HDMI'
+const HDMI_TITLE = 'Bridgecast HDMI'
 const PROBE_ID = 515151
 
 // ---------------------------------------------------------------- local web server
@@ -211,7 +211,7 @@ async function main() {
     const ua = await pageEval(app, '/slow', 'navigator.userAgent')
     check(/Chrome\//.test(ua), `user agent looks like Chrome (${ua})`)
     check(!/Electron\//.test(ua), 'user agent has no Electron/ token')
-    check(!/ppt-share\//i.test(ua), 'user agent has no ppt-share/ token')
+    check(!/(ppt-share|bridgecast)\//i.test(ua), 'user agent has no app-name token')
 
     // ---- Next on a live web deck goes to the page, never moves the position
     const before = (await session(win)).state

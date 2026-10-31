@@ -207,7 +207,7 @@ describe('NetController', () => {
   })
 
   it('library missing: error with that copy, no throw, no restart, window kept', () => {
-    const copy = 'OMT could not start: its library is missing. Reinstall PPT Share.'
+    const copy = 'OMT could not start: its library is missing. Reinstall Bridgecast.'
     const t = setup({ enabled: true })
     expect(() => {
       t.out.start()
@@ -551,7 +551,7 @@ describe('NetController with OMT and NDI', () => {
       {
         type: 'targets',
         targets: [
-          { id: 'omt', name: 'PPT Share' },
+          { id: 'omt', name: 'Bridgecast' },
           { id: 'ndi', name: 'N' }
         ]
       }
@@ -572,7 +572,7 @@ describe('NetController with OMT and NDI', () => {
     const posted = w.posted.length
     t.out.apply(cfg({ enabled: true }, { enabled: false }))
     expect(w.posted.slice(posted).map((p) => p.m)).toEqual([
-      { type: 'targets', targets: [{ id: 'omt', name: 'PPT Share' }] }
+      { type: 'targets', targets: [{ id: 'omt', name: 'Bridgecast' }] }
     ])
     expect(t.out.status('ndi').state).toBe('off')
     expect(t.out.status('omt').state).toBe('running')
@@ -676,7 +676,7 @@ describe('NetController with OMT and NDI', () => {
     t.out.apply(cfg({ enabled: false }, { enabled: true }))
     expect(t.workers).toHaveLength(1)
     expect(t.windows).toHaveLength(1)
-    expect(startMsg(t.workers[0])?.targets).toEqual([{ id: 'ndi', name: 'PPT Share' }])
+    expect(startMsg(t.workers[0])?.targets).toEqual([{ id: 'ndi', name: 'Bridgecast' }])
   })
 
   it('removing the last target then adding one asks for a fresh frame', () => {

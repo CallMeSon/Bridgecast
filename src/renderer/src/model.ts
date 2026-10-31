@@ -696,7 +696,7 @@ export const nativeNotResponding = (app: 'PowerPoint' | 'LibreOffice'): string =
   `${app} is not responding. Showing still slides. Save your other ${app} files, then press Resume ${app}.`
 export const NATIVE_NOT_RESPONDING = nativeNotResponding('PowerPoint')
 export const NATIVE_HELPER_FAILED =
-  'The slide show helper could not start. Reinstall PPT Share. Showing still slides.'
+  'The slide show helper could not start. Reinstall Bridgecast. Showing still slides.'
 export const NATIVE_PENDING = 'Changes apply when this deck leaves air.'
 /** Shown before Edit in LibreOffice (same text as the main process refuses without). */
 export const LO_EDIT_CONFIRM =

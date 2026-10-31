@@ -22,8 +22,8 @@ describe('loadSettings / saveSettings', () => {
       autoAdvance: false,
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
-      omt: { enabled: false, name: 'PPT Share', fps: 30 },
-      ndi: { enabled: false, name: 'PPT Share' },
+      omt: { enabled: false, name: 'Bridgecast', fps: 30 },
+      ndi: { enabled: false, name: 'Bridgecast' },
       pptImportFormat: 'odp'
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
@@ -80,22 +80,22 @@ describe('hdmi settings', () => {
       autoAdvance: false,
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
-      omt: { enabled: false, name: 'PPT Share', fps: 30 },
+      omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: false, name: 'Aula' },
       pptImportFormat: 'odp'
     })
   })
 
   it('an old settings file keeps its hdmi values and only the ndi enabled/name', () => {
-    const ndi = { enabled: true, name: 'PPT Share', width: 1920, height: 1080, fps: 30 }
+    const ndi = { enabled: true, name: 'Bridgecast', width: 1920, height: 1080, fps: 30 }
     fs.writeFileSync(file, JSON.stringify({ ndi, hdmi: { enabled: true, displayId: 7 } }))
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: true, displayId: 7 },
       autoAdvance: false,
       audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
       canvas: { width: 1920, height: 1080 },
-      omt: { enabled: false, name: 'PPT Share', fps: 30 },
-      ndi: { enabled: true, name: 'PPT Share' },
+      omt: { enabled: false, name: 'Bridgecast', fps: 30 },
+      ndi: { enabled: true, name: 'Bridgecast' },
       pptImportFormat: 'odp'
     })
   })
@@ -271,13 +271,13 @@ describe('audio route', () => {
 describe('omt setting', () => {
   it('a settings file without omt loads the defaults', () => {
     fs.writeFileSync(file, JSON.stringify({ hdmi: { enabled: true, displayId: 3 } }))
-    expect(loadSettings(file).omt).toEqual({ enabled: false, name: 'PPT Share', fps: 30 })
+    expect(loadSettings(file).omt).toEqual({ enabled: false, name: 'Bridgecast', fps: 30 })
   })
 
   it('sanitizes invalid values and survives save then load', () => {
     expect(sanitizeSettings({ omt: { enabled: true, name: '  ', fps: 45 } }).omt).toEqual({
       enabled: true,
-      name: 'PPT Share',
+      name: 'Bridgecast',
       fps: 30
     })
     saveSettings(file, { ...DEFAULT_SETTINGS, omt: { enabled: true, name: 'Sala', fps: 60 } })
@@ -286,7 +286,7 @@ describe('omt setting', () => {
 
   it('does not share the default omt object with callers', () => {
     loadSettings(file).omt.name = 'X'
-    expect(loadSettings(file).omt.name).toBe('PPT Share')
+    expect(loadSettings(file).omt.name).toBe('Bridgecast')
   })
 })
 
@@ -294,18 +294,18 @@ describe('ndi setting', () => {
   it('a settings file without ndi loads the defaults', () => {
     fs.writeFileSync(file, JSON.stringify({ omt: { enabled: true } }))
     expect(loadSettings(file).ndi).toEqual(DEFAULT_NDI)
-    expect(loadSettings(file).ndi).toEqual({ enabled: false, name: 'PPT Share' })
+    expect(loadSettings(file).ndi).toEqual({ enabled: false, name: 'Bridgecast' })
   })
 
   it('does not share the default ndi object with callers', () => {
     loadSettings(file).ndi.name = 'X'
-    expect(loadSettings(file).ndi.name).toBe('PPT Share')
+    expect(loadSettings(file).ndi.name).toBe('Bridgecast')
   })
 
   it('sanitizes the name when loading', () => {
     expect(sanitizeSettings({ ndi: { enabled: true, name: '  ' } }).ndi).toEqual({
       enabled: true,
-      name: 'PPT Share'
+      name: 'Bridgecast'
     })
   })
 

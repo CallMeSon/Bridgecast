@@ -56,7 +56,7 @@ place before building; the build copies them to `resources/omt/` of the packaged
 `extraResources` in `electron-builder.yml`). Without them the build still works (the folder then holds only
 the README and licenses; if the folder itself is missing, electron-builder only prints
 "file source doesn't exist"); the app then shows "OMT could not start: its library is
-missing. Reinstall PPT Share." when OMT is switched on, and HDMI keeps working.
+missing. Reinstall Bridgecast." when OMT is switched on, and HDMI keeps working.
 
 ### Windows
 
@@ -89,7 +89,7 @@ Keep `libomt.so` and `libvmx.so` side by side. For `npm run dev` (unpackaged) po
 
 NDI output (video and sound to vMix / OBS / NDI Monitor over the LAN; not yet verified on Windows or with a real receiver, see `docs/test-checklist.md`) was removed on 2026-10-08
 because of SDK licensing and re-added on 2026-10-27 without bundling anything from NewTek / Vizrt.
-PPT Share never ships the NDI Runtime. The Windows installer (`build/installer.nsh`,
+Bridgecast never ships the NDI Runtime. The Windows installer (`build/installer.nsh`,
 `build/install-ndi-runtime.ps1`) downloads it from https://ndi.video when it is not installed yet (signature check and fallback not yet verified on Windows, see `docs/test-checklist.md`);
 if that fails the install continues and the app shows "NDI could not start: the NDI Runtime is not
 installed" when NDI is switched on (HDMI and OMT keep working). The installer is per-user, so the NDI Runtime installer needs admin and Windows shows a UAC prompt

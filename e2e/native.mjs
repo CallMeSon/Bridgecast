@@ -34,7 +34,7 @@ function check(cond, msg) {
   console.log(`ok - ${msg}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const HDMI_TITLE = 'PPT Share HDMI'
+const HDMI_TITLE = 'Bridgecast HDMI'
 const PROBE_ID = 515151
 
 // ---------------------------------------------------------------- fixtures on disk

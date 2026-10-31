@@ -8,7 +8,7 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const exe = path.join(root, 'dist/win-unpacked/PPT Share.exe')
+const exe = path.join(root, 'dist/win-unpacked/Bridgecast.exe')
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-pkg-'))
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-pkg-files-'))
 

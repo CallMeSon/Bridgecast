@@ -7,7 +7,7 @@ import { BridgeClient, BridgeError, type BridgeEvent } from './bridge-protocol'
 import type { EngineError, EnginePosition, EngineSession, SlideShowEngine } from './engine'
 
 export const HELPER_START_FAILED =
-  'The slide show helper could not start. Reinstall PPT Share. Showing still slides.'
+  'The slide show helper could not start. Reinstall Bridgecast. Showing still slides.'
 
 /** The part of a child process the engine uses (a fake in tests). */
 export interface BridgeChild {

@@ -377,7 +377,7 @@ export class WebHost {
       fullscreenable: false,
       // No `frame: false`: on Linux a frameless window the size of the screen comes out 1 px smaller.
       backgroundColor: '#000000',
-      title: 'PPT Share web page',
+      title: 'Bridgecast web page',
       webPreferences: { ...PAGE_PREFERENCES, session: this.session(), backgroundThrottling: false }
     })
     const p: Page = {

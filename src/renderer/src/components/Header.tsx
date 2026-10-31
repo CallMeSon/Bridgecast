@@ -43,7 +43,7 @@ function ThemeToggle({
 export function Header(p: Props): React.JSX.Element {
   return (
     <header>
-      <span className="brand">PPT Share</span>
+      <span className="brand">Bridgecast</span>
       <EventMenu
         events={p.events}
         eventId={p.eventId}

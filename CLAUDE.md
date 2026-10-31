@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PPT Share is an Electron + React + TypeScript operator console for live events. One operator window controls a "Program" output: fullscreen on a second display (HDMI), and optionally sent over the LAN (OMT, NDI). Read `PRODUCT.md` (behavior, terminology, constraints) and `DESIGN.md` (UI tokens) before touching product behavior or UI. User-facing copy is English; many notes, specs and plans under `docs/superpowers/` are Indonesian.
+Bridgecast is an Electron + React + TypeScript operator console for live events. One operator window controls a "Program" output: fullscreen on a second display (HDMI), and optionally sent over the LAN (OMT, NDI). Read `PRODUCT.md` (behavior, terminology, constraints) and `DESIGN.md` (UI tokens) before touching product behavior or UI. User-facing copy is English; many notes, specs and plans under `docs/superpowers/` are Indonesian.
 
 ## Commands
 

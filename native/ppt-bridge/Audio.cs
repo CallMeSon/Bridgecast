@@ -211,7 +211,7 @@ namespace PptBridge
             {
                 string dir = Environment.GetEnvironmentVariable("LOCALAPPDATA");
                 if (string.IsNullOrEmpty(dir)) dir = Path.GetTempPath();
-                return Path.Combine(dir, "PPT Share", "audio-restore.json");
+                return Path.Combine(dir, "Bridgecast", "audio-restore.json");
             }
         }
 

@@ -286,7 +286,7 @@ export class HdmiOutput {
       skipTaskbar: true,
       focusable: false,
       backgroundColor: '#000000',
-      title: 'PPT Share HDMI',
+      title: 'Bridgecast HDMI',
       paintWhenInitiallyHidden: true,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -310,7 +310,7 @@ export class HdmiOutput {
     win.on('close', (e) => {
       if (!this.quitting) e.preventDefault()
     })
-    // Keep "PPT Share HDMI" (the page's <title> would rename it "PPT Share").
+    // Keep "Bridgecast HDMI" (the page's <title> would rename it "Bridgecast").
     win.on('page-title-updated', (e) => e.preventDefault())
     wc.on('render-process-gone', (_e, details) => {
       console.error(`[hdmi] renderer stopped (${details.reason}); recreating it`)

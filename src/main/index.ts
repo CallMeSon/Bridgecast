@@ -101,6 +101,7 @@ import {
   type AppWindowRole
 } from './web/host-rules'
 import { openPrepareWindow } from './web/prepare-window'
+import { migrateUserData } from './migrate-user-data'
 
 /** Longest the app waits for the OMT worker to stop before it quits anyway. */
 const OMT_QUIT_CAP_MS = 3000
@@ -1143,7 +1144,7 @@ function createSlideShow(
     req: Record<string, unknown>
   ): Promise<Record<string, unknown>> => {
     if (!(engine instanceof LibreOfficeEngine)) {
-      throw new Error('LibreOffice is not available. Restart PPT Share, then try again.')
+      throw new Error('LibreOffice is not available. Restart Bridgecast, then try again.')
     }
     return engine.importDeck(req)
   }
@@ -1202,7 +1203,7 @@ function createWindow(onReady?: () => void): BrowserWindow {
     minHeight: 640,
     show: false,
     backgroundColor: '#0c0e12',
-    title: 'PPT Share',
+    title: 'Bridgecast',
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -1240,10 +1241,13 @@ function createWindow(onReady?: () => void): BrowserWindow {
 // Lets the e2e smoke test (and power users) point the library at another folder.
 if (process.env['PPT_SHARE_USER_DATA']) {
   app.setPath('userData', process.env['PPT_SHARE_USER_DATA'])
+} else {
+  // Renamed from PPT Share: carry the old library over once.
+  migrateUserData(app.getPath('userData'), app.getPath('appData'))
 }
 
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.pptshare.app')
+  electronApp.setAppUserModelId('com.bridgecast.app')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -1271,7 +1275,7 @@ app.whenReady().then(async () => {
     lib = new Library(root)
   } catch (err) {
     dialog.showErrorBox(
-      'PPT Share',
+      'Bridgecast',
       `${(err as Error).message}
 
 Location: ${root}`

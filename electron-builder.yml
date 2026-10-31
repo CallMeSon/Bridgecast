@@ -1,5 +1,5 @@
-appId: com.pptshare.app
-productName: PPT Share
+appId: com.bridgecast.app
+productName: Bridgecast
 directories:
   buildResources: build
 # Allowlist: only the built app (out/) and package.json; production
@@ -13,7 +13,7 @@ asarUnpack:
   - node_modules/koffi/**
   - node_modules/@koromix/**
 win:
-  executableName: PPT Share
+  executableName: Bridgecast
   extraResources:
     - from: scripts/export-pptx.ps1
       to: scripts/export-pptx.ps1

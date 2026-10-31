@@ -69,7 +69,7 @@ async function until(fn, pred, what, t = 30000) {
 const hdmiRaw = () =>
   app.evaluate(async ({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows().find(
-      (x) => !x.isDestroyed() && x.getTitle() === 'PPT Share HDMI'
+      (x) => !x.isDestroyed() && x.getTitle() === 'Bridgecast HDMI'
     )
     if (!w) return null
     const img = await w.webContents.capturePage()

@@ -1,5 +1,5 @@
 # Installs the NDI Runtime when it is missing. Called by build/installer.nsh.
-# The runtime is downloaded from NDI, never bundled with PPT Share.
+# The runtime is downloaded from NDI, never bundled with Bridgecast.
 #
 # Exit codes: 0 runtime present or installed, 2 download failed,
 #             3 signature invalid, 4 install failed.

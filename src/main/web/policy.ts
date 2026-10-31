@@ -3,10 +3,10 @@ import type { Canvas } from '../../shared/canvas'
 import type { PrepareInput } from '../../shared/web'
 import { isOwnOrigin } from '../permissions'
 
-/** Electron's default UA minus the `Electron/<v>` and `ppt-share/<v>` tokens, so sites see plain Chrome. */
+/** Electron's default UA minus the `Electron/<v>` and `ppt-share/<v>` or `bridgecast/<v>` tokens, so sites see plain Chrome. */
 export function chromeUserAgent(electronUa: string): string {
   return electronUa
-    .replace(/\s(?:Electron|ppt-share)\/\S+/g, '')
+    .replace(/\s(?:Electron|ppt-share|bridgecast)\/\S+/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
 }

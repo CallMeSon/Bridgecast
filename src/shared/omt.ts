@@ -11,7 +11,7 @@ export type AudioRoute = 'local' | 'omt' | 'both'
 
 export const DEFAULT_OMT: Readonly<OmtSettings> = Object.freeze({
   enabled: false,
-  name: 'PPT Share',
+  name: 'Bridgecast',
   fps: 30
 })
 
@@ -45,7 +45,7 @@ export interface NdiSettings {
 
 export const DEFAULT_NDI: Readonly<NdiSettings> = Object.freeze({
   enabled: false,
-  name: 'PPT Share'
+  name: 'Bridgecast'
 })
 
 /** Any parsed JSON → valid NdiSettings (empty name → default, control characters removed, 64 characters at most). */
@@ -134,7 +134,7 @@ export const OMT_START_FAILED =
   'OMT could not start. Close other apps that send OMT, then turn OMT off and on.'
 export const OMT_DROPS = 'OMT is dropping frames. Set the frame rate to 30.'
 export const OMT_NO_RECEIVERS =
-  "No receiver yet. If vMix or OBS can't find PPT Share, allow PPT Share in Windows Firewall (Private networks) or add the address manually."
+  "No receiver yet. If vMix or OBS can't find Bridgecast, allow Bridgecast in Windows Firewall (Private networks) or add the address manually."
 export const OMT_NO_SOUND = 'OMT sound is unavailable; sound plays on this PC only.'
 
 export const NDI_COPY = {

@@ -20,13 +20,13 @@
   StrCmp $0 "0" ndi_done
   StrCmp $0 "2" ndi_download_failed
   StrCmp $0 "3" ndi_bad_signature
-  MessageBox MB_YESNO|MB_ICONEXCLAMATION "The NDI Runtime could not be installed (code $0). Continue installing PPT Share without NDI? The NDI output will not be available until the runtime is installed." /SD IDYES IDYES ndi_done
+  MessageBox MB_YESNO|MB_ICONEXCLAMATION "The NDI Runtime could not be installed (code $0). Continue installing Bridgecast without NDI? The NDI output will not be available until the runtime is installed." /SD IDYES IDYES ndi_done
   Abort
   ndi_download_failed:
-  MessageBox MB_YESNO|MB_ICONEXCLAMATION "The NDI Runtime could not be downloaded. Continue installing PPT Share without NDI? The NDI output will not be available until the runtime is installed." /SD IDYES IDYES ndi_done
+  MessageBox MB_YESNO|MB_ICONEXCLAMATION "The NDI Runtime could not be downloaded. Continue installing Bridgecast without NDI? The NDI output will not be available until the runtime is installed." /SD IDYES IDYES ndi_done
   Abort
   ndi_bad_signature:
-  MessageBox MB_YESNO|MB_ICONEXCLAMATION "The downloaded NDI Runtime does not carry a valid Vizrt signature and was not installed. Continue installing PPT Share without NDI? The NDI output will not be available." /SD IDYES IDYES ndi_done
+  MessageBox MB_YESNO|MB_ICONEXCLAMATION "The downloaded NDI Runtime does not carry a valid Vizrt signature and was not installed. Continue installing Bridgecast without NDI? The NDI output will not be available." /SD IDYES IDYES ndi_done
   Abort
   ndi_done:
 !macroend

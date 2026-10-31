@@ -109,7 +109,7 @@ sound is neither captured nor changed (`open` replies `audio:"device"`, `setVolu
 - Fallback (`audio:"fallback"`, bridge-launched PowerPoint): `setVolume` sets the master volume of the
   PowerPoint audio sessions (`IAudioSessionManager2`, `ISimpleAudioVolume`).
 - Whenever the level or mute is changed, the original level and mute state are remembered and written to
-  `%LOCALAPPDATA%\PPT Share\audio-restore.json`. They are put back before the shows are closed on a clean
+  `%LOCALAPPDATA%\Bridgecast\audio-restore.json`. They are put back before the shows are closed on a clean
   shutdown. `ppt-bridge.exe --restore-audio` (one-shot, no COM for PowerPoint itself) restores them for any
   session of the same application that exists; the app runs it at engine start and after an abnormal helper
   exit (crash, hang kill). It can only restore a session that exists; otherwise the entry stays in the file

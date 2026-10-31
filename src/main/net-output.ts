@@ -39,7 +39,7 @@ function createOmtWindow(
     skipTaskbar: true,
     focusable: false,
     backgroundColor: '#000000',
-    title: 'PPT Share OMT',
+    title: 'Bridgecast OMT',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

@@ -7,7 +7,7 @@ import { NdiLoadError } from '../ndi/binding'
 import { FakeSenderBinding } from '../net/fake-binding'
 import { NDI_COPY, type OmtStatus } from '../../shared/omt'
 
-const LOAD_MSG = 'OMT could not start: its library is missing. Reinstall PPT Share.'
+const LOAD_MSG = 'OMT could not start: its library is missing. Reinstall Bridgecast.'
 const CREATE_MSG = 'OMT could not start. Close other apps that send OMT, then turn OMT off and on.'
 
 const frame = (): { width: number; height: number; data: ArrayBuffer } => ({

@@ -25,9 +25,9 @@ function check(cond, msg) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const HDMI_TITLE = 'PPT Share HDMI'
-const OMT_TITLE = 'PPT Share OMT'
-const LIB_MISSING = 'OMT could not start: its library is missing. Reinstall PPT Share.'
+const HDMI_TITLE = 'Bridgecast HDMI'
+const OMT_TITLE = 'Bridgecast OMT'
+const LIB_MISSING = 'OMT could not start: its library is missing. Reinstall Bridgecast.'
 
 // Pixel helpers: frames carry [corner(10,10), top centre] as [r,g,b].
 const isBlackPx = (px) => px.every((p) => Math.max(...p) <= 8)
@@ -191,7 +191,7 @@ async function fakeScenario() {
     check(d0.status.state === 'off' && !d0.windowExists && !d0.workerAlive, 'OMT starts off')
 
     // ---- OMT on, HDMI off: 1920x1080 frames, black first, content after output:ready
-    await setOmt(win, { enabled: true, name: 'PPT Share', fps: 30 })
+    await setOmt(win, { enabled: true, name: 'Bridgecast', fps: 30 })
     const first = await waitDbg(
       app,
       (d) => d.frames && d.frames.count > 5 && d.frames.lastPx && !isBlackPx(d.frames.lastPx),
@@ -428,7 +428,7 @@ async function fakeScenario() {
     )
 
     // ---- OMT off: window and worker gone
-    await setOmt(win, { enabled: false, name: 'PPT Share', fps: 30 })
+    await setOmt(win, { enabled: false, name: 'Bridgecast', fps: 30 })
     const off = await waitDbg(
       app,
       (d) => !d.windowExists && !d.workerAlive,
@@ -438,7 +438,7 @@ async function fakeScenario() {
     check((await omtWindows(app)) === 0, 'OMT off: no OMT BrowserWindow left')
 
     // ---- quit while sending exits cleanly and quickly
-    await setOmt(win, { enabled: true, name: 'PPT Share', fps: 30 })
+    await setOmt(win, { enabled: true, name: 'Bridgecast', fps: 30 })
     await waitDbg(
       app,
       (d) => d.sending && d.frames && d.frames.count > 5,
@@ -466,7 +466,7 @@ async function missingLibraryScenario() {
   const { app, win } = await launch({ PPT_OMT_FAKE: '', PPT_LIBOMT_DIR: emptyDir })
   const PROBE_ID = 515152
   try {
-    await setOmt(win, { enabled: true, name: 'PPT Share', fps: 30 })
+    await setOmt(win, { enabled: true, name: 'Bridgecast', fps: 30 })
     const s = await waitStatus(
       win,
       (x) => x.state === 'error',
@@ -536,9 +536,9 @@ const ndiStatus = (win) => win.evaluate(() => window.api.getNdiStatus())
 const net = (app) => app.evaluate(() => globalThis.__pptNet)
 const NDI_MISSING =
   'NDI could not start: the NDI Runtime is not installed. Install it from ndi.video, then turn NDI off and on.'
-const OMT_ON = { enabled: true, name: 'PPT Share', fps: 30 }
-const NDI_ON = { enabled: true, name: 'PPT Share NDI' }
-const NDI_OFF = { enabled: false, name: 'PPT Share NDI' }
+const OMT_ON = { enabled: true, name: 'Bridgecast', fps: 30 }
+const NDI_ON = { enabled: true, name: 'Bridgecast NDI' }
+const NDI_OFF = { enabled: false, name: 'Bridgecast NDI' }
 
 async function waitNet(app, pred, what, timeout = 20_000) {
   const end = Date.now() + timeout

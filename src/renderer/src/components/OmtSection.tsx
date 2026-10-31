@@ -162,7 +162,7 @@ export function OmtSection({ omt, status, onSaved }: Props): React.JSX.Element {
                 <CheckIcon size={14} /> Copied
               </>
             ) : (
-              'Paste it in a receiver to add PPT Share by hand.'
+              'Paste it in a receiver to add Bridgecast by hand.'
             )}
           </span>
         </div>

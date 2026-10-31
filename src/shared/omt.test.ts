@@ -24,7 +24,7 @@ import type { AudioRoute, NdiSettings, NdiStatus, OmtSettings, OmtStatus } from 
 
 describe('sanitizeOmt', () => {
   it('defaults for anything that is not an object', () => {
-    expect(DEFAULT_OMT).toEqual({ enabled: false, name: 'PPT Share', fps: 30 })
+    expect(DEFAULT_OMT).toEqual({ enabled: false, name: 'Bridgecast', fps: 30 })
     for (const raw of [undefined, null, 'x', 7, []]) expect(sanitizeOmt(raw)).toEqual(DEFAULT_OMT)
   })
 
@@ -42,7 +42,7 @@ describe('sanitizeOmt', () => {
 
   it('an empty or invalid name becomes the default', () => {
     for (const name of ['  ', '', 5, null, '\u0007\u0001']) {
-      expect(sanitizeOmt({ name }).name).toBe('PPT Share')
+      expect(sanitizeOmt({ name }).name).toBe('Bridgecast')
     }
   })
 
@@ -146,7 +146,7 @@ describe('omtBadge', () => {
   const st = (o: Partial<OmtStatus>): OmtStatus => ({
     state: 'running',
     connections: 0,
-    address: 'PC (PPT Share)',
+    address: 'PC (Bridgecast)',
     ...o
   })
 
@@ -207,7 +207,7 @@ describe('canvasChangeConfirm', () => {
 
 describe('sanitizeNdi', () => {
   it('defaults for anything that is not an object', () => {
-    expect(DEFAULT_NDI).toEqual({ enabled: false, name: 'PPT Share' })
+    expect(DEFAULT_NDI).toEqual({ enabled: false, name: 'Bridgecast' })
     for (const raw of [undefined, null, 'x', 7, []]) expect(sanitizeNdi(raw)).toEqual(DEFAULT_NDI)
   })
   it('keeps valid values and trims', () => {
@@ -217,9 +217,9 @@ describe('sanitizeNdi', () => {
     })
   })
   it('blank, wrong-typed or control-only names fall back', () => {
-    expect(sanitizeNdi({ name: '  ' }).name).toBe('PPT Share')
-    expect(sanitizeNdi({ name: 5 }).name).toBe('PPT Share')
-    expect(sanitizeNdi({ name: '\u0007' }).name).toBe('PPT Share')
+    expect(sanitizeNdi({ name: '  ' }).name).toBe('Bridgecast')
+    expect(sanitizeNdi({ name: 5 }).name).toBe('Bridgecast')
+    expect(sanitizeNdi({ name: '\u0007' }).name).toBe('Bridgecast')
     expect(sanitizeNdi({ enabled: 'yes' }).enabled).toBe(false)
   })
   it('cuts to 64 characters', () => {

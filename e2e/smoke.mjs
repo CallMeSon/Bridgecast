@@ -569,7 +569,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
 // --- HDMI output (Task 11) ---
 const NO_SECOND =
   'No second display detected. Connect HDMI, then set Windows to Extend mode (Win+P, then Extend).'
-const HDMI_TITLE = 'PPT Share HDMI'
+const HDMI_TITLE = 'Bridgecast HDMI'
 const hdmiDebug = () => app.evaluate(() => globalThis.__pptHdmi)
 const hdmiWindows = () =>
   app.evaluate(
@@ -2324,7 +2324,7 @@ try {
 
   // 1280×720 window: the Program panel and controls must stay on screen.
   await app.evaluate(({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'PPT Share HDMI')
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'Bridgecast HDMI')
     w.setMinimumSize(800, 500)
     w.setContentSize(1280, 720)
   })

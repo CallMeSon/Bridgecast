@@ -21,6 +21,11 @@ describe('chromeUserAgent', () => {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.7339.0 Safari/537.36'
     )
   })
+  it('strips the renamed app token too', () => {
+    const ua =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) bridgecast/1.2.3 Chrome/140.0.7339.0 Electron/45.0.0 Safari/537.36'
+    expect(chromeUserAgent(ua)).not.toMatch(/bridgecast|Electron/)
+  })
   it('leaves a plain Chrome UA alone', () => {
     const ua = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
     expect(chromeUserAgent(ua)).toBe(ua)
