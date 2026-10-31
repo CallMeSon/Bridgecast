@@ -72,47 +72,130 @@ header > .grow {
     display: none;
   }
 }
-/* The event name is the only header item that gives way: a long name is cut with an
-   ellipsis so the HDMI, theme and settings controls never leave the window. */
-header > .event {
-  position: relative;
+/* Open-event tabs: only the tab list gives way. A long name is cut with an ellipsis, so the
+   live tag, New, HDMI, theme and settings controls never leave the window. */
+header > .evtabs {
   flex: 0 1 auto;
   min-width: 0;
+  gap: 4px;
 }
-.event-btn,
-.event-new {
+.hsep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 8px;
+  background: var(--line-hi);
+}
+.homebtn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  color: var(--text-2);
+}
+.homebtn:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.homebtn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+/* Only this list gives way. Tabs keep a readable width and the list scrolls when there are
+   more than fit (the selected tab is scrolled into view). */
+.tabsbar {
   display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.otab {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 112px;
+  max-width: 210px;
+  height: var(--h-sm);
+  border-radius: var(--r);
+  color: var(--text-2);
+}
+.otab[data-live] {
+  /* The on-air tab stays in view at either edge while the list is scrolled. */
+  position: sticky;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  background: var(--panel);
+}
+.otab:hover {
+  background: var(--raised);
+}
+.otab[data-selected],
+.otab[data-live][data-selected] {
+  background: var(--raised-hi);
+  color: var(--text);
+}
+.otab-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.otab .tn {
+  min-width: 32px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.otab .stag[data-icon-only] {
+  margin-left: 2px;
+  background: transparent;
+  box-shadow: none;
+  width: auto;
+  padding: 0;
+  color: var(--accent-ink);
+}
+.otab .x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  color: var(--text-3);
+}
+.otab .x:hover {
+  background: var(--raised-hi);
+  color: var(--text);
+}
+.otab-main:focus-visible,
+.otab .x:focus-visible,
+.homebtn:focus-visible,
+.newbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.newbtn {
+  flex: none;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   height: var(--h-sm);
   padding: 0 12px;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
 }
-.event-btn {
-  min-width: 0;
-  max-width: 100%;
+.newbtn:hover {
+  background: var(--raised);
   color: var(--text);
-}
-.event-btn:hover,
-.event-btn[aria-expanded='true'] {
-  background: var(--raised-hi);
-}
-.event .lbl {
-  flex: none;
-  color: var(--text-3);
-}
-.event-btn strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
-.event-btn .placeholder {
-  white-space: nowrap;
-  color: var(--text-3);
-}
-.event-btn .ph {
-  color: var(--text-3);
 }
 .menu {
   position: absolute;
@@ -1301,6 +1384,26 @@ main {
 }
 .ptitle .where .sub {
   color: var(--text-3);
+}
+/* The air event's name (shown while another event is open) gives way before the deck name. */
+.ptitle .where:has(.air) {
+  display: flex;
+}
+.ptitle .where:has(.air) .nm {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ptitle .where:has(.air) .sub {
+  flex: none;
+  white-space: pre;
+}
+.ptitle .where:has(.air) .sub.air {
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* The monitor; its width follows the free height so frame and meta line always fit. */
 .pgm-view {
@@ -2657,4 +2760,21 @@ footer .empty {
 }
 .deck:has(> .stag, > .chip) .tile {
   grid-row: 1 / 4;
+}
+
+/* Events home: the console stays mounted underneath (nothing on air changes) but cannot be
+   reached while Home is up. */
+.app[data-view='home'] > main,
+.app[data-view='home'] > footer {
+  visibility: hidden;
+}
+.home-stub {
+  position: absolute;
+  inset: var(--h-lg) 0 0 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--pad);
+  background: var(--bg);
+  color: var(--text-2);
 }

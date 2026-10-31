@@ -7,6 +7,7 @@ import type { DeckFit } from '../../shared/canvas'
 import type { Playback } from '../../shared/types'
 import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
+import { closeTab, loadOpenTabs, openTab, saveOpenTabs } from './open-tabs'
 import { SettingsDialog } from './components/SettingsDialog'
 import { Library, type ImportRow } from './components/Library'
 import { DropOverlay } from './components/DropOverlay'
@@ -89,6 +90,10 @@ function App(): React.JSX.Element {
   const api = window.api
   const [events, setEvents] = useState<EventMeta[]>([])
   const [eventId, setEventId] = useState<string | null>(null)
+  // Open event tabs (this window's localStorage) and what the main area shows.
+  const [openIds, setOpenIds] = useState<string[]>([])
+  const [view, setView] = useState<'console' | 'home'>('console')
+  const tabsLoaded = useRef(false)
   const [decks, setDecks] = useState<DeckMeta[]>([])
   // The event the loaded `decks` belong to. Sections follow this, not `eventId`, so
   // decks and sections never come from two different events while a switch loads.
@@ -130,6 +135,13 @@ function App(): React.JSX.Element {
     [events, decksEventId]
   )
   const eventRef = useRef<string | null>(null)
+  const airRef = useRef<string | null>(null)
+  useEffect(() => {
+    airRef.current = program.airEvent
+  }, [program.airEvent])
+  useEffect(() => {
+    if (tabsLoaded.current) saveOpenTabs(localStorage, openIds)
+  }, [openIds])
   const appRef = useRef<HTMLDivElement>(null)
   // A failed Program action (shown next to the tally) and a short "saved" note.
   const [actionError, setActionError] = useState<string | null>(null)
@@ -211,6 +223,14 @@ function App(): React.JSX.Element {
       eventRef.current = session.eventId
       setEvents(evs)
       setEventId(session.eventId)
+      setOpenIds(
+        loadOpenTabs(
+          localStorage,
+          evs.map((e) => e.id),
+          session.eventId
+        )
+      )
+      tabsLoaded.current = true
       setProgram(session.state)
       await reloadDecks(session.eventId)
     })().catch((e) => reportError('Decks', e))
@@ -251,6 +271,8 @@ function App(): React.JSX.Element {
       try {
         eventRef.current = id
         setEventId(id)
+        setView('console')
+        setOpenIds((ids) => openTab(ids, id, [id, airRef.current]))
         setImports((xs) => xs.filter((x) => x.status === 'busy'))
         const list = await api.listDecks(id)
         const s = await api.selectEvent(id)
@@ -264,6 +286,20 @@ function App(): React.JSX.Element {
       }
     },
     [api, reportError]
+  )
+
+  // Closing a tab removes the tab only: the output never changes. Closing the current tab
+  // selects its left neighbour; closing the last one shows Home.
+  const closeEventTab = useCallback(
+    (id: string) => {
+      const r = closeTab(openIds, id, eventId)
+      setOpenIds(r.ids)
+      if (id === eventId) {
+        if (r.next) void selectEvent(r.next)
+        else setView('home')
+      }
+    },
+    [openIds, eventId, selectEvent]
   )
 
   const createEvent = useCallback(
@@ -819,13 +855,18 @@ function App(): React.JSX.Element {
   )
 
   return (
-    <div className="app" ref={appRef}>
+    <div className="app" ref={appRef} data-view={view}>
       <Header
         events={events}
         eventId={eventId}
+        openIds={openIds}
+        view={view}
+        airEvent={program.airEvent}
+        airState={tally(program)}
         onSelectEvent={selectEvent}
+        onCloseTab={closeEventTab}
+        onHome={() => setView((v) => (v === 'home' ? 'console' : 'home'))}
         onCreateEvent={createEvent}
-        onEventUpdated={replaceEvent}
         program={program}
         output={output}
         onOpenOutput={showOutput}
@@ -846,6 +887,11 @@ function App(): React.JSX.Element {
         reduceMotion={reduceMotion}
         onReduceMotion={chooseReduceMotion}
       />
+      {view === 'home' && (
+        <section className="home-stub" aria-label="Events home">
+          <p>No event open. Choose a tab or create one with New.</p>
+        </section>
+      )}
       <main>
         <Library
           decks={decks}
@@ -938,8 +984,11 @@ function App(): React.JSX.Element {
             canFreeze={reduce(program, { type: 'toggleFreeze' }, decks, sections) !== program}
             onAction={dispatch}
             stream={monitorStream}
-            emptyHint={
-              eventId ? undefined : 'Create an event first from the Event menu at the top left.'
+            emptyHint={eventId ? undefined : 'Create an event first with New in the header.'}
+            airEventName={
+              program.airEvent && program.airEvent !== eventId && tally(program) !== 'idle'
+                ? (events.find((e) => e.id === program.airEvent)?.name ?? null)
+                : null
             }
           />
         </section>

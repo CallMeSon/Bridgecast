@@ -31,11 +31,10 @@ try {
     'runs as a packaged app (app.isPackaged)'
   )
 
-  await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'New event' }).click()
+  await win.click('.newbtn')
   await win.fill('.event-input', 'Packaged')
   await win.press('.event-input', 'Enter')
-  await win.locator('.event-btn', { hasText: 'Packaged' }).waitFor()
+  await win.locator('[role=tab][aria-selected=true]', { hasText: 'Packaged' }).waitFor()
 
   await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
   await win.locator('.deck .meta', { hasText: '3 slide' }).waitFor({ timeout: 60_000 })

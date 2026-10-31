@@ -3,16 +3,22 @@ import type { EventMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import type { Theme } from '../theme'
 import { BrandMark } from './BrandMark'
-import { EventMenu } from './EventMenu'
+import { EventTabs } from './EventTabs'
+import type { Tally } from '../model'
 import { OutputMenu } from './OutputMenu'
 import type { OutputSettingsState } from './useOutputSettings'
 
 interface Props {
   events: EventMeta[]
   eventId: string | null
+  openIds: string[]
+  view: 'console' | 'home'
+  airEvent: string | null
+  airState: Tally
   onSelectEvent(eventId: string): void
+  onCloseTab(eventId: string): void
+  onHome(): void
   onCreateEvent(name: string): void
-  onEventUpdated(ev: EventMeta): void
   program: ProgramState
   output: OutputSettingsState
   /** Shows the Output section of the Controls tab. */
@@ -59,13 +65,17 @@ export function Header(p: Props): React.JSX.Element {
   return (
     <header>
       <Brand />
-      <EventMenu
+      <EventTabs
         events={p.events}
-        eventId={p.eventId}
+        ids={p.openIds}
+        current={p.eventId}
+        view={p.view}
+        airEvent={p.airEvent}
+        airState={p.airState}
         onSelect={p.onSelectEvent}
-        onCreate={p.onCreateEvent}
-        program={p.program}
-        onEventUpdated={p.onEventUpdated}
+        onClose={p.onCloseTab}
+        onHome={p.onHome}
+        onNew={p.onCreateEvent}
       />
       <span className="grow" />
       <OutputMenu program={p.program} out={p.output} onOpen={p.onOpenOutput} />

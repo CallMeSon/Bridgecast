@@ -24,6 +24,7 @@ export function Program({
   canPrev,
   canNext,
   canFreeze,
+  airEventName = null,
   onAction
 }: {
   state: ProgramState
@@ -41,6 +42,8 @@ export function Program({
   canPrev: boolean
   canNext: boolean
   canFreeze: boolean
+  /** Name of the event on air while it is not the current one; null otherwise. */
+  airEventName?: string | null
   onAction(a: Action): void
 }): React.JSX.Element {
   const t = tally(state)
@@ -62,6 +65,12 @@ export function Program({
             {deck?.name ?? 'Program'}
           </span>
           {deck && <span className="sub"> / Program</span>}
+          {deck && airEventName && (
+            <span className="sub air" title={airEventName}>
+              {' '}
+              · {airEventName}
+            </span>
+          )}
         </h2>
       </div>
       <div className="pgm-view">

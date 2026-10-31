@@ -161,11 +161,10 @@ async function main() {
   const { app, win, errors } = await launch()
   try {
     // ---- event with a PDF deck (event 1 also holds the web decks)
-    await win.click('.event-btn')
-    await win.getByRole('menuitem', { name: 'New event' }).click()
+    await win.click('.newbtn')
     await win.fill('.event-input', 'Web Event')
     await win.press('.event-input', 'Enter')
-    await win.locator('.event-btn', { hasText: 'Web Event' }).waitFor()
+    await win.locator('[role=tab][aria-selected=true]', { hasText: 'Web Event' }).waitFor()
     const eventId = (await session(win)).eventId
 
     // ---- add web decks: a slow one (stays loading), a quick one, an unreachable one
@@ -414,11 +413,10 @@ async function main() {
     check(true, 'the HDMI output stays black, the failed page is not on air')
 
     // ---- switching event keeps the live page on air; taking a slide of it closes it
-    await win.click('.event-btn')
-    await win.getByRole('menuitem', { name: 'New event' }).click()
+    await win.click('.newbtn')
     await win.fill('.event-input', 'Other Event')
     await win.press('.event-input', 'Enter')
-    await win.locator('.event-btn', { hasText: 'Other Event' }).waitFor()
+    await win.locator('[role=tab][aria-selected=true]', { hasText: 'Other Event' }).waitFor()
     await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
     await win.locator('.deck .meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })
     const other = (await session(win)).eventId

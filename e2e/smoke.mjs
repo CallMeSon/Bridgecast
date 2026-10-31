@@ -397,7 +397,10 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     // Reorder slides of the LIVE deck: move the live slide 2 (blue, 002.png) to the front.
     const sample = win.locator('.deck', { has: win.locator('.name', { hasText: /^sample$/ }) })
     const deckId = await sample.getAttribute('data-deck-id')
-    check((await pos.textContent()) === '02 / 03', 'live deck "sample" on slide 2 before reordering')
+    check(
+      (await pos.textContent()) === '02 / 03',
+      'live deck "sample" on slide 2 before reordering'
+    )
     const t0 = await thumbs(win)
     check(
       t0.map((t) => t.file).join() === '001.png,002.png,003.png' && t0[1].role === 'live',
@@ -730,54 +733,30 @@ async function behaviourChecks(win, tally, pos) {
   const nextPos = `${String(cur + 1).padStart(curText.length, '0')} / ${totalText}`
   check(cur >= 1 && cur < total, `behaviour checks start mid-deck (${p0})`)
 
-  // 1. The event menu owns the keyboard: Space/arrows never move the on-air slide.
-  await win.click('.event-btn')
-  const menu = win.getByRole('menu', { name: 'Choose event' })
-  await menu.waitFor()
-  const firstItem = menu.getByRole('menuitem').first()
-  check(
-    await firstItem.evaluate((el) => el === document.activeElement),
-    'event menu focuses its first item on open'
-  )
-  await win.keyboard.press('End')
-  check(
-    (await win.evaluate(() => document.activeElement?.textContent)) === 'Canvas for this event…',
-    'End moves focus to the last event menu item'
-  )
-  await win.keyboard.press('ArrowDown')
-  check(
-    await firstItem.evaluate((el) => el === document.activeElement),
-    'ArrowDown wraps to the first event menu item'
-  )
+  // 1. The event tabs own the keyboard: arrows never move the on-air slide.
+  const selTab = win.locator('[role=tab][aria-selected=true]')
+  await selTab.focus()
   await win.keyboard.press('ArrowRight')
-  await win.keyboard.press('PageDown')
+  await win.keyboard.press('ArrowLeft')
+  await win.keyboard.press('Space') // activates the focused tab (already current): no Next
   await sleep(300)
+  check((await posText()) === here, 'arrows and Space on an event tab keep the slide')
   check(
-    (await posText()) === here && (await menu.count()) === 1,
-    'arrows in the event menu keep the slide'
+    await win.getByRole('tablist', { name: 'Open events' }).isVisible(),
+    'open events are a tab list in the header'
   )
-  await win.keyboard.press('Escape')
-  await menu.waitFor({ state: 'detached' })
-  check(
-    await win.evaluate(() => document.activeElement?.classList.contains('event-btn')),
-    'Escape closes the event menu and returns focus to its button'
-  )
-  await win.click('.event-btn')
-  await menu.waitFor()
-  await win.keyboard.press('Space') // activates the first item (the current event): no Next
-  await sleep(300)
-  check((await posText()) === here, 'Space inside the open event menu does not change the slide')
   await win.evaluate(() => document.activeElement?.blur())
 
   // Creating an event: leaving the field without Enter cancels.
-  const eventLabel = await win.locator('.event-btn').textContent()
-  await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'New event' }).click()
+  const eventLabel = await selTab.textContent()
+  const tabCount = await win.locator('[role=tab]').count()
+  await win.click('.newbtn')
   await win.fill('.event-input', 'Not created')
   await win.click('header .brand')
   await win.locator('.event-input').waitFor({ state: 'detached' })
   check(
-    (await win.locator('.event-btn').textContent()) === eventLabel,
+    (await selTab.textContent()) === eventLabel &&
+      (await win.locator('[role=tab]').count()) === tabCount,
     'blur without Enter cancels the new event (no event created, selection kept)'
   )
 
@@ -1099,7 +1078,11 @@ async function sectionChecks(win, tally, pos) {
   await win.keyboard.press('Shift+N')
   await waitLive(d0)
   await firstSlide()
-  await waitFrame(SG, (px) => sameFrame(px.flat(), frameD0), 'Shift+N puts deck 1 slide 1 on Program')
+  await waitFrame(
+    SG,
+    (px) => sameFrame(px.flat(), frameD0),
+    'Shift+N puts deck 1 slide 1 on Program'
+  )
   check(true, 'sections: Program shows deck 1, slide 1 after Shift+N')
   check(
     (await liveDeck()) === d0 && /^01 \//.test(await posText()),
@@ -1625,11 +1608,16 @@ async function videoChecks(win, tally) {
   await waitPos('01 / 05')
   // The strip marks the video slides (1, 3, 4) and leaves the image slides (2, 5) alone.
   const thumbVideo = await win.$$eval('[data-testid=strip] .th', (els) =>
-    els.map((e) => ({ v: e.dataset.video ?? null, mark: !!e.querySelector('[aria-label="Video slide"]') }))
+    els.map((e) => ({
+      v: e.dataset.video ?? null,
+      mark: !!e.querySelector('[aria-label="Video slide"]')
+    }))
   )
   check(
     thumbVideo.length === 5 &&
-      thumbVideo.every((t, i) => ([0, 2, 3].includes(i) ? t.v === 'true' && t.mark : t.v === null && !t.mark)),
+      thumbVideo.every((t, i) =>
+        [0, 2, 3].includes(i) ? t.v === 'true' && t.mark : t.v === null && !t.mark
+      ),
     `strip thumbnails 1, 3 and 4 carry data-video and the play mark, 2 and 5 do not (${JSON.stringify(thumbVideo)})`
   )
   await win.getByTestId('strip').screenshot({ path: path.join(frameDir, 'video-strip.png') })
@@ -1983,7 +1971,11 @@ async function videoChecks(win, tally) {
   await waitFrame([[960, 540]], (px) => near(px[0], BLUE), 'back on slide 2 (blue)')
   // The slide 3 video layer of the step before is removed a moment after slide 2 is on screen;
   // wait for it, or the recorder would count that leftover as a layer shown by the Nexts.
-  for (let n = 0; n < 40 && (await hdmiJs(`document.querySelectorAll('.output-layer').length`)) > 1; n++)
+  for (
+    let n = 0;
+    n < 40 && (await hdmiJs(`document.querySelectorAll('.output-layer').length`)) > 1;
+    n++
+  )
     await sleep(50)
   // Hold slide 3's `loadeddata` back, so its video cannot load before the second Next lands.
   await hdmiJs(`(() => {
@@ -2145,9 +2137,8 @@ async function canvasAndLevelsChecks(win, tally) {
     win.evaluate(() => document.querySelector('.deck.live')?.getAttribute('data-deck-id') ?? null)
   const { eventId } = await session()
   const pickEvent = async (name) => {
-    await win.click('.event-btn')
-    await win.getByRole('menuitem', { name }).click()
-    await win.locator('.event-btn', { hasText: name }).waitFor()
+    await win.locator('[role=tab]', { hasText: name }).click()
+    await win.locator('[role=tab][aria-selected=true]', { hasText: name }).waitFor()
   }
 
   // 1. Canvas. Default 1920×1080; an event override applies at once, follows the
@@ -2343,11 +2334,10 @@ try {
   await startProbe(win)
 
   // Create an event through the event menu.
-  await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'New event' }).click()
+  await win.click('.newbtn')
   await win.fill('.event-input', 'Smoke Event')
   await win.press('.event-input', 'Enter')
-  await win.locator('.event-btn', { hasText: 'Smoke Event' }).waitFor()
+  await win.locator('[role=tab][aria-selected=true]', { hasText: 'Smoke Event' }).waitFor()
   check(true, 'event created and selected')
   check(
     (await win.locator('.left').textContent()).includes('No decks in this event yet'),
@@ -2601,20 +2591,18 @@ try {
   await win.keyboard.press('k')
   await tallyIs('KV')
   const kvSrc = await waitOnAirSrc('slide://kv/', 'forced KV on air before the event switch')
-  await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'New event' }).click()
+  await win.click('.newbtn')
   await win.fill('.event-input', 'Event KV')
   await win.press('.event-input', 'Enter')
-  await win.locator('.event-btn', { hasText: 'Event KV' }).waitFor()
+  await win.locator('[role=tab][aria-selected=true]', { hasText: 'Event KV' }).waitFor()
   await tallyIs('KV')
   await waitFrame(GRID, (px) => px.every(isKv), 'switching event keeps the KV on the output')
   check(
     (await waitOnAirSrc(kvSrc, 'same KV image on air after the event switch')) === kvSrc,
     'the KV image on air is unchanged by the event switch'
   )
-  await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'Smoke Event' }).click()
-  await win.locator('.event-btn', { hasText: 'Smoke Event' }).waitFor()
+  await win.locator('[role=tab]', { hasText: 'Smoke Event' }).click()
+  await win.locator('[role=tab][aria-selected=true]', { hasText: 'Smoke Event' }).waitFor()
   await tallyIs('KV')
   // A KV on air cannot be removed: Remove is disabled with a hint; turn KV off first.
   check(await kvRemove().isDisabled(), 'KV on air while LIVE: Remove is disabled')
@@ -2629,7 +2617,10 @@ try {
   // Layout at 1280×720: controls fully visible above the strip.
   const ctr = await win.locator('.transport').boundingBox()
   const foot = await win.locator('footer').boundingBox()
-  check(ctr && foot && ctr.y + ctr.height <= foot.y, 'transport and controls fit above the strip at 1280×720')
+  check(
+    ctr && foot && ctr.y + ctr.height <= foot.y,
+    'transport and controls fit above the strip at 1280×720'
+  )
   const stage = await win.locator('.stage-col').evaluate((e) => e.scrollHeight <= e.clientHeight)
   check(stage, 'stage column does not scroll at 1280×720')
 
@@ -2801,15 +2792,13 @@ try {
   }
 
   // Switching to a new (empty) event keeps the output as it is.
-  await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'New event' }).click()
+  await win.click('.newbtn')
   await win.fill('.event-input', 'Event Kedua')
   await win.press('.event-input', 'Enter')
-  await win.locator('.event-btn', { hasText: 'Event Kedua' }).waitFor()
+  await win.locator('[role=tab][aria-selected=true]', { hasText: 'Event Kedua' }).waitFor()
   await win.locator('.empty-lib').waitFor()
   check((await tally.textContent()) === 'LIVE', 'output stays LIVE after switching event')
-  await win.click('.event-btn')
-  await win.getByRole('menuitem', { name: 'Smoke Event' }).click()
+  await win.locator('[role=tab]', { hasText: 'Smoke Event' }).click()
   await win.waitForFunction(
     () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
   )
