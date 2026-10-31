@@ -51,7 +51,10 @@ import {
   nativeNotice,
   editingAfter,
   bumpVersion,
-  sumVersions
+  sumVersions,
+  nativeNotResponding,
+  NATIVE_NOT_RESPONDING,
+  LO_EDIT_CONFIRM
 } from './model'
 
 const deck = (id: string, n: number, name = id): DeckMeta => ({
@@ -1092,5 +1095,20 @@ describe('deck versions', () => {
     expect(
       v && v.kind === 'pdf' && v.url.endsWith('source.pdf?v=3') && v.poster.endsWith('?v=3')
     ).toBe(true)
+  })
+})
+
+describe('engine copy', () => {
+  it('names the program in the not-responding copy', () => {
+    expect(nativeNotResponding('LibreOffice')).toBe(
+      'LibreOffice is not responding. Showing still slides. Save your other LibreOffice files, then press Resume LibreOffice.'
+    )
+    expect(nativeNotResponding('PowerPoint')).toBe(NATIVE_NOT_RESPONDING)
+  })
+
+  it('has the exact LibreOffice save warning', () => {
+    expect(LO_EDIT_CONFIRM).toBe(
+      "LibreOffice may change animations or layout when it saves a PowerPoint file. The client's original file is not changed."
+    )
   })
 })

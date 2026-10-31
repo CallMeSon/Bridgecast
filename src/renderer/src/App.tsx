@@ -469,8 +469,8 @@ function App(): React.JSX.Element {
   // version is applied (`deck:pending` false, see useSlideshow).
   const [editing, setEditing] = useState<string[]>([])
   const editDeck = useCallback(
-    (deckId: string) => {
-      api.editDeck(deckId).then(
+    (deckId: string, confirmed?: boolean) => {
+      api.editDeck(deckId, confirmed).then(
         () => setEditing((xs) => editingAfter(xs, 'start', deckId)),
         (e) => reportError('Edit deck', e)
       )

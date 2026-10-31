@@ -49,7 +49,8 @@ import {
   WEB_CHIP_TEXT,
   type WebChipKind,
   playbackChip,
-  REVERT_CONFIRM
+  REVERT_CONFIRM,
+  LO_EDIT_CONFIRM
 } from '../model'
 import { orderItems, type OrderItem } from '../../../shared/sections'
 import { onMenuKeyDown, useContextMenu } from './menuNav'
@@ -113,7 +114,7 @@ interface Props {
   editing: string[]
   /** The deck's file differs from the imported one (Revert is available). */
   isEdited(deckId: string): Promise<boolean>
-  onEditDeck(deckId: string): void
+  onEditDeck(deckId: string, confirmed?: boolean): void
   onEditDone(deckId: string): void
   onRevertDeck(deckId: string): void
   onSetPlayback(deckId: string, playback: Playback): void
@@ -523,6 +524,49 @@ function ConfirmRemove({
   )
 }
 
+/** Inline warning in place of the deck row before Edit in LibreOffice (no modal). */
+function ConfirmEdit({
+  deck,
+  onConfirm,
+  onCancel
+}: {
+  deck: DeckMeta
+  onConfirm(): void
+  onCancel(): void
+}): React.JSX.Element {
+  const cancel = useRef<HTMLButtonElement>(null)
+  useEffect(() => cancel.current?.focus(), [])
+  return (
+    <div
+      className="deck confirm"
+      role="group"
+      aria-label={`Edit ${deck.name} in LibreOffice`}
+      data-no-shortcuts
+      data-testid="confirm-edit"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          onCancel()
+        }
+      }}
+    >
+      <NotePencilIcon className="ph" size={20} />
+      <span className="name" title={deck.name}>
+        {LO_EDIT_CONFIRM}
+      </span>
+      <span className="msg">{deck.name}</span>
+      <span className="actions">
+        <button className="btn sm" data-testid="edit-yes" onClick={onConfirm}>
+          Edit in LibreOffice
+        </button>
+        <button ref={cancel} className="btn sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </span>
+    </div>
+  )
+}
+
 /** Inline confirmation in place of the deck row before Revert (no modal). */
 function ConfirmRevert({
   deck,
@@ -672,6 +716,7 @@ export function Library(p: Props): React.JSX.Element {
   const [sectionMenu, setSectionMenu] = useState<SectionMenuAt | null>(null)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [confirmRevert, setConfirmRevert] = useState<string | null>(null)
+  const [confirmEdit, setConfirmEdit] = useState<string | null>(null)
   // Whether a deck differs from its imported file, read when its menu opens.
   const [editedRead, setEditedRead] = useState<{ id: string; edited: boolean } | null>(null)
   const menuDeckId = menuOpenId(menu)
@@ -894,6 +939,20 @@ export function Library(p: Props): React.JSX.Element {
                 setRenaming((r) => (r === d.id ? null : r))
               }}
             />
+          ) : confirmEdit === d.id ? (
+            <ConfirmEdit
+              key={d.id}
+              deck={d}
+              onConfirm={() => {
+                setConfirmEdit(null)
+                refocus.current = `deck:${d.id}`
+                p.onEditDeck(d.id, true)
+              }}
+              onCancel={() => {
+                setConfirmEdit(null)
+                refocus.current = `deck:${d.id}`
+              }}
+            />
           ) : confirmRevert === d.id ? (
             <ConfirmRevert
               key={d.id}
@@ -1062,7 +1121,9 @@ export function Library(p: Props): React.JSX.Element {
             focusRow(`deck:${menu.deckId}`)
             const id = menu.deckId
             setMenu(null)
-            p.onEditDeck(id)
+            // LibreOffice may rewrite the file when it saves: ask first.
+            if (p.engineName === 'LibreOffice') setConfirmEdit(id)
+            else p.onEditDeck(id)
           }}
           onEditDone={() => {
             focusRow(`deck:${menu.deckId}`)

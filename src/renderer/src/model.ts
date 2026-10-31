@@ -698,6 +698,9 @@ export const NATIVE_NOT_RESPONDING = nativeNotResponding('PowerPoint')
 export const NATIVE_HELPER_FAILED =
   'The slide show helper could not start. Reinstall PPT Share. Showing still slides.'
 export const NATIVE_PENDING = 'Changes apply when this deck leaves air.'
+/** Shown before Edit in LibreOffice (same text as the main process refuses without). */
+export const LO_EDIT_CONFIRM =
+  "LibreOffice may change animations or layout when it saves a PowerPoint file. The client's original file is not changed."
 export const REVERT_CONFIRM = 'Undo all edits and go back to the imported file?'
 export const APPLY_NOW_CONFIRM = 'Apply the changes now, while this deck is on air?'
 
