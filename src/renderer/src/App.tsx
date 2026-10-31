@@ -252,6 +252,19 @@ function App(): React.JSX.Element {
     },
     [api]
   )
+  const outputAudio = output.audio
+  const setOutputAudio = output.setAudio
+  // Transport sound button: mute the output through a one-field patch (no stale write).
+  const toggleMute = useCallback(() => {
+    if (!outputAudio) return
+    api.patchAudio({ muted: !outputAudio.muted }).then(
+      (s) => {
+        setOutputAudio(s.audio)
+        setActionError(null)
+      },
+      (e) => setActionError(errorMessage(e))
+    )
+  }, [api, outputAudio, setOutputAudio])
   const goto = useCallback((index: number) => dispatch({ type: 'goto', index }), [dispatch])
 
   // Keyboard shortcuts (ignored while typing in an input).
@@ -982,6 +995,8 @@ function App(): React.JSX.Element {
             canPrev={canPrev(decks, program, sections)}
             canNext={canNext(decks, program, sections)}
             canFreeze={reduce(program, { type: 'toggleFreeze' }, decks, sections) !== program}
+            muted={outputAudio?.muted ?? null}
+            onToggleMute={toggleMute}
             onAction={dispatch}
             stream={monitorStream}
             emptyHint={eventId ? undefined : 'Create an event first with New in the header.'}

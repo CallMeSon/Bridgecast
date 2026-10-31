@@ -4,7 +4,9 @@ import {
   CaretRightIcon,
   EyeSlashIcon,
   ImageIcon,
-  SnowflakeIcon
+  SnowflakeIcon,
+  SpeakerHighIcon,
+  SpeakerSlashIcon
 } from '@phosphor-icons/react'
 import { kvOnAir, type Action, type ProgramState } from '../../../shared/program'
 import type { DeckMeta } from '../../../shared/types'
@@ -15,8 +17,8 @@ const TOAST_MS = 4000
 
 /**
  * The one slim transport row under the monitor: Prev, position, Next, then the hold
- * buttons Freeze and KV, a gap, Black alone. The sound icon is not shown until the
- * operator decides what it does (mute the output or open Controls > Output).
+ * buttons Freeze and KV, a gap, Black alone, and at the right end the sound button
+ * (mutes the output; the same flag as Mute all in Controls > Output).
  */
 export function TransportBar({
   state,
@@ -24,6 +26,8 @@ export function TransportBar({
   canPrev,
   canNext,
   canFreeze,
+  muted,
+  onToggleMute,
   onAction
 }: {
   state: ProgramState
@@ -32,6 +36,9 @@ export function TransportBar({
   canNext: boolean
   /** Freezing needs a slide on the output; unfreezing is always possible. */
   canFreeze: boolean
+  /** Output sound muted; null while the settings load (the button is disabled). */
+  muted: boolean | null
+  onToggleMute(): void
   onAction(a: Action): void
 }): React.JSX.Element {
   const [toast, setToast] = useState(false)
@@ -110,6 +117,21 @@ export function TransportBar({
         Black <kbd>B</kbd>
       </button>
       <span className="spacer" />
+      <button
+        className="tbtn icon sound"
+        aria-label="Mute output sound"
+        aria-pressed={muted === true}
+        disabled={muted === null}
+        title={muted ? 'Output sound muted. Click to unmute.' : 'Mute output sound'}
+        data-testid="transport-mute"
+        onClick={onToggleMute}
+      >
+        {muted ? (
+          <SpeakerSlashIcon size={18} aria-hidden="true" />
+        ) : (
+          <SpeakerHighIcon size={18} aria-hidden="true" />
+        )}
+      </button>
       {toast && state.black && (
         <div className="toast" role="status" data-testid="black-toast">
           <span>Black on air. The audience sees black.</span>

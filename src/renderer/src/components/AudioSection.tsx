@@ -29,20 +29,20 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [volume, setVolume] = useState(audio.masterVolume)
-  // The volume the slider shows is always the one saved with any other audio change.
-  const volumeRef = useRef(volume)
   // Saves still on their way: their answers must not pull the slider back.
   const inFlight = useRef(0)
   const outputs = useAudioOutputs()
   // Until the list arrives the saved device is assumed present (no false warning).
   const audioMissing = outputs !== null && pickSink(audio.deviceId, outputs).missing
 
-  const saveAudio = async (next: AudioSettings): Promise<void> => {
+  // Each save sends only the field it changes, so it cannot undo another writer's change
+  // (the transport mute, the Settings dialog).
+  const saveAudio = async (patch: Partial<AudioSettings>): Promise<void> => {
     setBusy(true)
     setError(null)
     inFlight.current++
     try {
-      onSaved(await window.api.setAudio(next))
+      onSaved(await window.api.patchAudio(patch))
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -52,16 +52,13 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
   }
 
   const volumeSave = useDebouncedSave<number>(
-    (masterVolume) =>
-      // Only the volume changes here; the rest is whatever is saved now.
-      void saveAudio({ ...audio, masterVolume })
+    (masterVolume) => void saveAudio({ masterVolume })
   )
 
   // The saved volume changed elsewhere (a reload of the settings): follow it, unless
   // the operator is mid-change.
   useEffect(() => {
     if (volumeSave.pending() || inFlight.current > 0) return
-    volumeRef.current = audio.masterVolume
     setVolume(audio.masterVolume)
   }, [audio.masterVolume, volumeSave])
 
@@ -82,11 +79,7 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
           value={audio.deviceId ?? ''}
           disabled={busy}
           onChange={(e) =>
-            void saveAudio({
-              ...audio,
-              masterVolume: volumeRef.current,
-              deviceId: e.target.value || null
-            })
+            void saveAudio({ deviceId: e.target.value || null })
           }
         >
           <option value="">Default (Windows)</option>
@@ -119,7 +112,7 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
           options={ROUTES}
           disabled={busy}
           testId="audio-route"
-          onChange={(route) => void saveAudio({ ...audio, masterVolume: volumeRef.current, route })}
+          onChange={(route) => void saveAudio({ route })}
         />
         <span className="hint">
           Local device is the HDMI output (or this PC when HDMI is off). Network sends it to OMT and
@@ -133,7 +126,6 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
         value={volume}
         testId="audio-master"
         onChange={(v) => {
-          volumeRef.current = v
           setVolume(v)
           volumeSave.schedule(v)
         }}
@@ -149,7 +141,7 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
           checked={audio.muted}
           disabled={busy}
           testId="audio-mute"
-          onChange={(muted) => void saveAudio({ ...audio, masterVolume: volumeRef.current, muted })}
+          onChange={(muted) => void saveAudio({ muted })}
         />
       </div>
 

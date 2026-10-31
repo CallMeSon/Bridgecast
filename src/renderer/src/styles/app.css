@@ -1602,6 +1602,18 @@ main {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
+/* Sound button: muted = pressed, same tint, border and ink as the hold buttons, and a slashed icon. */
+.tbtn.sound {
+  border: 1px solid transparent;
+}
+.tbtn.sound[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.tbtn.sound[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--accent-soft-hi);
+}
 /* Disabled is a different shape, not a dimmer one: no fill, a dashed hairline. */
 .tbtn.hold:disabled {
   background: transparent;

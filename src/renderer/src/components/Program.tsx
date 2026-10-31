@@ -25,6 +25,8 @@ export function Program({
   canNext,
   canFreeze,
   airEventName = null,
+  muted,
+  onToggleMute,
   onAction
 }: {
   state: ProgramState
@@ -44,6 +46,9 @@ export function Program({
   canFreeze: boolean
   /** Name of the event on air while it is not the current one; null otherwise. */
   airEventName?: string | null
+  /** Output sound muted; null while the settings load. */
+  muted: boolean | null
+  onToggleMute(): void
   onAction(a: Action): void
 }): React.JSX.Element {
   const t = tally(state)
@@ -124,6 +129,8 @@ export function Program({
         canPrev={canPrev}
         canNext={canNext}
         canFreeze={canFreeze}
+        muted={muted}
+        onToggleMute={onToggleMute}
         onAction={onAction}
       />
     </div>
