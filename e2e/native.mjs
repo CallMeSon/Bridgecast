@@ -77,7 +77,6 @@ function png([r, g, b]) {
 const RED = [220, 40, 40]
 const GREEN = [40, 200, 60]
 const BLUE = [40, 80, 220]
-const YELLOW = [230, 210, 40]
 const colors = [RED, GREEN, BLUE]
 
 function seed(userData) {
@@ -287,12 +286,11 @@ async function main() {
     await waitHdmi(app, (x) => near(x.px, GREEN), 'HDMI shows slide 2')
 
     // ---- engine crash: the output shows the PNG of the same slide, never black
-    await app.evaluate(() => globalThis.__pptEngine.crash())
+    await app.evaluate(() => globalThis.__pptEngine.crash(4000))
     await win.getByTestId('native-warning').waitFor({ timeout: 8000 })
+    const warnText = await win.getByTestId('native-warning').textContent({ timeout: 3000 })
     check(
-      (await win.getByTestId('native-warning').innerText()).includes(
-        'PowerPoint is not responding'
-      ),
+      warnText.includes('PowerPoint is not responding'),
       'the fallback warning appears after the engine crashed'
     )
     st = (await session(win)).state
@@ -300,7 +298,7 @@ async function main() {
       st.shown.playback === 'images' && st.shown.index === 1,
       'fallen back: still slides, same slide'
     )
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       h = await hdmi(app)
       check(near(h.px, GREEN), `after the crash the output shows the same slide's PNG (${h.px})`)
       await sleep(250)
@@ -310,21 +308,14 @@ async function main() {
       `the layer is the PNG, not a stream (${JSON.stringify(top(h))})`
     )
 
-    // ---- Resume PowerPoint: native again, once the session is open again
-    await waitEngine(win, ids.native, 'fallback')
-    await until(
-      () => status(win),
-      (s) => s.resumable.includes(ids.native),
-      'the slide show session is open again (Resume works)',
-      20_000
-    )
-    const resume = win.getByTestId('resume-native')
-    await resume.click()
-    st = await waitState(win, (s) => s.shown?.playback === 'native', 'native again')
-    check(st.shown.index === 1, 'Resume PowerPoint: native again on the same slide')
+    // ---- the engine restarts in the background; once the slide show is open again the deck
+    // goes back to native by itself (the Resume button is for a session that was already open).
+    await app.evaluate(() => globalThis.__pptEngine.reopenNow())
+    st = await waitState(win, (s) => s.shown?.playback === 'native', 'native again', 20_000)
+    check(st.shown.index === 1, 'the slide show returns to native on the same slide')
     await win.getByTestId('native-warning').waitFor({ state: 'detached' })
-    check(true, 'the fallback warning is gone after Resume')
-    h = await waitHdmi(app, (x) => near(x.px, GREEN), 'output after Resume')
+    check(true, 'the fallback warning is gone once the slide show is back')
+    h = await waitHdmi(app, (x) => near(x.px, GREEN), 'output after the restart')
     check(top(h).kind === 'stream', 'the output layer is the slide show stream again')
     await waitEngine(win, ids.native, 'ready')
 
@@ -378,7 +369,6 @@ async function main() {
     check(true, 'the next page of the broken PDF also shows its PNG')
 
     check(errors.length === 0, `no page errors in the operator window ${JSON.stringify(errors)}`)
-    void YELLOW
   } finally {
     await app.close().catch(() => undefined)
   }

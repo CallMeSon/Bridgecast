@@ -109,6 +109,20 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] **Prepare hanya untuk event yang terbuka**: deck web live dari event lain (setelah ganti event) tidak bisa dibuka di Prepare ("This web page is not part of the open event. Close this window."). Batas yang diketahui: untuk menyiapkannya, buka lagi event deck itu.
 - [ ] Prepare: saat deck live dan tidak frozen, klik dan ketik di jendela Prepare ditolak (banner "ON AIR: input locked. Press F to freeze before you click."); setelah Freeze (F) diterima; pop-up yang dibuka halaman saat tidak live muncul sebagai jendela biasa di layar operator, bukan di HDMI.
 
+## Putar PPT asli (native slideshow)
+
+**BELUM DIJALANKAN oleh pengguna, dan belum pernah dijalankan di Windows.** Yang diuji otomatis (`npm run test:e2e:native`, di Linux/xvfb dengan `PPT_ENGINE_FAKE=1`, yaitu FakeEngine, bukan PowerPoint): deck native dengan 3 langkah klik (Up next "Next: step N of 3 on this slide", label step N/3, take tidak naik di dalam slide), engine crash lalu output memakai PNG slide yang sama dan peringatan "PowerPoint is not responding", slide show kembali native setelah engine hidup lagi, Edit in PowerPoint saat live menunggu ("Changes apply when this deck leaves air.") lalu diterapkan setelah deck turun dari air dan `original.pptx` tidak berubah, deck PDF (vector) menggambar `<canvas>`, `source.pdf` rusak jatuh ke PNG slide yang sama. Yang TIDAK terjangkau dan hanya bisa diuji di Windows: jembatan COM PowerPoint (`native/ppt-bridge`), capture jendela slide show (`desktopCapturer`) ke HDMI, OMT dan NDI, jalur suara PowerPoint lewat named pipe, akurasi klik per langkah. Catatan spike: `docs/superpowers/notes/native-ppt-spike.md`.
+
+- [ ] **Deck dengan animasi dan Morph** (deck klien sungguhan): chip deck berubah Opening, lalu Native · Ready. Take: HDMI menampilkan slide show PowerPoint, animasi dan Morph berjalan, tidak ada desktop atau bingkai jendela PowerPoint di output.
+- [ ] **Clicker per langkah**: tiap Next memajukan satu langkah animasi (Up next menulis "Next: step N of M"); setelah langkah terakhir, Next pindah slide. Posisi di aplikasi sama dengan posisi di PowerPoint (jumlah langkah per slide cocok; catat slide yang jumlahnya beda karena trigger atau After Previous).
+- [ ] **Video dengan suara di slide** ke rute Local, OMT dan Both: suara ikut rute yang dipilih, volume deck dan master berlaku, Mute all membisukan, Black dan KV membisukan suara PowerPoint dan mengembalikannya saat dibuka.
+- [ ] **PowerPoint dimatikan paksa saat live** (Task Manager, End task): output langsung PNG slide yang sama (tidak hitam, tidak desktop), muncul "PowerPoint is not responding. ..." Lalu Resume PowerPoint (aktif saat sesi siap) kembali ke slide yang sama. Bila PowerPoint milik pengguna sendiri ikut terbuka, aplikasi tidak menutupnya.
+- [ ] **PowerPoint macet** (hang): setelah sekitar 3 detik tanpa jawaban jatuh ke PNG; jembatan tidak mematikan `POWERPNT.EXE` yang bukan miliknya. Catat bila pemulihan butuh pengguna menutup PowerPoint sendiri.
+- [ ] **Edit in PowerPoint saat live**: ubah typo, simpan: tampil "Changes apply when this deck leaves air."; setelah deck turun dari air perubahan terpasang; Apply now meminta konfirmasi; Revert kembali ke file impor; `original.pptx` tidak berubah.
+- [ ] **Deck statis jalan sebagai Vector**: PDF dan deck tanpa animasi tampil tajam di 3840×2160 (kanvas `<canvas>`), tanpa PowerPoint terbuka.
+- [ ] **Canvas tidak biasa** (mis. 3840×1080 dan 1280×720): gambar slide show mengikuti canvas, mengganti canvas saat live meminta konfirmasi dan tidak hitam. Bandingkan capture WGC dan GDI saat jendela tertutup jendela lain, dan apakah kursor ikut tertangkap.
+- [ ] **Dua deck native bergantian**: deck berikutnya dibuka lebih dulu (maksimal 2 sesi), pindah deck tanpa jeda hitam, tidak ada jendela PowerPoint nyasar di layar HDMI.
+
 ## Library dan event
 
 - [ ] Urutkan deck dan slide dengan drag. Output tidak berubah saat mengurutkan.

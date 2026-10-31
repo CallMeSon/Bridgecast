@@ -402,8 +402,21 @@ function registerIpc(
   const fakeExport =
     process.env['PPT_OUTPUT_DUMP'] && process.env['PPT_ENGINE_FAKE'] === '1'
       ? async (file: string, outDir: string): Promise<ImportedDeck> => {
-          const dir = path.dirname(file)
-          const deck = JSON.parse(fs.readFileSync(path.join(dir, 'deck.json'), 'utf8')) as DeckMeta
+          // `file` is a snapshot in a temp dir: find the deck whose working copy it is.
+          const bytes = fs.readFileSync(file)
+          let deck: DeckMeta | undefined
+          let dir = ''
+          for (const ev of lib.listEvents()) {
+            for (const d of lib.getDecks(ev.id)) {
+              const dd = path.dirname(lib.slidePath(d.id, 0))
+              const edit = path.join(dd, path.basename(file))
+              if (fs.existsSync(edit) && fs.readFileSync(edit).equals(bytes)) {
+                deck = d
+                dir = dd
+              }
+            }
+          }
+          if (!deck) throw new Error('e2e export: no deck owns this working copy')
           fs.mkdirSync(outDir, { recursive: true })
           const slides = deck.slides.map((s) => {
             const pngPath = path.join(outDir, s.file)
@@ -1035,8 +1048,15 @@ function createSlideShow(lib: Library, state: AppState, settings: SettingsStore)
         fake,
         helperError,
         opens: engine instanceof FakeEngine ? engine.opens : [],
-        // e2e: the engine dies (FakeEngine only); the manager falls back and restarts it.
-        crash: () => (engine instanceof FakeEngine ? engine.crash() : undefined)
+        // e2e: the engine dies (FakeEngine only); the manager falls back and restarts it. The
+        // restart opens the slide show again (and resumes native by itself) after `reopenMs`,
+        // which leaves time to look at the fallback.
+        crash: (reopenMs = 0) => {
+          if (!(engine instanceof FakeEngine)) return
+          engine.delayReady(reopenMs)
+          engine.crash()
+        },
+        reopenNow: () => (engine instanceof FakeEngine ? engine.delayReady(0) : undefined)
       })
     })
   }

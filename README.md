@@ -92,3 +92,9 @@ NDI® is a registered trademark of Vizrt NDI AB.
 the native libraries (`PPT_OMT_FAKE=1`, `PPT_NDI_FAKE=1`; `PPT_NDI_FAKE=missing` simulates an absent
 NDI Runtime), so it needs no native library. It covers both protocols on together, NDI switched
 off and on, 60 fps, a 3840×1080 canvas and the missing-runtime case.
+
+`npm run test:e2e:native` runs the native slideshow end-to-end checks with the in-memory FakeEngine
+(`PPT_ENGINE_FAKE=1`) instead of PowerPoint: click steps, engine crash and fallback to the slide
+PNG, Edit in PowerPoint while live, vector PDF decks and a broken PDF. The PowerPoint bridge, the
+window capture and the sound pipe only run on Windows and are not covered; see the "Putar PPT asli"
+section of `docs/test-checklist.md`.
