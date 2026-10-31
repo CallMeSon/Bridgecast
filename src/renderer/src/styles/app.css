@@ -131,7 +131,7 @@ header > .event {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 8px 12px;
   text-align: left;
 }
 .menu button:hover {
@@ -163,7 +163,7 @@ header > .event {
 /* Name of a group of choices inside a menu (Display mode); the checked one is bold and ticked. */
 .menu .menu-label {
   display: block;
-  padding: 6px 10px 2px;
+  padding: 8px 12px 2px;
   font-size: 12px;
   color: var(--text-3);
 }
@@ -182,7 +182,7 @@ header > .event {
 /* inputs */
 .event-input,
 .text-input {
-  padding: 0 10px;
+  padding: 0 12px;
   border-radius: var(--r);
   font: inherit;
   color: var(--text);
@@ -190,11 +190,11 @@ header > .event {
   border: 1px solid var(--edge);
 }
 .event-input {
-  height: 28px;
+  height: var(--h-sm);
   width: 220px;
 }
 .text-input {
-  height: 34px;
+  height: var(--h-md);
 }
 .event-input::placeholder {
   color: var(--text-3);
@@ -238,7 +238,7 @@ button.output-btn:hover,
   max-width: 26ch;
   overflow: hidden;
   text-overflow: ellipsis;
-  font: 400 13px var(--font-mono);
+  font: 400 12px var(--font-mono);
   color: var(--text-3);
 }
 .popover {
@@ -250,7 +250,7 @@ button.output-btn:hover,
   z-index: 6;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   max-height: calc(100vh - 64px);
   overflow-y: auto;
   background: var(--panel);
@@ -261,12 +261,12 @@ button.output-btn:hover,
 .pop-section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 .pop-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 .pop-title {
   flex: 1;
@@ -276,7 +276,7 @@ button.output-btn:hover,
 .row-label {
   flex: 1;
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
 }
 /* Switch + its visible state (components/Switch.tsx); the same markup everywhere. */
 .switch-ctl {
@@ -326,7 +326,7 @@ button.output-btn:hover,
 .pop-error {
   font-size: 12px;
   color: var(--text-2);
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: var(--r);
   background: var(--raised);
   overflow-wrap: anywhere;
@@ -336,7 +336,7 @@ button.output-btn:hover,
 .pop-status.error,
 .pop-error {
   color: var(--text);
-  font-weight: 550;
+  font-weight: 600;
 }
 /* Volume: range 0-100 with its number (components/VolumeSlider.tsx). The filled part of the
    track is Ink 2 on Raised High, the thumb is Ink; the number says the level in words. */
@@ -349,7 +349,7 @@ button.output-btn:hover,
   flex: none;
   min-width: 4ch;
   text-align: right;
-  font: 400 13px var(--font-mono);
+  font: 400 12px var(--font-mono);
   color: var(--text);
 }
 .level-range {
@@ -393,18 +393,18 @@ button.output-btn:hover,
 /* Canvas: output size choice (components/CanvasPicker.tsx). Rows read like menu items;
    the checked one carries a check mark and weight, not colour. */
 .pop-section + .pop-section {
-  padding-top: 14px;
+  padding-top: 16px;
   border-top: 1px solid var(--line);
 }
 .canvas-tag {
-  font: 400 13px var(--font-mono);
+  font: 400 12px var(--font-mono);
   color: var(--text-3);
 }
 .canvas-setting,
 .canvas-picker {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 .canvas-opts {
   display: flex;
@@ -419,8 +419,8 @@ button.output-btn:hover,
   align-items: center;
   gap: 0 8px;
   width: 100%;
-  min-height: 34px;
-  padding: 6px 10px;
+  min-height: var(--h-md);
+  padding: 8px 12px;
   border-radius: 0;
   text-align: left;
   color: var(--text-2);
@@ -442,7 +442,7 @@ button.output-btn:hover,
   flex: 1;
 }
 .canvas-opt .meta {
-  font: 400 13px var(--font-mono);
+  font: 400 12px var(--font-mono);
   color: var(--text-3);
 }
 .canvas-opt .sub {
@@ -469,14 +469,14 @@ button.output-btn:hover,
 .canvas-custom {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .canvas-custom-head {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 600;
 }
 .canvas-custom-head .chk {
   flex: none;
@@ -494,11 +494,11 @@ button.output-btn:hover,
   min-width: 0;
 }
 .canvas-custom .px {
-  height: 34px;
+  height: var(--h-md);
   display: flex;
   align-items: center;
   color: var(--text-3);
-  font: 400 13px var(--font-mono);
+  font: 400 12px var(--font-mono);
 }
 .text-input.num {
   font-family: var(--font-mono);
@@ -513,8 +513,8 @@ button.output-btn:hover,
 .omt-source .num {
   flex: 1;
   min-width: 0;
-  padding: 6px 8px;
-  font: 400 13px var(--font-mono);
+  padding: 8px 8px;
+  font: 400 12px var(--font-mono);
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--edge);
@@ -525,7 +525,7 @@ button.output-btn:hover,
 .omt-source .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .hint .ph,
 .hint svg {
@@ -534,8 +534,8 @@ button.output-btn:hover,
 .canvas-confirm {
   display: grid;
   grid-template-columns: 20px 1fr;
-  gap: 4px 10px;
-  padding: 10px 12px;
+  gap: 4px 12px;
+  padding: 12px 12px;
   background: var(--raised-hi);
   border: 1px solid var(--line-hi);
   border-radius: var(--r);
@@ -558,7 +558,7 @@ button.output-btn:hover,
 .canvas-confirm .actions {
   grid-column: 2;
   display: flex;
-  gap: 6px;
+  gap: 8px;
   margin-top: 4px;
 }
 .popover.canvas-dialog {
@@ -572,11 +572,11 @@ button.output-btn:hover,
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .field label {
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
 }
 .hint {
   font-size: 12px;
@@ -630,7 +630,7 @@ header > .theme {
 /* columns */
 main {
   display: grid;
-  grid-template-columns: var(--left-w, 288px) minmax(0, 1fr) var(--right-w, 320px);
+  grid-template-columns: var(--left-w, 288px) minmax(0, 1fr) var(--right-w, 352px);
   min-height: 0;
 }
 .left,
@@ -690,7 +690,7 @@ main {
   color: var(--text-3);
 }
 .tag {
-  margin-left: 10px;
+  margin-left: 12px;
   font: 600 12px/1 var(--font-mono);
   color: var(--text-3);
 }
@@ -701,11 +701,11 @@ main {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 34px;
-  padding: 0 14px;
+  height: var(--h-md);
+  padding: 0 16px;
   border: 1px solid var(--edge);
   background: var(--raised);
-  font-weight: 550;
+  font-weight: 600;
 }
 .btn:hover:not(:disabled) {
   background: var(--raised-hi);
@@ -718,8 +718,8 @@ main {
   cursor: not-allowed;
 }
 .btn.sm {
-  height: 28px;
-  padding: 0 10px;
+  height: var(--h-sm);
+  padding: 0 12px;
   font-size: 12px;
 }
 .btn.danger {
@@ -994,7 +994,7 @@ main {
 .section {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
   min-height: 32px;
   padding: 5px 16px;
@@ -1015,7 +1015,7 @@ main {
 }
 .section .tag {
   flex: none;
-  font: 600 11px/1 var(--font-sans);
+  font: 600 12px/1 var(--font-sans);
   letter-spacing: 0.12em;
   color: var(--text-3);
 }
@@ -1061,7 +1061,7 @@ main {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 10px;
+  gap: 8px 12px;
 }
 .kv-thumb {
   position: relative;
@@ -1103,7 +1103,7 @@ main {
   min-width: max-content;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .kv-actions .btn {
   white-space: nowrap;
@@ -1202,6 +1202,7 @@ main {
   overflow-wrap: break-word;
 }
 .end-body .t {
+  /* Slide art scaled to its container (cqw), not UI type. */
   font-size: clamp(13px, 3.4cqw, 26px);
   font-weight: 600;
 }
@@ -1216,7 +1217,7 @@ main {
 .tally {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   height: 24px;
   padding: 0 8px;
   border-radius: var(--r-sm);
@@ -1239,7 +1240,7 @@ main {
 }
 .stag[data-size='sm'] {
   height: 20px;
-  padding: 0 6px;
+  padding: 0 8px;
   font-size: 12px;
 }
 .stag[data-icon-only] {
@@ -1264,6 +1265,18 @@ main {
 .stag[data-kind='standby'] {
   box-shadow: inset 0 0 0 1px var(--line-hi);
   color: var(--text-2);
+}
+/* Program head: the state icon stands alone, no box (STANDBY keeps its box). */
+.ptitle .stag[data-icon-only] {
+  background: transparent;
+  box-shadow: none;
+  width: auto;
+  padding: 0;
+  color: var(--accent-ink);
+}
+.ptitle .stag[data-icon-only] svg {
+  width: 18px;
+  height: 18px;
 }
 /* Title row: state tag, deck name (truncates), grey "/ Program". The tag never shrinks. */
 .ptitle {
@@ -1636,14 +1649,14 @@ kbd {
    rounded on the buttons and the ring sits inside each segment. */
 .seg {
   display: inline-flex;
-  height: 36px;
+  height: var(--h-md);
   border: 1px solid var(--edge);
   border-radius: var(--r);
 }
 .seg button {
   padding: 0 16px;
   border-radius: 0;
-  font-weight: 550;
+  font-weight: 500;
   color: var(--text-2);
   background: var(--bg);
 }
@@ -2109,7 +2122,7 @@ footer .empty {
   left: 1px;
 }
 .splitter[data-axis='right'] {
-  right: calc(var(--right-w, 320px) - 10px);
+  right: calc(var(--right-w, 352px) - 10px);
 }
 .splitter[data-axis='right']::after {
   left: 1px;
@@ -2149,12 +2162,12 @@ footer .empty {
 }
 .overlay span {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
 }
 
 /* Narrower windows: tighter side columns. */
-@media (max-width: 1400px) {
+@media (max-width: 1179px) {
   main {
     grid-template-columns: var(--left-w, 256px) minmax(0, 1fr) var(--right-w, 288px);
   }
@@ -2173,9 +2186,9 @@ footer .empty {
   flex: none;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   margin: 8px 16px 0;
-  padding: 10px 12px;
+  padding: 12px 12px;
   background: var(--raised-hi);
   border: 1px solid var(--line-hi);
   border-left: 4px solid var(--text);
@@ -2206,7 +2219,7 @@ footer .empty {
   right: 16px;
   bottom: 16px;
   z-index: 30;
-  padding: 6px 12px;
+  padding: 8px 12px;
   background: var(--panel);
   border: 1px solid var(--line-hi);
   border-radius: var(--r);
@@ -2228,7 +2241,7 @@ footer .empty {
 .prepare-bar {
   display: flex;
   align-items: center;
-  gap: var(--sm, 6px);
+  gap: var(--sm, 8px);
   padding: 8px 16px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
@@ -2244,9 +2257,9 @@ footer .empty {
 }
 .prepare-address input {
   width: 100%;
-  height: 34px;
-  padding: 0 10px;
-  font: 400 13px var(--font-mono);
+  height: var(--h-md);
+  padding: 0 12px;
+  font: 400 14px var(--font-mono);
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--edge);
@@ -2267,7 +2280,7 @@ footer .empty {
 }
 .prepare-note {
   margin: 0;
-  padding: 6px 16px;
+  padding: 8px 16px;
   font-size: 12px;
   color: var(--text-2);
   background: var(--raised);
@@ -2275,13 +2288,13 @@ footer .empty {
 }
 .prepare-note.problem {
   color: var(--text);
-  font-weight: 550;
+  font-weight: 600;
 }
 /* The banner states on-air status in words; the shape differs too: idle is plain, frozen is
    outlined, live is a solid red bar. */
 .prepare-banner {
   padding: 8px 16px;
-  font: 700 13px var(--font-mono);
+  font: 700 14px var(--font-mono);
   letter-spacing: 0.02em;
   border-bottom: 1px solid var(--line);
   color: var(--text-2);
@@ -2328,7 +2341,7 @@ footer .empty {
 .prepare-hint,
 .prepare-gone {
   margin: 0;
-  padding: 6px 16px 10px;
+  padding: 8px 16px 12px;
   font-size: 12px;
   color: var(--text-3);
 }
@@ -2439,7 +2452,7 @@ footer .empty {
   display: inline-flex;
   align-items: center;
   height: 18px;
-  padding: 0 6px;
+  padding: 0 8px;
   border: 1px solid var(--line-hi);
   border-radius: var(--r-sm);
   font: 500 12px/1 var(--font-mono);
@@ -2466,7 +2479,7 @@ footer .empty {
 .action-error .actions {
   flex: none;
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 .deck-row > .deck:has(.pb) {
   padding-right: 44px;
@@ -2496,7 +2509,7 @@ footer .empty {
   margin-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .import-format-label {
   color: var(--text-2);
@@ -2596,7 +2609,7 @@ footer .empty {
 }
 .custom-accent label {
   font-size: 14px;
-  font-weight: 550;
+  font-weight: 500;
 }
 .custom-accent input[type='color'] {
   width: 48px;

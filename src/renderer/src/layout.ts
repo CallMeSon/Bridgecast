@@ -10,12 +10,12 @@ export const STRIP_MIN = 120
 export const STRIP_MAX_RATIO = 0.4
 /** Keyboard step for a focused splitter. */
 export const STEP = 16
-const NARROW = 1400
+const NARROW = 1179
 
 export function defaultLayout(width: number): Layout {
   return width <= NARROW
     ? { left: 256, right: 288, strip: 176 }
-    : { left: 288, right: 320, strip: 176 }
+    : { left: 288, right: 352, strip: 176 }
 }
 
 /** Allowed range of one axis, given the current size of the others. */

@@ -48,7 +48,7 @@ const BLUE: Record<Theme, AccentTokens> = {
 
 export const ACCENTS: Record<AccentId, Record<Theme, AccentTokens>> = {
   orange: {
-    light: { accent: '#ee6a15', fill: '#c84f0c', ink: '#9a4208', on: '#ffffff' },
+    light: { accent: '#e5600e', fill: '#c84f0c', ink: '#9a4208', on: '#ffffff' },
     dark: same('#f26f1c', '#ff9d5e', '#1a0a00')
   },
   violet: {

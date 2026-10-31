@@ -69,7 +69,7 @@
 /* Accent presets. accent = fill, ink = accent as text, on = text on the fill. */
 :root[data-theme='light'][data-accent='violet'] { --accent: #5b4bd6; --accent-ink: #5342c9; --on-accent: #ffffff; }
 :root[data-theme='light'][data-accent='blue']   { --accent: #2160d4; --accent-ink: #1c55bd; --on-accent: #ffffff; }
-:root[data-theme='light'][data-accent='orange']   { --accent: #ee6a15; --accent-fill: #c84f0c; --accent-ink: #9a4208; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='orange']   { --accent: #e5600e; --accent-fill: #c84f0c; --accent-ink: #9a4208; --on-accent: #ffffff; }
 :root[data-theme='light'][data-accent='rose']   { --accent: #9a4586; --accent-ink: #8d3f7a; --on-accent: #ffffff; }
 :root[data-theme='light'][data-accent='sand']   { --accent: #85652a; --accent-ink: #77590f; --on-accent: #ffffff; }
 :root[data-theme='dark'][data-accent='violet']  { --accent: #a99cff; --accent-ink: #b9aeff; --on-accent: #16112f; }
@@ -1057,7 +1057,7 @@ document.querySelectorAll('[data-th]').forEach((b) => b.addEventListener('click'
 applyTheme()
 
 // Accent presets and a custom colour
-const accents = [['orange', '#ee6a15'], ['violet', '#5b4bd6'], ['blue', '#2160d4'], ['rose', '#9a4586'], ['sand', '#85652a']]
+const accents = [['orange', '#e5600e'], ['violet', '#5b4bd6'], ['blue', '#2160d4'], ['rose', '#9a4586'], ['sand', '#85652a']]
 const sw = document.getElementById('swatches')
 sw.innerHTML = accents.map(([id, c]) => `<button class="sw" role="radio" aria-checked="${id === 'orange'}" data-a="${id}" style="--c:${c}"><span class="c"></span>${id[0].toUpperCase() + id.slice(1)}<svg class="ico ck"><use href="#i-check"/></svg></button>`).join('')
   + `<label class="sw" role="radio" aria-checked="false" data-a="custom" style="--c:#14b8a6" id="customSw"><span class="c"></span>Custom<svg class="ico ck"><use href="#i-check"/></svg><input type="color" id="customPick" value="#14b8a6" aria-label="Pick a custom accent colour"></label>`

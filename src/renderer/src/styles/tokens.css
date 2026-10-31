@@ -90,7 +90,7 @@
    accent = rings and tints, accent-fill = surface behind text, accent-ink = accent as text,
    on-accent = text on the fill. */
 :root[data-theme='light'][data-accent='orange'] {
-  --accent: #ee6a15;
+  --accent: #e5600e;
   --accent-fill: #c84f0c;
   --accent-ink: #9a4208;
   --on-accent: #ffffff;

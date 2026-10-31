@@ -192,6 +192,8 @@ Five presets, exactly these ids: `orange` (default, a soft orange), `violet`, `b
 
 **The Fill Means On Air Rule.** A filled accent tag or a solid 2px accent ring means the audience sees it. An outlined tag or a 45% ring means Next. A pressed hold button is a tinted fill with an accent border. State is never colour alone: the word, the icon and the shape say it too.
 
+Note: the Next ring (45% accent mix, `--next-ring`) is below 3:1 against the panel by design. The outlined NEXT tag with its word carries the identity; the ring is redundant reinforcement.
+
 **The Cool Neutral Rule.** Greys may carry a faint cool cast, never a strong hue. The accent is the only saturated colour on screen besides slide content.
 
 ## Typography
