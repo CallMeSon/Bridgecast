@@ -428,6 +428,17 @@ async function main() {
       Object.keys(open).length === 1 && open[C.id],
       `only the live page stays open (${Object.keys(open)})`
     )
+    // ---- Home and closing a tab never touch the output (the dump holds the air state)
+    const airBefore = (await session(win)).state
+    await win.getByTestId('home-btn').click()
+    await win.getByRole('button', { name: 'Close Web Event' }).click()
+    await sleep(800)
+    const airAfter = (await session(win)).state
+    check(
+      JSON.stringify([airBefore.shown, airBefore.canvas, airBefore.take]) ===
+        JSON.stringify([airAfter.shown, airAfter.canvas, airAfter.take]),
+      'Home and closing the air event tab leave shown, canvas and take unchanged'
+    )
     const pdf = await win.evaluate((e) => window.api.listDecks(e), other)
     st = await dispatch(win, { type: 'selectDeck', deckId: pdf[0].id })
     check(st.shown && !st.shown.web, 'a slide of the new event goes on air')

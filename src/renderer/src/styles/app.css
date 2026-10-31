@@ -479,6 +479,12 @@ button.output-btn:hover,
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
+/* Under 1280px the open-event tabs get the room: the canvas size is also in the Program footer. */
+@media (max-width: 1279px) {
+  header .canvas-tag {
+    display: none;
+  }
+}
 .canvas-tag {
   font: 400 12px var(--font-mono);
   color: var(--text-3);
@@ -1667,13 +1673,13 @@ main {
     gap: 2px;
   }
   .transport .sepv {
-    margin: 0 4px;
-  }
-  .transport .tpos {
     margin: 0 2px;
   }
+  .transport .tpos {
+    margin: 0;
+  }
   .tbtn.hold {
-    padding: 0 8px;
+    padding: 0 6px;
     gap: 4px;
   }
 }
@@ -2676,6 +2682,9 @@ footer .empty {
 .set-section h3 {
   font-size: 14px;
   font-weight: 600;
+}
+.set-section > .field {
+  margin-top: 8px;
 }
 .set-row {
   display: flex;
