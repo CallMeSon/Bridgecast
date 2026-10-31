@@ -2784,7 +2784,8 @@ footer .empty {
 .home {
   position: absolute;
   inset: var(--h-lg) 0 0 0;
-  z-index: 1;
+  /* Above the console splitters (z 4), which would otherwise poke through and eat clicks. */
+  z-index: 5;
   overflow: auto;
   padding: 0 var(--pad) 64px;
   background: var(--bg);
@@ -3052,6 +3053,62 @@ footer .empty {
 .evf p {
   color: var(--text-3);
   font-size: 12px;
+}
+/* Card wrapper: the card button and its More button are siblings (no nested buttons). */
+.evc {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+.evmore {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+  color: var(--text-2);
+}
+.evmore:hover,
+.evmore[aria-expanded='true'] {
+  background: var(--raised);
+  color: var(--text);
+}
+.evc .evmenu {
+  top: calc(var(--h-sm) + 12px);
+  left: auto;
+  right: 8px;
+  width: 230px;
+}
+.menu button:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+.menu button:disabled:hover {
+  background: transparent;
+}
+.menu button.has-note {
+  flex-wrap: wrap;
+}
+.menu button.has-note .menu-note {
+  flex-basis: 100%;
+  margin-left: 0;
+  padding-left: 0;
+}
+.evgrid.list .evmore {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.evgrid.list .evc .evmenu {
+  top: calc(50% + var(--h-sm) / 2 + 4px);
+}
+.evgrid.list .evf {
+  padding-right: calc(var(--h-sm) + 16px);
 }
 .evgrid.list .ev {
   grid-template-rows: none;

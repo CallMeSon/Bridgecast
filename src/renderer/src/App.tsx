@@ -329,6 +329,21 @@ function App(): React.JSX.Element {
     [openIds, eventId, selectEvent]
   )
 
+  // Archive keeps the tab open and the output as it is; only the event's flag and its lists change.
+  const archiveEvent = useCallback(
+    async (id: string, archived: boolean) => {
+      try {
+        const ev = await api.setEventArchived(id, archived)
+        setEvents((xs) => xs.map((x) => (x.id === ev.id ? ev : x)))
+        announce(`${archived ? 'Archived' : 'Unarchived'} ${ev.name}.`)
+      } catch (e) {
+        // Home covers the library, so the error goes to the note, not the import list.
+        announce(errorMessage(e))
+      }
+    },
+    [api, announce]
+  )
+
   // Home: summaries are read when it opens and again when decks change under it.
   useEffect(() => {
     if (view !== 'home') return
@@ -988,6 +1003,7 @@ function App(): React.JSX.Element {
           onNew={() => document.querySelector<HTMLButtonElement>('.evtabs .newbtn')?.click()}
           onImport={() => askLibrary('import')}
           onAddWeb={() => askLibrary('web')}
+          onArchive={archiveEvent}
         />
       )}
       <main>

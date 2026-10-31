@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   FilmStripIcon,
+  DotsThreeIcon,
   FunnelSimpleIcon,
   GlobeIcon,
   ListIcon,
@@ -41,6 +42,8 @@ interface Props {
   onNew(): void
   onImport(): void
   onAddWeb(): void
+  /** Archive or unarchive; resolves when main has answered (errors are shown by the caller). */
+  onArchive(id: string, archived: boolean): void
 }
 
 const TABS: { id: HomeTab; label: string }[] = [
@@ -69,6 +72,10 @@ export function Home(p: Props): React.JSX.Element {
   const search = useRef<HTMLInputElement>(null)
   const filterBtn = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  // The card whose More menu is open (one at a time).
+  const [moreFor, setMoreFor] = useState<string | null>(null)
+  const moreMenu = useRef<HTMLDivElement>(null)
+  const moreBtns = useRef(new Map<string, HTMLButtonElement>())
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const choose = (next: Partial<HomePrefs>): void => {
     const merged = { ...prefs, ...next }
@@ -110,6 +117,24 @@ export function Home(p: Props): React.JSX.Element {
     return () => removeEventListener('pointerdown', away, true)
   }, [menuOpen])
 
+  // The More menu focuses its first enabled item and closes on a click away.
+  useEffect(() => {
+    if (!moreFor) return
+    moreMenu.current?.querySelector<HTMLElement>('[role=menuitem]:not(:disabled)')?.focus()
+    const away = (e: PointerEvent): void => {
+      const t = e.target as Node
+      if (moreMenu.current?.contains(t) || moreBtns.current.get(moreFor)?.contains(t)) return
+      setMoreFor(null)
+    }
+    addEventListener('pointerdown', away, true)
+    return () => removeEventListener('pointerdown', away, true)
+  }, [moreFor])
+  const closeMore = (restore: boolean): void => {
+    const id = moreFor
+    setMoreFor(null)
+    if (restore && id) moreBtns.current.get(id)?.focus()
+  }
+
   const { onBack, onNew, onImport, onAddWeb } = p
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -123,6 +148,14 @@ export function Home(p: Props): React.JSX.Element {
           e.preventDefault()
           if (search.current?.value) setQuery('')
           else search.current?.blur()
+        }
+        return
+      }
+      if (moreFor && (moreMenu.current?.contains(el) || el === moreBtns.current.get(moreFor))) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setMoreFor(null)
+          moreBtns.current.get(moreFor)?.focus()
         }
         return
       }
@@ -157,7 +190,7 @@ export function Home(p: Props): React.JSX.Element {
     }
     addEventListener('keydown', onKey)
     return () => removeEventListener('keydown', onKey)
-  }, [onBack, onNew, onImport, onAddWeb, hasEvents, menuOpen])
+  }, [onBack, onNew, onImport, onAddWeb, hasEvents, menuOpen, moreFor])
 
   const onTabKey = (e: React.KeyboardEvent, at: number): void => {
     const to =
@@ -356,42 +389,107 @@ export function Home(p: Props): React.JSX.Element {
               const live = onAir && ev.id === p.airEvent
               const open = p.openIds.includes(ev.id)
               return (
-                <button
-                  key={ev.id}
-                  className="ev"
-                  aria-label={`Open ${ev.name}`}
-                  data-open={open}
-                  data-live={live}
-                  data-testid="home-card"
-                  onClick={() => p.onOpen(ev.id)}
-                >
-                  <div className="evp">
-                    {s?.first ? (
-                      <div className="pv">
-                        <img
-                          src={thumbUrl(s.first.deckId, s.first.file)}
-                          alt=""
-                          loading="lazy"
-                          draggable={false}
-                        />
-                        <span className="n">
-                          {s.hasWeb ? <GlobeIcon size={12} aria-hidden="true" /> : s.deckCount}
+                <div key={ev.id} className="evc">
+                  <button
+                    className="ev"
+                    aria-label={`Open ${ev.name}`}
+                    data-open={open}
+                    data-live={live}
+                    data-testid="home-card"
+                    onClick={() => p.onOpen(ev.id)}
+                  >
+                    <div className="evp">
+                      {s?.first ? (
+                        <div className="pv">
+                          <img
+                            src={thumbUrl(s.first.deckId, s.first.file)}
+                            alt=""
+                            loading="lazy"
+                            draggable={false}
+                          />
+                          <span className="n">
+                            {s.hasWeb ? <GlobeIcon size={12} aria-hidden="true" /> : s.deckCount}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="none">
+                          <FilmStripIcon size={32} aria-hidden="true" />
                         </span>
-                      </div>
-                    ) : (
-                      <span className="none">
-                        <FilmStripIcon size={32} aria-hidden="true" />
-                      </span>
-                    )}
-                  </div>
-                  <div className="evf">
-                    <h3>
-                      {live && <StatusTag kind={kind} variant="word" />}
-                      <span className="en">{ev.name}</span>
-                    </h3>
-                    <p>{eventSubLine(ev, s, now)}</p>
-                  </div>
-                </button>
+                      )}
+                    </div>
+                    <div className="evf">
+                      <h3>
+                        {live && <StatusTag kind={kind} variant="word" />}
+                        <span className="en">{ev.name}</span>
+                      </h3>
+                      <p>{eventSubLine(ev, s, now)}</p>
+                    </div>
+                  </button>
+                  <button
+                    ref={(el) => {
+                      if (el) moreBtns.current.set(ev.id, el)
+                      else moreBtns.current.delete(ev.id)
+                    }}
+                    className="evmore"
+                    aria-label={`More actions for ${ev.name}`}
+                    aria-haspopup="menu"
+                    aria-expanded={moreFor === ev.id}
+                    title="More actions"
+                    data-testid="home-more"
+                    onClick={() => setMoreFor((m) => (m === ev.id ? null : ev.id))}
+                  >
+                    <DotsThreeIcon size={20} weight="bold" aria-hidden="true" />
+                  </button>
+                  {moreFor === ev.id && (
+                    <div
+                      ref={moreMenu}
+                      className="menu evmenu"
+                      role="menu"
+                      aria-label={`Actions for ${ev.name}`}
+                      onKeyDown={onMenuKeyDown}
+                    >
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          closeMore(false)
+                          p.onOpen(ev.id)
+                        }}
+                      >
+                        Open
+                      </button>
+                      {ev.archived ? (
+                        <button
+                          role="menuitem"
+                          data-testid="home-unarchive"
+                          onClick={() => {
+                            closeMore(true)
+                            p.onArchive(ev.id, false)
+                          }}
+                        >
+                          Unarchive
+                        </button>
+                      ) : (
+                        <button
+                          role="menuitem"
+                          className={live ? 'has-note' : undefined}
+                          disabled={live}
+                          data-testid="home-archive"
+                          onClick={() => {
+                            closeMore(true)
+                            p.onArchive(ev.id, true)
+                          }}
+                        >
+                          Archive
+                          {live && (
+                            <span className="menu-note">
+                              On air. Take a slide of another event first.
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )
             })
           )}
