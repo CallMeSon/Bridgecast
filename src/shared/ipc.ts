@@ -1,4 +1,4 @@
-import type { DeckMeta, EventMeta, Playback } from './types'
+import type { DeckMeta, EventMeta, EventSummary, Playback } from './types'
 import type { OrderItem } from './sections'
 import type { Action, ProgramState } from './program'
 import type { NdiSettings, NdiStatus, OmtSettings, OmtStatus } from './omt'
@@ -14,6 +14,8 @@ export const Invoke = {
   eventsList: 'events:list',
   eventsCreate: 'events:create',
   eventsSelect: 'events:select',
+  eventsSummaries: 'events:summaries',
+  eventsSetArchived: 'events:setArchived',
   decksList: 'decks:list',
   decksImport: 'decks:import',
   decksAddRendered: 'decks:addRendered',
@@ -39,6 +41,7 @@ export const Invoke = {
   hdmiSet: 'hdmi:set',
   hdmiGetStatus: 'hdmi:getStatus',
   audioSet: 'audio:set',
+  audioPatch: 'audio:patch',
   omtSet: 'omt:set',
   omtGetStatus: 'omt:getStatus',
   ndiSet: 'ndi:set',
@@ -186,6 +189,9 @@ export interface InvokeMap {
   'events:list': { args: []; result: EventMeta[] }
   'events:create': { args: [name: string]; result: EventMeta }
   'events:select': { args: [eventId: string]; result: ProgramState }
+  'events:summaries': { args: []; result: EventSummary[] }
+  /** Refused while that event holds the output (something on air). */
+  'events:setArchived': { args: [eventId: string, archived: boolean]; result: EventMeta }
   'decks:list': { args: [eventId: string]; result: DeckMeta[] }
   'decks:import': { args: [eventId: string, files: ImportRequest[]]; result: void }
   'decks:addRendered': { args: [eventId: string, payload: RenderedDeck]; result: DeckMeta }
@@ -221,6 +227,8 @@ export interface InvokeMap {
   'hdmi:getStatus': { args: []; result: HdmiStatus }
   /** Sanitized, saved, then broadcast as `audio:settings`; applies at once to the output. */
   'audio:set': { args: [audio: AudioSettings]; result: Settings }
+  /** Partial update merged with the saved audio (see mergeAudio), then saved and broadcast like `audio:set`. */
+  'audio:patch': { args: [patch: Partial<AudioSettings>]; result: Settings }
   /** Sanitized, saved, then applied: starts, restarts or stops the OMT sender. */
   'omt:set': { args: [omt: OmtSettings]; result: Settings }
   'omt:getStatus': { args: []; result: OmtStatus }
@@ -335,6 +343,8 @@ export function kvImageUrl(eventId: string, file: string): string {
 
 export interface Api {
   listEvents(): Promise<EventMeta[]>
+  eventSummaries(): Promise<EventSummary[]>
+  setEventArchived(eventId: string, archived: boolean): Promise<EventMeta>
   createEvent(name: string): Promise<EventMeta>
   selectEvent(eventId: string): Promise<ProgramState>
   listDecks(eventId: string): Promise<DeckMeta[]>
@@ -375,6 +385,7 @@ export interface Api {
   onHdmiStatus(cb: (s: HdmiStatus) => void): () => void
   /** Sound device and mute for video slides on the HDMI output (applied at once). */
   setAudio(a: AudioSettings): Promise<Settings>
+  patchAudio(patch: Partial<AudioSettings>): Promise<Settings>
   onAudioSettings(cb: (a: AudioSettings) => void): () => void
   /** Output window only (HDMI): the first frame for the current program state is rendered. */
   outputReady(): void

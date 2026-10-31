@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import { join } from 'path'
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings'
-import { sanitizeAudio, sanitizeSettings } from '../shared/settings'
+import { mergeAudio, sanitizeAudio, sanitizeSettings } from '../shared/settings'
 import { DEFAULT_NDI } from '../shared/omt'
 
 let dir: string
@@ -315,5 +315,30 @@ describe('ndi setting', () => {
     expect(loadSettings(file).pptImportFormat).toBe('odp')
     fs.writeFileSync(file, JSON.stringify({ pptImportFormat: 'original' }))
     expect(loadSettings(file).pptImportFormat).toBe('original')
+  })
+})
+
+describe('mergeAudio', () => {
+  const saved = { deviceId: 'dev', muted: false, masterVolume: 60, route: 'both' as const }
+
+  it('changes only the keys present', () => {
+    expect(mergeAudio(saved, { muted: true })).toEqual({ ...saved, muted: true })
+  })
+  it('clamps masterVolume like sanitizeAudio', () => {
+    expect(mergeAudio(saved, { masterVolume: 140 }).masterVolume).toBe(100)
+  })
+  it('keeps the saved value for an invalid one', () => {
+    expect(mergeAudio(saved, { route: 'bogus' }).route).toBe('both')
+    expect(mergeAudio(saved, { muted: 'yes' }).muted).toBe(false)
+    expect(mergeAudio(saved, { masterVolume: 'loud' }).masterVolume).toBe(60)
+  })
+  it('sets deviceId to null for an empty string', () => {
+    expect(mergeAudio(saved, { deviceId: '' }).deviceId).toBeNull()
+  })
+  it('returns the saved settings for a non-object patch', () => {
+    for (const p of [null, [], 'x', 5]) expect(mergeAudio(saved, p)).toEqual(saved)
+  })
+  it('ignores unknown keys', () => {
+    expect(mergeAudio(saved, { foo: 1, muted: true })).toEqual({ ...saved, muted: true })
   })
 })

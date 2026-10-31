@@ -64,6 +64,7 @@ import {
 } from '../shared/omt'
 import { CANVAS_INVALID, sanitizeCanvas, type Canvas } from '../shared/canvas'
 import {
+  mergeAudio,
   sanitizeAudio,
   sanitizePptImportFormat,
   sanitizeSettings,
@@ -84,8 +85,8 @@ import {
   type InvokeMap,
   type RenderedDeck
 } from '../shared/ipc'
-import type { Action } from '../shared/program'
 import { isOrderItem } from '../shared/sections'
+import { kvOnAir, type Action } from '../shared/program'
 import { defaultPlayback, engineStates, playbackOf, type SlideshowStatus } from '../shared/playback'
 import { pdfSourceFields } from './import/pdf-source'
 import { sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
@@ -314,8 +315,23 @@ function registerIpc(
   handle(Invoke.eventsSelect, (eventId) => {
     assertString(eventId, 'Event ID')
     const s = state.setEvent(eventId)
+    lib.touchEvent(eventId)
     syncWeb()
     return s
+  })
+  handle(Invoke.eventsSummaries, () => lib.eventSummaries())
+  handle(Invoke.eventsSetArchived, (eventId, archived) => {
+    assertString(eventId, 'Event ID')
+    if (typeof archived !== 'boolean') throw new Error('Archived must be true or false.')
+    const st = state.state
+    if (
+      archived &&
+      st.airEvent === eventId &&
+      (st.shown || (st.kv && kvOnAir(st)) || (st.black && st.kvUrl !== null))
+    ) {
+      throw new Error('This event is on air. Take a slide of another event, then archive it.')
+    }
+    return lib.setArchived(eventId, archived)
   })
   handle(Invoke.decksList, (eventId) => {
     assertString(eventId, 'Event ID')
@@ -706,6 +722,14 @@ function registerIpc(
 
   handle(Invoke.audioSet, (input: AudioSettings) => {
     const saved = settings.saveAudio(sanitizeAudio(input))
+    broadcast(Broadcast.audioSettings, saved.audio)
+    slideShow.syncSound()
+    return saved
+  })
+
+  handle(Invoke.audioPatch, (patch: Partial<AudioSettings>) => {
+    // Merged with what is saved right now, so a stale window cannot undo another's change.
+    const saved = settings.saveAudio(mergeAudio(settings.get().audio, patch))
     broadcast(Broadcast.audioSettings, saved.audio)
     slideShow.syncSound()
     return saved

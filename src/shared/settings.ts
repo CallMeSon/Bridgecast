@@ -104,6 +104,23 @@ export function sanitizeAudio(raw: unknown): AudioSettings {
 }
 
 /**
+ * Saved audio plus a partial patch: only known keys present in `patch` are
+ * taken, each through `sanitizeAudio`; an invalid value keeps the saved one.
+ */
+export function mergeAudio(saved: AudioSettings, patch: unknown): AudioSettings {
+  if (!isObject(patch)) return saved
+  const clean = sanitizeAudio(patch)
+  const out: AudioSettings = { ...saved }
+  if ('deviceId' in patch && (patch.deviceId === '' || clean.deviceId !== null)) {
+    out.deviceId = clean.deviceId
+  }
+  if (typeof patch.muted === 'boolean') out.muted = clean.muted
+  if (Number.isFinite(patch.masterVolume)) out.masterVolume = clean.masterVolume
+  if (AUDIO_ROUTES.includes(patch.route as AudioRoute)) out.route = clean.route
+  return out
+}
+
+/**
  * Any parsed JSON → valid Settings; each invalid field falls back to its
  * default. Unknown keys are dropped.
  */
