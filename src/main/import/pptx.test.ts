@@ -3,7 +3,12 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { orderExportedFiles, importPptx, parseExportManifest, friendlyError } from './pptx'
+import {
+  orderExportedFiles,
+  importPptxPowerPoint as importPptx,
+  parseExportManifest,
+  friendlyError
+} from './pptx'
 
 describe('orderExportedFiles', () => {
   it('sorts numerically, not lexically', () => {
@@ -60,7 +65,9 @@ describe('parseExportManifest', () => {
     expect(m.pdf).toBe('')
   })
   it('survives a single value, garbage and a non-object', () => {
-    expect(parseExportManifest(JSON.stringify({ clicks: 5, hidden: 'x' }), 2).clicks).toEqual([0, 0])
+    expect(parseExportManifest(JSON.stringify({ clicks: 5, hidden: 'x' }), 2).clicks).toEqual([
+      0, 0
+    ])
     expect(parseExportManifest('null', 1).clicks).toEqual([0])
     expect(() => parseExportManifest('nope', 1)).toThrow(/could not be read/)
   })

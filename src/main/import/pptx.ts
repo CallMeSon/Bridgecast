@@ -135,7 +135,8 @@ function runScript(file: string, outDir: string, width: number): Promise<string>
   })
 }
 
-export async function importPptx(
+/** PowerPoint import (Windows): `scripts/export-pptx.ps1` through PowerPoint COM. */
+export async function importPptxPowerPoint(
   filePath: string,
   outDir: string,
   width: number

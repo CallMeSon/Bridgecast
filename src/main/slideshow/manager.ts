@@ -72,7 +72,9 @@ export class SlideShowManager {
     private canvas: () => Canvas,
     /** Path of the deck's PowerPoint file. */
     private fileOf: (deckId: string) => string,
-    private timers: ManagerTimers = realTimers
+    private timers: ManagerTimers = realTimers,
+    /** False when the slide show window cannot be captured (Wayland, no engine): nothing opens, takes use images. */
+    private canCapture = true
   ) {
     this.lastOk = timers.now()
     engine.on('position', (p) => this.onPosition(p.deckId, p.index, p.step))
@@ -98,13 +100,13 @@ export class SlideShowManager {
   /** The deck's slideshow is open, the engine is up and no fallback is pending. */
   ready(deckId: string): boolean {
     const e = this.entries.get(deckId)
-    return !!e?.session && !e.closing && !this.down && !this.fallen.has(deckId)
+    return this.canCapture && !!e?.session && !e.closing && !this.down && !this.fallen.has(deckId)
   }
 
   /** The deck's slide show session is open, whether or not the deck fell back. */
   sessionOpen(deckId: string): boolean {
     const e = this.entries.get(deckId)
-    return !!e?.session && !e.closing && !this.down
+    return this.canCapture && !!e?.session && !e.closing && !this.down
   }
 
   /** The engine failed while the deck was on air and the deck has not been resumed. */
@@ -203,7 +205,7 @@ export class SlideShowManager {
       const stale = e.deckId !== live && !sameCanvas(e.canvas, canvas)
       if (!e.closing && (!keep || stale)) this.closeEntry(e)
     }
-    if (!this.down) {
+    if (!this.down && this.canCapture) {
       for (const id of wanted) {
         if (this.entries.has(id) || this.blocked.has(id) || this.held.has(id)) continue
         if (this.entries.size >= MAX_SESSIONS) break // wait for a close to finish

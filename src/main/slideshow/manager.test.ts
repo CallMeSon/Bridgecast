@@ -377,4 +377,26 @@ describe('SlideShowManager', () => {
       mgr.resume('c')
     })
   })
+
+  it('opens nothing and is never ready when the window cannot be captured (Wayland)', async () => {
+    mgr.dispose()
+    mgr = new SlideShowManager(
+      engine,
+      app,
+      () => decks,
+      () => canvas,
+      (id) => `${id}.pptx`,
+      undefined,
+      false
+    )
+    app.dispatch({ type: 'selectDeck', deckId: 'a' })
+    await flush()
+    app.dispatch({ type: 'goto', index: 0 })
+    await flush()
+    expect(engine.opens).toEqual([])
+    expect(mgr.ready('a')).toBe(false)
+    expect(mgr.sessionOpen('a')).toBe(false)
+    // The take stays on images (the engine gate refuses a native take).
+    expect(app.state.shown?.playback).toBe('images')
+  })
 })

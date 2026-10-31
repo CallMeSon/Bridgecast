@@ -28,12 +28,13 @@ import type { SlideShowEngine } from './slideshow/engine'
 import { PowerPointEngine, bridgeExePath } from './slideshow/powerpoint-engine'
 import { SlideSound } from './slideshow/audio-pipe'
 import { slideshowSourceId } from './slideshow/capture'
-import { importPptx } from './import/pptx'
+import { importPptx, configureImport } from './import'
+import { detectEngine, probeLinux, type EngineInfo } from './platform'
 import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
 import type { DeckMeta } from '../shared/types'
 import { DeckEditor } from './slideshow/editor'
-import type { ImportedDeck } from './import/pptx'
+import type { ImportedDeck } from './import'
 import {
   VIDEO_CHUNK_BYTES,
   capRange,
@@ -999,10 +1000,17 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
  * elsewhere and with PPT_OUTPUT_DUMP + PPT_ENGINE_FAKE=1 (e2e). A helper that cannot start
  * leaves every native deck on still images (the engine rejects its opens, nothing is ready).
  */
-function createSlideShow(lib: Library, state: AppState, settings: SettingsStore): SlideShowHost {
-  const fake =
-    process.platform !== 'win32' ||
-    (!!process.env['PPT_OUTPUT_DUMP'] && process.env['PPT_ENGINE_FAKE'] === '1')
+function createSlideShow(
+  lib: Library,
+  state: AppState,
+  settings: SettingsStore,
+  info: EngineInfo
+): SlideShowHost {
+  const e2eFake = !!process.env['PPT_OUTPUT_DUMP'] && process.env['PPT_ENGINE_FAKE'] === '1'
+  // Without a usable engine (or a session that cannot be captured) the manager never opens a
+  // slide show, so the FakeEngine stands in without ever being asked.
+  const fake = e2eFake || info.engine !== 'powerpoint'
+  const canCapture = e2eFake || info.canCapture
   let helperError: string | null = null
   const sound = new SlideSound({
     setVolume: (v) =>
@@ -1039,7 +1047,9 @@ function createSlideShow(lib: Library, state: AppState, settings: SettingsStore)
         console.error('[slideshow] deck file:', (err as Error).message)
         return ''
       }
-    }
+    },
+    undefined,
+    canCapture
   )
   if (process.env['PPT_OUTPUT_DUMP']) {
     Object.defineProperty(globalThis, '__pptEngine', {
@@ -1067,7 +1077,9 @@ function createSlideShow(lib: Library, state: AppState, settings: SettingsStore)
     return {
       decks,
       resumable: Object.keys(decks).filter((id) => manager.fellBack(id) && manager.sessionOpen(id)),
-      helperError: engine instanceof PowerPointEngine ? engine.helperError : null
+      helperError:
+        (engine instanceof PowerPointEngine ? engine.helperError : null) ??
+        (e2eFake ? null : (info.message ?? null))
     }
   }
   let lastStatus = JSON.stringify(status())
@@ -1173,7 +1185,7 @@ if (process.env['PPT_SHARE_USER_DATA']) {
   app.setPath('userData', process.env['PPT_SHARE_USER_DATA'])
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.pptshare.app')
 
   app.on('browser-window-created', (_, window) => {
@@ -1191,6 +1203,13 @@ app.whenReady().then(() => {
   )
 
   const root = app.getPath('userData')
+  // Which program plays PowerPoint files here: by platform only (PowerPoint, LibreOffice, none).
+  const engineInfo = detectEngine({
+    platform: process.platform,
+    sessionType: process.env['XDG_SESSION_TYPE'],
+    ...(process.platform === 'linux' ? await probeLinux() : { hasSoffice: false, hasPyUno: false })
+  })
+  configureImport({ engine: engineInfo, format: () => 'odp' })
   let lib: Library
   try {
     lib = new Library(root)
@@ -1217,7 +1236,7 @@ Location: ${root}`
     (deckId, key) => web?.key(deckId, key),
     (deckId) => slides?.ready(deckId) ?? false
   )
-  const slideShow = createSlideShow(lib, state, settings)
+  const slideShow = createSlideShow(lib, state, settings, engineInfo)
   slides = slideShow.manager
   // The auto advance toggle is part of the program state; keep it saved.
   state.onChange((s) => {
