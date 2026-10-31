@@ -58,6 +58,22 @@ export function saveCustomAccent(hex: string): void {
   if (h) write(CUSTOM_KEY, h)
 }
 
+const MOTION_KEY = 'reduce-motion'
+
+export function loadReduceMotion(): boolean {
+  return read(MOTION_KEY) === '1'
+}
+
+export function saveReduceMotion(on: boolean): void {
+  write(MOTION_KEY, on ? '1' : '0')
+}
+
+/** Sets or clears `data-reduce-motion` on `<html>`; CSS turns off decorative transitions. */
+export function applyReduceMotion(on: boolean): void {
+  if (on) document.documentElement.dataset.reduceMotion = ''
+  else delete document.documentElement.dataset.reduceMotion
+}
+
 const CUSTOM_VARS = ['--accent', '--accent-fill', '--accent-ink', '--on-accent'] as const
 
 /**

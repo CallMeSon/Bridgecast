@@ -7,6 +7,7 @@ import type { DeckFit } from '../../shared/canvas'
 import type { Playback } from '../../shared/types'
 import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
+import { SettingsDialog } from './components/SettingsDialog'
 import { Library, type ImportRow } from './components/Library'
 import { DropOverlay } from './components/DropOverlay'
 import { Program } from './components/Program'
@@ -52,12 +53,20 @@ import {
 } from './model'
 import {
   applyAppearance,
+  applyReduceMotion,
   loadAccent,
+  loadCustomAccent,
+  loadReduceMotion,
   loadThemePref,
+  saveAccent,
+  saveCustomAccent,
+  saveReduceMotion,
   saveThemePref,
+  type AccentId,
   type Theme,
   type ThemePref
 } from './theme'
+const DEFAULT_CUSTOM = '#2160d4'
 import { renderPdf } from './import/pdf'
 
 const IMPORT_WIDTH = 1920
@@ -75,11 +84,15 @@ function App(): React.JSX.Element {
   const [program, setProgram] = useState<ProgramState>(initialState)
   const [imports, setImports] = useState<ImportRow[]>([])
   const [themePref, setThemePref] = useState<ThemePref>(loadThemePref)
-  const [accent] = useState(loadAccent)
-  const [theme, setTheme] = useState<Theme>(
-    () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark')
+  const [accent, setAccent] = useState(loadAccent)
+  const [customHex, setCustomHex] = useState(() => loadCustomAccent() ?? DEFAULT_CUSTOM)
+  const [reduceMotion, setReduceMotion] = useState(loadReduceMotion)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [theme, setTheme] = useState<Theme>(() =>
+    document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
   )
-  useEffect(() => applyAppearance(themePref, accent, setTheme), [themePref, accent])
+  useEffect(() => applyAppearance(themePref, accent, setTheme), [themePref, accent, customHex])
+  useEffect(() => applyReduceMotion(reduceMotion), [reduceMotion])
   const sections = useMemo<SectionMeta[]>(
     () => events.find((e) => e.id === decksEventId)?.sections ?? [],
     [events, decksEventId]
@@ -629,9 +642,22 @@ function App(): React.JSX.Element {
     [api, decks, reportError]
   )
 
-  const chooseTheme = (t: Theme): void => {
-    saveThemePref(t)
-    setThemePref(t)
+  const chooseThemePref = (p: ThemePref): void => {
+    saveThemePref(p)
+    setThemePref(p)
+  }
+  const chooseTheme = (t: Theme): void => chooseThemePref(t)
+  const chooseAccent = (a: AccentId): void => {
+    saveAccent(a)
+    setAccent(a)
+  }
+  const chooseCustom = (hex: string): void => {
+    saveCustomAccent(hex)
+    setCustomHex(hex)
+  }
+  const chooseReduceMotion = (on: boolean): void => {
+    saveReduceMotion(on)
+    setReduceMotion(on)
   }
 
   // Web deck pages: the monitor shows the live one (video only, 30 fps). While no
@@ -769,6 +795,20 @@ function App(): React.JSX.Element {
         program={program}
         theme={theme}
         onSetTheme={chooseTheme}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        theme={theme}
+        themePref={themePref}
+        onThemePref={chooseThemePref}
+        accent={accent}
+        onAccent={chooseAccent}
+        customHex={customHex}
+        onCustomHex={chooseCustom}
+        reduceMotion={reduceMotion}
+        onReduceMotion={chooseReduceMotion}
       />
       <main>
         <Library

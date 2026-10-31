@@ -687,6 +687,7 @@ function registerIpc(
   registerSlideshowIpc(slideShow, roleOf, outputsActive)
 
   handle(Invoke.settingsGet, () => settings.get())
+  handle(Invoke.appVersion, () => app.getVersion())
 
   handle(Invoke.displaysList, () => hdmi.displays())
   handle(Invoke.hdmiGetStatus, () => hdmi.getStatus())

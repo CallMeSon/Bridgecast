@@ -34,6 +34,7 @@ export const Invoke = {
   programDispatch: 'program:dispatch',
   programGet: 'program:get',
   settingsGet: 'settings:get',
+  appVersion: 'app:version',
   displaysList: 'displays:list',
   hdmiSet: 'hdmi:set',
   hdmiGetStatus: 'hdmi:getStatus',
@@ -181,6 +182,7 @@ export interface Session {
 
 /** Argument tuple and result for every invoke channel. */
 export interface InvokeMap {
+  'app:version': { args: []; result: string }
   'events:list': { args: []; result: EventMeta[] }
   'events:create': { args: [name: string]; result: EventMeta }
   'events:select': { args: [eventId: string]; result: ProgramState }
@@ -363,6 +365,8 @@ export interface Api {
   onProgramState(cb: (s: ProgramState) => void): () => void
   onImportProgress(cb: (p: ImportProgress) => void): () => void
   getSettings(): Promise<Settings>
+  /** The app version (package.json), for the About section of Settings. */
+  getAppVersion(): Promise<string>
   listDisplays(): Promise<DisplayInfo[]>
   onDisplaysChanged(cb: (d: DisplayInfo[]) => void): () => void
   /** Turns HDMI output on/off or moves it to another display (applied at once). */

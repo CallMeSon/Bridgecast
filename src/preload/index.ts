@@ -71,6 +71,7 @@ const api: Api = {
   onProgramState: (cb) => subscribe(Broadcast.programState, cb),
   onImportProgress: (cb) => subscribe(Broadcast.importProgress, cb),
   getSettings: () => invoke(Invoke.settingsGet),
+  getAppVersion: () => invoke(Invoke.appVersion),
   listDisplays: () => invoke(Invoke.displaysList),
   onDisplaysChanged: (cb) => subscribe(Broadcast.displaysChanged, cb),
   setHdmi: (h) => invoke(Invoke.hdmiSet, h),
