@@ -972,6 +972,8 @@ function App(): React.JSX.Element {
               helperText={slideshow.status.helperError}
             />
           )}
+        audio={outputAudio}
+        onAudioSaved={setOutputAudio}
           {pendingLive.map((d) => (
             <PendingBanner key={d.id} deckName={d.name} onApplyNow={() => applyDeckNow(d.id)} />
           ))}

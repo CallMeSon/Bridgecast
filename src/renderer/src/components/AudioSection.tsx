@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { AudioSettings, Settings } from '../../../shared/settings'
 import { errorMessage } from '../model'
 import type { AudioRoute } from '../../../shared/omt'
-import { pickSink, useAudioOutputs } from '../audio'
+import { AudioDevicePicker } from './AudioDevicePicker'
 import { Segmented } from './Segmented'
 import { Switch } from './Switch'
 import { VolumeSlider } from './VolumeSlider'
@@ -31,9 +31,6 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
   const [volume, setVolume] = useState(audio.masterVolume)
   // Saves still on their way: their answers must not pull the slider back.
   const inFlight = useRef(0)
-  const outputs = useAudioOutputs()
-  // Until the list arrives the saved device is assumed present (no false warning).
-  const audioMissing = outputs !== null && pickSink(audio.deviceId, outputs).missing
 
   // Each save sends only the field it changes, so it cannot undo another writer's change
   // (the transport mute, the Settings dialog).
@@ -51,9 +48,7 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
     }
   }
 
-  const volumeSave = useDebouncedSave<number>(
-    (masterVolume) => void saveAudio({ masterVolume })
-  )
+  const volumeSave = useDebouncedSave<number>((masterVolume) => void saveAudio({ masterVolume }))
 
   // The saved volume changed elsewhere (a reload of the settings): follow it, unless
   // the operator is mid-change.
@@ -70,37 +65,14 @@ export function AudioSection({ audio, onSaved }: Props): React.JSX.Element {
         </h3>
       </div>
 
-      <div className="field">
-        <label htmlFor="audio-device">Audio device</label>
-        <select
-          id="audio-device"
-          className="text-input"
-          data-testid="audio-device"
-          value={audio.deviceId ?? ''}
-          disabled={busy}
-          onChange={(e) =>
-            void saveAudio({ deviceId: e.target.value || null })
-          }
-        >
-          <option value="">Default (Windows)</option>
-          {(outputs ?? []).map((d, i) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || `Audio device ${i + 1}`}
-            </option>
-          ))}
-          {audioMissing && (
-            <option value={audio.deviceId ?? ''} disabled>
-              Saved device (not connected)
-            </option>
-          )}
-        </select>
-        {audioMissing && (
-          <p className="pop-status warn" role="status" data-testid="audio-missing">
-            The saved audio device is not connected. Sound plays on the Windows default device.
-          </p>
-        )}
-        <span className="hint">Sound of video slides plays on the HDMI output only.</span>
-      </div>
+      <AudioDevicePicker
+        id="audio-device"
+        testId="audio-device"
+        missingTestId="audio-missing"
+        deviceId={audio.deviceId}
+        disabled={busy}
+        onChange={(deviceId) => void saveAudio({ deviceId })}
+      />
 
       <div className="field">
         <span className="row-label" id="audio-route-title">

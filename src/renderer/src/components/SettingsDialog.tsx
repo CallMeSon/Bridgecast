@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { XIcon } from '@phosphor-icons/react'
 import { BrandMark } from './BrandMark'
 import { AppearanceSection } from './AppearanceSection'
+import { SoundSection } from './SoundSection'
+import type { AudioSettings } from '../../../shared/settings'
 import type { AccentId, Theme, ThemePref } from '../appearance'
 
 interface Props {
@@ -16,9 +18,18 @@ interface Props {
   onCustomHex(hex: string): void
   reduceMotion: boolean
   onReduceMotion(on: boolean): void
+  audio: AudioSettings | null
+  onAudioSaved(a: AudioSettings): void
 }
 
-const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])'
+// Roving-tabindex radios (tabindex -1) are not tab stops, so they are not trap ends.
+const FOCUSABLE = [
+  'button:not(:disabled):not([tabindex="-1"])',
+  'input:not(:disabled):not([tabindex="-1"])',
+  'select:not(:disabled)',
+  'textarea:not(:disabled)',
+  '[tabindex]:not([tabindex="-1"])'
+].join(', ')
 
 /** About: mark, name, version and tagline. */
 function AboutSection(): React.JSX.Element {
@@ -108,6 +119,7 @@ export function SettingsDialog(p: Props): React.JSX.Element | null {
         </div>
         <div className="set-body">
           <AppearanceSection {...p} />
+          <SoundSection audio={p.audio} onSaved={p.onAudioSaved} />
           <AboutSection />
         </div>
       </div>

@@ -335,6 +335,10 @@ describe('mergeAudio', () => {
   it('sets deviceId to null for an empty string', () => {
     expect(mergeAudio(saved, { deviceId: '' }).deviceId).toBeNull()
   })
+
+  it('sets deviceId to null for an explicit null (Default device)', () => {
+    expect(mergeAudio({ ...saved, deviceId: 'abc' }, { deviceId: null }).deviceId).toBeNull()
+  })
   it('returns the saved settings for a non-object patch', () => {
     for (const p of [null, [], 'x', 5]) expect(mergeAudio(saved, p)).toEqual(saved)
   })

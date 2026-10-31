@@ -111,7 +111,10 @@ export function mergeAudio(saved: AudioSettings, patch: unknown): AudioSettings 
   if (!isObject(patch)) return saved
   const clean = sanitizeAudio(patch)
   const out: AudioSettings = { ...saved }
-  if ('deviceId' in patch && (patch.deviceId === '' || clean.deviceId !== null)) {
+  if (
+    'deviceId' in patch &&
+    (patch.deviceId === '' || patch.deviceId === null || clean.deviceId !== null)
+  ) {
     out.deviceId = clean.deviceId
   }
   if (typeof patch.muted === 'boolean') out.muted = clean.muted
