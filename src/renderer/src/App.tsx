@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DeckMeta, EventMeta, SectionMeta } from '../../shared/types'
+import type { DeckMeta, EventMeta, EventSummary, SectionMeta } from '../../shared/types'
 import { orderItems, splitOrder } from '../../shared/sections'
 import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '../../shared/program'
 import type { ImportRequest } from '../../shared/ipc'
@@ -7,9 +7,10 @@ import type { DeckFit } from '../../shared/canvas'
 import type { Playback } from '../../shared/types'
 import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
+import { Home } from './components/Home'
 import { closeTab, loadOpenTabs, openTab, saveOpenTabs } from './open-tabs'
 import { SettingsDialog } from './components/SettingsDialog'
-import { Library, type ImportRow } from './components/Library'
+import { Library, type ImportRow, type LibraryHandle } from './components/Library'
 import { DropOverlay } from './components/DropOverlay'
 import { Program } from './components/Program'
 import { Controls } from './components/Controls'
@@ -94,6 +95,13 @@ function App(): React.JSX.Element {
   const [openIds, setOpenIds] = useState<string[]>([])
   const [view, setView] = useState<'console' | 'home'>('console')
   const tabsLoaded = useRef(false)
+  const viewRef = useRef(view)
+  useEffect(() => {
+    viewRef.current = view
+  }, [view])
+  const [summaries, setSummaries] = useState<EventSummary[]>([])
+  // Home opens the file picker or Add web page of the current event through this.
+  const library = useRef<LibraryHandle>(null)
   const [decks, setDecks] = useState<DeckMeta[]>([])
   // The event the loaded `decks` belong to. Sections follow this, not `eventId`, so
   // decks and sections never come from two different events while a switch loads.
@@ -136,6 +144,10 @@ function App(): React.JSX.Element {
   )
   const eventRef = useRef<string | null>(null)
   const airRef = useRef<string | null>(null)
+  const programRef = useRef(program)
+  useEffect(() => {
+    programRef.current = program
+  }, [program])
   useEffect(() => {
     airRef.current = program.airEvent
   }, [program.airEvent])
@@ -270,6 +282,8 @@ function App(): React.JSX.Element {
   // Keyboard shortcuts (ignored while typing in an input).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      // Home pauses the console keys (a clicker does nothing while the operator browses).
+      if (viewRef.current === 'home') return
       const a = keyToAction(e)
       if (!a) return
       e.preventDefault()
@@ -314,6 +328,63 @@ function App(): React.JSX.Element {
     },
     [openIds, eventId, selectEvent]
   )
+
+  // Home: summaries are read when it opens and again when decks change under it.
+  useEffect(() => {
+    if (view !== 'home') return
+    let fresh = true
+    api.eventSummaries().then(
+      (r) => fresh && setSummaries(r),
+      (e) => reportError('Events', e)
+    )
+    return () => {
+      fresh = false
+    }
+  }, [api, view, decks, events.length, reportError])
+
+  // The banner's "<deck>, slide 3". The deck may belong to an event whose decks are not loaded:
+  // then it is read once, and only its answer is stored.
+  const shownDeckId = program.shown?.deckId ?? null
+  const shownIndex = program.shown?.index ?? 0
+  const airKind = tally(program)
+  const [farDeck, setFarDeck] = useState<DeckMeta | null>(null)
+  const shownLocal = decks.find((d) => d.id === shownDeckId)
+  useEffect(() => {
+    const air = airRef.current
+    if (view !== 'home' || !shownDeckId || shownLocal || !air) return
+    let fresh = true
+    api.listDecks(air).then(
+      (list) => fresh && setFarDeck(list.find((d) => d.id === shownDeckId) ?? null),
+      () => fresh && setFarDeck(null)
+    )
+    return () => {
+      fresh = false
+    }
+  }, [api, view, shownDeckId, shownLocal])
+  const shownDeck = shownLocal ?? (farDeck?.id === shownDeckId ? farDeck : null)
+  const airHeadline =
+    airKind === 'kv'
+      ? 'Key visual'
+      : shownDeck
+        ? shownDeck.source === 'web'
+          ? shownDeck.name
+          : `${shownDeck.name}, slide ${shownIndex + 1}`
+        : null
+
+  // Back to console (button and Esc): the air event's console, else the current tab.
+  const backToConsole = useCallback(() => {
+    const air = airRef.current
+    if (air && tally(programRef.current) !== 'idle' && events.some((e) => e.id === air)) {
+      if (air === eventRef.current) setView('console')
+      else void selectEvent(air)
+    } else if (eventRef.current && openIds.includes(eventRef.current)) setView('console')
+  }, [events, openIds, selectEvent])
+  const askLibrary = useCallback((kind: 'import' | 'web') => {
+    if (!eventRef.current) return
+    setView('console')
+    if (kind === 'import') library.current?.pickFiles()
+    else library.current?.addWeb()
+  }, [])
 
   const createEvent = useCallback(
     async (name: string) => {
@@ -901,9 +972,21 @@ function App(): React.JSX.Element {
         onReduceMotion={chooseReduceMotion}
       />
       {view === 'home' && (
-        <section className="home-stub" aria-label="Events home">
-          <p>No event open. Choose a tab or create one with New.</p>
-        </section>
+        <Home
+          events={events}
+          summaries={summaries}
+          current={eventId}
+          openIds={openIds}
+          program={program}
+          airEvent={program.airEvent}
+          airHeadline={airHeadline}
+          onOpen={selectEvent}
+          onBack={backToConsole}
+          // The header's New field creates the event and opens it as a tab.
+          onNew={() => document.querySelector<HTMLButtonElement>('.evtabs .newbtn')?.click()}
+          onImport={() => askLibrary('import')}
+          onAddWeb={() => askLibrary('web')}
+        />
       )}
       <main>
         <Library
@@ -915,6 +998,7 @@ function App(): React.JSX.Element {
           canImport={eventId !== null}
           kvUrl={program.kvUrl}
           kvOnAir={kvOnAir(program)}
+          handle={library}
           onSetKv={setKv}
           onClearKv={clearKv}
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}

@@ -87,3 +87,39 @@ export function eventSubLine(ev: EventMeta, s: EventSummary | undefined, now: nu
   } else if (ev.createdAt !== undefined) tail = `Created ${day(ev.createdAt)}`
   return tail ? `${count} · ${tail}` : count
 }
+
+export type HomeLayout = 'grid' | 'list'
+export interface HomePrefs {
+  tab: HomeTab
+  filter: HomeFilter
+  layout: HomeLayout
+}
+const PREFS_KEY = 'home-view'
+export const DEFAULT_HOME_PREFS: HomePrefs = { tab: 'recent', filter: 'all', layout: 'grid' }
+
+/** Reads the saved Home tab, filter and layout; anything missing or wrong falls back. */
+export function loadHomePrefs(storage: Pick<Storage, 'getItem'> | null): HomePrefs {
+  try {
+    const raw = storage?.getItem(PREFS_KEY)
+    const o: unknown = raw ? JSON.parse(raw) : null
+    const r = (o && typeof o === 'object' ? o : {}) as Record<string, unknown>
+    return {
+      tab: r.tab === 'all' || r.tab === 'archive' || r.tab === 'recent' ? r.tab : 'recent',
+      filter:
+        r.filter === 'live' || r.filter === 'web' || r.filter === 'empty' || r.filter === 'all'
+          ? r.filter
+          : 'all',
+      layout: r.layout === 'list' ? 'list' : 'grid'
+    }
+  } catch {
+    return { ...DEFAULT_HOME_PREFS }
+  }
+}
+
+export function saveHomePrefs(storage: Pick<Storage, 'setItem'> | null, p: HomePrefs): void {
+  try {
+    storage?.setItem(PREFS_KEY, JSON.stringify(p))
+  } catch {
+    // Private mode or blocked storage: the choice just is not kept.
+  }
+}

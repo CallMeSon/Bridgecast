@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { EventMeta, EventSummary } from '../../shared/types'
-import { eventSubLine, FILTER_LABEL, homeList, RECENT_MAX, type HomeOptions } from './home'
+import {
+  eventSubLine,
+  FILTER_LABEL,
+  homeList,
+  loadHomePrefs,
+  RECENT_MAX,
+  type HomeOptions
+} from './home'
 
 const ev = (id: string, o: Partial<EventMeta> = {}): EventMeta => ({
   id,
@@ -114,5 +121,23 @@ describe('FILTER_LABEL', () => {
   it('labels', () => {
     expect(FILTER_LABEL.all).toBe('Filter')
     expect(FILTER_LABEL.web).toBe('With web pages')
+  })
+})
+
+describe('loadHomePrefs', () => {
+  const store = (v: string | null): Pick<Storage, 'getItem'> => ({ getItem: () => v })
+  it('falls back on missing, garbage and wrong values', () => {
+    const d = { tab: 'recent', filter: 'all', layout: 'grid' }
+    expect(loadHomePrefs(null)).toEqual(d)
+    expect(loadHomePrefs(store(null))).toEqual(d)
+    expect(loadHomePrefs(store('{nope'))).toEqual(d)
+    expect(loadHomePrefs(store('{"tab":"x","filter":3,"layout":"y"}'))).toEqual(d)
+  })
+  it('keeps valid values', () => {
+    expect(loadHomePrefs(store('{"tab":"archive","filter":"web","layout":"list"}'))).toEqual({
+      tab: 'archive',
+      filter: 'web',
+      layout: 'list'
+    })
   })
 })

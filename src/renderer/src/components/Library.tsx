@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import {
   DotsThreeVerticalIcon,
   ArrowCounterClockwiseIcon,
@@ -68,6 +68,12 @@ export type ImportRow = ImportProgress & { meta?: string }
 /** Drag data of both row kinds: the item's index in the ordered list (decks and sections). */
 const DECK_TYPE = 'application/x-ppt-share-deck'
 
+/** What Home can ask of the Decks list. */
+export interface LibraryHandle {
+  pickFiles(): void
+  addWeb(): void
+}
+
 interface Props {
   decks: DeckMeta[]
   imports: ImportRow[]
@@ -77,6 +83,8 @@ interface Props {
   /** The slide still on the output while Program is FROZEN. */
   frozen: ShownSlide | null
   canImport: boolean
+  /** Lets Home open the file picker or the Add web page dialog. */
+  handle?: Ref<LibraryHandle>
   /** URL of the active event's KV image, or null. */
   kvUrl: string | null
   /** The KV image is on the output now; it cannot be removed meanwhile. */
@@ -809,6 +817,10 @@ export function Library(p: Props): React.JSX.Element {
   const [renaming, setRenaming] = useState<string | null>(null)
   // The Add web page dialog, or the Edit URL one of a web deck.
   const [webDialog, setWebDialog] = useState<'add' | { deckId: string } | null>(null)
+  useImperativeHandle(p.handle, () => ({
+    pickFiles: () => input.current?.click(),
+    addWeb: () => setWebDialog('add')
+  }))
   const addWebButton = useRef<HTMLButtonElement>(null)
   // Where focus goes once the dialog has unmounted (the app behind it is inert until then).
   const webFocus = useRef<'add' | { deckId: string } | null>(null)
