@@ -10,6 +10,10 @@ namespace PptBridge
         public const int WS_EX_TOOLWINDOW = 0x80;
         public const int WS_EX_APPWINDOW = 0x40000;
         public const int WS_EX_NOACTIVATE = 0x08000000;
+        public const int GWL_STYLE = -16;
+        public const int WS_EX_WINDOWEDGE = 0x100, WS_EX_CLIENTEDGE = 0x200;
+        // Caption, border, sizing frame, system menu buttons and scroll bars of a window-mode show.
+        public const int WS_FRAME_BITS = 0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000 | 0x00200000 | 0x00100000 | 0x00800000;
         public const uint SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002, SWP_NOZORDER = 0x0004,
             SWP_NOACTIVATE = 0x0010, SWP_FRAMECHANGED = 0x0020;
         public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);

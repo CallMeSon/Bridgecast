@@ -34,6 +34,11 @@ interface Entry {
   closing: boolean
   /** Where the engine is in this deck (after open: the first slide). */
   pos: { index: number; step: number } | null
+  /**
+   * A fresh session starts on its first slide. Until the first drive has brought it to the wanted
+   * position its engine positions are only recorded, not dispatched, so the output never flashes slide 1.
+   */
+  settling: boolean
 }
 
 const sameCanvas = (a: Canvas, b: Canvas): boolean => a.width === b.width && a.height === b.height
@@ -235,7 +240,7 @@ export class SlideShowManager {
   }
 
   private openEntry(deckId: string, canvas: Canvas): void {
-    const e: Entry = { deckId, canvas: { ...canvas }, session: null, closing: false, pos: null }
+    const e: Entry = { deckId, canvas: { ...canvas }, session: null, closing: false, pos: null, settling: true }
     this.entries.set(deckId, e)
     this.engine.open(deckId, this.fileOf(deckId), canvas).then(
       (session) => {
@@ -395,6 +400,7 @@ export class SlideShowManager {
     const e = this.entries.get(deckId)
     if (e) e.pos = { index, step }
     const shown = this.state.state.shown
+    if (e?.settling) return
     if (shown?.deckId === deckId && shown.playback === 'native') {
       this.state.dispatch({ type: 'enginePosition', deckId, index, step })
     }
@@ -418,7 +424,10 @@ export class SlideShowManager {
     const clicks = (i: number): number => slides[i]?.clicks ?? 0
     const cur = e.pos
     const to = { index: shown.index, step: shown.step ?? 0 }
-    if (cur.index === to.index && cur.step === to.step) return
+    if (cur.index === to.index && cur.step === to.step) {
+      e.settling = false
+      return
+    }
     const session = e.session
     // Every engine call is bounded; a hung one is left to the heartbeat and abandoned.
     const call = (p: Promise<void>): Promise<void> => this.withTimeout(p)
@@ -437,6 +446,10 @@ export class SlideShowManager {
     for (let i = 0; i < to.step && i < clicks(to.index); i++) {
       if (gen !== this.gen) return
       await call(session.next())
+    }
+    if (e.settling) {
+      e.settling = false
+      if (e.pos) this.onPosition(deckId, e.pos.index, e.pos.step) // the engine position wins once settled
     }
   }
 }

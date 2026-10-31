@@ -346,6 +346,7 @@ namespace PptBridge
                 }
 
                 s.Hwnd = FindShowWindow();
+                StripFrame(s.Hwnd, xPx, yPx, wPx, hPx);
                 ToolWindow(s.Hwnd, behind);
                 Watch(s.Hwnd, true);
                 if (prevFg != IntPtr.Zero) Native.SetForegroundWindow(prevFg); // focus back to the operator window
@@ -393,6 +394,20 @@ namespace PptBridge
         }
 
         /// <summary>Tool window: no taskbar button, no Alt+Tab, never takes focus. Optionally at the back.</summary>
+        /// <summary>
+        /// A window-mode show has a title bar, a border and a scroll bar; the capture must see only the slide.
+        /// Strips them and sets the client area to exactly the Canvas (pixels).
+        /// </summary>
+        static void StripFrame(IntPtr h, double xPx, double yPx, double wPx, double hPx)
+        {
+            int st = Native.GetWindowLong(h, Native.GWL_STYLE);
+            Native.SetWindowLong(h, Native.GWL_STYLE, st & ~Native.WS_FRAME_BITS);
+            int ex = Native.GetWindowLong(h, Native.GWL_EXSTYLE);
+            Native.SetWindowLong(h, Native.GWL_EXSTYLE, ex & ~(Native.WS_EX_WINDOWEDGE | Native.WS_EX_CLIENTEDGE));
+            Native.SetWindowPos(h, IntPtr.Zero, (int)Math.Round(xPx), (int)Math.Round(yPx), (int)Math.Round(wPx), (int)Math.Round(hPx),
+                Native.SWP_NOZORDER | Native.SWP_NOACTIVATE | Native.SWP_FRAMECHANGED);
+        }
+
         static void ToolWindow(IntPtr h, bool behind)
         {
             int ex = Native.GetWindowLong(h, Native.GWL_EXSTYLE);
