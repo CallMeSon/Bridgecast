@@ -1533,6 +1533,22 @@ main {
     margin: 0 8px;
   }
 }
+/* Tightest Program column (about 420px): smaller gaps and hold padding so the row fits. */
+@container stage (max-width: 459px) {
+  .transport {
+    gap: 2px;
+  }
+  .transport .sepv {
+    margin: 0 4px;
+  }
+  .transport .tpos {
+    margin: 0 2px;
+  }
+  .tbtn.hold {
+    padding: 0 8px;
+    gap: 4px;
+  }
+}
 .toast {
   position: absolute;
   left: 50%;
