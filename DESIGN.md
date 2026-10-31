@@ -260,7 +260,7 @@ A single slim row, never two. Left to right: Prev chevron, `03 / 12` in mono, Ne
 - Next is the chevron plus the Space key; the Up next panel says in words what it does.
 
 ### Tags
-A tag is a small rectangle, never a dot. Radius 3px. Two forms of the state tags (LIVE, FROZEN, BLACK, KV). Icon-only (the icon alone, `title` and `aria-label` with the word) in exactly two places: the Program head (a bare accent-ink icon, 18px, no box) and the strip thumbnails (20px tag, 3px side padding so it is square). Everywhere else (deck rows, Home cards and status line) the tag carries its word: 20px tall, 8px side padding, icon plus word. The event tab has no state tag. NEXT and STANDBY always keep their word.
+A tag is a small rectangle, never a dot. Radius 3px. Two forms of the state tags (LIVE, FROZEN, BLACK, KV). Icon-only (the icon alone, `title` and `aria-label` with the word) in exactly three places: the Program head (a bare accent-ink icon, 18px, no box), the strip thumbnails (20px tag, 3px side padding so it is square) and the on-air event tab (a bare accent-ink icon, no box). Everywhere else (deck rows, Home cards and status line) the tag carries its word: 20px tall, 8px side padding, icon plus word. NEXT and STANDBY always keep their word.
 - **LIVE, BLACK, KV:** accent fill, On-accent icon, 14px. **FROZEN:** the same shape as an outline (1.5px accent ring, transparent fill, accent-ink icon), so held reads differently from on air. Icons: Broadcast, Snowflake, EyeSlash, Image. The Home status line adds the word in text next to the icon ("Live: Opening Keynote, slide 3").
 - **NEXT:** transparent, 1.5px accent ring, accent-ink word, arrow icon.
 - **STANDBY:** 1px Line High ring, Ink 2 word.

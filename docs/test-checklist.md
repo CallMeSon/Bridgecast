@@ -47,6 +47,11 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] Mute all mematikan suara seketika; matikan Mute all, suara kembali.
 - [ ] Ubah volume deck (klik kanan, Sound…) atau master volume saat slide video sedang live, tanpa klik apa pun di layar output. Suara di output ikut naik atau turun dan videonya tidak diputar ulang.
 - [ ] Cabut perangkat audio yang dipilih: suara pindah ke perangkat default dan muncul peringatan.
+- [ ] Tombol suara di transport bar membisukan suara output: suara HDMI, suara PowerPoint native (named pipe) dan suara deck web, juga suara network di vMix atau OBS. Klik lagi, suara kembali; ikon menunjukkan status bisu.
+- [ ] Settings → Sound menampilkan daftar perangkat Windows dengan nama (bukan label kosong), termasuk perangkat audio layar HDMI dan headset Bluetooth; suara slide video keluar dari perangkat yang dipilih.
+- [ ] Cabut perangkat yang dipilih saat slide video diputar: suara pindah ke default Windows, peringatan "not connected" muncul. Colok lagi dan pilih ulang perangkatnya.
+- [ ] Saat "Default (Windows)" dipilih, ganti perangkat default Windows (Settings → Sound → Output). Catat apakah suara mengikuti tanpa restart aplikasi (belum diketahui dari kode).
+- [ ] Perangkat yang tersimpan bertahan setelah restart aplikasi dan setelah restart Windows (ID perangkat bisa berubah setelah update driver; kalau tampil "not connected", catat).
 
 ## Canvas dan Fit
 
@@ -168,6 +173,16 @@ Hanya bisa dicek di Windows. Tangkapan layar Electron di Linux dan Windows sudah
 - [ ] Ikon aplikasi di taskbar pada 16px dan 24px (skala 100% dan 125%): lengkungan ikon menyatu pada 16px, titik oranye tetap terlihat dan ikon tetap bisa dikenali. Cek juga ikon di Alt+Tab, jendela output dan installer.
 - [ ] Dialog Settings (ikon gerigi): terbuka di tengah, Tab tidak keluar dari dialog, Esc menutup dan fokus kembali ke gerigi; tema, aksen (termasuk Custom) dan Reduce motion tersimpan setelah restart; About menampilkan logo Bridgecast dan versi.
 - [ ] Mode kontras tinggi Windows aktif: status LIVE, FROZEN, BLACK, KV dan NEXT masih terbaca (ikon dan kata, tidak hanya warna).
+
+## Home dan tab event (Windows)
+
+Otomatis di Linux hanya untuk tab, Home dan Settings (`e2e/web.mjs`, `e2e/settings.mjs`); sisanya perlu PC Windows dengan library sungguhan.
+
+- [ ] Home di library sungguhan (puluhan event, deck besar): Recent, All dan Archive terisi benar, thumbnail muncul, pencarian dan filter cepat, tampilan grid dan list terbaca di skala 125% dan 150%.
+- [ ] Tab bertahan setelah restart aplikasi: buka beberapa event, tutup aplikasi, buka lagi; tab yang sama muncul dan event yang aktif tetap terpilih.
+- [ ] Event yang sedang on air tetap hidup saat tabnya ditutup: tampilkan slide, tutup tab event itu dan buka Home; HDMI dan receiver network tidak berubah (slide, canvas, KV). Tombol Back to console kembali ke event itu.
+- [ ] Pindah tab dan buka Home saat slide, deck PowerPoint native dan halaman web sedang on air: tidak ada yang berubah di HDMI maupun di receiver network (vMix, OBS).
+- [ ] Delapan tab terbuka di jendela 1180px: daftar tab bisa digulir, tab live tetap terlihat di tepi, nama panjang terpotong dengan elipsis dan tombol New, HDMI, tema dan gerigi tidak keluar jendela.
 
 ## Selesai
 
