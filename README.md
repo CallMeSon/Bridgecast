@@ -1,4 +1,8 @@
-# app
+<img src="resources/brand/bridgecast-mark.svg" alt="Bridgecast" width="64">
+
+# Bridgecast
+
+From slide to screen, live.
 
 An Electron application with React and TypeScript
 

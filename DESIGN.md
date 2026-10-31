@@ -219,14 +219,14 @@ A fixed desktop console, minimum width 1180px.
 
 - **Header bar** (52px, panel, bottom rule): brand, Home, open-event tabs and New on the left; theme switch (Light, Dark) and the Settings gear on the right. Only the event tabs shrink.
 - **Main** (three columns, no gaps): Decks 288px, Program fluid, right panel 352px, divided by 1px rules.
-- **Decks panel:** head 56px (title, count, add menu), deck list, and a footer block (Key visual, then Add files and Web page side by side). Slide, PDF and video decks show a 64x36 preview of their first slide; web pages and importing decks keep an icon tile. The add menu (Add files, Add web page, Add section) is a menu, not a dialog. Add web page opens a 440px dialog (Web address, optional Name); the new web deck joins the same per-event list as slide decks and shows a Loading, then Ready chip.
+- **Decks panel:** head 56px (title, count, add menu), deck list, and a footer block (Key visual, then Add files and Web page side by side). Slide, PDF and video decks show a 64x36 preview of their first slide; web pages and importing decks keep an icon tile. The add menu (Add files, Add web page, Add section) is a menu, not a dialog. Add web page opens a large dialog (up to 1120 x 780px, head 56px) built like a small browser: a bar with Back, Forward, Reload, the address field and Open; a framed live preview of the page that fills the dialog and can be used (sign in, move to the right slide, press play); a footer with a status line, the optional Name (defaults to the page title) and Cancel / Add web page. Enter in the address field loads the preview and never adds the deck. The preview is a page, not app chrome, so it keeps its own white page colours in both themes; the new web deck joins the same per-event list as slide decks and shows a Loading, then Ready chip.
 - **Program column**, top to bottom:
   1. Title row, 56px, centred: the state tag, then the deck name in ink with "/ Program" in Ink 3 after it (16px, name 600). No separate "Program" heading.
   2. The monitor, 16:9, centred in the free height, black, 4px radius (`--r`), with a 1px ring that becomes a 2px accent ring when anything is on air.
   3. Meta line, 40px: canvas size, transition, one sentence about what the audience sees.
-  4. Transport bar, 56px, panel, top rule: Prev, position, Next, a seam, Freeze, KV, Black, and a sound icon pushed to the right.
+  4. Transport bar, 56px, panel, top rule: Prev, position, a Next chevron icon button (32px, accent-ink, no label; the user chose the minimal icon), a seam, Freeze and KV, a second seam, Black alone, and a sound icon pushed to the right. Black sits apart so it is not hit by mistake. Turning Black on shows a 4-second toast above the bar ("Black on air. The audience sees black." with an Undo button and the B key cap).
   5. Strip (timeline), 176px: a row of thumbnails with a 48px bar under it.
-- **Right panel:** underlined tabs, Info and Controls (48px). Info holds Up next (or Preview while frozen) and Notes. Controls holds Transition, Deck settings, Output and Network as collapsible sections (48px heads, 20px inset).
+- **Right panel:** underlined tabs, Info and Controls (48px). Controls is the tab open by default: Up next (or Preview while frozen, not collapsible) on top, then Transition, Deck settings, Output and Network as collapsible sections (48px heads, 20px inset). Info holds Notes.
 - **Home view** replaces the console body: filter chips, a search field, three actions, the event list as grid or list.
 
 The panel inset is 20px everywhere. The monitor is sized from the free height, so the 16:9 frame never scrolls.
@@ -250,7 +250,7 @@ Borders are 1px for structure and control edges, 1.5px for outlined tags, 2px fo
 
 ### Transport bar
 A single slim row, never two. Left to right: Prev chevron, `03 / 12` in mono, Next chevron (accent ink), a 1px seam, then Freeze, KV and Black as hold buttons, a flexible gap, a sound icon.
-- **Hold button:** 32px, Raised fill, 1px Line High border, 4px radius, ink label at 600, icon in Ink 2, key cap (mono 12px, 1px Line High border).
+- **Hold button:** 32px, Raised fill, 1px Control Edge border (3:1; the state controls and text inputs use Edge, labelled secondary buttons keep Line High), 4px radius, ink label at 600, icon in Ink 2, key cap (mono 12px, 1px Line High border).
 - **Hover:** Raised High, border goes to Control Edge. **Active (mouse down):** Line High fill.
 - **Pressed (the hold is on):** accent fill at 10% over panel, 1px accent border, accent ink text and icon, key cap outlined in the accent. No dot.
 - **Disabled:** transparent, 1px dashed Line High border, Ink 3 text. Freeze is disabled in STANDBY.
@@ -279,7 +279,7 @@ Rows are 4px-radius items with 8px 12px padding in a list inset 8px, so the text
 Thumbnails on top, a bar underneath, after Canva's page strip.
 - **Thumbnail:** fixed 140px wide, 16:9, 3px radius, 8px gap, a 1px Line High overlay ring, the slide number bottom-left in a dark chip (mono 12px, 600).
 - **LIVE / FROZEN:** 2px accent ring and the tag top-right. **NEXT:** 2px ring at 45% accent and the outlined NEXT tag. **Operator position (off air):** 1.5px Ink 2 ring, no tag.
-- **Bar** (48px, top rule): deck name (600), slide count, a legend (filled swatch "Live on Program", pale swatch "Next"). There is no zoom control; the thumbnail size is fixed.
+- **Bar** (48px, top rule): deck name (600), slide count, a legend (ring swatches that match the real rings: solid "Live on Program", pale "Next"); the thumbnail row fades out at its right edge to show it scrolls. There is no zoom control; the thumbnail size is fixed.
 
 ### Right panel sections
 - **Up next:** a 16:9 card with a 2px accent ring and 4px radius, the NEXT tag, the slide title and the position (`4 / 12` in accent-ink mono), then one sentence saying what Next does. While frozen the head says "Preview" and the card shows the operator's slide. Not collapsible.
@@ -290,7 +290,7 @@ Thumbnails on top, a bar underneath, after Canva's page strip.
 Opened by the gear in the header. A centred 560px dialog, Panel fill, 1px Line High border, 6px radius, `--pop-shadow`, over a 45% dark scrim. Head 56px with a close button. Sections: Appearance (Theme Auto, Light, Dark; Accent as a 3×2 grid of swatches with names and a check; Reduce motion), General (open the last event on start, ask before closing an event on air, keyboard shortcuts, default transition for new decks), This computer (default canvas, source name, data folder) and About (version, check for updates). Closes with the close button, a click on the scrim, or Escape; focus returns to the gear.
 
 ### Home
-A page on the Ground colour: a status line when something is on air ("LIVE Opening Keynote, slide 3 · Annual Meeting 2026" with Back to console), filter chips (40px, Line High border; pressed = Panel with a ring), a 56px search field, three action cards (New event, Import slides, Add web page; 6px radius, Line High border), Recent/All/Archive tabs with a grid/list toggle, and event cards (200px mosaic preview, name, counts and time). The on-air event card carries the LIVE tag.
+A page on the Ground colour, top to bottom: (1) the on-air banner when something is on the output: Panel fill, 1px accent ring, 6px radius, 64px tall, the state tag, the deck and slide at 16px 600 with the event name under it at 12px, and a primary Back to console button on the right. (2) A toolbar row: search field (40px, grows), then New event (primary), Import slides and Add web page as secondary buttons. (3) A tab row with a 1px rule: Recent / All events / Archive as underlined tabs (selected = accent-ink text and a 2px accent bar), and on the right a Filter menu button (All events, On air, With web pages, No decks yet; pressed = accent border) and the grid/list toggle. (4) Event cards: 16:9 first-slide preview with a 1px ring, a count or globe badge in its corner, name (truncated, the tag stays) and counts. The on-air event is always first in the list, with a 1px accent ring and the LIVE tag. Empty and no-match states say what is wrong and offer Clear search and filter and New event. Home pauses Space, F, B and K and says so in a footnote; the page has its own keys, shown as key caps on the buttons: N New event, I Import slides, W Add web page, Esc Back to console, / search. The tabs are Recent, All and Archive.
 
 ### Icons
 Phosphor, regular weight, filled glyphs in `currentColor` (the `@phosphor-icons/react` package; the mockup inlines the same paths), at 12px (chips), 14px (tags), 16px (buttons, rows), 18px (the Program head state icon) and 20px (cards, tiles). State icons: Broadcast (LIVE), Snowflake (FROZEN), EyeSlash (BLACK), Image (KV). Icon-only controls (chevrons, gear, sound, close) carry an `aria-label`.
@@ -317,3 +317,9 @@ Switch knob 0.15s, section chevron 0.18s, event card ring 0.18s. `prefers-reduce
 - **Don't** put the operator's Fade under `prefers-reduced-motion`.
 - **Don't** show a slide before its image is decoded.
 - **Don't** invent a logo; the app icon is still the stock Electron icon.
+
+## Brand
+
+The Bridgecast mark, colour, type and voice rules live in `docs/brand/README.md` and `docs/brand/voice.md`. Logo files are in `resources/brand/`.
+
+`--brand-signal` (`#f26f1c`) is the logo dot and stays separate from the accent. It never follows the accent preset or a custom colour.

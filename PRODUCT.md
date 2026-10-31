@@ -1,5 +1,7 @@
 # Product
 
+Name: Bridgecast. Tagline: From slide to screen, live. Brand and voice: `docs/brand/`.
+
 <!-- impeccable:product-schema 1 -->
 
 ## Platform
