@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-accent="violet">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PPT Share operator window mockup</title>
+<style>
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../../src/renderer/src/assets/fonts/geist-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+:root {
+  --font-sans: 'Geist', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  --r-sm: 6px;
+  --r: 10px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --tally: #d32f29;
+  --on-tally: #ffffff;
+  --letterbox: #000000;
+}
+
+/* Light: soft cool-grey ground, white panels (Rimo images 3 and 4). */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #eceef3;
+  --panel: #ffffff;
+  --raised: #f3f4f8;
+  --raised-hi: #e8eaf1;
+  --line: #e6e8ee;
+  --line-hi: #d3d6df;
+  --edge: #7b8091;
+  --text: #1a1c24;
+  --text-2: #4a4e5c;
+  --text-3: #626776;
+  --tally-ink: #b01d17;
+  --focus: #1a1c24;
+  --shadow-1: 0 1px 2px rgba(24, 28, 48, 0.06), 0 6px 20px rgba(24, 28, 48, 0.07);
+  --pop-shadow: 0 12px 36px rgba(24, 28, 48, 0.2);
+}
+
+/* Dark: near-black editor (Rimo image 2). */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0e0f12;
+  --panel: #17181d;
+  --raised: #202228;
+  --raised-hi: #2a2c34;
+  --line: #262830;
+  --line-hi: #383b45;
+  --edge: #81869a;
+  --text: #ecedf2;
+  --text-2: #b4b7c4;
+  --text-3: #9195a6;
+  --tally-ink: #ff7a72;
+  --focus: #ecedf2;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --pop-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* Accent presets. accent = fill, ink = accent as text, on = text on the fill. */
+:root[data-theme='light'][data-accent='violet'] { --accent: #5b4bd6; --accent-ink: #5342c9; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='blue']   { --accent: #2160d4; --accent-ink: #1c55bd; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='mint']   { --accent: #0a7561; --accent-ink: #0a6a58; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='rose']   { --accent: #9a4586; --accent-ink: #8d3f7a; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='sand']   { --accent: #85652a; --accent-ink: #77590f; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='slate']  { --accent: #475569; --accent-ink: #3f4b5d; --on-accent: #ffffff; }
+:root[data-theme='dark'][data-accent='violet']  { --accent: #a99cff; --accent-ink: #b9aeff; --on-accent: #16112f; }
+:root[data-theme='dark'][data-accent='blue']    { --accent: #82b2ff; --accent-ink: #98c0ff; --on-accent: #08193a; }
+:root[data-theme='dark'][data-accent='mint']    { --accent: #6fd9bb; --accent-ink: #86e3c8; --on-accent: #06231c; }
+:root[data-theme='dark'][data-accent='rose']    { --accent: #e3a3d2; --accent-ink: #ebb6dd; --on-accent: #2b0f25; }
+:root[data-theme='dark'][data-accent='sand']    { --accent: #dcc283; --accent-ink: #e5cf9d; --on-accent: #241a07; }
+:root[data-theme='dark'][data-accent='slate']   { --accent: #aebacb; --accent-ink: #c0cad8; --on-accent: #131a24; }
+:root { --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent); --accent-soft-hi: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  display: flex; flex-direction: column;
+  font: 14px / 1.45 var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+::selection { background: var(--accent-soft-hi); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line-hi); border-radius: var(--r-pill); border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+.ico { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.mono { font-family: var(--font-mono); }
+
+/* ---------- Mock tooling (not part of the app) ---------- */
+.mock {
+  position: static; z-index: 50; display: flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 6px 12px;
+  background: #15161a; color: #e9eaf0; font-size: 12px;
+}
+.mock b { font-weight: 600; color: #9a9eb0; margin-right: 2px; }
+.mock button {
+  border: 0; background: #262830; color: #e9eaf0; height: 28px; padding: 0 12px; border-radius: var(--r-pill);
+}
+.mock button[aria-pressed='true'] { background: #e9eaf0; color: #15161a; font-weight: 600; }
+
+/* ---------- App shell ---------- */
+.app { height: calc(100vh - 40px); min-width: 1180px; display: grid; grid-template-rows: 64px 1fr 164px; gap: 16px; padding: 0 16px 16px; }
+
+.header { display: flex; align-items: center; gap: 12px; padding: 12px 0 0; min-width: 0; }
+.pillbar { display: flex; align-items: center; gap: 4px; height: 44px; padding: 5px 6px 5px 18px; background: var(--panel); border-radius: var(--r-pill); box-shadow: var(--shadow-1); min-width: 0; }
+.pillbar.left { flex: 0 1 auto; max-width: calc(100% - 330px); }
+.brand { font-weight: 650; font-size: 15px; letter-spacing: -0.015em; margin-right: 6px; white-space: nowrap; }
+.hsep { width: 1px; height: 20px; background: var(--line-hi); margin: 0 6px; flex: none; }
+.homebtn { width: 34px; height: 34px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: var(--text-2); flex: none; }
+.homebtn:hover { background: var(--raised); color: var(--text); }
+.homebtn[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent-ink); }
+.tabsbar { display: flex; gap: 2px; min-width: 0; overflow: hidden; }
+.otab { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px 0 14px; border-radius: var(--r-pill); border: 0; background: transparent; color: var(--text-2); font-size: 13.5px; font-weight: 550; max-width: 210px; min-width: 0; }
+.otab:hover { background: var(--raised); }
+.otab[aria-selected='true'] { background: var(--raised); color: var(--text); }
+.otab .tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.otab .live { width: 8px; height: 8px; border-radius: 50%; background: var(--tally); flex: none; }
+.otab .x { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; border: 0; background: transparent; color: var(--text-3); flex: none; }
+.otab .x:hover { background: var(--raised-hi); color: var(--text); }
+.otab .x .ico { width: 12px; height: 12px; }
+.newbtn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 10px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--text-2); font-weight: 550; font-size: 13.5px; flex: none; }
+.newbtn:hover { background: var(--raised); color: var(--text); }
+.spacer { flex: 1; }
+.pillbar.right { padding: 4px 6px; }
+.pillbar.right .seg { border: 0; background: transparent; padding: 2px; }
+.pillbar.right .seg button { height: 32px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; font-size: 14px;
+  background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); font-weight: 550;
+}
+.btn:hover { background: var(--raised-hi); }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 13px; border-radius: var(--r-sm); }
+
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); }
+.seg button {
+  height: 32px; padding: 0 14px; font-size: 13px; border: 0; background: transparent; color: var(--text-2);
+  border-radius: 7px; font-weight: 550; display: inline-flex; align-items: center; gap: 6px; position: relative;
+}
+.seg button:hover { background: var(--raised-hi); }
+.seg button[aria-checked='true'], .seg button[aria-pressed='true'] {
+  background: var(--panel); color: var(--text); box-shadow: var(--shadow-1);
+}
+.seg button[aria-checked='true'], .seg button[aria-pressed='true'] { color: var(--accent-ink); font-weight: 650; }
+
+/* ---------- Main columns ---------- */
+.main { display: grid; grid-template-columns: 288px minmax(0, 1fr) 352px; gap: 16px; min-height: 0; }
+.panel { background: var(--panel); border-radius: var(--r-lg); box-shadow: var(--shadow-1); min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.phead { display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 20px; flex: none; }
+.phead h2 { font-size: 16px; font-weight: 650; letter-spacing: -0.015em; }
+.count { font-family: var(--font-mono); color: var(--text-3); font-size: 12px; }
+.iconbtn { width: 30px; height: 30px; display: grid; place-items: center; border: 0; background: transparent; border-radius: var(--r-sm); color: var(--text-2); }
+.iconbtn:hover { background: var(--raised); color: var(--text); }
+
+/* Decks */
+.decks { overflow: auto; padding: 0 12px 12px; flex: 1; display: grid; gap: 2px; align-content: start; }
+.deck { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: var(--r); width: 100%; border: 0; background: transparent; text-align: left; }
+.deck:hover { background: var(--raised); }
+.deck[aria-current='true'] { background: var(--accent-soft); }
+.deck > span:nth-child(2) { min-width: 0; }
+.deck .tile { width: 40px; height: 40px; border-radius: 10px; background: var(--raised); display: grid; place-items: center; color: var(--text-2); }
+.deck[aria-current='true'] .tile { background: var(--panel); color: var(--accent-ink); }
+.deck .nm { font-weight: 550; font-size: 14px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck .st { color: var(--text-3); font-size: 12px; line-height: 1.3; margin-top: 3px; }
+.deck .st.air { color: var(--tally-ink); font-weight: 600; }
+.deck .n { font-family: var(--font-mono); font-size: 12px; color: var(--text-3); }
+.secdiv { padding: 20px 12px 8px; font-size: 12px; font-weight: 600; color: var(--text-2); display: flex; align-items: center; gap: 12px; }
+.secdiv::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: var(--r-pill); font-size: 11px; font-weight: 600; background: var(--raised); color: var(--text-2); }
+.chip.ready::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.progress { grid-column: 2 / 4; height: 5px; border-radius: 3px; background: var(--raised-hi); overflow: hidden; margin-top: 4px; }
+.progress i { display: block; height: 100%; width: 62%; background: var(--text-2); border-radius: 3px; }
+.dfoot { border-top: 1px solid var(--line); padding: 16px 20px 20px; display: grid; grid-template-columns: 64px 1fr; gap: 12px 16px; align-items: center; flex: none; }
+.kvthumb { aspect-ratio: 16/9; border-radius: var(--r-sm); background: #2b2f55; display: grid; place-items: center; color: #fff; font-size: 8px; font-weight: 700; letter-spacing: .02em; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.dfoot .l { font-weight: 550; }
+.dfoot .s { color: var(--text-3); font-size: 12px; }
+.dfoot .btn { grid-column: 1 / 3; justify-content: center; }
+
+/* Program */
+.stage { container-type: inline-size; container-name: stage; }
+.ptitle { display: flex; align-items: center; gap: 14px; height: 60px; padding: 0 24px; flex: none; }
+.ptitle h2 { font-size: 16px; font-weight: 650; letter-spacing: -0.015em; }
+.ptitle .where { color: var(--text-2); font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tally { display: inline-flex; align-items: center; gap: 8px; font: 600 13px / 1 var(--font-sans); letter-spacing: 0.02em; color: var(--tally-ink); }
+.tally::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--tally); flex: none; }
+.tally .ico { display: none; }
+.tally[data-k='frozen']::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--tally); }
+.tally[data-k='standby'] { color: var(--text-3); }
+.tally[data-k='standby']::before { background: var(--line-hi); }
+.pos { margin-left: auto; font: 600 26px / 1 var(--font-mono); letter-spacing: -0.02em; }
+.pos small { color: var(--text-3); font-weight: 500; font-size: 15px; letter-spacing: 0; }
+
+.monwrap { flex: 1; min-height: 0; display: grid; place-items: center; padding: 0 24px; container-type: size; }
+.monitor {
+  width: min(100cqw, (100cqh) * 16 / 9); aspect-ratio: 16/9; background: var(--letterbox); border-radius: 12px;
+  position: relative; overflow: hidden;
+}
+.monitor::after { content: ''; position: absolute; inset: 0; border-radius: 12px; pointer-events: none; box-shadow: inset 0 0 0 1px var(--line); }
+.app[data-state='live'] .monitor::after, .app[data-state='frozen'] .monitor::after, .app[data-state='black'] .monitor::after, .app[data-state='kv'] .monitor::after { box-shadow: inset 0 0 0 2px var(--tally); }
+.mmeta { display: flex; align-items: center; gap: 16px; height: 40px; padding: 0 24px; color: var(--text-2); font-size: 13px; flex: none; }
+.mmeta .mono { color: var(--text-3); font-size: 12px; }
+
+/* Slide art (synthetic demo content) */
+.slide { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 8%; color: #fff; background: #1f2a44; container-type: inline-size; }
+.slide h3 { font-size: 7.4cqw; line-height: 1.05; letter-spacing: -0.02em; font-weight: 650; max-width: 80%; }
+.slide p { font-size: 3.2cqw; margin-top: 3cqw; opacity: .8; }
+.slide .bar { width: 12cqw; height: .9cqw; background: #8fb0ff; margin-bottom: 3cqw; border-radius: 1cqw; }
+.slide.kv { background: #2b2f55; align-items: flex-start; }
+.slide.kv .bar { background: #ffd27a; }
+.slide.standby { background: #0d0d10; color: #9a9a98; align-items: center; text-align: center; }
+.slide.standby h3 { font-size: 4.6cqw; max-width: none; font-weight: 600; }
+.slide.black { background: #000; }
+.slide[hidden] { display: none; }
+
+/* Control deck */
+.deck-ctl { display: grid; grid-template-columns: auto auto 1fr auto auto; gap: 12px; align-items: center; padding: 20px 24px 24px; flex: none; border-top: 1px solid var(--line); }
+.cbtn {
+  height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 0 16px;
+  background: var(--raised); border: 1px solid var(--line); border-radius: 14px; font: 600 15px var(--font-sans);
+}
+.cbtn:hover { background: var(--raised-hi); }
+.cbtn[aria-pressed='true'] { background: var(--raised-hi); color: var(--text); border-color: transparent; font-weight: 650; }
+.cbtn[aria-pressed='true']::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--tally); flex: none; }
+.cbtn.next { height: 56px; min-width: 196px; background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-size: 17px; font-weight: 650; letter-spacing: -0.01em; padding: 0 24px; }
+.cbtn.next:hover { filter: brightness(1.06); }
+.cbtn.next kbd { border-color: color-mix(in srgb, var(--on-accent) 55%, transparent); color: var(--on-accent); background: transparent; }
+kbd { font: 500 11px / 1 var(--font-mono); padding: 4px 6px; border-radius: 5px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); }
+.grp { display: flex; gap: 12px; }
+.hint { color: var(--text-3); font-size: 12px; text-align: center; }
+
+/* Right panel: Properties */
+.props { overflow: auto; flex: 1; padding: 0 0 8px; }
+.sec { border-top: 1px solid var(--line); padding-top: 4px; }
+.sec:first-child { border-top: 0; }
+.sec > .sh { width: 100%; display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px; background: transparent; border: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; text-align: left; }
+.sec > .sh:hover { background: var(--raised); }
+.sec > .sh .chev { margin-left: auto; color: var(--text-3); transition: transform .18s cubic-bezier(.16, 1, .3, 1); }
+.sec.static > .sh { cursor: default; }
+.sec.static > .sh:hover { background: transparent; }
+.sec[data-open='false'] > .sh .chev { transform: rotate(-90deg); }
+.sec[data-open='false'] > .sb { display: none; }
+.sb { padding: 0 20px 24px; display: grid; gap: 16px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 36px; }
+.row .k { color: var(--text-2); font-size: 14px; }
+.row .v { font-weight: 550; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+.row .v.mono { font-family: var(--font-mono); font-weight: 500; font-size: 13px; }
+.lbl { color: var(--text-2); font-size: 12px; font-weight: 550; margin-bottom: 8px; }
+
+.nextcard { display: grid; gap: 12px; }
+.nextthumb { position: relative; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; }
+.nextthumb::after { content: ''; position: absolute; inset: 0; border-radius: 8px; box-shadow: inset 0 0 0 2px var(--accent); pointer-events: none; }
+.nextmeta { display: flex; align-items: center; gap: 10px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 12px / 1 var(--font-sans); letter-spacing: 0.02em; }
+.pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.pill.next { color: var(--accent-ink); }
+.pill.next::before { background: var(--accent); }
+.pill.live, .pill.frozen { color: var(--tally-ink); }
+.pill.live::before { background: var(--tally); }
+.pill.frozen::before { box-shadow: inset 0 0 0 1.5px var(--tally); }
+.nextmeta .t { flex: 1; font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nextmeta .p { font: 600 15px var(--font-mono); color: var(--accent-ink); }
+.notes { font-size: 16px; line-height: 1.55; color: var(--text); max-width: 34ch; }
+.notes.dim { color: var(--text-3); }
+
+.switch { display: inline-flex; align-items: center; gap: 10px; border: 0; background: transparent; padding: 0; font-weight: 550; color: var(--text-2); }
+.switch .tr { width: 42px; height: 24px; border-radius: var(--r-pill); background: var(--raised-hi); box-shadow: inset 0 0 0 1px var(--edge); position: relative; transition: background .15s; }
+.switch .tr::after { content: ''; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-2); transition: transform .15s; }
+.switch[aria-checked='true'] .tr { background: var(--accent); box-shadow: none; }
+.switch[aria-checked='true'] .tr::after { transform: translateX(18px); background: var(--on-accent); }
+.switch .w { min-width: 24px; text-align: right; }
+
+.slider { appearance: none; width: 120px; height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--v, 70%), var(--raised-hi) var(--v, 70%)); }
+.slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--panel); border: 2px solid var(--accent); }
+
+/* Strip (timeline) */
+.strip { background: var(--panel); border-radius: var(--r-lg); box-shadow: var(--shadow-1); display: grid; grid-template-rows: 48px 1fr; min-height: 0; overflow: hidden; }
+.shead { display: flex; align-items: center; gap: 12px; padding: 4px 24px 0; }
+.shead .dn { font-weight: 650; font-size: 15px; letter-spacing: -0.01em; }
+.legend { display: flex; gap: 20px; margin-left: auto; color: var(--text-2); font-size: 12px; }
+.legend i { display: inline-block; width: 12px; height: 8px; border-radius: 3px; margin-right: 6px; vertical-align: 0; }
+.legend .l i { background: var(--tally); }
+.legend .n i { background: var(--accent); }
+.thumbs { display: flex; gap: 16px; padding: 4px 24px 16px; overflow-x: auto; align-items: flex-start; }
+.th { width: 140px; flex: none; display: grid; gap: 8px; border: 0; background: transparent; padding: 0; text-align: left; }
+.th .im { position: relative; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; }
+.th .im::after { content: ''; position: absolute; inset: 0; border-radius: 8px; pointer-events: none; box-shadow: inset 0 0 0 1px var(--line); }
+.th .im .slide { padding: 9%; }
+.th[data-r='live'] .im::after, .th[data-r='frozen'] .im::after { box-shadow: inset 0 0 0 2px var(--tally); }
+.th[data-r='next'] .im::after { box-shadow: inset 0 0 0 2px var(--accent); }
+.th[data-r='op'] .im::after { box-shadow: inset 0 0 0 1.5px var(--text-2); }
+.th:hover .im::after { box-shadow: inset 0 0 0 1.5px var(--text-3); }
+.th .mt { display: flex; align-items: center; gap: 6px; font: 500 12px var(--font-mono); color: var(--text-3); min-height: 20px; }
+.th[data-r='live'] .mt, .th[data-r='next'] .mt { color: var(--text); }
+
+/* Right panel tabs */
+.tabs { padding: 12px 20px 16px; flex: none; }
+.tabs .seg { display: flex; width: 100%; }
+.tabs .seg button { flex: 1; justify-content: center; height: 36px; font-size: 14px; }
+.pane { display: none; }
+#rpanel[data-tab='info'] .pane[data-pane='info'], #rpanel[data-tab='settings'] .pane[data-pane='settings'] { display: block; }
+.ptl { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+.note { color: var(--text-3); font-size: 12px; line-height: 1.5; max-width: 38ch; }
+
+/* Accent presets picker */
+.sb .seg { display: flex; width: 100%; }
+.sb .seg button { flex: 1; justify-content: center; }
+.props { border-top: 1px solid var(--line); padding-top: 8px; }
+.swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.sw { height: 44px; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 13px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); font-weight: 550; }
+.sw:hover { background: var(--raised); }
+.sw .c { width: 18px; height: 18px; border-radius: 50%; background: var(--c); flex: none; }
+.sw[aria-checked='true'] { box-shadow: 0 0 0 1.5px var(--text-2); border-color: transparent; }
+.sw .ck { margin-left: auto; opacity: 0; }
+.sw[aria-checked='true'] .ck { opacity: 1; }
+
+/* Home (event browser) */
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+.home { display: none; grid-row: 2 / 4; overflow: auto; margin: 0 -16px -16px; padding: 0 16px 32px; }
+.app[data-view='home'] .home { display: block; }
+.app[data-view='home'] .main, .app[data-view='home'] .strip { display: none; }
+.hwrap { max-width: 1120px; margin: 0 auto; padding: 28px 8px 8px; display: grid; gap: 28px; }
+.onair { display: none; align-items: center; justify-content: center; gap: 12px; max-width: 780px; width: 100%; margin: 0 auto; font-size: 14px; color: var(--text-2); }
+.onair.show { display: flex; }
+.onair .msg { font-weight: 450; }
+.onair .lnk { display: inline-flex; align-items: center; gap: 4px; height: auto; padding: 0; border: 0; background: none; color: var(--accent-ink); font: 550 14px var(--font-sans); }
+.onair .lnk:hover { text-decoration: underline; text-underline-offset: 3px; }
+.onair .lnk .ico { width: 14px; height: 14px; }
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.chipf { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: var(--r-pill); border: 1px solid var(--line); background: transparent; color: var(--text-2); font-size: 14px; font-weight: 550; }
+.chipf:hover { background: var(--panel); color: var(--text); }
+.chipf[aria-pressed='true'] { background: var(--panel); color: var(--text); box-shadow: var(--shadow-1); border-color: transparent; }
+.bigsearch { display: flex; align-items: center; gap: 14px; max-width: 780px; width: 100%; margin: 0 auto; height: 64px; padding: 0 22px; background: var(--panel); border-radius: var(--r-lg); box-shadow: var(--shadow-1); color: var(--text-3); }
+.bigsearch input { flex: 1; min-width: 0; border: 0; background: transparent; font: 16px var(--font-sans); color: var(--text); outline: none; }
+.bigsearch:focus-within { box-shadow: var(--shadow-1), 0 0 0 1.5px var(--accent); }
+.bigsearch kbd { font: 500 12px/1 var(--font-sans); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--text-3); }
+.ctas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; max-width: 780px; width: 100%; margin: 0 auto; }
+.cta { display: grid; justify-items: center; gap: 4px; padding: 20px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: transparent; text-align: center; color: var(--text-2); }
+.cta:hover { background: var(--panel); border-color: transparent; box-shadow: var(--shadow-1); }
+.cta .ico { width: 20px; height: 20px; margin-bottom: 6px; color: var(--text-2); }
+.cta b { font-size: 14px; font-weight: 600; color: var(--text); }
+.cta span { font-size: 12px; color: var(--text-3); }
+.lhead { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.ltabs { display: flex; gap: 4px; }
+.ltab { height: 34px; padding: 0 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--text-2); font-size: 14px; font-weight: 550; }
+.ltab:hover { color: var(--text); }
+.ltab[aria-selected='true'] { background: var(--raised-hi); color: var(--text); }
+.lhead .vt { margin-left: auto; }
+.vt button { width: 34px; padding: 0; justify-content: center; }
+.evgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.evgrid.list { grid-template-columns: 1fr; gap: 8px; }
+.ev { display: grid; grid-template-rows: 200px auto; text-align: left; padding: 0; background: var(--panel); border: 0; border-radius: var(--r-lg); box-shadow: var(--shadow-1); overflow: hidden; transition: box-shadow .18s cubic-bezier(.16, 1, .3, 1), transform .18s cubic-bezier(.16, 1, .3, 1); }
+.ev:hover { box-shadow: var(--shadow-1), 0 0 0 1px var(--accent-soft-hi); transform: translateY(-2px); }
+.ev[data-open='true'] { box-shadow: var(--shadow-1), 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent); }
+.evp { background: var(--raised); display: grid; place-items: center; padding: 18px; }
+.mosaic { width: 100%; max-width: 232px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.mosaic i { display: block; aspect-ratio: 16/9; border-radius: 4px; }
+.evp .none { color: var(--text-3); font-size: 13px; }
+.evf { display: grid; gap: 3px; padding: 14px 18px 16px; }
+.evf h3 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+.evf h3 .lv { width: 8px; height: 8px; border-radius: 50%; background: var(--tally); }
+.evf p { color: var(--text-3); font-size: 12px; }
+.evgrid.list .ev { grid-template-rows: none; grid-template-columns: 120px 1fr; }
+.evgrid.list .evp { padding: 10px; }
+.evgrid.list .mosaic { max-width: none; grid-template-columns: repeat(2, 1fr); }
+.evgrid.list .mosaic i:nth-child(n+3) { display: none; }
+.evgrid.list .evf { align-content: center; }
+.empty { grid-column: 1 / -1; padding: 40px 0; text-align: center; color: var(--text-3); }
+.keys { color: var(--text-3); font-size: 12px; text-align: center; }
+
+/* Narrower Program column: two rows, keys hide */
+@container stage (max-width: 760px) {
+  .deck-ctl { grid-template-columns: repeat(3, 1fr); }
+  .deck-ctl .hint { display: none; }
+  .deck-ctl .grp { display: contents; }
+  .deck-ctl .grp:first-child { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 2fr; }
+}
+@container stage (max-width: 880px) { .cbtn kbd.opt { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"/></symbol>
+  <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M3.5 3.5l17 17M10.2 6.2A9.6 9.6 0 0 1 12 6c4.5 0 8 3.2 9.5 6-.6 1.1-1.5 2.2-2.7 3.2M6.5 8C4.9 9 3.7 10.5 2.5 12c1.5 2.8 5 6 9.5 6 1.3 0 2.5-.3 3.6-.8M9.9 10a3 3 0 0 0 4.1 4.1"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16" /><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5S9.4 5.9 12 3.5z"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M4 14.5h16M9 4.5v15M15 4.5v15"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M4.5 15v4.5h15V15"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.8"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/></symbol>
+</svg>
+
+<div class="app" id="app" data-state="live">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="pillbar left">
+      <span class="brand">PPT Share</span>
+      <span class="hsep"></span>
+      <button class="homebtn" id="homeBtn" aria-pressed="false" aria-label="Events home" title="Events home"><svg class="ico"><use href="#i-grid"/></svg></button>
+      <span class="hsep"></span>
+      <div class="tabsbar" id="tabsbar" role="tablist" aria-label="Open events"></div>
+      <button class="newbtn" id="newBtn"><svg class="ico"><use href="#i-plus"/></svg>New</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="pillbar right">
+      <div class="seg" role="group" aria-label="Theme" id="themeSeg">
+        <button data-th="system" aria-pressed="false"><svg class="ico"><use href="#i-auto"/></svg>Auto</button>
+        <button data-th="light" aria-pressed="true"><svg class="ico"><use href="#i-sun"/></svg>Light</button>
+        <button data-th="dark" aria-pressed="false"><svg class="ico"><use href="#i-moon"/></svg>Dark</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Home: find, open or create an event -->
+  <main class="home" aria-label="Events">
+    <div class="hwrap">
+      <div class="onair" id="onair" role="status">
+        <span class="tally" id="onairTally" data-k="live">LIVE</span>
+        <span class="msg" id="onairMsg"></span>
+        <button class="lnk" id="backBtn">Back to console<svg class="ico"><use href="#i-right"/></svg></button>
+      </div>
+
+      <div class="chips" role="group" aria-label="Filter events" id="chips">
+        <button class="chipf" data-f="all" aria-pressed="true">All events</button>
+        <button class="chipf" data-f="live" aria-pressed="false">On air</button>
+        <button class="chipf" data-f="web" aria-pressed="false">With web pages</button>
+        <button class="chipf" data-f="empty" aria-pressed="false">No decks yet</button>
+      </div>
+
+      <label class="bigsearch"><svg class="ico"><use href="#i-search"/></svg><input id="q" type="search" placeholder="Search events and decks…" aria-label="Search events and decks" autocomplete="off"><kbd>/</kbd></label>
+
+      <div class="ctas">
+        <button class="cta" id="ctaNew"><svg class="ico"><use href="#i-plus"/></svg><b>New event</b><span>Starts empty</span></button>
+        <button class="cta"><svg class="ico"><use href="#i-upload"/></svg><b>Import slides</b><span>.pptx, .ppt, .pdf or a video folder</span></button>
+        <button class="cta"><svg class="ico"><use href="#i-globe"/></svg><b>Add web page</b><span>Canva, YouTube or any https page</span></button>
+      </div>
+
+      <div class="lhead">
+        <div class="ltabs" role="tablist" id="ltabs">
+          <button class="ltab" role="tab" data-l="recent" aria-selected="true">Recent</button>
+          <button class="ltab" role="tab" data-l="all" aria-selected="false">All events</button>
+          <button class="ltab" role="tab" data-l="archive" aria-selected="false">Archive</button>
+        </div>
+        <div class="seg vt" role="group" aria-label="View" id="vt">
+          <button data-v="grid" aria-pressed="true" aria-label="Grid view"><svg class="ico"><use href="#i-grid"/></svg></button>
+          <button data-v="list" aria-pressed="false" aria-label="List view"><svg class="ico"><use href="#i-list"/></svg></button>
+        </div>
+      </div>
+
+      <div class="evgrid" id="evgrid"></div>
+
+      <p class="keys">Keys are paused here. Space, F, B and K work again in the console.</p>
+    </div>
+  </main>
+
+  <div class="main">
+
+    <!-- Decks -->
+    <section class="panel" aria-label="Decks">
+      <div class="phead"><h2>Decks</h2><span class="count">4 decks</span>
+        <span class="spacer"></span>
+        <button class="iconbtn" aria-label="Add files"><svg class="ico"><use href="#i-plus"/></svg></button>
+      </div>
+      <div class="decks">
+        <button class="deck" aria-current="true"><span class="tile"><svg class="ico"><use href="#i-file"/></svg></span>
+          <span><div class="nm">Opening Keynote</div><div class="st air" id="deckStatus">LIVE, slide 3</div></span><span class="n">12</span></button>
+        <button class="deck"><span class="tile"><svg class="ico"><use href="#i-file"/></svg></span>
+          <span><div class="nm">Product Update, Q3 numbers and the road ahead</div><div class="st">12 slides</div></span><span class="n">12</span></button>
+        <div class="secdiv">Afternoon</div>
+        <button class="deck"><span class="tile"><svg class="ico"><use href="#i-globe"/></svg></span>
+          <span><div class="nm">Panel Q&amp;A (Canva)</div><div class="st">Web page</div></span><span class="chip ready">Ready</span></button>
+        <button class="deck"><span class="tile"><svg class="ico"><use href="#i-film"/></svg></span>
+          <span><div class="nm">Sponsor Loop</div><div class="st">Video, plays once</div></span><span class="n">6</span></button>
+        <div class="deck" style="cursor: default">
+          <span class="tile"><svg class="ico"><use href="#i-upload"/></svg></span>
+          <span><div class="nm">Closing Remarks.pptx</div><div class="st">Importing, 62%</div></span><span class="n"></span>
+          <div class="progress" role="progressbar" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+        </div>
+      </div>
+      <div class="dfoot">
+        <div class="kvthumb" aria-hidden="true"><svg class="ico"><use href="#i-image"/></svg></div>
+        <div><div class="l">Key visual (KV)</div><div class="s">Shown with K</div></div>
+        <button class="btn sm"><svg class="ico"><use href="#i-plus"/></svg>Add files</button>
+      </div>
+    </section>
+
+    <!-- Program -->
+    <section class="panel stage" aria-label="Program">
+      <div class="ptitle">
+        <h2>Program</h2>
+        <span class="tally" id="tally" data-k="live">LIVE</span>
+        <span class="where" id="where">Opening Keynote</span>
+        <span class="pos" id="pos">3 <small>/ 12</small></span>
+      </div>
+      <div class="monwrap">
+        <div class="monitor" id="monitor"></div>
+      </div>
+      <div class="mmeta"><span class="mono">1920 × 1080</span><span>Cut</span><span id="mnote">Audience sees slide 3</span></div>
+      <div class="deck-ctl">
+        <div class="grp">
+          <button class="cbtn" id="prev"><svg class="ico"><use href="#i-left"/></svg>Prev <kbd class="opt">←</kbd></button>
+          <button class="cbtn next" id="next">Next <kbd>Space</kbd><kbd class="opt">→</kbd><svg class="ico"><use href="#i-right"/></svg></button>
+        </div>
+        <span class="hint"></span>
+        <span class="hint"></span>
+        <button class="cbtn" id="bFreeze" aria-pressed="false"><svg class="ico"><use href="#i-snow"/></svg>Freeze <kbd class="opt">F</kbd></button>
+        <div class="grp">
+          <button class="cbtn" id="bKv" aria-pressed="false"><svg class="ico"><use href="#i-image"/></svg>KV <kbd class="opt">K</kbd></button>
+          <button class="cbtn" id="bBlack" aria-pressed="false"><svg class="ico"><use href="#i-eyeoff"/></svg>Black <kbd class="opt">B</kbd></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right panel: Info and Settings tabs -->
+    <aside class="panel" aria-label="Info and settings" id="rpanel" data-tab="info">
+      <div class="tabs">
+        <div class="seg" role="tablist" aria-label="Right panel">
+          <button role="tab" id="tabInfo" aria-selected="true" aria-controls="paneInfo" aria-pressed="true" data-tab="info">Info</button>
+          <button role="tab" id="tabSet" aria-selected="false" aria-controls="paneSet" aria-pressed="false" data-tab="settings">Settings</button>
+        </div>
+      </div>
+      <div class="props">
+
+        <div class="pane" id="paneInfo" role="tabpanel" aria-labelledby="tabInfo" data-pane="info">
+          <div class="sec static" data-open="true">
+            <div class="sb" style="padding-top: 4px">
+              <h3 class="ptl" id="rtitle">Up next</h3>
+              <div class="nextcard">
+                <div class="nextthumb"><div class="slide" id="nextSlide"><div class="bar"></div><h3>Roadmap</h3><p>What ships next quarter</p></div></div>
+                <div class="nextmeta"><span class="pill next">NEXT</span><span class="t" id="nextTitle">Roadmap</span><span class="p" id="nextPos">4 / 12</span></div>
+              </div>
+              <div class="mmeta" style="padding: 0; height: auto; color: var(--text-2)" id="nextCap">Space or → takes slide 4 to air.</div>
+            </div>
+          </div>
+          <div class="sec" data-open="true">
+            <button class="sh" aria-expanded="true">Notes<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb"><p class="notes" id="notes">Thank the sponsors, then move quickly. The Q3 chart is the only slide that needs a pause.</p></div>
+          </div>
+        </div>
+
+        <div class="pane" id="paneSet" role="tabpanel" aria-labelledby="tabSet" data-pane="settings">
+          <div class="sec" data-open="true">
+            <button class="sh" aria-expanded="true">Transition<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div class="seg" role="radiogroup" aria-label="Transition"><button role="radio" aria-checked="false">Cut</button><button role="radio" aria-checked="true">Fade</button></div>
+              <div class="row"><span class="k">Continue to next deck</span>
+                <button class="switch" role="switch" aria-checked="false"><span class="w">Off</span><span class="tr"></span></button></div>
+            </div>
+          </div>
+
+          <div class="sec" data-open="true">
+            <button class="sh" aria-expanded="true">Deck settings<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div><div class="lbl">Display mode</div>
+                <div class="seg" role="radiogroup" aria-label="Display mode"><button role="radio" aria-checked="true">Fit</button><button role="radio" aria-checked="false">Fill</button><button role="radio" aria-checked="false">Stretch</button></div></div>
+              <div class="row"><span class="k">Sound</span><span class="v"><svg class="ico"><use href="#i-speaker"/></svg><input class="slider" type="range" min="0" max="100" value="70" aria-label="Deck volume" style="--v:70%"><span class="mono">70</span></span></div>
+              <div class="row"><span class="k">Canvas</span><span class="v mono">1920 × 1080</span><button class="btn sm">Change</button></div>
+            </div>
+          </div>
+
+          <div class="sec" data-open="true">
+            <button class="sh" aria-expanded="true">Output<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div class="row"><span class="k">HDMI display</span><span class="v">Display 2 <span class="chip ready">On</span></span></div>
+              <div class="row"><span class="k">Show on HDMI</span>
+                <button class="switch" role="switch" aria-checked="true"><span class="w">On</span><span class="tr"></span></button></div>
+              <div><div class="lbl">Sound route</div>
+                <div class="seg" role="radiogroup" aria-label="Sound route"><button role="radio" aria-checked="true">Local</button><button role="radio" aria-checked="false">Network</button><button role="radio" aria-checked="false">Both</button></div></div>
+              <div class="row"><span class="k">Master volume</span><span class="v"><input class="slider" type="range" min="0" max="100" value="85" aria-label="Master volume" style="--v:85%"><span class="mono">85</span></span></div>
+              <div class="row"><span class="k">Mute all</span>
+                <button class="switch" role="switch" aria-checked="false"><span class="w">Off</span><span class="tr"></span></button></div>
+            </div>
+          </div>
+
+          <div class="sec" data-open="false">
+            <button class="sh" aria-expanded="false">Network<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div class="row"><span class="k">OMT</span>
+                <button class="switch" role="switch" aria-checked="false"><span class="w">Off</span><span class="tr"></span></button></div>
+              <div class="row"><span class="k">NDI</span>
+                <button class="switch" role="switch" aria-checked="false"><span class="w">Off</span><span class="tr"></span></button></div>
+              <div><div class="lbl">Frame rate</div>
+                <div class="seg" role="radiogroup" aria-label="Frame rate"><button role="radio" aria-checked="true">30</button><button role="radio" aria-checked="false">60</button></div></div>
+              <div class="row"><span class="k">Source name</span><span class="v mono">PC-STAGE (PPT Share)</span></div>
+              <p class="note">Changing the frame rate or name restarts the sender. Receivers may lose the picture for a moment.</p>
+            </div>
+          </div>
+
+          <div class="sec" data-open="true">
+            <button class="sh" aria-expanded="true">Appearance<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div><div class="lbl">Accent</div>
+                <div class="swatches" role="radiogroup" aria-label="Accent" id="swatches"></div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+  </div>
+
+  <!-- Strip -->
+  <section class="strip" aria-label="Slides">
+    <div class="shead"><span class="dn">Opening Keynote</span><span class="count">12 slides</span>
+      <span class="legend"><span class="l"><i></i>Live on Program</span><span class="n"><i></i>Next</span></span></div>
+    <div class="thumbs" id="thumbs"></div>
+  </section>
+</div>
+
+<!-- Mock tooling -->
+<div class="mock" role="group" aria-label="Mock state">
+  <b>Mock state</b>
+  <button data-s="live" aria-pressed="true">Live</button>
+  <button data-s="frozen" aria-pressed="false">Frozen</button>
+  <button data-s="black" aria-pressed="false">Black</button>
+  <button data-s="kv" aria-pressed="false">KV</button>
+  <button data-s="standby" aria-pressed="false">Standby</button>
+</div>
+
+<script>
+const root = document.documentElement
+const app = document.getElementById('app')
+
+// Slides (synthetic demo content)
+const titles = ['Welcome', 'Agenda', 'Q3 results', 'Roadmap', 'Customers', 'Team', 'Partners', 'Pricing', 'Timeline', 'Risks', 'Thank you', 'Questions']
+const subs = ['Annual Meeting 2026', '3 topics', 'Revenue up 18%', 'What ships next quarter', 'Five stories', 'Who is who', 'Sponsors and allies', 'No change this year', 'Q4 and beyond', 'What could slip', 'See you at the break', 'Open floor']
+const bgs = ['#1f2a44', '#2b2f55', '#143a3a', '#3a2a22']
+const slideHTML = (i, extra = '') =>
+  `<div class="slide ${extra}" style="background:${bgs[i % 4]}"><div class="bar"></div><h3>${titles[i]}</h3><p>${subs[i]}</p></div>`
+
+const thumbs = document.getElementById('thumbs')
+thumbs.innerHTML = titles.map((t, i) =>
+  `<button class="th" data-i="${i}"><div class="im">${slideHTML(i)}</div><div class="mt"><span>${i + 1}</span><span class="tag"></span></div></button>`).join('')
+
+const S = { live: 2, next: 3, op: 4 } // zero-based: live slide 3, next slide 4, frozen preview slide 5
+
+function render(state) {
+  app.dataset.state = state
+  document.querySelectorAll('.mock button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.s === state)))
+  const tally = document.getElementById('tally')
+  const words = { live: 'LIVE', frozen: 'FROZEN', black: 'BLACK', kv: 'KV', standby: 'STANDBY' }
+  tally.dataset.k = state
+  tally.innerHTML = (state === 'frozen' ? '<svg class="ico" style="width:14px;height:14px"><use href="#i-snow"/></svg>' : state === 'black' ? '<svg class="ico" style="width:14px;height:14px"><use href="#i-eyeoff"/></svg>' : state === 'kv' ? '<svg class="ico" style="width:14px;height:14px"><use href="#i-image"/></svg>' : '') + words[state]
+
+  const mon = document.getElementById('monitor')
+  const onAir = state === 'live' || state === 'frozen' ? S.live : null
+  mon.innerHTML = state === 'black' ? '<div class="slide black"></div>'
+    : state === 'kv' ? '<div class="slide kv"><div class="bar"></div><h3>Annual Meeting 2026</h3><p>Welcome</p></div>'
+    : state === 'standby' ? '<div class="slide standby"><h3>Nothing on air</h3><p>Pick a slide and press Next</p></div>'
+    : slideHTML(S.live)
+
+  const frozen = state === 'frozen'
+  const prevIdx = frozen ? S.op : state === 'standby' ? 0 : S.next
+  document.getElementById('rtitle').textContent = frozen ? 'Preview' : 'Up next'
+  document.getElementById('nextSlide').outerHTML = slideHTML(prevIdx).replace('class="slide "', 'class="slide" id="nextSlide"')
+  document.getElementById('nextTitle').textContent = titles[prevIdx]
+  document.getElementById('nextPos').textContent = `${prevIdx + 1} / 12`
+  document.getElementById('nextCap').textContent = frozen
+    ? 'Frozen: the audience still sees slide 3. Unfreeze keeps slide 3 live.'
+    : state === 'live' ? `Space or → takes slide ${prevIdx + 1} to air.` : state === 'standby' ? 'Next takes slide 1 to air.' : `Off air. Press ${state === 'black' ? 'B' : 'K'} to return, then Next.`
+  document.getElementById('notes').textContent = frozen ? 'Roadmap: three bullets, then ask for questions. Keep it under two minutes.' : 'Thank the sponsors, then move quickly. The Q3 chart is the only slide that needs a pause.'
+  document.getElementById('pos').innerHTML = state === 'standby' ? '<small>/ 12</small>' : `${S.live + 1} <small>/ 12</small>`
+  document.getElementById('where').textContent = state === 'standby' ? 'Nothing on air' : 'Opening Keynote'
+  document.getElementById('mnote').textContent = { live: 'Audience sees slide 3', frozen: 'Audience sees slide 3, held', black: 'Audience sees black', kv: 'Audience sees the key visual', standby: 'Audience sees the standby card' }[state]
+  const ds = document.getElementById('deckStatus')
+  ds.textContent = state === 'standby' ? '12 slides' : frozen ? 'FROZEN, slide 3' : state === 'live' ? 'LIVE, slide 3' : state === 'black' ? 'BLACK, slide 3' : 'KV, slide 3'
+  ds.classList.toggle('air', state !== 'standby')
+
+  const oa = document.getElementById('onair')
+  oa.classList.toggle('show', state !== 'standby')
+  const ot = document.getElementById('onairTally')
+  ot.dataset.k = state
+  ot.textContent = words[state]
+  document.getElementById('onairMsg').textContent = `Opening Keynote, slide 3 · ${events[liveEvent].n}`
+
+  document.getElementById('bFreeze').setAttribute('aria-pressed', String(frozen))
+  if (typeof renderTabs === 'function') renderTabs()
+  document.getElementById('bBlack').setAttribute('aria-pressed', String(state === 'black'))
+  document.getElementById('bKv').setAttribute('aria-pressed', String(state === 'kv'))
+
+  document.querySelectorAll('.th').forEach((el) => {
+    const i = +el.dataset.i
+    const tag = el.querySelector('.tag')
+    let r = '', html = ''
+    if (state === 'live' || state === 'black' || state === 'kv') { if (i === S.live && state === 'live') { r = 'live'; html = '<span class="pill live">LIVE</span>' } else if (i === S.next) { r = 'next'; html = '<span class="pill next">NEXT</span>' } }
+    if (state === 'black' || state === 'kv') { if (i === S.live) { r = 'live'; html = '<span class="pill live">' + (state === 'kv' ? 'KV' : 'BLACK') + '</span>' } }
+    if (frozen) { if (i === S.live) { r = 'frozen'; html = '<span class="pill frozen">FROZEN</span>' } else if (i === S.op) { r = 'op'; html = '' } }
+    if (state === 'standby' && i === 0) { r = 'next'; html = '<span class="pill next">NEXT</span>' }
+    el.dataset.r = r
+    tag.innerHTML = html
+  })
+}
+document.querySelectorAll('.mock button').forEach((b) => b.addEventListener('click', () => render(b.dataset.s)))
+document.getElementById('bFreeze').onclick = () => render(app.dataset.state === 'frozen' ? 'live' : 'frozen')
+document.getElementById('bBlack').onclick = () => render(app.dataset.state === 'black' ? 'live' : 'black')
+document.getElementById('bKv').onclick = () => render(app.dataset.state === 'kv' ? 'live' : 'kv')
+
+// Events (synthetic demo content) and the open tabs. One Program output: the on-air event is marked on its tab.
+const events = [
+  { n: 'Annual Meeting 2026', decks: ['Opening Keynote', 'Product Update, Q3 numbers and the road ahead', 'Panel Q&A (Canva)', 'Sponsor Loop'], count: '4 decks', web: true, prev: [0, 2, 3, 1], when: 'Opened this minute' },
+  { n: 'Product Launch Night', decks: ['Launch Film', 'Pricing and Plans', 'Demo Walkthrough'], count: '7 decks', web: false, prev: [1, 3, 0, 2], when: 'Opened yesterday, 18:40' },
+  { n: 'Board Retreat, Bali', decks: ['Finance Review', 'Strategy 2027', 'Risks'], count: '3 decks', web: false, prev: [2, 0, 1, 3], when: 'Opened 12 Oct' },
+  { n: 'Wedding Expo', decks: [], count: 'No decks yet', web: false, prev: [], when: 'Created 28 Oct' },
+  { n: 'Staff Party 2025', decks: ['Year in Review'], count: '1 deck', web: true, prev: [3, 1], when: 'Archived', arch: true }
+]
+const liveEvent = 0
+let tabs = [0, 1], active = 0, lf = 'all', ll = 'recent', lv = 'grid', q = ''
+
+function renderTabs() {
+  const live = app.dataset.state !== 'standby'
+  document.getElementById('tabsbar').innerHTML = tabs.map((i) => `
+    <button class="otab" role="tab" data-i="${i}" aria-selected="${app.dataset.view !== 'home' && i === active}" title="${events[i].n}${live && i === liveEvent ? ' (on air)' : ''}">
+      ${live && i === liveEvent ? '<span class="live" aria-label="On air"></span>' : ''}<span class="tn">${events[i].n}</span>
+      <span class="x" role="button" tabindex="0" aria-label="Close ${events[i].n}" data-x="${i}"><svg class="ico"><use href="#i-x"/></svg></span>
+    </button>`).join('')
+}
+
+function renderHome() {
+  const term = q.trim().toLowerCase()
+  const list = events.map((e, i) => [e, i]).filter(([e, i]) => {
+    if (ll === 'archive' ? !e.arch : (ll === 'recent' ? e.arch || i > 3 : false)) return false
+    if (lf === 'live' && !(i === liveEvent && app.dataset.state !== 'standby')) return false
+    if (lf === 'web' && !e.web) return false
+    if (lf === 'empty' && e.decks.length) return false
+    return !term || e.n.toLowerCase().includes(term) || e.decks.some((d) => d.toLowerCase().includes(term))
+  })
+  const evgrid = document.getElementById('evgrid')
+  evgrid.className = 'evgrid' + (lv === 'list' ? ' list' : '')
+  evgrid.innerHTML = list.length ? list.map(([e, i]) => `
+    <button class="ev" data-i="${i}" data-open="${tabs.includes(i)}" aria-label="Open ${e.n}">
+      <div class="evp">${e.prev.length ? `<div class="mosaic">${e.prev.map((k) => `<i style="background:${bgs[k]}"></i>`).join('')}</div>` : '<span class="none">No decks yet</span>'}</div>
+      <div class="evf"><h3>${i === liveEvent && app.dataset.state !== 'standby' ? '<span class="lv" aria-label="On air"></span>' : ''}${e.n}</h3><p>${e.count} · ${e.when}</p></div>
+    </button>`).join('') : `<p class="empty">No events match “${q}”.</p>`
+}
+
+function setView(v) {
+  app.dataset.view = v
+  document.getElementById('homeBtn').setAttribute('aria-pressed', String(v === 'home'))
+  renderTabs(); if (v === 'home') renderHome()
+}
+function openEvent(i) { if (!tabs.includes(i)) tabs.push(i); active = i; setView('console') }
+function newEvent() { events.push({ n: 'Untitled event ' + (events.length - 4), decks: [], count: 'No decks yet', web: false, prev: [], when: 'Created just now' }); openEvent(events.length - 1) }
+
+document.getElementById('homeBtn').addEventListener('click', () => setView(app.dataset.view === 'home' ? 'console' : 'home'))
+document.getElementById('backBtn').addEventListener('click', () => setView('console'))
+document.getElementById('newBtn').addEventListener('click', newEvent)
+document.getElementById('ctaNew').addEventListener('click', newEvent)
+document.getElementById('tabsbar').addEventListener('click', (e) => {
+  const x = e.target.closest('[data-x]')
+  if (x) {
+    e.stopPropagation(); const i = +x.dataset.x
+    tabs = tabs.filter((t) => t !== i)
+    if (!tabs.length) { setView('home'); return }
+    if (active === i) active = tabs[tabs.length - 1]
+    renderTabs(); return
+  }
+  const t = e.target.closest('.otab'); if (t) { active = +t.dataset.i; setView('console') }
+})
+document.getElementById('evgrid').addEventListener('click', (e) => { const c = e.target.closest('.ev'); if (c) openEvent(+c.dataset.i) })
+document.getElementById('chips').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; lf = b.dataset.f; document.querySelectorAll('#chips button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); renderHome() })
+document.getElementById('ltabs').addEventListener('click', (e) => { const b = e.target.closest('[data-l]'); if (!b) return; ll = b.dataset.l; document.querySelectorAll('#ltabs button').forEach((x) => x.setAttribute('aria-selected', String(x === b))); renderHome() })
+document.getElementById('vt').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (!b) return; lv = b.dataset.v; document.querySelectorAll('#vt button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); renderHome() })
+document.getElementById('q').addEventListener('input', (e) => { q = e.target.value; renderHome() })
+document.addEventListener('keydown', (e) => { if (e.key === '/' && app.dataset.view === 'home' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); document.getElementById('q').focus() } })
+setView('console')
+render(app.dataset.state)
+
+// Theme: Auto follows the OS
+const mq = matchMedia('(prefers-color-scheme: dark)')
+let pref = 'light'
+function applyTheme() {
+  root.dataset.theme = pref === 'system' ? (mq.matches ? 'dark' : 'light') : pref
+  document.querySelectorAll('#themeSeg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.th === pref)))
+}
+mq.addEventListener('change', applyTheme)
+document.querySelectorAll('#themeSeg button').forEach((b) => b.addEventListener('click', () => { pref = b.dataset.th; applyTheme() }))
+applyTheme()
+
+// Accent presets
+const accents = [['violet', '#5b4bd6'], ['blue', '#2160d4'], ['mint', '#0a7561'], ['rose', '#9a4586'], ['sand', '#85652a'], ['slate', '#475569']]
+const sw = document.getElementById('swatches')
+sw.innerHTML = accents.map(([id, c]) => `<button class="sw" role="radio" aria-checked="${id === 'violet'}" data-a="${id}" style="--c:${c}"><span class="c"></span>${id[0].toUpperCase() + id.slice(1)}<svg class="ico ck"><use href="#i-check"/></svg></button>`).join('')
+sw.addEventListener('click', (e) => {
+  const b = e.target.closest('.sw'); if (!b) return
+  root.dataset.accent = b.dataset.a
+  sw.querySelectorAll('.sw').forEach((x) => x.setAttribute('aria-checked', String(x === b)))
+})
+
+// Right panel tabs
+const rp = document.getElementById('rpanel')
+document.querySelectorAll('.tabs [role=tab]').forEach((t) => t.addEventListener('click', () => {
+  rp.dataset.tab = t.dataset.tab
+  document.querySelectorAll('.tabs [role=tab]').forEach((x) => { const on = x === t; x.setAttribute('aria-selected', String(on)); x.setAttribute('aria-pressed', String(on)) })
+}))
+
+// Collapsible sections, radiogroups, switch, slider
+document.addEventListener('click', (e) => {
+  const sh = e.target.closest('.sec > button.sh')
+  if (sh) { const s = sh.parentElement, o = s.dataset.open !== 'true'; s.dataset.open = String(o); sh.setAttribute('aria-expanded', String(o)) }
+  const rb = e.target.closest('.seg [role=radio]')
+  if (rb) rb.parentElement.querySelectorAll('[role=radio]').forEach((x) => x.setAttribute('aria-checked', String(x === rb)))
+  const sv = e.target.closest('.switch')
+  if (sv) { const on = sv.getAttribute('aria-checked') !== 'true'; sv.setAttribute('aria-checked', String(on)); sv.querySelector('.w').textContent = on ? 'On' : 'Off' }
+})
+document.querySelectorAll('.slider').forEach((s) => s.addEventListener('input', () => { s.style.setProperty('--v', s.value + '%'); s.nextElementSibling.textContent = s.value }))
+</script>
+</body>
+</html>

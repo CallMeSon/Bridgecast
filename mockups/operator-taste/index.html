@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-accent="lime">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PPT Share operator window, true-black flat</title>
+<style>
+@font-face {
+  font-family: 'Geist';
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../../src/renderer/src/assets/fonts/geist-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+/*
+  Grid arithmetic (1440 wide): sidebar 240, gutter 29 each side -> canvas 1440 - 240 - 58 = 1142.
+  Six columns, one 14px gap: 6c + 5*14 = 1142 -> c = 178.67. Program = 4c + 3*14 = 756.7, side = 2c + 14 = 371.3,
+  756.7 + 14 + 371.3 = 1142. The strip spans all six.
+*/
+:root {
+  --font-sans: 'Geist', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --radius-card: 20px;
+  --radius-inner: 12px;
+  --gap: 14px;
+  --pad: 22px;
+  --fs-title: 20px;
+  --fs-section: 16px;
+  --fs-body: 14px;
+  --fs-small: 12px;
+}
+
+/* Cool near-black, a monitor's temperature. Elevation by lightness alone: ground, surface, raised. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ground: #0b0c0e;
+  --surface: #141619;
+  --raised: #23262b;
+  --raised-hi: #2e3238;
+  --rule: #1b1d21;
+  --control: #4a4f58;
+  --text: #ffffff;
+  --muted: #b4b7bf;
+  --faint: #959aa4;
+  --nav: #bbbec6;
+  --live: #d4313a;
+  --live-ink: #ff7a7f;
+  --on-live: #ffffff;
+}
+/* Light: same move, lightness steps only. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --ground: #eff0f2;
+  --surface: #ffffff;
+  --raised: #ebedf0;
+  --raised-hi: #dfe2e6;
+  --rule: #e5e7ea;
+  --control: #8a8f99;
+  --text: #0f1013;
+  --muted: #474b54;
+  --faint: #626771;
+  --nav: #474b54;
+  --live: #c3231d;
+  --live-ink: #b01d17;
+  --on-live: #ffffff;
+}
+
+/* One data hue, chosen by the operator. It marks Next. It never touches buttons, tabs or nav. */
+:root[data-theme='dark'][data-accent='lime']  { --accent: #c6f24e; --on-accent: #10140a; }
+:root[data-theme='dark'][data-accent='sky']   { --accent: #62c1f5; --on-accent: #07141d; }
+:root[data-theme='dark'][data-accent='amber'] { --accent: #f2b33d; --on-accent: #1d1303; }
+:root[data-theme='dark'][data-accent='mint']  { --accent: #6fd9bb; --on-accent: #06231c; }
+:root[data-theme='dark'][data-accent='rose']  { --accent: #e3a3d2; --on-accent: #2b0f25; }
+:root[data-theme='dark'][data-accent='slate'] { --accent: #b8c4d4; --on-accent: #111822; }
+:root[data-theme='light'][data-accent='lime']  { --accent: #4d7a00; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='sky']   { --accent: #0b6aa6; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='amber'] { --accent: #8a5a00; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='mint']  { --accent: #0a7561; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='rose']  { --accent: #9a4586; --on-accent: #ffffff; }
+:root[data-theme='light'][data-accent='slate'] { --accent: #475569; --on-accent: #ffffff; }
+
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  font: 400 var(--fs-body) / 1.45 var(--font-sans);
+  background: var(--ground); color: var(--text);
+  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow: hidden;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--raised-hi); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+.ico { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.mono { font-variant-numeric: tabular-nums; }
+
+/* ---------- Mock tooling ---------- */
+.mock { position: fixed; z-index: 50; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 14px; background: #fff; color: #111; border-radius: 999px; font-size: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+.mock b { color: #666; font-weight: 500; margin-right: 4px; }
+.mock button { border: 0; background: #ececec; height: 28px; padding: 0 12px; border-radius: 999px; }
+.mock button[aria-pressed='true'] { background: #111; color: #fff; }
+
+/* ---------- Ruled T-frame ---------- */
+.app { height: 100vh; min-width: 1180px; display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: 64px minmax(0, 1fr); }
+.top { grid-column: 1 / -1; display: grid; grid-template-columns: 240px 1fr auto; align-items: center; border-bottom: 1px solid var(--rule); }
+.word { padding: 0 29px; font-weight: 600; font-size: 16px; letter-spacing: -0.01em; }
+.crumb { display: flex; align-items: center; gap: 10px; color: var(--faint); font-size: 14px; padding-left: 4px; }
+.crumb a { color: var(--muted); text-decoration: none; }
+.crumb a:hover { color: var(--text); }
+.crumb b { color: var(--text); font-weight: 500; }
+.topr { display: flex; align-items: center; height: 100%; }
+.airchip { display: flex; align-items: center; gap: 10px; padding: 0 20px; height: 100%; }
+.sw-event { display: flex; align-items: center; gap: 10px; height: 100%; padding: 0 29px 0 20px; border: 0; border-left: 1px solid var(--rule); background: transparent; font-size: 14px; }
+.sw-event:hover { background: var(--surface); }
+.sw-event .k { color: var(--faint); font-size: 12px; }
+
+.side { border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; padding: 20px 0 0; }
+.side h2 { padding: 0 29px 10px; font-size: 12px; font-weight: 500; color: var(--faint); }
+.nav { flex: 1; overflow: auto; padding: 0 12px; display: grid; gap: 0; align-content: start; }
+.nav .grp { padding: 20px 17px 6px; font-size: 12px; color: var(--faint); }
+.item { display: grid; grid-template-columns: 16px 1fr auto; gap: 10px; align-items: center; height: 34px; padding: 0 17px; border: 0; background: transparent; color: var(--nav); border-radius: 10px; text-align: left; }
+.item:hover { background: var(--surface); }
+.item[aria-current='true'] { color: var(--text); background: var(--surface); }
+.item .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.item .n { font-size: 12px; color: var(--faint); }
+.item .air { font-size: 12px; font-weight: 600; color: var(--live-ink); }
+.item .tag { font-size: 12px; color: var(--faint); }
+.item.imp { height: auto; padding-top: 8px; padding-bottom: 10px; align-items: start; }
+.bar { grid-column: 2 / 4; height: 4px; border-radius: 2px; background: var(--raised); overflow: hidden; margin-top: 6px; }
+.bar i { display: block; height: 100%; width: 62%; background: var(--muted); }
+.kvrow { padding: 18px 29px 24px; display: grid; grid-template-columns: 60px 1fr; gap: 12px; align-items: center; border-top: 1px solid var(--rule); }
+.kvthumb { aspect-ratio: 16/9; border-radius: 6px; background: var(--raised); display: grid; place-items: center; color: var(--muted); }
+.kvrow .l { font-weight: 500; }
+.kvrow .s { font-size: 12px; color: var(--faint); }
+
+/* ---------- Canvas ---------- */
+.canvas { min-height: 0; padding: 24px 29px 29px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); }
+.tl { display: flex; align-items: flex-end; gap: 20px; }
+.tl h1 { font-size: var(--fs-title); line-height: 1.2; font-weight: 600; letter-spacing: -0.015em; }
+.tl p { color: var(--muted); margin-top: 4px; font-size: 14px; }
+.tl p b { color: var(--text); font-weight: 500; }
+.tl .meta { margin-left: auto; color: var(--faint); font-size: 12px; text-align: right; }
+.grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) 190px; gap: var(--gap); min-height: 0; }
+.card { background: var(--surface); border-radius: var(--radius-card); min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.prog { grid-column: span 4; container-type: inline-size; container-name: prog; }
+.side-c { grid-column: span 2; }
+.chead { display: flex; align-items: center; gap: 12px; padding: 18px var(--pad) 0; flex: none; }
+.chead h2 { font-size: var(--fs-section); font-weight: 600; }
+.chead .pos { margin-left: auto; font-size: 24px; line-height: 1; font-weight: 500; letter-spacing: -0.02em; }
+.chead .pos small { color: var(--faint); font-size: 14px; }
+
+.tally { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+.tally[data-k='live'] { background: var(--live); color: var(--on-live); }
+.tally[data-k='frozen'] { box-shadow: inset 0 0 0 1.5px var(--live); color: var(--live-ink); }
+.tally[data-k='black'], .tally[data-k='kv'] { background: #000; box-shadow: inset 0 0 0 1.5px var(--live); color: #ff7a7f; }
+.tally[data-k='standby'] { background: var(--raised); color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); flex: none; }
+.dot.off { background: var(--faint); }
+
+.monwrap { flex: 1; min-height: 0; padding: 16px var(--pad) 0; display: grid; place-items: center; container-type: size; }
+.monitor { width: min(100cqw, 100cqh * 16 / 9); aspect-ratio: 16/9; background: #000; border-radius: var(--radius-inner); position: relative; overflow: hidden; }
+.monitor::after { content: ''; position: absolute; inset: 0; border-radius: var(--radius-inner); pointer-events: none; box-shadow: inset 0 0 0 1px var(--raised-hi); }
+.app[data-state='live'] .monitor::after, .app[data-state='frozen'] .monitor::after, .app[data-state='black'] .monitor::after, .app[data-state='kv'] .monitor::after { box-shadow: inset 0 0 0 3px var(--live); }
+.mmeta { display: flex; gap: 16px; padding: 10px var(--pad) 0; color: var(--faint); font-size: 12px; flex: none; }
+
+.slide { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 8%; color: #fff; background: #1f2a44; container-type: inline-size; }
+.slide h3 { font-size: 7.4cqw; line-height: 1.05; letter-spacing: -0.02em; font-weight: 600; max-width: 80%; }
+.slide p { font-size: 3.2cqw; margin-top: 3cqw; opacity: .8; }
+.slide .b { width: 12cqw; height: .9cqw; background: #8fb0ff; margin-bottom: 3cqw; border-radius: 1cqw; }
+.slide.kv { background: #2b2f55; } .slide.kv .b { background: #ffd27a; }
+.slide.standby { background: #0b0c0e; color: #959aa4; align-items: center; text-align: center; }
+.slide.standby h3 { font-size: 4.6cqw; max-width: none; font-weight: 500; }
+.slide.black { background: #000; }
+
+/* Control deck */
+.ctl { display: flex; align-items: center; gap: 12px; padding: 18px var(--pad) var(--pad); flex: none; }
+.cb { height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--raised); font-weight: 500; font-size: 15px; }
+.cb:hover { background: var(--raised-hi); }
+.cb[aria-pressed='true'] { background: var(--raised-hi); box-shadow: inset 0 0 0 2px var(--text); font-weight: 600; }
+.cb .st { font-size: 12px; color: var(--muted); font-weight: 500; }
+.cb.next { height: 56px; min-width: 188px; background: var(--text); color: var(--ground); font-weight: 600; font-size: 16px; padding: 0 26px; margin-right: auto; }
+.cb.next:hover { filter: brightness(.92); }
+:root[data-theme='light'] .cb.next:hover { filter: brightness(1.25); }
+kbd { font: 500 11px/1 var(--font-sans); padding: 4px 6px; border-radius: 6px; background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; opacity: .8; }
+.sp { flex: 1; }
+@container prog (max-width: 830px) { .cb:not(.next) kbd { display: none; } .cb { padding: 0 18px; } }
+@container prog (max-width: 640px) { .cb.next { min-width: 150px; } .cb.next kbd { display: none; } }
+
+/* Right card with underline tabs */
+.tabs { display: flex; gap: 24px; padding: 0 var(--pad); border-bottom: 1px solid var(--rule); flex: none; margin-top: 8px; }
+.tab { height: 52px; border: 0; background: transparent; color: var(--nav); font-weight: 500; font-size: 14px; position: relative; padding: 0; }
+.tab[aria-selected='true'] { color: var(--text); }
+.tab[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--text); }
+.pane { display: none; overflow: auto; flex: 1; min-height: 0; padding-bottom: 12px; }
+.side-c[data-tab='info'] .pane[data-p='info'], .side-c[data-tab='set'] .pane[data-p='set'] { display: block; }
+.blk { padding: 20px var(--pad) 4px; display: grid; gap: 14px; }
+.blk h3 { font-size: var(--fs-section); font-weight: 600; }
+.nextthumb { position: relative; aspect-ratio: 16/9; border-radius: var(--radius-inner); overflow: hidden; }
+.nextthumb::after { content: ''; position: absolute; inset: 0; border-radius: var(--radius-inner); box-shadow: inset 0 0 0 3px var(--accent); pointer-events: none; }
+.nmeta { display: flex; align-items: center; gap: 10px; }
+.pill { display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--accent); color: var(--on-accent); }
+.nmeta .t { flex: 1; font-weight: 500; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nmeta .p { font-size: 14px; color: var(--muted); }
+.cap { color: var(--muted); font-size: 13px; }
+.notes { font-size: 16px; line-height: 1.55; max-width: 36ch; }
+
+.sec { border-top: 1px solid var(--rule); margin-top: 14px; padding-top: 4px; }
+.sh { width: 100%; display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 var(--pad); border: 0; background: transparent; font-weight: 600; font-size: 15px; text-align: left; }
+.sec[data-open='false'] .sb { display: none; }
+.sec[data-open='false'] .chev { transform: rotate(-90deg); }
+.chev { color: var(--faint); transition: transform .16s cubic-bezier(.16,1,.3,1); }
+.sb { padding: 0 var(--pad) 18px; display: grid; gap: 14px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 36px; }
+.row .k { color: var(--muted); }
+.row .v { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.lbl { font-size: 12px; color: var(--faint); margin-bottom: 8px; }
+.track { display: flex; padding: 3px; gap: 2px; background: var(--raised); border-radius: 999px; width: 100%; }
+.track button { flex: 1; height: 32px; border: 0; background: transparent; color: var(--muted); border-radius: 999px; font-weight: 500; font-size: 13px; }
+.track button:hover { color: var(--text); }
+.track button[aria-checked='true'] { background: var(--raised-hi); color: var(--text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--control); }
+.btn-o { height: 32px; padding: 0 14px; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 1px var(--control); font-weight: 500; font-size: 13px; border: 0; }
+.btn-o:hover { background: var(--raised); }
+.switch { display: inline-flex; align-items: center; gap: 10px; border: 0; background: transparent; padding: 0; color: var(--muted); font-weight: 500; }
+.switch .tr { width: 40px; height: 24px; border-radius: 999px; background: var(--raised-hi); position: relative; box-shadow: inset 0 0 0 1px var(--control); }
+.switch .tr::after { content: ''; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .15s; }
+.switch[aria-checked='true'] .tr { background: var(--text); box-shadow: none; }
+.switch[aria-checked='true'] .tr::after { transform: translateX(16px); background: var(--ground); }
+.switch .w { min-width: 24px; text-align: right; }
+.slider { appearance: none; width: 120px; height: 6px; border-radius: 3px; background: var(--raised-hi); }
+.slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--text); border: 0; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; background: var(--raised); color: var(--muted); }
+.swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.swb { height: 40px; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--raised); font-size: 13px; font-weight: 500; }
+.swb:hover { background: var(--raised-hi); }
+.swb .c { width: 14px; height: 14px; border-radius: 50%; background: var(--c); flex: none; }
+.swb[aria-checked='true'] { box-shadow: inset 0 0 0 2px var(--text); }
+.swb .ck { margin-left: auto; opacity: 0; }
+.swb[aria-checked='true'] .ck { opacity: 1; }
+.note { font-size: 12px; color: var(--faint); line-height: 1.5; }
+
+/* Strip */
+.strip { grid-column: span 6; }
+.thumbs { display: flex; gap: 14px; padding: 14px var(--pad) 18px; overflow-x: auto; align-items: flex-start; }
+.th { width: 140px; flex: none; display: grid; gap: 8px; border: 0; background: transparent; padding: 0; text-align: left; }
+.th .im { position: relative; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; }
+.th .im .slide { padding: 9%; }
+.th .im::after { content: ''; position: absolute; inset: 0; border-radius: 8px; pointer-events: none; box-shadow: inset 0 0 0 1px var(--raised-hi); }
+.th[data-r='live'] .im::after, .th[data-r='frozen'] .im::after { box-shadow: inset 0 0 0 3px var(--live); }
+.th[data-r='next'] .im::after { box-shadow: inset 0 0 0 3px var(--accent); }
+.th[data-r='op'] .im::after { box-shadow: inset 0 0 0 2px var(--text); }
+.th:hover .im::after { box-shadow: inset 0 0 0 2px var(--faint); }
+.th .mt { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--faint); min-height: 22px; }
+.th[data-r] .mt { color: var(--text); }
+.tg { font-size: 11px; font-weight: 600; height: 20px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; }
+.tg.live { background: var(--live); color: var(--on-live); }
+.tg.frozen { box-shadow: inset 0 0 0 1.5px var(--live); color: var(--live-ink); }
+.tg.next { background: var(--accent); color: var(--on-accent); }
+.legend { margin-left: auto; display: flex; gap: 18px; color: var(--muted); font-size: 12px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+
+/* Event switcher */
+.menu { position: fixed; z-index: 40; top: 60px; right: 29px; width: 320px; padding: 8px; background: var(--raised); border-radius: 16px; }
+.menu[hidden] { display: none; }
+.menu button { width: 100%; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border: 0; background: transparent; border-radius: 10px; text-align: left; }
+.menu button:hover { background: var(--raised-hi); }
+.menu .s { margin-left: auto; font-size: 12px; color: var(--faint); }
+.menu .sep { height: 1px; background: var(--rule); margin: 6px 4px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"/></symbol>
+  <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M3.5 3.5l17 17M10.2 6.2A9.6 9.6 0 0 1 12 6c4.5 0 8 3.2 9.5 6-.6 1.1-1.5 2.2-2.7 3.2M6.5 8C4.9 9 3.7 10.5 2.5 12c1.5 2.8 5 6 9.5 6 1.3 0 2.5-.3 3.6-.8M9.9 10a3 3 0 0 0 4.1 4.1"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5S9.4 5.9 12 3.5z"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M4 14.5h16M9 4.5v15M15 4.5v15"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M4.5 15v4.5h15V15"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+</svg>
+
+<div class="app" id="app" data-state="live">
+
+  <!-- Top bar: breadcrumb, the on-air chip that never leaves, the event switcher at the right end -->
+  <header class="top">
+    <div class="word">PPT Share</div>
+    <div class="crumb"><a href="#">Events</a><span>/</span><b id="evName">Annual Meeting 2026</b></div>
+    <div class="topr">
+      <div class="airchip" id="airchip"><span class="tally" id="chipTally" data-k="live">LIVE</span><span id="chipTxt" class="mono" style="font-size:12px;color:var(--muted)">slide 3 of 12</span></div>
+      <button class="sw-event" id="swBtn" aria-expanded="false"><span><span class="k">Event</span><br><span id="swName">Annual Meeting 2026</span></span><svg class="ico"><use href="#i-chev"/></svg></button>
+    </div>
+  </header>
+
+  <!-- Sidebar: the decks are the navigation -->
+  <aside class="side" aria-label="Decks">
+    <h2>Decks</h2>
+    <nav class="nav">
+      <button class="item" aria-current="true"><svg class="ico"><use href="#i-file"/></svg><span class="nm">Opening Keynote</span><span class="air" id="deckAir">LIVE</span></button>
+      <button class="item"><svg class="ico"><use href="#i-file"/></svg><span class="nm">Product Update, Q3 numbers and the road ahead</span><span class="n mono">12</span></button>
+      <div class="grp">Afternoon</div>
+      <button class="item"><svg class="ico"><use href="#i-globe"/></svg><span class="nm">Panel Q&amp;A (Canva)</span><span class="chip">Ready</span></button>
+      <button class="item"><svg class="ico"><use href="#i-film"/></svg><span class="nm">Sponsor Loop</span><span class="n mono">6</span></button>
+      <div class="item imp" style="cursor: default"><svg class="ico" style="margin-top:3px"><use href="#i-upload"/></svg><span><span class="nm" style="display:block">Closing Remarks.pptx</span><span class="tag">Importing, 62%</span></span><span></span><div class="bar"><i></i></div></div>
+    </nav>
+    <div class="kvrow">
+      <div class="kvthumb"><svg class="ico"><use href="#i-image"/></svg></div>
+      <div><div class="l">Key visual (KV)</div><div class="s">Shown with K</div></div>
+    </div>
+  </aside>
+
+  <!-- Canvas -->
+  <main class="canvas">
+    <div class="tl">
+      <div>
+        <h1 id="h1">Opening Keynote</h1>
+        <p id="finding">The audience sees <b>Q3 results</b> (3 of 12). Next takes <b>Roadmap</b>; the section ends after slide 6.</p>
+      </div>
+      <div class="meta mono" id="meta">Fade · 1920 × 1080 · Display 2</div>
+    </div>
+
+    <div class="grid">
+      <!-- Program: biggest block, it answers the question -->
+      <section class="card prog" aria-label="Program">
+        <div class="chead"><h2>Program</h2><span class="tally" id="tally" data-k="live">LIVE</span><span class="pos" id="pos">3 <small>/ 12</small></span></div>
+        <div class="monwrap"><div class="monitor" id="monitor"></div></div>
+        <div class="mmeta"><span class="mono">1920 × 1080</span><span id="mnote">Audience sees slide 3</span></div>
+        <div class="ctl">
+          <button class="cb" id="prev"><svg class="ico"><use href="#i-left"/></svg>Prev <kbd>←</kbd></button>
+          <button class="cb next" id="next">Next <kbd>Space</kbd><svg class="ico"><use href="#i-right"/></svg></button>
+          <button class="cb" id="bFreeze" aria-pressed="false"><svg class="ico"><use href="#i-snow"/></svg>Freeze <kbd>F</kbd></button>
+          <button class="cb" id="bKv" aria-pressed="false"><svg class="ico"><use href="#i-image"/></svg>KV <kbd>K</kbd></button>
+          <button class="cb" id="bBlack" aria-pressed="false"><svg class="ico"><use href="#i-eyeoff"/></svg>Black <kbd>B</kbd></button>
+        </div>
+      </section>
+
+      <!-- Info and Settings -->
+      <section class="card side-c" id="rc" data-tab="info" aria-label="Info and settings">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" id="tInfo" aria-selected="true" data-t="info">Info</button>
+          <button class="tab" role="tab" id="tSet" aria-selected="false" data-t="set">Settings</button>
+        </div>
+
+        <div class="pane" data-p="info" role="tabpanel" aria-labelledby="tInfo">
+          <div class="blk">
+            <h3 id="rtitle">Up next</h3>
+            <div class="nextthumb"><div class="slide" data-ui id="nextSlide"></div></div>
+            <div class="nmeta"><span class="pill">Next</span><span class="t" id="nextTitle">Roadmap</span><span class="p mono" id="nextPos">4 / 12</span></div>
+            <p class="cap" id="nextCap">Space or → takes slide 4 to air.</p>
+          </div>
+          <div class="sec" data-open="true">
+            <button class="sh">Notes<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb"><p class="notes" id="notes">Thank the sponsors, then move quickly. The Q3 chart is the only slide that needs a pause.</p></div>
+          </div>
+        </div>
+
+        <div class="pane" data-p="set" role="tabpanel" aria-labelledby="tSet">
+          <div class="sec" data-open="true" style="border-top:0; margin-top:6px">
+            <button class="sh">Transition<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div class="track" role="radiogroup" aria-label="Transition"><button role="radio" aria-checked="false">Cut</button><button role="radio" aria-checked="true">Fade</button></div>
+              <div class="row"><span class="k">Continue to next deck</span><button class="switch" role="switch" aria-checked="false"><span class="w">Off</span><span class="tr"></span></button></div>
+            </div>
+          </div>
+          <div class="sec" data-open="true">
+            <button class="sh">Deck settings<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div><div class="lbl">Display mode</div><div class="track" role="radiogroup" aria-label="Display mode"><button role="radio" aria-checked="true">Fit</button><button role="radio" aria-checked="false">Fill</button><button role="radio" aria-checked="false">Stretch</button></div></div>
+              <div class="row"><span class="k">Sound</span><span class="v"><svg class="ico"><use href="#i-speaker"/></svg><input class="slider" type="range" min="0" max="100" value="70" aria-label="Deck volume" style="--v:70%"><span class="mono">70</span></span></div>
+              <div class="row"><span class="k">Canvas</span><span class="v mono">1920 × 1080</span><button class="btn-o">Change</button></div>
+            </div>
+          </div>
+          <div class="sec" data-open="true">
+            <button class="sh">Output<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div class="row"><span class="k">HDMI display</span><span class="v">Display 2 <span class="chip"><i class="dot" style="width:6px;height:6px;background:var(--accent)"></i>On</span></span></div>
+              <div class="row"><span class="k">Show on HDMI</span><button class="switch" role="switch" aria-checked="true"><span class="w">On</span><span class="tr"></span></button></div>
+              <div><div class="lbl">Sound route</div><div class="track" role="radiogroup" aria-label="Sound route"><button role="radio" aria-checked="true">Local</button><button role="radio" aria-checked="false">Network</button><button role="radio" aria-checked="false">Both</button></div></div>
+              <div class="row"><span class="k">Master volume</span><span class="v"><input class="slider" type="range" min="0" max="100" value="85" aria-label="Master volume" style="--v:85%"><span class="mono">85</span></span></div>
+              <div class="row"><span class="k">Mute all</span><button class="switch" role="switch" aria-checked="false"><span class="w">Off</span><span class="tr"></span></button></div>
+            </div>
+          </div>
+          <div class="sec" data-open="false">
+            <button class="sh">Network<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div class="row"><span class="k">OMT</span><button class="switch" role="switch" aria-checked="false"><span class="w">Off</span><span class="tr"></span></button></div>
+              <div class="row"><span class="k">NDI</span><button class="switch" role="switch" aria-checked="false"><span class="w">Off</span><span class="tr"></span></button></div>
+              <div><div class="lbl">Frame rate</div><div class="track" role="radiogroup" aria-label="Frame rate"><button role="radio" aria-checked="true">30</button><button role="radio" aria-checked="false">60</button></div></div>
+              <div class="row"><span class="k">Source name</span><span class="v mono" style="font-size:13px">PC-STAGE (PPT Share)</span></div>
+              <p class="note">Changing the frame rate or name restarts the sender. Receivers may lose the picture for a moment.</p>
+            </div>
+          </div>
+          <div class="sec" data-open="true">
+            <button class="sh">Appearance<svg class="ico chev"><use href="#i-chev"/></svg></button>
+            <div class="sb">
+              <div><div class="lbl">Theme</div><div class="track" role="radiogroup" aria-label="Theme" id="themeTrack"><button role="radio" data-th="system" aria-checked="false">Auto</button><button role="radio" data-th="light" aria-checked="false">Light</button><button role="radio" data-th="dark" aria-checked="true">Dark</button></div></div>
+              <div><div class="lbl">Next colour</div><div class="swatches" role="radiogroup" aria-label="Next colour" id="swatches"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide strip -->
+      <section class="card strip" aria-label="Slides">
+        <div class="chead"><h2>Opening Keynote</h2><span class="mono" style="font-size:12px;color:var(--faint)">12 slides</span>
+          <span class="legend"><span><i style="background:var(--live)"></i>Live on Program</span><span><i style="background:var(--accent)"></i>Next</span></span></div>
+        <div class="thumbs" id="thumbs"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="menu" id="menu" hidden role="menu" aria-label="Events">
+  <button role="menuitem" data-n="Annual Meeting 2026"><span>Annual Meeting 2026</span><span class="s">Open</span></button>
+  <button role="menuitem" data-n="Product Launch Night"><span>Product Launch Night</span><span class="s">7 decks</span></button>
+  <button role="menuitem" data-n="Board Retreat, Bali"><span>Board Retreat, Bali</span><span class="s">3 decks</span></button>
+  <button role="menuitem" data-n="Wedding Expo"><span>Wedding Expo</span><span class="s">No decks yet</span></button>
+  <div class="sep"></div>
+  <button role="menuitem"><svg class="ico"><use href="#i-plus"/></svg><span>New event</span></button>
+</div>
+
+<div class="mock" role="group" aria-label="Mock state"><b>Mock state</b>
+  <button data-s="live" aria-pressed="true">Live</button><button data-s="frozen" aria-pressed="false">Frozen</button><button data-s="black" aria-pressed="false">Black</button><button data-s="kv" aria-pressed="false">KV</button><button data-s="standby" aria-pressed="false">Standby</button>
+</div>
+
+<script>
+const root = document.documentElement, app = document.getElementById('app')
+const $ = (id) => document.getElementById(id)
+
+// Demo data (synthetic). Facts shown twice come from this one block.
+const titles = ['Welcome', 'Agenda', 'Q3 results', 'Roadmap', 'Customers', 'Team', 'Partners', 'Pricing', 'Timeline', 'Risks', 'Thank you', 'Questions']
+const subs = ['Annual Meeting 2026', '3 topics', 'Revenue up 18%', 'What ships next quarter', 'Five stories', 'Who is who', 'Sponsors and allies', 'No change this year', 'Q4 and beyond', 'What could slip', 'See you at the break', 'Open floor']
+const bgs = ['#1f2a44', '#2b2f55', '#143a3a', '#3a2a22']
+const TOTAL = titles.length, LIVE = 2, NEXT = 3, OP = 4, SECTION_END = 6
+console.assert(LIVE + 1 === 3 && NEXT === LIVE + 1 && SECTION_END <= TOTAL, 'positions agree')
+const slide = (i, extra = '') => `<div class="slide ${extra}" data-ui style="background:${bgs[i % 4]}"><div class="b"></div><h3>${titles[i]}</h3><p>${subs[i]}</p></div>`
+
+$('thumbs').innerHTML = titles.map((t, i) => `<button class="th" data-i="${i}"><div class="im">${slide(i)}</div><div class="mt"><span>${i + 1}</span><span class="tag"></span></div></button>`).join('')
+
+function render(state) {
+  app.dataset.state = state
+  document.querySelectorAll('.mock button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.s === state)))
+  const frozen = state === 'frozen'
+  const words = { live: 'LIVE', frozen: 'FROZEN', black: 'BLACK', kv: 'KV', standby: 'STANDBY' }
+  for (const id of ['tally', 'chipTally']) { $(id).dataset.k = state; $(id).textContent = words[state] }
+  $('airchip').style.display = state === 'standby' ? 'none' : 'flex'
+  $('chipTxt').textContent = `slide ${LIVE + 1} of ${TOTAL}`
+
+  $('monitor').innerHTML = state === 'black' ? '<div class="slide black" data-ui></div>'
+    : state === 'kv' ? '<div class="slide kv" data-ui><div class="b"></div><h3>Annual Meeting 2026</h3><p>Welcome</p></div>'
+    : state === 'standby' ? '<div class="slide standby" data-ui><h3>Nothing on air</h3><p>Pick a slide and press Next</p></div>'
+    : slide(LIVE)
+
+  const idx = frozen ? OP : state === 'standby' ? 0 : NEXT
+  $('nextSlide').outerHTML = slide(idx).replace('class="slide " data-ui', 'class="slide" data-ui id="nextSlide"')
+  $('rtitle').textContent = frozen ? 'Preview' : 'Up next'
+  $('nextTitle').textContent = titles[idx]
+  $('nextPos').textContent = `${idx + 1} / ${TOTAL}`
+  $('nextCap').textContent = frozen ? `Frozen: the audience still sees slide ${LIVE + 1}. Unfreeze keeps slide ${LIVE + 1} live.`
+    : state === 'live' ? `Space or → takes slide ${idx + 1} to air.` : state === 'standby' ? 'Next takes slide 1 to air.'
+    : `Off air. Press ${state === 'black' ? 'B' : 'K'} to return, then Next.`
+  $('notes').textContent = frozen ? 'Roadmap: three bullets, then ask for questions. Keep it under two minutes.' : 'Thank the sponsors, then move quickly. The Q3 chart is the only slide that needs a pause.'
+  $('pos').innerHTML = state === 'standby' ? '<small>/ 12</small>' : `${LIVE + 1} <small>/ ${TOTAL}</small>`
+  $('mnote').textContent = { live: `Audience sees slide ${LIVE + 1}`, frozen: `Audience sees slide ${LIVE + 1}, held`, black: 'Audience sees black', kv: 'Audience sees the key visual', standby: 'Audience sees the standby card' }[state]
+  $('finding').innerHTML = state === 'standby' ? 'Nothing is on air. Next takes <b>Welcome</b> (1 of 12).'
+    : frozen ? `Held on <b>${titles[LIVE]}</b> while you preview <b>${titles[OP]}</b>. Unfreeze to keep ${titles[LIVE]} live.`
+    : state === 'live' ? `The audience sees <b>${titles[LIVE]}</b> (${LIVE + 1} of ${TOTAL}). Next takes <b>${titles[NEXT]}</b>; the section ends after slide ${SECTION_END}.`
+    : `The audience sees <b>${state === 'black' ? 'black' : 'the key visual'}</b>. <b>${titles[LIVE]}</b> is still queued at ${LIVE + 1} of ${TOTAL}.`
+  const da = $('deckAir'); da.textContent = state === 'standby' ? '' : words[state]
+  $('bFreeze').setAttribute('aria-pressed', String(frozen)); $('bBlack').setAttribute('aria-pressed', String(state === 'black')); $('bKv').setAttribute('aria-pressed', String(state === 'kv'))
+
+  document.querySelectorAll('.th').forEach((el) => {
+    const i = +el.dataset.i; let r = '', h = ''
+    if (state === 'live' && i === LIVE) { r = 'live'; h = '<span class="tg live">LIVE</span>' }
+    if ((state === 'live' || state === 'black' || state === 'kv') && i === NEXT) { r = 'next'; h = '<span class="tg next">NEXT</span>' }
+    if ((state === 'black' || state === 'kv') && i === LIVE) { r = 'live'; h = `<span class="tg live">${state === 'kv' ? 'KV' : 'BLACK'}</span>` }
+    if (frozen) { if (i === LIVE) { r = 'frozen'; h = '<span class="tg frozen">FROZEN</span>' } else if (i === OP) r = 'op' }
+    if (state === 'standby' && i === 0) { r = 'next'; h = '<span class="tg next">NEXT</span>' }
+    el.dataset.r = r; el.querySelector('.tag').innerHTML = h
+  })
+}
+render('live')
+document.querySelectorAll('.mock button').forEach((b) => b.addEventListener('click', () => render(b.dataset.s)))
+$('bFreeze').onclick = () => render(app.dataset.state === 'frozen' ? 'live' : 'frozen')
+$('bBlack').onclick = () => render(app.dataset.state === 'black' ? 'live' : 'black')
+$('bKv').onclick = () => render(app.dataset.state === 'kv' ? 'live' : 'kv')
+
+// Right card tabs
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+  $('rc').dataset.tab = t.dataset.t
+  document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === t)))
+}))
+
+// Theme (Auto follows the OS) and the Next colour
+const mq = matchMedia('(prefers-color-scheme: dark)'); let pref = 'dark'
+function applyTheme() { root.dataset.theme = pref === 'system' ? (mq.matches ? 'dark' : 'light') : pref }
+mq.addEventListener('change', applyTheme)
+document.querySelectorAll('#themeTrack button').forEach((b) => b.addEventListener('click', () => { pref = b.dataset.th; applyTheme() }))
+const accents = [['lime', '#c6f24e'], ['sky', '#62c1f5'], ['amber', '#f2b33d'], ['mint', '#6fd9bb'], ['rose', '#e3a3d2'], ['slate', '#b8c4d4']]
+$('swatches').innerHTML = accents.map(([id, c]) => `<button class="swb" role="radio" aria-checked="${id === 'lime'}" data-a="${id}" style="--c:${c}"><span class="c"></span>${id[0].toUpperCase() + id.slice(1)}<svg class="ico ck"><use href="#i-check"/></svg></button>`).join('')
+$('swatches').addEventListener('click', (e) => {
+  const b = e.target.closest('.swb'); if (!b) return
+  root.dataset.accent = b.dataset.a
+  $('swatches').querySelectorAll('.swb').forEach((x) => x.setAttribute('aria-checked', String(x === b)))
+})
+
+// Event switcher
+$('swBtn').addEventListener('click', () => { const m = $('menu'); m.hidden = !m.hidden; $('swBtn').setAttribute('aria-expanded', String(!m.hidden)) })
+$('menu').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-n]'); if (!b) return
+  $('swName').textContent = b.dataset.n; $('evName').textContent = b.dataset.n; $('menu').hidden = true
+})
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('menu').hidden = true })
+
+// Sections, radiogroups, switches, sliders
+document.addEventListener('click', (e) => {
+  const sh = e.target.closest('.sh'); if (sh) { const s = sh.parentElement; s.dataset.open = String(s.dataset.open !== 'true') }
+  const rb = e.target.closest('.track [role=radio]'); if (rb) rb.parentElement.querySelectorAll('[role=radio]').forEach((x) => x.setAttribute('aria-checked', String(x === rb)))
+  const sv = e.target.closest('.switch'); if (sv) { const on = sv.getAttribute('aria-checked') !== 'true'; sv.setAttribute('aria-checked', String(on)); sv.querySelector('.w').textContent = on ? 'On' : 'Off' }
+})
+document.querySelectorAll('.slider').forEach((s) => s.addEventListener('input', () => { s.style.setProperty('--v', s.value + '%'); s.nextElementSibling.textContent = s.value }))
+</script>
+</body>
+</html>

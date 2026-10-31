@@ -1,0 +1,859 @@
+{
+ "url": "mockups/operator-taste/index.html",
+ "at": "2026-10-30T10:50:35.135Z",
+ "allow": [
+  "font-not-dealt",
+  "tiny-text"
+ ],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.79
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 900,
+     "screens": 1,
+     "words": 217,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 27,
+     "sections": 3,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 14,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 1,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 1,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Opening Keynote",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 1.4,
+     "font": "Geist",
+     "weight": 600,
+     "tracking": -0.01,
+     "leading": 1.2,
+     "top": 88,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Opening Keynote",
+     "words": 2,
+     "lines": 1,
+     "size": 20,
+     "font": "Geist"
+    },
+    "headings": [
+     {
+      "text": "Q3 results",
+      "words": 2,
+      "chars": 10,
+      "lines": 1,
+      "size": 37.1,
+      "vw": 2.6,
+      "font": "Geist",
+      "weight": 600,
+      "tracking": -0.02,
+      "leading": 1.05,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.28,
+      "top": 347,
+      "tag": "h3",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Geist",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      20,
+      24
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": {
+      "font": "Geist",
+      "size": 16,
+      "leading": 1.55,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 18.1
+     },
+     "measureChars": 41,
+     "max": {
+      "size": 37.1,
+      "vw": 2.6,
+      "font": "Geist",
+      "text": "Q3 results"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.02,
+     "centerShare": 0.1,
+     "smallText": 6
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#0b0c0e",
+     "bodyBgHsl": {
+      "h": 220,
+      "s": 0.12,
+      "l": 0.05
+     },
+     "dark": true,
+     "sectionBgs": [
+      {
+       "color": "#141619",
+       "top": 150,
+       "hsl": {
+        "h": 216,
+        "s": 0.11,
+        "l": 0.09
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#ffffff",
+       "share": 0.5
+      },
+      {
+       "color": "#b4b7bf",
+       "share": 0.18
+      },
+      {
+       "color": "#959aa4",
+       "share": 0.14
+      },
+      {
+       "color": "#bbbec6",
+       "share": 0.12
+      },
+      {
+       "color": "#111111",
+       "share": 0.02
+      }
+     ],
+     "button": {
+      "bg": "#23262b",
+      "hsl": {
+       "h": 218,
+       "s": 0.1,
+       "l": 0.15
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 7,
+     "inHero": 7,
+     "radius": "pill",
+     "height": 52,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Opening Keynote LIVE",
+      "Prev",
+      "Next Space",
+      "Freeze",
+      "KV"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 1,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 4,
+     "hairlineSamples": [
+      "header.top 1440px",
+      "aside.side 240px",
+      "div.tabs 371px",
+      "div.sec 371px"
+     ],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 4,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 1,
+     "fixed": false,
+     "height": 64,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "geist"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 900,
+    "margins": {
+     "left": 12,
+     "right": 29
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Opening Keynote",
+      "size": 20,
+      "top": 88,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 291,
+      "n": 2
+     },
+     {
+      "x": 1062,
+      "n": 2
+     },
+     {
+      "x": 269,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 5,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.1,
+    "voidBox": {
+     "x": 600,
+     "y": 180,
+     "w": 360,
+     "h": 360
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": true,
+    "ground": "#0b0c0e",
+    "sidebar": {
+     "w": 240,
+     "tag": "aside",
+     "links": 4,
+     "share": 0.17
+    },
+    "topbar": {
+     "h": 64
+    },
+    "canvas": {
+     "left": 29,
+     "right": -575
+    },
+    "hero": {
+     "text": "Opening Keynote",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 1.4,
+     "font": "Geist",
+     "weight": 600,
+     "tracking": -0.01,
+     "leading": 1.2,
+     "top": 88,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 1,
+    "layout": {
+     "panels": 4,
+     "firstScreen": 4,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 20,
+     "radii": [
+      [
+       0,
+       16
+      ],
+      [
+       20,
+       3
+      ],
+      [
+       12,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 4,
+     "tabularShare": 1,
+     "kpiMax": 12
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.44,
+     "tiny": 25,
+     "tinySamples": [
+      "What ships next quarter 9px",
+      "Welcome 8px",
+      "Annual Meeting 2026 4px",
+      "Agenda 8px"
+     ],
+     "sizes": [
+      4,
+      8,
+      9,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      20,
+      37
+     ]
+    },
+    "title": {
+     "text": "Opening Keynote",
+     "size": 20,
+     "top": 88
+    },
+    "colourShare": 0.013
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 1280,
+   "height": 800,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.67
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1280,
+     "h": 800
+    },
+    "page": {
+     "height": 800,
+     "screens": 1,
+     "words": 217,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 27,
+     "sections": 3,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 14,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 1,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 1,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Opening Keynote",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 1.6,
+     "font": "Geist",
+     "weight": 600,
+     "tracking": -0.01,
+     "leading": 1.2,
+     "top": 88,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Opening Keynote",
+     "words": 2,
+     "lines": 1,
+     "size": 20,
+     "font": "Geist"
+    },
+    "headings": [
+     {
+      "text": "Q3 results",
+      "words": 2,
+      "chars": 10,
+      "lines": 1,
+      "size": 26,
+      "vw": 2,
+      "font": "Geist",
+      "weight": 600,
+      "tracking": -0.02,
+      "leading": 1.05,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.22,
+      "top": 306,
+      "tag": "h3",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Geist",
+       "share": 1,
+       "mono": false
+      }
+     ],
+     "familyCount": 1,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      20,
+      24
+     ],
+     "sizeCount": 8,
+     "notLoaded": [],
+     "body": {
+      "font": "Geist",
+      "size": 16,
+      "leading": 1.55,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 18.1
+     },
+     "measureChars": 34,
+     "max": {
+      "size": 26,
+      "vw": 2,
+      "font": "Geist",
+      "text": "Q3 results"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.02,
+     "centerShare": 0.1,
+     "smallText": 6
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#0b0c0e",
+     "bodyBgHsl": {
+      "h": 220,
+      "s": 0.12,
+      "l": 0.05
+     },
+     "dark": true,
+     "sectionBgs": [],
+     "textColors": [
+      {
+       "color": "#ffffff",
+       "share": 0.5
+      },
+      {
+       "color": "#b4b7bf",
+       "share": 0.18
+      },
+      {
+       "color": "#959aa4",
+       "share": 0.14
+      },
+      {
+       "color": "#bbbec6",
+       "share": 0.12
+      },
+      {
+       "color": "#111111",
+       "share": 0.02
+      }
+     ],
+     "button": {
+      "bg": "#23262b",
+      "hsl": {
+       "h": 218,
+       "s": 0.1,
+       "l": 0.15
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 7,
+     "inHero": 7,
+     "radius": "pill",
+     "height": 52,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Opening Keynote LIVE",
+      "Prev",
+      "Next Space",
+      "Freeze",
+      "KV"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 1,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 4,
+     "hairlineSamples": [
+      "header.top 1280px",
+      "aside.side 240px",
+      "div.tabs 318px",
+      "div.sec 318px"
+     ],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 4,
+     "boxRadius": 20,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 1,
+     "fixed": false,
+     "height": 64,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "geist"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1280,
+     "h": 800
+    },
+    "pageH": 800,
+    "margins": {
+     "left": 12,
+     "right": 29
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Opening Keynote",
+      "size": 20,
+      "top": 88,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 291,
+      "n": 2
+     },
+     {
+      "x": 955,
+      "n": 2
+     },
+     {
+      "x": 269,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 5,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.08,
+    "voidBox": {
+     "x": 587,
+     "y": 160,
+     "w": 267,
+     "h": 320
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1280,
+     "h": 800
+    },
+    "dark": true,
+    "ground": "#0b0c0e",
+    "sidebar": {
+     "w": 240,
+     "tag": "aside",
+     "links": 4,
+     "share": 0.19
+    },
+    "topbar": {
+     "h": 64
+    },
+    "canvas": {
+     "left": 29,
+     "right": -735
+    },
+    "hero": {
+     "text": "Opening Keynote",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 1.6,
+     "font": "Geist",
+     "weight": 600,
+     "tracking": -0.01,
+     "leading": 1.2,
+     "top": 88,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 1,
+    "layout": {
+     "panels": 4,
+     "firstScreen": 4,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 20,
+     "radii": [
+      [
+       0,
+       16
+      ],
+      [
+       20,
+       3
+      ],
+      [
+       12,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 4,
+     "tabularShare": 1,
+     "kpiMax": 12
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.45,
+     "tiny": 25,
+     "tinySamples": [
+      "What ships next quarter 7px",
+      "Welcome 8px",
+      "Annual Meeting 2026 4px",
+      "Agenda 8px"
+     ],
+     "sizes": [
+      4,
+      7,
+      8,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      20,
+      26
+     ]
+    },
+    "title": {
+     "text": "Opening Keynote",
+     "size": 20,
+     "top": 88
+    },
+    "colourShare": 0.016
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/home/econ/work/ppt-share/.taste-skill/inspect-taste/desktop-1440-fold.jpg",
+   "pages": [
+    "/home/econ/work/ppt-share/.taste-skill/inspect-taste/desktop-1440-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "desktop",
+   "width": 1280,
+   "fold": "/home/econ/work/ppt-share/.taste-skill/inspect-taste/desktop-1280-fold.jpg",
+   "pages": [
+    "/home/econ/work/ppt-share/.taste-skill/inspect-taste/desktop-1280-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

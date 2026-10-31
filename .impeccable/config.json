@@ -11,6 +11,12 @@
         ],
         "createdAt": "2026-10-08T04:47:09.627Z",
         "reason": "claude: red left tally bar on the live deck row is part of prototype A (proto-a-console), which the user chose to implement as is"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "createdAt": "2026-10-30T10:26:49.325Z",
+        "reason": "Geist is the project's existing bundled UI font in DESIGN.md; the redesign keeps it, user did not ask to change the typeface"
       }
     ]
   }

@@ -54,7 +54,8 @@ web
 - Terminology: event, deck, slide, Program (PGM), Next, Prev, Freeze, Black, KV, Cut, Fade, tally states LIVE, FROZEN, BLACK, KV, STANDBY.
 - UI language: English (done 2026-10-08; the user decided the UI should be English "to be more universal", since the app is shared for free with other operators). Broadcast terms stay as they are. Panel and label names: Event (header), Decks (library panel, with the Key visual (KV) block), Up next (right panel; "Preview" while frozen), Notes, Transition, Continue to next deck.
 - Every user-facing error names the problem and the recovery action.
-- Light and dark themes (dark default), resizable panels, settings and library stored locally per machine.
+- Light and dark themes, resizable panels, settings and library stored locally per machine. Decided 2026-10-30 (user): the default theme follows the OS setting (before: dark default), and the accent colour is user-selectable from a set of soft colour templates (violet is only the first).
+- UI redesign decided 2026-10-30 (user): the operator window is to be redesigned after the Rimo video-editor references (soft light theme, dark editor layout, rounded soft-app feel, properties-sidebar structure). Binding visual constraint only; the world is chosen later in new-work and recorded in DESIGN.md.
 
 ## Brand Commitments
 
@@ -78,7 +79,7 @@ web
 
 ## Accessibility & Inclusion
 
-- Used in dark venues: dark theme default, high-contrast text, state shown by text and shape, not colour alone (red is reserved for on-air tallies, amber for "next").
+- Used in dark venues: both themes keep high-contrast text (the default follows the OS, so a venue PC may need dark set by hand), state shown by text and shape, not colour alone (red is reserved for on-air tallies, amber for "next").
 - Fully operable by keyboard and presentation clicker; target WCAG 2.1 AA for the operator window.
 
 NDI® is a registered trademark of Vizrt NDI AB.
