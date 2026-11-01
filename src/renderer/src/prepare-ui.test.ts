@@ -6,7 +6,8 @@ import {
   interactLocked,
   keyRoute,
   nextInteract,
-  stageCursor
+  stageCursor,
+  zoomLabel
 } from './prepare-ui'
 
 describe('addressShown', () => {
@@ -135,5 +136,16 @@ describe('stageCursor', () => {
   })
   it('Interact off with nothing to pan is default', () => {
     expect(stageCursor({ ...base, interact: false })).toBe('default')
+  })
+})
+
+describe('zoomLabel', () => {
+  it('has no label at 100%', () => {
+    expect(zoomLabel(1)).toBeNull()
+  })
+  it('names the percentage otherwise', () => {
+    expect(zoomLabel(0.9)).toBe('Page zoom 90%')
+    expect(zoomLabel(1.1)).toBe('Page zoom 110%')
+    expect(zoomLabel(1.25)).toBe('Page zoom 125%')
   })
 })

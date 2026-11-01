@@ -490,9 +490,11 @@ export class WebHost {
     win.on('enter-html-full-screen', keepWindow)
     win.on('leave-html-full-screen', keepWindow)
 
-    // Chromium keeps zoom per origin and drops it on a new document: each deck re-applies
-    // its own stored factor after every main-frame navigation, so two decks on one site
-    // never share a zoom.
+    // Electron docs (webContents.setZoomMode, v45): the default mode keeps zoom per ORIGIN, so
+    // two decks on one site would share a zoom; 'isolated' is per webContents and survives
+    // navigation. Task 3 assumed the default mode; fixed here. The factor is still re-applied
+    // after every main-frame navigation as a belt-and-braces step (it is a no-op when equal).
+    wc.setZoomMode('isolated')
     wc.on('did-navigate', () => {
       wc.setZoomFactor(this.storedZoom(deckId))
       this.pushNav(p)

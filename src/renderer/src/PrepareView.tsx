@@ -3,17 +3,21 @@ import {
   ArrowClockwiseIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  CheckIcon,
   CursorClickIcon,
   DotsThreeVerticalIcon,
   HouseSimpleIcon,
   MapTrifoldIcon,
   SignOutIcon,
+  WarningIcon,
   XIcon
 } from '@phosphor-icons/react'
 import { slideUrl } from '../../shared/ipc'
 import type { ProgramState } from '../../shared/program'
 import type { DeckMeta } from '../../shared/types'
 import {
+  PAGE_ZOOMS,
+  ZOOM_LIVE_REFUSED,
   sanitizeWebUrl,
   webDomain,
   type PrepareInput,
@@ -37,7 +41,8 @@ import {
   interactLocked,
   keyRoute,
   nextInteract,
-  stageCursor
+  stageCursor,
+  zoomLabel
 } from './prepare-ui'
 import { PrepareMiniMap } from './components/PrepareMiniMap'
 import { centred, clampPan, layout, panBy, type View, type ViewMode } from './prepare-view'
@@ -490,7 +495,9 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   }, [])
   useEffect(() => {
     if (!menuOpen) return
-    menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    menu.current
+      ?.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"], [role="menuitem"]')
+      ?.focus()
     const onDown = (e: MouseEvent): void => {
       const t = e.target as Node
       if (!menu.current?.contains(t) && !menuButton.current?.contains(t)) setMenuOpen(false)
@@ -505,6 +512,14 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     run(api.signOutWeb())
   }
 
+  const zoom = nav?.zoom ?? deck?.web?.zoom ?? 1
+  const zoomText = zoomLabel(zoom)
+  const chooseZoom = (z: number): void => {
+    closeMenu(true)
+    setAddressNote(null)
+    // Main decides (live and not frozen is refused); its message shows in the note.
+    run(api.setWebZoom(deckId, z))
+  }
   const loading = nav?.loading ?? false
   const canBack = nav?.canGoBack ?? false
   const canForward = nav?.canGoForward ?? false
@@ -653,8 +668,46 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
                   e.preventDefault()
                   closeMenu(true)
                 } else if (e.key === 'Tab') closeMenu(false)
+                else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+                  e.preventDefault()
+                  const items = [
+                    ...(menu.current?.querySelectorAll<HTMLElement>(
+                      '[role^="menuitem"]:not(:disabled)'
+                    ) ?? [])
+                  ]
+                  const at = items.indexOf(document.activeElement as HTMLElement)
+                  const next =
+                    e.key === 'Home'
+                      ? 0
+                      : e.key === 'End'
+                        ? items.length - 1
+                        : (at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
+                  items[next]?.focus()
+                }
               }}
             >
+              <span className="menu-label" id="prepare-zoom-label">
+                Page zoom (changes the output)
+              </span>
+              <div role="group" aria-labelledby="prepare-zoom-label">
+                {PAGE_ZOOMS.map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={zoom === z}
+                    disabled={live}
+                    title={live ? ZOOM_LIVE_REFUSED : undefined}
+                    onClick={() => chooseZoom(z)}
+                  >
+                    <span className="chk">
+                      {zoom === z && <CheckIcon size={16} weight="bold" aria-hidden="true" />}
+                    </span>
+                    {Math.round(z * 100)}%
+                  </button>
+                ))}
+              </div>
+              <hr />
               <button type="button" role="menuitem" onClick={signOut}>
                 <SignOutIcon size={16} aria-hidden="true" />
                 Sign out of all websites
@@ -727,6 +780,16 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
             <MapTrifoldIcon size={16} weight="bold" aria-hidden="true" />
             Map
           </button>
+        )}
+        {zoomText && (
+          <span
+            className="prepare-zoomlabel"
+            title="The zoom changes the page itself, so the output shows it too."
+          >
+            <WarningIcon size={16} weight="bold" aria-hidden="true" />
+            {zoomText}
+            <span className="visually-hidden">. It changes the output.</span>
+          </span>
         )}
         <button
           ref={interactButton}

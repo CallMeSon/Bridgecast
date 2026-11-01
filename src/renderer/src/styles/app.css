@@ -2602,6 +2602,17 @@ footer .empty {
   cursor: not-allowed;
   opacity: 0.6;
 }
+.prepare-zoomlabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--h-sm);
+  font: 600 13px var(--font-sans);
+  color: var(--text);
+}
+.prepare-zoomlabel svg {
+  flex: none;
+}
 .prepare-interact {
   margin-left: auto;
 }

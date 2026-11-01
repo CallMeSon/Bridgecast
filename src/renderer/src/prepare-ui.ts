@@ -126,3 +126,9 @@ export function stageCursor(s: {
   if (s.interact) return cssCursor(s.page)
   return 'default'
 }
+
+/** The view-row label for a changed page zoom; null at 100% (the default needs no warning). */
+export function zoomLabel(zoom: number): string | null {
+  if (zoom === 1) return null
+  return `Page zoom ${Math.round(zoom * 100)}%`
+}

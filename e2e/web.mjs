@@ -289,8 +289,45 @@ async function main() {
     await win.evaluate(([d, i]) => window.api.webInput(d, i), [S.id, key('keyUp')])
     check(ok === true, 'Prepare input accepted while frozen')
     await waitWeb(app, (d) => d[S.id].counter === 2, 'frozen Prepare key reached the page')
+
+    // ---- page zoom: allowed frozen, per deck (B shares S's origin), kept across a reload
+    const zoom = (id, z) => win.evaluate(([d, v]) => window.api.setWebZoom(d, v), [id, z])
+    const iw = (part) => pageEval(app, part, 'window.innerWidth')
+    check(
+      (await iw('/slow')) === 1920 && (await iw('/b')) === 1920,
+      'pages start at 100% (1920 px)'
+    )
+    const zd = await zoom(S.id, 1.5)
+    check(zd.web?.zoom === 1.5, 'zoom is saved on the deck')
+    await sleep(300)
+    check(
+      (await iw('/slow')) === 1280,
+      `150% zoom while frozen: innerWidth 1280 (${await iw('/slow')})`
+    )
+    check((await iw('/b')) === 1920, 'a second deck on the same origin stays at 100%')
+    await zoom(B.id, 1.25)
+    await win.evaluate((d) => window.api.reloadWeb(d), B.id)
+    await waitWeb(app, (d) => d[B.id]?.status === 'ready', 'B ready after reload')
+    await sleep(500)
+    check((await iw('/b')) === 1536, `zoom 125% kept after Reload (${await iw('/b')})`)
+    check((await iw('/slow')) === 1280, 'the other deck keeps its own zoom')
+    await zoom(B.id, 1)
+    await sleep(300)
+    check((await iw('/b')) === 1920, 'back to 100%')
+    await zoom(S.id, 1)
+    await sleep(300)
+    check((await iw('/slow')) === 1920, 'S back to 100%')
     await win.keyboard.press('f')
     await waitState(win, (s) => !s.frozen, 'unfrozen')
+    check(
+      await zoom(S.id, 2)
+        .then(() => false)
+        .catch((e) =>
+          String(e).includes('Freeze first or take another deck, then change the page zoom.')
+        ),
+      'page zoom refused with the exact message while live and not frozen'
+    )
+    check((await iw('/slow')) === 1920, 'refused zoom changed nothing')
 
     // ---- HDMI output: pixels are not black
     const prim = await app.evaluate(({ screen }) => {
