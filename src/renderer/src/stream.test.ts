@@ -3,13 +3,31 @@ import {
   capturesForGate,
   desktopConstraints,
   posterWithVersion,
+  precaptureFormat,
   precaptureIds,
   recaptureNeeded,
   streamFps,
-  tabConstraints
+  tabConstraints,
+  VIDEO_ONLY_FPS
 } from './stream'
 
 const canvas = { width: 1920, height: 1080 }
+
+describe('precaptureFormat', () => {
+  it('asks for the same video-only capture as the monitor and Prepare (Canvas size, 30 fps)', () => {
+    const f = precaptureFormat({ width: 2560, height: 1440 })
+    expect(f).toEqual({ canvas: { width: 2560, height: 1440 }, fps: 30 })
+    // Chromium runs one capture per page for every video-only request, in the first one's format.
+    expect(tabConstraints('x', f.canvas, f.fps, false)).toEqual(
+      tabConstraints('x', { width: 2560, height: 1440 }, VIDEO_ONLY_FPS, false)
+    )
+  })
+  it('is never smaller than the Canvas (no 320x180 pre-capture)', () => {
+    const f = precaptureFormat(canvas)
+    expect(f.canvas.width).toBe(1920)
+    expect(f.canvas.height).toBe(1080)
+  })
+})
 
 describe('tabConstraints', () => {
   it('video and audio both name the tab source and the same id (spike shape)', () => {

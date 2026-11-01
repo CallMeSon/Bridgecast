@@ -45,10 +45,14 @@ import {
   zoomLabel
 } from './prepare-ui'
 import { PrepareMiniMap } from './components/PrepareMiniMap'
+import { VIDEO_ONLY_FPS } from './stream'
 import { centred, clampPan, layout, panBy, type View, type ViewMode } from './prepare-view'
 
-/** The preview is for looking and clicking: video only at 30 fps (spec 3). */
-const PREVIEW_FPS = 30
+/**
+ * The preview is for looking and clicking: video only at 30 fps (spec 3), the same as
+ * every other video-only capture of the page (they share one, see VIDEO_ONLY_FPS).
+ */
+const PREVIEW_FPS = VIDEO_ONLY_FPS
 const VIEW_KEY = 'prepare-view'
 const MAP_KEY = 'prepare-map'
 /** How long the "keyboard released" note stays in the status line. */

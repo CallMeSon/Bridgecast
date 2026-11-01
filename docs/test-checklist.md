@@ -124,7 +124,7 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] **Daftar `<select>` tetap tidak tampak (batas yang diketahui)**: buka halaman dengan `<select>`, klik. Daftar native tidak tampil di preview. Cara kerja: fokus kolom lalu tombol panah atas dan bawah memilih nilai. Catat situs yang tidak bisa dilewati dengan cara ini (itu alasan menjalankan Task 9).
 - [ ] **Zoom halaman di HDMI dan NDI**: More, zoom 150% saat frozen. Setelah Unfreeze, HDMI dan NDI menampilkan halaman diperbesar; Reload mempertahankan 150%; deck lain di situs yang sama tetap 100%. Saat live dan tidak frozen, pilihan zoom nonaktif dengan pesan.
 - [ ] **Clicker saat Prepare terbuka dan deck live**: tekan maju dengan clicker: halaman tetap menerima satu panah per tekan; klik dan ketik di Prepare tetap ditolak.
-- [ ] **Resolusi preview**: di PC pengembangan aliran preview 320x180 sehingga 100% buram. Di Windows nyata cek `videoWidth` video di jendela Prepare; pada 100% teks halaman harus tajam. Catat bila buram.
+- [ ] **Resolusi preview**: (dulu 320x180 bila Prepare dibuka selama halaman loading; diperbaiki, lihat spec web-source bagian Prepare.) Buka Prepare segera setelah menambah web deck: `videoWidth` video di jendela Prepare harus sama dengan lebar Canvas dan pada 100% teks halaman tajam. Lalu Take deck itu: monitor operator juga tajam. Catat bila buram.
 
 ## Putar PPT asli (native slideshow)
 

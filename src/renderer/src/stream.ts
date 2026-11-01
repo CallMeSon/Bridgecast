@@ -59,6 +59,28 @@ export function desktopConstraints(
   return { video } as MediaStreamConstraints
 }
 
+/**
+ * Frame rate of every video-only page capture: the operator monitor, the Prepare
+ * preview and the ready-gate pre-capture. Chromium runs ONE capture per page for all
+ * video-only requests (same device id `web-contents-media-stream://<p>:<f>`, across
+ * windows) in the format of the request that opened it; later requests only get its
+ * frames. So they must all ask for the same size and rate. Outputs capture with sound
+ * (device id `...?local_echo=false`) and so have a capture of their own.
+ */
+export const VIDEO_ONLY_FPS = 30
+
+/**
+ * The ready-gate pre-capture's format: the Canvas at VIDEO_ONLY_FPS, the same as the
+ * monitor and Prepare. A smaller or slower one (it used to be 320x180 at 5 fps) left
+ * every video-only capture that joined while it ran at that size and rate.
+ */
+export function precaptureFormat(canvas: { width: number; height: number }): {
+  canvas: { width: number; height: number }
+  fps: number
+} {
+  return { canvas: { width: canvas.width, height: canvas.height }, fps: VIDEO_ONLY_FPS }
+}
+
 /** Output capture frame rate: the network fps while OMT or NDI runs, else 30 (spec 3). */
 export function streamFps(networkFps: number | undefined, networkRunning: boolean): number {
   return networkRunning && networkFps === 60 ? 60 : 30

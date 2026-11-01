@@ -346,7 +346,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
           />
         </div>
       )}
-      <WebPrecapture deckIds={precapture} onGone={pages.refresh} />
+      <WebPrecapture deckIds={precapture} canvas={program?.canvas} onGone={pages.refresh} />
     </div>
   )
 }

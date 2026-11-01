@@ -1,9 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { openStream, playFirstFrame, stopStream } from '../stream'
+import { openStream, playFirstFrame, precaptureFormat, stopStream } from '../stream'
 
-/** Small and slow: this capture only proves a frame arrives (ready gate), nobody sees it. */
-const PRECAPTURE_SIZE = { width: 320, height: 180 }
-const PRECAPTURE_FPS = 5
 const RETRY_MS = 2000
 /** No first frame within this time: capture again (a new source id). */
 const FRAME_WAIT_MS = 3000
@@ -24,23 +21,35 @@ const withTimeout = (p: Promise<void>, ms: number): Promise<void> =>
   })
 
 /**
- * Captures one page off screen (video only, tiny, 1 px, invisible) and reports its
- * first frame for the ready gate. requestVideoFrameCallback is registered before
- * play(): a still page sends a single frame. A failure, or no frame in time,
- * captures again after a while.
+ * Captures one page off screen (video only, 1 px, invisible) and reports its first
+ * frame for the ready gate. requestVideoFrameCallback is registered before play(): a
+ * still page sends a single frame. A failure, or no frame in time, captures again
+ * after a while. Nobody sees it, but it asks for the Canvas at the monitor's rate
+ * (`precaptureFormat`): the monitor and Prepare share its capture while it runs.
  */
-function Precapture({ deckId, onGone }: { deckId: string; onGone(): void }): React.JSX.Element {
+function Precapture({
+  deckId,
+  canvas,
+  onGone
+}: {
+  deckId: string
+  canvas: { width: number; height: number }
+  onGone(): void
+}): React.JSX.Element {
   const ref = useRef<HTMLVideoElement>(null)
   const gone = useRef(onGone)
+  const size = useRef(canvas)
   useEffect(() => {
     gone.current = onGone
+    size.current = canvas
   })
   useEffect(() => {
     let alive = true
     let stream: MediaStream | null = null
     let timer: ReturnType<typeof setTimeout> | null = null
     const run = (): void => {
-      openStream('tab', deckId, PRECAPTURE_SIZE, PRECAPTURE_FPS, false)
+      const f = precaptureFormat(size.current)
+      openStream('tab', deckId, f.canvas, f.fps, false)
         .then(async (s) => {
           if (!alive || !ref.current) {
             stopStream(s)
@@ -79,16 +88,19 @@ function Precapture({ deckId, onGone }: { deckId: string; onGone(): void }): Rea
  */
 export function WebPrecapture({
   deckIds,
+  canvas,
   onGone
 }: {
   deckIds: string[]
+  /** The Canvas; no pre-capture until it is known. */
+  canvas: { width: number; height: number } | undefined
   onGone(): void
 }): React.JSX.Element | null {
-  if (deckIds.length === 0) return null
+  if (deckIds.length === 0 || !canvas) return null
   return (
     <div className="web-precapture" aria-hidden="true">
       {deckIds.map((id) => (
-        <Precapture key={id} deckId={id} onGone={onGone} />
+        <Precapture key={id} deckId={id} canvas={canvas} onGone={onGone} />
       ))}
     </div>
   )

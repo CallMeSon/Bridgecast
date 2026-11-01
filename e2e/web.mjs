@@ -522,6 +522,17 @@ async function main() {
         throw e
       })
     check(true, 'the Prepare preview shows the page stream')
+    // Opened while the page loads, so it shares the ready-gate pre-capture (Chromium runs
+    // one video-only capture per page): that one must ask for the Canvas, not 320x180.
+    const prevSize = await prep.evaluate(() => {
+      const v = document.querySelector('.prepare-stage video:not([data-incoming])')
+      const s = v?.srcObject?.getVideoTracks()[0]?.getSettings() ?? {}
+      return { vw: v?.videoWidth, vh: v?.videoHeight, w: s.width, h: s.height }
+    })
+    check(
+      prevSize.vw >= 1920 && prevSize.vh >= 1080 && prevSize.w >= 1920 && prevSize.h >= 1080,
+      `the Prepare preview track has the Canvas size 1920x1080 (${JSON.stringify(prevSize)})`
+    )
     const iconW = await prep.$$eval('.prepare-bar .prepare-icon svg', (l) =>
       l.map((e) => e.getBoundingClientRect().width)
     )

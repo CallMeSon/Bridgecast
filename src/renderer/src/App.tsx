@@ -39,7 +39,7 @@ import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import type { StreamOptions } from './components/SlideLayers'
 import type { WebCaptureWarning } from '../../shared/web'
-import { capturesForGate, precaptureIds } from './stream'
+import { capturesForGate, precaptureIds, VIDEO_ONLY_FPS } from './stream'
 import {
   baseName,
   canNext,
@@ -870,7 +870,7 @@ function App(): React.JSX.Element {
   const monitorStream = useMemo<StreamOptions>(
     () => ({
       canvas: program.canvas,
-      fps: 30,
+      fps: VIDEO_ONLY_FPS,
       generation: (id) => pages.generations[id] ?? 0,
       // Main counts these only while no output is active.
       onFrame: (id, source) =>
@@ -1160,7 +1160,7 @@ function App(): React.JSX.Element {
       <SaveNote text={note} />
       <Splitters appRef={appRef} />
       <DropOverlay onDrop={({ files, folders }) => importFiles(files, folders)} />
-      <WebPrecapture deckIds={precapture} onGone={pages.refresh} />
+      <WebPrecapture deckIds={precapture} canvas={program.canvas} onGone={pages.refresh} />
     </div>
   )
 }
