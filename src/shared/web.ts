@@ -77,7 +77,7 @@ export function captureWarningText(output: 'hdmi' | 'omt', kind: CaptureKind = '
 export type PrepareInput =
   | {
       kind: 'mouse'
-      type: 'mouseDown' | 'mouseUp' | 'mouseMove'
+      type: 'mouseDown' | 'mouseUp' | 'mouseMove' | 'mouseLeave'
       x: number
       y: number
       button: 'left' | 'right' | 'middle'
@@ -91,3 +91,24 @@ export type PrepareInput =
       keyCode: string
       modifiers: string[]
     }
+
+/** Page zoom steps of a web deck; 1 is the default and is never stored. */
+export const PAGE_ZOOMS = [0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 2] as const
+
+export function isPageZoom(v: unknown): v is number {
+  return typeof v === 'number' && (PAGE_ZOOMS as readonly number[]).includes(v)
+}
+
+export const ZOOM_LIVE_REFUSED = 'Freeze first or take another deck, then change the page zoom.'
+
+/** What a web page is doing, for the Prepare window. */
+export interface WebNavState {
+  deckId: string
+  url: string
+  title: string
+  canGoBack: boolean
+  canGoForward: boolean
+  loading: boolean
+  zoom: number
+  cursor: string
+}

@@ -4,7 +4,8 @@ import {
   sanitizeWebUrl,
   webDomain,
   WEB_URL_ERROR,
-  WEB_HTTP_WARNING
+  WEB_HTTP_WARNING,
+  isPageZoom
 } from './web'
 
 describe('sanitizeWebUrl', () => {
@@ -65,5 +66,15 @@ describe('captureWarningText', () => {
     expect(captureWarningText('omt', 'slides')).toBe(
       'The slide show cannot be shown on OMT. It shows still slides.'
     )
+  })
+})
+
+describe('isPageZoom', () => {
+  it('accepts exact list members', () => {
+    expect(isPageZoom(1.25)).toBe(true)
+    expect(isPageZoom(0.5)).toBe(true)
+  })
+  it.each([1.3, '1', NaN, null])('refuses %s', (v) => {
+    expect(isPageZoom(v)).toBe(false)
   })
 })

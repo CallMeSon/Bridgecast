@@ -610,6 +610,33 @@ describe('Library', () => {
       expect(fs.readFileSync(path.join(root, 'decks', pdf.id, '001.png'), 'utf8')).toBe('png-0')
     })
 
+    it('keeps a valid page zoom and drops invalid ones on load', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const d = lib.addWebDeck(ev.id, webInput())
+      const file = path.join(root, 'decks', d.id, 'deck.json')
+      fs.writeFileSync(file, JSON.stringify({ ...d, web: { url: d.web!.url, zoom: 1.5 } }))
+      expect(lib.getDeck(d.id).web).toEqual({ url: d.web!.url, zoom: 1.5 })
+      for (const bad of ['2', 0.33, null, -1]) {
+        fs.writeFileSync(file, JSON.stringify({ ...d, web: { url: d.web!.url, zoom: bad } }))
+        expect(lib.getDeck(d.id).web).toEqual({ url: d.web!.url })
+      }
+    })
+
+    it('setWebZoom persists, removes the key at 1 and validates', () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const d = lib.addWebDeck(ev.id, webInput())
+      lib.setWebZoom(ev.id, d.id, 1.25)
+      expect(new Library(root).getDeck(d.id).web).toEqual({ url: d.web!.url, zoom: 1.25 })
+      lib.setWebZoom(ev.id, d.id, 1)
+      const raw = JSON.parse(fs.readFileSync(path.join(root, 'decks', d.id, 'deck.json'), 'utf8'))
+      expect('zoom' in raw.web).toBe(false)
+      expect(() => lib.setWebZoom(ev.id, d.id, 3)).toThrow('Choose a page zoom from the list.')
+      const pdf = lib.addDeck(ev.id, deckInput(1))
+      expect(() => lib.setWebZoom(ev.id, pdf.id, 1.25)).toThrow(/not a web page/)
+    })
+
     it('a damaged web field is dropped when read', () => {
       const lib = new Library(root)
       const ev = lib.createEvent('E')

@@ -17,7 +17,7 @@ import { CANVAS_INVALID, isDeckFit, sanitizeCanvas } from '../shared/canvas'
 import { canNative, isPlayback } from '../shared/playback'
 import { sanitizeDeckAudio } from '../shared/audio-levels'
 import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections'
-import { sanitizeWebUrl } from '../shared/web'
+import { isPageZoom, sanitizeWebUrl } from '../shared/web'
 import type { ImportedDeck } from './import/pptx'
 import { thumbFileName } from './slide-protocol'
 import { writeThumbnail } from './thumbnail'
@@ -230,7 +230,9 @@ export class Library {
       web !== null &&
       typeof (web as { url?: unknown }).url === 'string'
     ) {
+      const zoom = (web as { zoom?: unknown }).zoom
       deck.web = { url: (web as { url: string }).url }
+      if (isPageZoom(zoom) && zoom !== 1) deck.web.zoom = zoom
     }
     return deck
   }
@@ -335,7 +337,19 @@ export class Library {
   setWebUrl(eventId: string, deckId: string, url: string): DeckMeta {
     const current = this.deckInEvent(eventId, deckId)
     if (current.source !== 'web') throw new Error(NOT_WEB)
-    const deck = { ...current, web: { url: cleanWebUrl(url) } }
+    const deck = { ...current, web: { ...current.web, url: cleanWebUrl(url) } }
+    this.writeDeck(deck)
+    return deck
+  }
+
+  /** Page zoom of a web deck; 1 (the default) is not stored. */
+  setWebZoom(eventId: string, deckId: string, zoom: number): DeckMeta {
+    const current = this.deckInEvent(eventId, deckId)
+    if (current.source !== 'web' || !current.web) throw new Error(NOT_WEB)
+    if (!isPageZoom(zoom)) throw new Error('Choose a page zoom from the list.')
+    const web: { url: string; zoom?: number } = { url: current.web.url }
+    if (zoom !== 1) web.zoom = zoom
+    const deck = { ...current, web }
     this.writeDeck(deck)
     return deck
   }

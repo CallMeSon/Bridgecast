@@ -7,7 +7,8 @@ import {
   navigationAllowed,
   permissionAllowed,
   popupAllowed,
-  validatePrepareInput
+  validatePrepareInput,
+  zoomAllowed
 } from './policy'
 
 const canvas = { width: 3840, height: 1080 }
@@ -225,6 +226,26 @@ describe('validatePrepareInput', () => {
     expect(validatePrepareInput({ ...k, type: 'keyPress' }, canvas, idle)).toBeNull()
     expect(validatePrepareInput({ ...k, modifiers: ['hyper'] }, canvas, idle)).toBeNull()
     expect(validatePrepareInput({ ...k, modifiers: 'shift' }, canvas, idle)).toBeNull()
+  })
+})
+
+describe('mouseLeave and zoomAllowed', () => {
+  const leave = { kind: 'mouse', type: 'mouseLeave', x: 0.5, y: 0.5, button: 'left', clickCount: 0 }
+  it('maps mouseLeave to canvas pixels', () => {
+    expect(validatePrepareInput(leave, { width: 1920, height: 1080 }, idle)).toEqual({
+      type: 'mouseLeave',
+      x: 960,
+      y: 540
+    })
+  })
+  it('refuses mouseLeave live and not frozen', () => {
+    expect(validatePrepareInput(leave, canvas, { live: true, frozen: false })).toBeNull()
+  })
+  it('zoomAllowed is false only live and not frozen', () => {
+    expect(zoomAllowed({ live: false, frozen: false })).toBe(true)
+    expect(zoomAllowed({ live: false, frozen: true })).toBe(true)
+    expect(zoomAllowed({ live: true, frozen: true })).toBe(true)
+    expect(zoomAllowed({ live: true, frozen: false })).toBe(false)
   })
 })
 

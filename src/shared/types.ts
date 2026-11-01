@@ -37,7 +37,7 @@ export interface DeckMeta {
    */
   importStatic?: boolean
   /** The page of a web deck (source 'web'). */
-  web?: { url: string }
+  web?: { url: string; zoom?: number }
 }
 
 export interface SectionMeta {

@@ -63,6 +63,11 @@ export function popupAllowed(live: boolean): boolean {
   return !live
 }
 
+/** Page zoom changes the output, so it follows the input rule: refused only live and not frozen. */
+export function zoomAllowed(s: { live: boolean; frozen: boolean }): boolean {
+  return !(s.live && !s.frozen)
+}
+
 export type { PrepareInput }
 
 const DOM_TO_ELECTRON_KEY: Readonly<Record<string, string>> = {
@@ -95,7 +100,7 @@ export function electronKeyName(domKey: string): string {
 export type PrepareEvent =
   Electron.MouseInputEvent | Electron.MouseWheelInputEvent | Electron.KeyboardInputEvent
 
-const MOUSE_TYPES = new Set(['mouseDown', 'mouseUp', 'mouseMove'])
+const MOUSE_TYPES = new Set(['mouseDown', 'mouseUp', 'mouseMove', 'mouseLeave'])
 const BUTTONS = new Set(['left', 'right', 'middle'])
 const KEY_TYPES = new Set(['keyDown', 'keyUp', 'char'])
 const MODIFIERS = new Set(['shift', 'control', 'alt', 'meta'])
@@ -140,6 +145,9 @@ export function validatePrepareInput(
       (r.clickCount as number) > 3
     )
       return null
+    if (r.type === 'mouseLeave') {
+      return { type: 'mouseLeave', x: pixel(r.x, canvas.width), y: pixel(r.y, canvas.height) }
+    }
     return {
       type: r.type as 'mouseDown' | 'mouseUp' | 'mouseMove',
       x: pixel(r.x, canvas.width),
