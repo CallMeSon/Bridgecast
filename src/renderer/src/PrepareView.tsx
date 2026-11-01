@@ -4,12 +4,20 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   DotsThreeVerticalIcon,
-  SignOutIcon
+  HouseSimpleIcon,
+  SignOutIcon,
+  XIcon
 } from '@phosphor-icons/react'
 import { slideUrl } from '../../shared/ipc'
 import type { ProgramState } from '../../shared/program'
 import type { DeckMeta } from '../../shared/types'
-import { sanitizeWebUrl, webDomain, type PrepareInput, type WebStatus } from '../../shared/web'
+import {
+  sanitizeWebUrl,
+  webDomain,
+  type PrepareInput,
+  type WebNavState,
+  type WebStatus
+} from '../../shared/web'
 import { StreamLayer } from './components/StreamLayer'
 import {
   errorMessage,
@@ -19,6 +27,7 @@ import {
   toPrepareChar,
   toPrepareInput
 } from './model'
+import { addressShown, homeDisabled } from './prepare-ui'
 import { stageRect } from './stage'
 
 /** The preview is for looking and clicking: video only at 30 fps (spec 3). */
@@ -41,6 +50,9 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   const [generation, setGeneration] = useState(0)
   const [address, setAddress] = useState('')
   const [addressNote, setAddressNote] = useState<{ text: string; problem: boolean } | null>(null)
+  const [nav, setNav] = useState<WebNavState | null>(null)
+  const [focused, setFocused] = useState(false)
+  const [edited, setEdited] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [box, setBox] = useState({ width: 0, height: 0 })
 
@@ -49,7 +61,6 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   const urlField = useRef<HTMLInputElement>(null)
   const menuButton = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
-  const addressEdited = useRef(false)
 
   // Program state (same source as the operator and output windows): a broadcast is newer than the first fetch.
   useEffect(() => {
@@ -65,7 +76,8 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
         const decks = session.eventId ? await api.listDecks(session.eventId) : []
         const found = decks.find((d) => d.id === deckId) ?? null
         setDeck(found)
-        if (found?.web && !addressEdited.current) setAddress(found.web.url)
+        const url = found?.web?.url
+        if (url) setAddress((prev) => prev || url)
       })
       .catch((e: unknown) => {
         console.error('[prepare] state failed to load:', e)
@@ -95,6 +107,24 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     return off
   }, [api, deckId])
 
+  // Where the page is now (address, title, history, loading); a broadcast is newer than the first fetch.
+  useEffect(() => {
+    let fresh = true
+    const off = api.onWebNavState((s) => {
+      if (s.deckId !== deckId) return
+      fresh = false
+      setNav(s)
+    })
+    api
+      .webNavStates()
+      .then((list) => {
+        const mine = list.find((s) => s.deckId === deckId)
+        if (fresh && mine) setNav(mine)
+      })
+      .catch((e: unknown) => console.warn('[prepare] page state failed to load:', e))
+    return off
+  }, [api, deckId])
+
   useEffect(() => {
     const el = wrap.current
     if (!el) return
@@ -106,8 +136,10 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    document.title = deck ? `Prepare: ${deck.name}` : 'Prepare web page'
-  }, [deck])
+    document.title = deck
+      ? `Prepare: ${deck.name}${nav?.title ? ` · ${nav.title}` : ''}`
+      : 'Prepare web page'
+  }, [deck, nav?.title])
 
   const banner = program ? prepareBanner(program, deckId) : null
   const live = banner === 'live'
@@ -229,7 +261,7 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
       (d) => {
         setDeck(d)
         if (d.web) setAddress(d.web.url)
-        addressEdited.current = false
+        setEdited(false)
       },
       (err: unknown) => setAddressNote({ text: errorMessage(err), problem: true })
     )
@@ -256,6 +288,15 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     run(api.signOutWeb())
   }
 
+  const loading = nav?.loading ?? false
+  const canBack = nav?.canGoBack ?? false
+  const canForward = nav?.canGoForward ?? false
+  const noHome = homeDisabled(nav?.url ?? null, deck?.web?.url)
+  const shownAddress = addressShown({
+    pageUrl: nav?.url ?? null,
+    typed: address,
+    editing: focused || edited
+  })
   const domain = webDomain(deck?.web?.url ?? address)
   const failure =
     status?.status === 'error'
@@ -279,8 +320,8 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
           type="button"
           className="btn sm prepare-icon"
           aria-label="Back"
-          title={live ? 'Back (locked while on air)' : 'Back'}
-          disabled={live}
+          title={live ? 'Locked while on air' : canBack ? 'Back' : 'No earlier page'}
+          disabled={live || !canBack}
           onClick={() => run(api.navWeb(deckId, 'back'))}
         >
           <ArrowLeftIcon size={16} weight="bold" aria-hidden="true" />
@@ -289,20 +330,48 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
           type="button"
           className="btn sm prepare-icon"
           aria-label="Forward"
-          title={live ? 'Forward (locked while on air)' : 'Forward'}
-          disabled={live}
+          title={live ? 'Locked while on air' : canForward ? 'Forward' : 'No later page'}
+          disabled={live || !canForward}
           onClick={() => run(api.navWeb(deckId, 'forward'))}
         >
           <ArrowRightIcon size={16} weight="bold" aria-hidden="true" />
         </button>
+        {loading ? (
+          <button
+            type="button"
+            className="btn sm prepare-icon"
+            aria-label="Stop loading"
+            title="Stop loading"
+            onClick={() => run(api.stopWeb(deckId))}
+          >
+            <XIcon size={16} weight="bold" aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn sm prepare-icon"
+            aria-label="Reload"
+            title={live ? 'Reload (on air: the output goes to HOLD first)' : 'Reload'}
+            onClick={() => run(api.reloadWeb(deckId))}
+          >
+            <ArrowClockwiseIcon size={16} weight="bold" aria-hidden="true" />
+          </button>
+        )}
         <button
           type="button"
           className="btn sm prepare-icon"
-          aria-label="Reload"
-          title={live ? 'Reload (on air: the output goes to HOLD first)' : 'Reload'}
-          onClick={() => run(api.reloadWeb(deckId))}
+          aria-label="Go to the deck address"
+          title={
+            noHome
+              ? 'Already at the deck address'
+              : live
+                ? 'Go to the deck address (on air: the output goes to HOLD first)'
+                : 'Go to the deck address'
+          }
+          disabled={noHome}
+          onClick={() => run(api.homeWeb(deckId))}
         >
-          <ArrowClockwiseIcon size={16} weight="bold" aria-hidden="true" />
+          <HouseSimpleIcon size={16} weight="bold" aria-hidden="true" />
         </button>
         <form className="prepare-address" onSubmit={submitAddress}>
           <label className="visually-hidden" htmlFor="prepare-url">
@@ -315,15 +384,33 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
             inputMode="url"
             spellCheck={false}
             autoComplete="off"
-            value={address}
+            value={shownAddress}
             disabled={live}
             aria-describedby={addressNote ? 'prepare-note' : undefined}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             onChange={(e) => {
-              addressEdited.current = true
+              setEdited(true)
               setAddress(e.target.value)
               setAddressNote(null)
             }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return
+              e.preventDefault()
+              setEdited(false)
+              setAddressNote(null)
+              setAddress(nav?.url ?? deck?.web?.url ?? '')
+              stage.current?.focus()
+            }}
           />
+          {loading && (
+            <>
+              <span className="prepare-loadbar" aria-hidden="true" />
+              <span className="prepare-loadtext" aria-hidden="true">
+                Loading
+              </span>
+            </>
+          )}
         </form>
         <div className="prepare-more">
           <button
