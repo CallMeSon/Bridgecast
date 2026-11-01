@@ -10,6 +10,7 @@ import { Header } from './components/Header'
 import { Home } from './components/Home'
 import { closeTab, loadOpenTabs, openTab, saveOpenTabs } from './open-tabs'
 import { SettingsDialog } from './components/SettingsDialog'
+import { NewEventDialog } from './components/NewEventDialog'
 import { Library, type ImportRow, type LibraryHandle } from './components/Library'
 import { DropOverlay } from './components/DropOverlay'
 import { Program } from './components/Program'
@@ -113,6 +114,8 @@ function App(): React.JSX.Element {
   const [customHex, setCustomHex] = useState(() => loadCustomAccent() ?? DEFAULT_CUSTOM)
   const [reduceMotion, setReduceMotion] = useState(loadReduceMotion)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [newEventOpen, setNewEventOpen] = useState(false)
+  const newEventOpener = useRef<HTMLElement | null>(null)
   const output = useOutputSettings()
   const [panelTab, setPanelTab] = useState<PanelTab>(() => loadPanelTab(localStorage))
   const [openSections, setOpenSections] = useState(() => loadOpenSections(localStorage))
@@ -401,18 +404,31 @@ function App(): React.JSX.Element {
     else library.current?.addWeb()
   }, [])
 
+  // Throws when main refuses: the New event dialog shows the message under its field.
   const createEvent = useCallback(
     async (name: string) => {
-      try {
-        const ev = await api.createEvent(name)
-        setEvents(await api.listEvents())
-        await selectEvent(ev.id)
-      } catch (e) {
-        reportError(name, e)
-      }
+      const ev = await api.createEvent(name)
+      setEvents(await api.listEvents())
+      await selectEvent(ev.id)
     },
-    [api, selectEvent, reportError]
+    [api, selectEvent]
   )
+
+  const openNewEvent = useCallback(() => {
+    newEventOpener.current = document.activeElement as HTMLElement | null
+    setNewEventOpen(true)
+  }, [])
+
+  const closeNewEvent = useCallback((restoreFocus: boolean) => {
+    setNewEventOpen(false)
+    if (!restoreFocus) return
+    // After the dialog unmounts and #root is no longer inert.
+    setTimeout(() => {
+      const o = newEventOpener.current
+      const target = o && o.isConnected && o !== document.body ? o : null
+      ;(target ?? document.querySelector<HTMLElement>('.evtabs .newbtn'))?.focus()
+    }, 0)
+  }, [])
 
   // PDFs render here (pdf.js) one at a time, so several dropped PDFs never
   // compete for the renderer; PPT/PPTX go to main's import queue.
@@ -965,7 +981,7 @@ function App(): React.JSX.Element {
         onSelectEvent={selectEvent}
         onCloseTab={closeEventTab}
         onHome={() => setView((v) => (v === 'home' ? 'console' : 'home'))}
-        onCreateEvent={createEvent}
+        onNewEvent={openNewEvent}
         program={program}
         output={output}
         onOpenOutput={showOutput}
@@ -973,6 +989,13 @@ function App(): React.JSX.Element {
         onSetTheme={chooseTheme}
         onOpenSettings={() => setSettingsOpen(true)}
       />
+      {newEventOpen && (
+        <NewEventDialog
+          existing={events.map((e) => e.name)}
+          onSubmit={createEvent}
+          onClose={closeNewEvent}
+        />
+      )}
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -999,8 +1022,7 @@ function App(): React.JSX.Element {
           airHeadline={airHeadline}
           onOpen={selectEvent}
           onBack={backToConsole}
-          // The header's New field creates the event and opens it as a tab.
-          onNew={() => document.querySelector<HTMLButtonElement>('.evtabs .newbtn')?.click()}
+          onNew={openNewEvent}
           onImport={() => askLibrary('import')}
           onAddWeb={() => askLibrary('web')}
           onArchive={archiveEvent}

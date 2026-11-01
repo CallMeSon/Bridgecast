@@ -116,6 +116,41 @@ try {
   )
   check((await attr('reduceMotion')) !== undefined, 'reduce motion persists')
   await page.screenshot({ path: path.join(os.tmpdir(), 'settings-closed.png') })
+  // New event opens a dialog: Escape cancels, a name + Enter creates and selects the event.
+  const tabs = page.locator('[role=tab]')
+  const before = await tabs.count()
+  await page.click('.evtabs .newbtn')
+  await page.waitForSelector('[data-testid=new-event-dialog]')
+  check((await page.locator('.evtabs input').count()) === 0, 'no input in the tab bar')
+  check(
+    await page.evaluate(() => document.activeElement?.dataset.testid === 'new-event-name'),
+    'name field focused'
+  )
+  await page.keyboard.press('Enter')
+  check((await page.locator('[data-testid=new-event-error]').count()) === 1, 'empty name refused')
+  await page.keyboard.press('Escape')
+  check((await page.locator('[data-testid=new-event-dialog]').count()) === 0, 'Escape closes')
+  check((await tabs.count()) === before, 'Escape creates nothing')
+  check(
+    await page.evaluate(() => document.activeElement?.classList.contains('newbtn')),
+    'focus back on New'
+  )
+  await page.click('.evtabs .newbtn')
+  await page.fill('[data-testid=new-event-name]', 'Annual gala')
+  await page.screenshot({ path: path.join(os.tmpdir(), 'new-event-light.png') })
+  await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'))
+  await page.screenshot({ path: path.join(os.tmpdir(), 'new-event-dark.png') })
+  await page.evaluate(() => (document.documentElement.dataset.theme = 'light'))
+  await page.keyboard.press('Escape')
+  await page.click('.evtabs .newbtn')
+  await page.fill('[data-testid=new-event-name]', '  Dialog Event  ')
+  await page.press('[data-testid=new-event-name]', 'Enter')
+  await page.locator('[data-testid=new-event-dialog]').waitFor({ state: 'detached' })
+  check((await tabs.count()) === before + 1, 'event created as a tab')
+  check(
+    (await page.locator('[role=tab][aria-selected=true]').first().textContent()) === 'Dialog Event',
+    'new event selected, name trimmed'
+  )
   await page.click('button.gear')
   await page.screenshot({ path: path.join(os.tmpdir(), 'settings-open.png') })
   console.log('PASS')

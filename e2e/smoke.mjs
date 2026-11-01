@@ -747,17 +747,17 @@ async function behaviourChecks(win, tally, pos) {
   )
   await win.evaluate(() => document.activeElement?.blur())
 
-  // Creating an event: leaving the field without Enter cancels.
+  // Creating an event: Escape in the dialog cancels.
   const eventLabel = await selTab.textContent()
   const tabCount = await win.locator('[role=tab]').count()
   await win.click('.newbtn')
-  await win.fill('.event-input', 'Not created')
-  await win.click('header .brand')
-  await win.locator('.event-input').waitFor({ state: 'detached' })
+  await win.fill('[data-testid=new-event-name]', 'Not created')
+  await win.keyboard.press('Escape')
+  await win.locator('[data-testid=new-event-dialog]').waitFor({ state: 'detached' })
   check(
     (await selTab.textContent()) === eventLabel &&
       (await win.locator('[role=tab]').count()) === tabCount,
-    'blur without Enter cancels the new event (no event created, selection kept)'
+    'Escape cancels the new event (no event created, selection kept)'
   )
 
   // 2. Held keys fire once: auto-repeat never skips slides.
@@ -2335,8 +2335,8 @@ try {
 
   // Create an event through the event menu.
   await win.click('.newbtn')
-  await win.fill('.event-input', 'Smoke Event')
-  await win.press('.event-input', 'Enter')
+  await win.fill('[data-testid=new-event-name]', 'Smoke Event')
+  await win.press('[data-testid=new-event-name]', 'Enter')
   await win.locator('[role=tab][aria-selected=true]', { hasText: 'Smoke Event' }).waitFor()
   check(true, 'event created and selected')
   check(
@@ -2592,8 +2592,8 @@ try {
   await tallyIs('KV')
   const kvSrc = await waitOnAirSrc('slide://kv/', 'forced KV on air before the event switch')
   await win.click('.newbtn')
-  await win.fill('.event-input', 'Event KV')
-  await win.press('.event-input', 'Enter')
+  await win.fill('[data-testid=new-event-name]', 'Event KV')
+  await win.press('[data-testid=new-event-name]', 'Enter')
   await win.locator('[role=tab][aria-selected=true]', { hasText: 'Event KV' }).waitFor()
   await tallyIs('KV')
   await waitFrame(GRID, (px) => px.every(isKv), 'switching event keeps the KV on the output')
@@ -2793,8 +2793,8 @@ try {
 
   // Switching to a new (empty) event keeps the output as it is.
   await win.click('.newbtn')
-  await win.fill('.event-input', 'Event Kedua')
-  await win.press('.event-input', 'Enter')
+  await win.fill('[data-testid=new-event-name]', 'Event Kedua')
+  await win.press('[data-testid=new-event-name]', 'Enter')
   await win.locator('[role=tab][aria-selected=true]', { hasText: 'Event Kedua' }).waitFor()
   await win.locator('.empty-lib').waitFor()
   check((await tally.textContent()) === 'LIVE', 'output stays LIVE after switching event')

@@ -32,8 +32,8 @@ try {
   )
 
   await win.click('.newbtn')
-  await win.fill('.event-input', 'Packaged')
-  await win.press('.event-input', 'Enter')
+  await win.fill('[data-testid=new-event-name]', 'Packaged')
+  await win.press('[data-testid=new-event-name]', 'Enter')
   await win.locator('[role=tab][aria-selected=true]', { hasText: 'Packaged' }).waitFor()
 
   await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))

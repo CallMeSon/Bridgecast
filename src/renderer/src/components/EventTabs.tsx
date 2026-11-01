@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { PlusIcon, SquaresFourIcon, XIcon } from '@phosphor-icons/react'
 import type { EventMeta } from '../../../shared/types'
 import type { Tally } from '../model'
@@ -17,7 +17,8 @@ interface Props {
   onSelect(id: string): void
   onClose(id: string): void
   onHome(): void
-  onNew(name: string): void
+  /** Opens the New event dialog. */
+  onNew(): void
 }
 
 /**
@@ -37,11 +38,7 @@ export function EventTabs({
   onHome,
   onNew
 }: Props): React.JSX.Element {
-  const [creating, setCreating] = useState(false)
-  const [draft, setDraft] = useState('')
   const list = useRef<HTMLDivElement>(null)
-  const newBtn = useRef<HTMLButtonElement>(null)
-  const refocus = useRef(false)
 
   const tabs = ids.flatMap((id) => events.find((e) => e.id === id) ?? [])
   const selected = view === 'console' ? current : null
@@ -53,21 +50,6 @@ export function EventTabs({
       ?.querySelector('[aria-selected=true]')
       ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [selected, ids.length])
-
-  useEffect(() => {
-    if (creating || !refocus.current) return
-    refocus.current = false
-    // Later than the key that closed the field: Enter's keypress must not land on New.
-    const t = setTimeout(() => newBtn.current?.focus(), 0)
-    return () => clearTimeout(t)
-  }, [creating])
-
-  const endNew = (commit: boolean, restoreFocus: boolean): void => {
-    const name = draft.trim()
-    refocus.current = restoreFocus
-    setCreating(false)
-    if (commit && name) onNew(name)
-  }
 
   const tabButtons = (): HTMLElement[] =>
     Array.from(list.current?.querySelectorAll<HTMLElement>('[role=tab]') ?? [])
@@ -155,36 +137,10 @@ export function EventTabs({
           )
         })}
       </div>
-      {creating ? (
-        <input
-          className="event-input"
-          placeholder="New event name"
-          maxLength={60}
-          aria-label="New event name"
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') endNew(true, true)
-            else if (e.key === 'Escape') endNew(false, true)
-          }}
-          // Leaving the field without Enter cancels: a stray click never creates an event.
-          onBlur={() => endNew(false, false)}
-        />
-      ) : (
-        <button
-          ref={newBtn}
-          className="newbtn"
-          aria-label="New event"
-          onClick={() => {
-            setDraft('')
-            setCreating(true)
-          }}
-        >
-          <PlusIcon size={16} />
-          New
-        </button>
-      )}
+      <button className="newbtn" aria-label="New event" aria-haspopup="dialog" onClick={onNew}>
+        <PlusIcon size={16} />
+        New
+      </button>
     </div>
   )
 }

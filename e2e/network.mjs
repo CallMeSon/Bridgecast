@@ -168,8 +168,8 @@ async function fakeScenario() {
     fs.writeFileSync(kvPath, Buffer.from(b64, 'base64'))
 
     await win.click('.newbtn')
-    await win.fill('.event-input', 'Net Event')
-    await win.press('.event-input', 'Enter')
+    await win.fill('[data-testid=new-event-name]', 'Net Event')
+    await win.press('[data-testid=new-event-name]', 'Enter')
     await win.locator('[role=tab][aria-selected=true]', { hasText: 'Net Event' }).waitFor()
     await win.setInputFiles('[data-testid=kv-input]', kvPath)
     await win.locator('[data-testid=kv-thumb] img').waitFor({ timeout: 10_000 })
@@ -567,8 +567,8 @@ async function bothScenario() {
   const { app, win, errors } = await launch({ PPT_OMT_FAKE: '1', PPT_NDI_FAKE: '1' })
   try {
     await win.click('.newbtn')
-    await win.fill('.event-input', 'Both Event')
-    await win.press('.event-input', 'Enter')
+    await win.fill('[data-testid=new-event-name]', 'Both Event')
+    await win.press('[data-testid=new-event-name]', 'Enter')
     await win.locator('[role=tab][aria-selected=true]', { hasText: 'Both Event' }).waitFor()
     await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
     await win.locator('.deck .meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })

@@ -263,7 +263,6 @@ header > .evtabs {
 }
 
 /* inputs */
-.event-input,
 .text-input {
   padding: 0 12px;
   border-radius: var(--r);
@@ -272,14 +271,10 @@ header > .evtabs {
   background: var(--bg);
   border: 1px solid var(--edge);
 }
-.event-input {
-  height: var(--h-sm);
-  width: 220px;
-}
 .text-input {
   height: var(--h-md);
 }
-.event-input::placeholder {
+.text-input::placeholder {
   color: var(--text-3);
 }
 select.text-input {

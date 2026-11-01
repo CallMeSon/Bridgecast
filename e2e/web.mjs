@@ -163,8 +163,8 @@ async function main() {
   try {
     // ---- event with a PDF deck (event 1 also holds the web decks)
     await win.click('.newbtn')
-    await win.fill('.event-input', 'Web Event')
-    await win.press('.event-input', 'Enter')
+    await win.fill('[data-testid=new-event-name]', 'Web Event')
+    await win.press('[data-testid=new-event-name]', 'Enter')
     await win.locator('[role=tab][aria-selected=true]', { hasText: 'Web Event' }).waitFor()
     const eventId = (await session(win)).eventId
 
@@ -452,8 +452,8 @@ async function main() {
 
     // ---- switching event keeps the live page on air; taking a slide of it closes it
     await win.click('.newbtn')
-    await win.fill('.event-input', 'Other Event')
-    await win.press('.event-input', 'Enter')
+    await win.fill('[data-testid=new-event-name]', 'Other Event')
+    await win.press('[data-testid=new-event-name]', 'Enter')
     await win.locator('[role=tab][aria-selected=true]', { hasText: 'Other Event' }).waitFor()
     await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
     await win.locator('.deck .meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })

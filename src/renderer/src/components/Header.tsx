@@ -18,7 +18,8 @@ interface Props {
   onSelectEvent(eventId: string): void
   onCloseTab(eventId: string): void
   onHome(): void
-  onCreateEvent(name: string): void
+  /** Opens the New event dialog. */
+  onNewEvent(): void
   program: ProgramState
   output: OutputSettingsState
   /** Shows the Output section of the Controls tab. */
@@ -75,7 +76,7 @@ export function Header(p: Props): React.JSX.Element {
         onSelect={p.onSelectEvent}
         onClose={p.onCloseTab}
         onHome={p.onHome}
-        onNew={p.onCreateEvent}
+        onNew={p.onNewEvent}
       />
       <span className="grow" />
       <OutputMenu program={p.program} out={p.output} onOpen={p.onOpenOutput} />
