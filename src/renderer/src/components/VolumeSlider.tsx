@@ -14,7 +14,7 @@ interface Props {
  */
 export function VolumeSlider({ id, label, value, onChange, testId }: Props): React.JSX.Element {
   return (
-    <div className="field">
+    <div className="field vol">
       <label htmlFor={id}>{label}</label>
       <div className="level">
         <input
@@ -32,7 +32,7 @@ export function VolumeSlider({ id, label, value, onChange, testId }: Props): Rea
         />
         {/* aria-live off: the range itself announces its value; the number is for the eye. */}
         <output className="level-num" htmlFor={id} aria-live="off">
-          {value}%
+          {value}
         </output>
       </div>
     </div>

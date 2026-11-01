@@ -1130,6 +1130,13 @@ function App(): React.JSX.Element {
                 : null
             }
           />
+          <Strip
+            decks={decks}
+            state={program}
+            onGoto={goto}
+            onMoveSlide={moveSlide}
+            versions={versions}
+          />
         </section>
         <NextPanel
           decks={decks}
@@ -1172,13 +1179,6 @@ function App(): React.JSX.Element {
           }
         />
       </main>
-      <Strip
-        decks={decks}
-        state={program}
-        onGoto={goto}
-        onMoveSlide={moveSlide}
-        versions={versions}
-      />
       <SaveNote text={note} />
       <Splitters appRef={appRef} />
       <DropOverlay onDrop={({ files, folders }) => importFiles(files, folders)} />

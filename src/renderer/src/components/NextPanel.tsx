@@ -110,7 +110,10 @@ export function NextPanel({
         {nx.video && <VideoMark />}
       </div>
     )
-    cap = `Slide ${nx.index + 1}`
+    cap = nx.held
+      ? `Frozen: the audience still sees slide ${(shown?.index ?? 0) + 1}.` +
+        (nx.index === shown?.index ? '' : ` This is slide ${nx.index + 1}.`)
+      : `Space or → takes slide ${nx.index + 1} to air.`
     nextPos = deck ? `${nx.index + 1} / ${deck.slides.length}` : ''
   } else if (nx.kind === 'end') {
     card = <EndCard title="End of deck" />
@@ -224,7 +227,7 @@ export function NextPanel({
               >
                 {card}
                 <div className="nextmeta">
-                  {nx.kind === 'slide' && !held && <StatusTag kind="next" />}
+                  {nx.kind === 'slide' && !held && <StatusTag kind="next" size="sm" />}
                   <span className="t" title={deck?.name}>
                     {deck?.name ?? ''}
                   </span>

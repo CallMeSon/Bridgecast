@@ -37,7 +37,8 @@ function icon(kind: StatusKind, px: number): React.JSX.Element | null {
 /**
  * The one state tag. `icon` shows only the symbol (Program head); the word stays in the
  * DOM, visually hidden, so the tag is still named and its text is still the word.
- * `word` shows icon and word. NEXT and STANDBY always show their word.
+ * `word` shows icon and word; LIVE is the word alone (mock). NEXT and STANDBY always show
+ * their word.
  */
 export function StatusTag({
   kind,
@@ -61,7 +62,7 @@ export function StatusTag({
       title={iconOnly ? WORD[kind] : undefined}
       {...rest}
     >
-      {icon(kind, px)}
+      {kind === 'live' && !iconOnly ? null : icon(kind, px)}
       <span className={iconOnly ? 'visually-hidden' : undefined}>{WORD[kind]}</span>
     </span>
   )

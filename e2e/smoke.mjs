@@ -452,7 +452,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
       wantNext
     )
     check(
-      (await cap.textContent()) === 'Slide 2' &&
+      (await cap.textContent()).includes('slide 2') &&
         (await win.locator('.next-card img').last().getAttribute('src')) === wantNext,
       'Next panel shows the new slide 2 (001.png)'
     )
@@ -968,7 +968,8 @@ async function sectionChecks(win, tally, pos) {
   )
 
   // Add section: a row in rename mode, name typed, Enter saves.
-  await win.getByRole('button', { name: 'Add section' }).click()
+  await win.getByRole('button', { name: 'Add to this event' }).click()
+  await win.getByRole('menuitem', { name: 'Add section' }).click()
   const nameInput = win.getByRole('textbox', { name: /^New name for section/ })
   await nameInput.waitFor()
   await nameInput.fill('Talk 2')
@@ -2441,7 +2442,7 @@ try {
   check((await pos.textContent()) === '01 / 03', 'position on slide 1 after import')
   check((await tally.textContent()) === 'STANDBY', 'import does not change the output')
   check(
-    (await cap.textContent()) === 'Slide 1',
+    (await cap.textContent()).includes('slide 1'),
     'STANDBY: Next panel shows slide 1 (what Next takes)'
   )
 
@@ -2451,7 +2452,7 @@ try {
     () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
   )
   check((await pos.textContent()) === '01 / 03', 'first Space takes slide 1 LIVE')
-  check((await cap.textContent()) === 'Slide 2', 'Next panel then shows slide 2')
+  check((await cap.textContent()).includes('slide 2'), 'Next panel then shows slide 2')
 
   // Output: slide 1 (white 16:9 page) fills the 16:9 HDMI window.
   const f1 = await waitFrame(
@@ -2469,7 +2470,7 @@ try {
     () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
   )
   check((await tally.textContent()) === 'LIVE', 'Space puts the next slide LIVE')
-  check((await cap.textContent()) === 'Slide 3', 'Next panel shows slide 3')
+  check((await cap.textContent()).includes('slide 3'), 'Next panel shows slide 3')
   await waitFrame([[10, 10]], (px) => blue(px[0]), 'output follows to slide 2')
   check(true, 'output follows Space to slide 2')
   const img = win.locator('.screen img')
@@ -2509,7 +2510,7 @@ try {
   const fz = await dumpFrame([[10, 10]])
   check(blue(fz.px[0]), `F then Space keeps the old frame (corner ${JSON.stringify(fz.px[0])})`)
   // Frozen, the right panel previews the position slide (Unfreeze does not take it live).
-  check((await cap.textContent()) === 'Slide 3', 'frozen: Next panel previews the position slide')
+  check((await cap.textContent()).includes('slide 3'), 'frozen: Next panel previews the position slide')
   check(
     /^0?3 \/ 0?3$/.test(await win.getByTestId('next-pos').textContent()),
     'frozen: Next panel shows the position'

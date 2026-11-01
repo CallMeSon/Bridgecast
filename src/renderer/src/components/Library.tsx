@@ -719,7 +719,6 @@ function KvBlock({
   }
   return (
     <div className="kv-block" role="group" aria-label="Key visual (KV)" data-testid="kv-block">
-      <div className="kv-head">Key visual (KV)</div>
       <div className="kv-body">
         <div className="kv-thumb" data-testid="kv-thumb" data-empty={kvUrl === null}>
           {kvUrl ? (
@@ -730,6 +729,10 @@ function KvBlock({
               No KV yet
             </span>
           )}
+        </div>
+        <div className="kv-text">
+          <div className="kv-head">Key visual (KV)</div>
+          <div className="kv-sub">Shown with K</div>
         </div>
         <div className="kv-actions">
           <button
@@ -1390,15 +1393,20 @@ export function Library(p: Props): React.JSX.Element {
       />
       <div className="add">
         <div className="add-row">
-          <button className="btn" disabled={!p.canImport} onClick={() => input.current?.click()}>
+          <button
+            className="btn sm"
+            disabled={!p.canImport}
+            onClick={() => input.current?.click()}
+          >
             <PlusIcon size={16} />
             Add files
           </button>
           <button
             ref={addWebButton}
-            className="btn"
+            className="btn sm"
             disabled={!p.canImport}
             data-testid="add-web"
+            aria-label="Add web page"
             onClick={() => {
               setConfirm(null)
               setMenu(null)
@@ -1406,18 +1414,10 @@ export function Library(p: Props): React.JSX.Element {
             }}
           >
             <GlobeIcon size={16} />
-            Add web page
-          </button>
-          <button className="btn" disabled={!p.canImport} onClick={() => addSection('end')}>
-            <ListPlusIcon size={16} />
-            Add section
+            Web page
           </button>
         </div>
-        <p>
-          {p.canImport
-            ? 'Or drag .pptx, .ppt, or .pdf files into this window.'
-            : 'Create an event in the Event menu to enable importing.'}
-        </p>
+        {!p.canImport && <p>Create an event in the Event menu to enable importing.</p>}
         {p.importFormat && (
           <ImportFormat value={p.importFormat.value} onChange={p.importFormat.onChange} />
         )}

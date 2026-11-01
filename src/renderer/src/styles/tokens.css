@@ -166,7 +166,7 @@ body,
   height: 100%;
 }
 body {
-  font: 13px / 1.4 var(--font-sans);
+  font: 14px / 1.5 var(--font-sans);
   background: var(--bg);
   color: var(--text);
   overflow: hidden;

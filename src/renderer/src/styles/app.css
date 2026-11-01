@@ -31,7 +31,7 @@ h2 {
   display: grid;
   /* The single column may not grow past the window, so a long header never widens the page. */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--h-lg) minmax(0, 1fr) var(--strip-h, 176px);
+  grid-template-rows: var(--h-lg) minmax(0, 1fr);
 }
 .app[data-resizing] {
   user-select: none;
@@ -60,7 +60,7 @@ header > .grow {
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.015em;
   white-space: nowrap;
 }
 .brand-mark {
@@ -356,22 +356,32 @@ button.output-btn:hover,
   font-size: 12px;
   font-weight: 500;
 }
+/* Inside the right panel a setting row reads like the mock: 14px label in Ink 2. */
+.sb .row-label {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-2);
+}
 /* Switch + its visible state (components/Switch.tsx); the same markup everywhere. */
 .switch-ctl {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
+/* The word sits left of the track (the markup keeps it after, for reading order). */
 .switch-label {
-  min-width: 56px;
-  font-size: 12px;
+  order: -1;
+  min-width: 24px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-2);
 }
 .switch {
   position: relative;
   flex: none;
-  width: 40px;
+  width: 42px;
   height: 24px;
   padding: 0;
   border-radius: var(--r-round);
@@ -389,12 +399,12 @@ button.output-btn:hover,
   transition: transform 0.15s;
 }
 .switch[aria-checked='true'] {
-  background: var(--text);
-  border-color: var(--text);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
 }
 .switch[aria-checked='true'] .knob {
-  background: var(--bg);
-  transform: translateX(16px);
+  background: var(--on-accent);
+  transform: translateX(18px);
 }
 .switch[aria-disabled='true'] {
   opacity: 0.5;
@@ -427,7 +437,7 @@ button.output-btn:hover,
   flex: none;
   min-width: 4ch;
   text-align: right;
-  font: 400 12px var(--font-mono);
+  font: 600 14px var(--font-mono);
   color: var(--text);
 }
 .level-range {
@@ -441,19 +451,38 @@ button.output-btn:hover,
   cursor: pointer;
 }
 .level-range::-webkit-slider-runnable-track {
-  height: 8px;
-  border: 1px solid var(--edge);
+  height: 6px;
   border-radius: var(--r-round);
-  background: linear-gradient(to right, var(--text-2) var(--p, 0%), var(--raised-hi) var(--p, 0%));
+  background: linear-gradient(to right, var(--accent) var(--p, 0%), var(--raised-hi) var(--p, 0%));
 }
 .level-range::-webkit-slider-thumb {
   appearance: none;
-  width: 12px;
-  height: 20px;
-  margin-top: -7px;
-  border: 1px solid var(--bg);
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border: 2px solid var(--accent);
   border-radius: var(--r-round);
-  background: var(--text);
+  background: var(--panel);
+}
+/* In the right panel the volume is one row: label left, slider and number right (mock). */
+.sb .field.vol {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--h-md);
+}
+.sb .field.vol label {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-2);
+}
+.sb .field.vol .level {
+  gap: 8px;
+}
+.sb .field.vol .level-range {
+  flex: none;
+  width: 120px;
 }
 /* Deck sound popover: floats over the list at the menu it came from. */
 .popover.deck-sound {
@@ -669,18 +698,17 @@ button.output-btn:hover,
 
 /* theme switch: two labelled segments, the pressed one is the active theme */
 header > .theme {
-  gap: 2px;
-  padding: 3px;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 .theme button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 24px;
-  padding: 0 8px;
+  height: var(--h-sm);
+  padding: 0 12px;
   border-radius: var(--r-sm);
   font-size: 14px;
   font-weight: 500;
@@ -789,7 +817,7 @@ main {
   padding: 0 16px;
   border: 1px solid var(--edge);
   background: var(--raised);
-  font-weight: 600;
+  font-weight: 500;
 }
 .btn:hover:not(:disabled) {
   background: var(--raised-hi);
@@ -804,7 +832,8 @@ main {
 .btn.sm {
   height: var(--h-sm);
   padding: 0 12px;
-  font-size: 12px;
+  font-size: 14px;
+  border-radius: var(--r-sm);
 }
 .btn.danger {
   background: var(--text);
@@ -897,9 +926,6 @@ main {
 .deck-row {
   position: relative;
 }
-.deck-row > .deck {
-  padding-right: 44px;
-}
 .deck-more {
   position: absolute;
   top: 50%;
@@ -916,6 +942,28 @@ main {
 .deck-more[aria-expanded='true'] {
   color: var(--text);
   background: var(--raised-hi);
+}
+/* Revealed on hover, keyboard focus or while its menu is open; it then covers the row's tag
+   or count. Right-click and F2 reach the same menu. */
+.deck-more {
+  opacity: 0;
+}
+.deck-row:hover .deck-more,
+.deck-row:has(:focus-visible) .deck-more,
+.deck-more[aria-expanded='true'] {
+  opacity: 1;
+  background: var(--raised-hi);
+}
+.deck-row:hover > .deck > .stag,
+.deck-row:hover > .deck > .chip,
+.deck-row:hover > .deck > .meta,
+.deck-row:has(.deck-more:focus-visible) > .deck > .stag,
+.deck-row:has(.deck-more:focus-visible) > .deck > .chip,
+.deck-row:has(.deck-more:focus-visible) > .deck > .meta,
+.deck-row:has(.deck-more[aria-expanded='true']) > .deck > .stag,
+.deck-row:has(.deck-more[aria-expanded='true']) > .deck > .chip,
+.deck-row:has(.deck-more[aria-expanded='true']) > .deck > .meta {
+  visibility: hidden;
 }
 .deck-more:focus-visible {
   outline-offset: -2px;
@@ -1133,24 +1181,25 @@ main {
 }
 .kv-block {
   flex: none;
-  padding: 16px var(--pad) 12px;
+  padding: 16px var(--pad) 0;
   border-top: 1px solid var(--line);
 }
 .kv-head {
+  font-weight: 500;
+}
+.kv-sub {
   color: var(--text-3);
   font-size: 12px;
-  margin-bottom: 8px;
 }
 .kv-body {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
   align-items: center;
-  gap: 8px 12px;
+  gap: 12px 16px;
 }
 .kv-thumb {
   position: relative;
-  flex: none;
-  width: 72px;
+  width: 64px;
   aspect-ratio: 16/9;
   overflow: hidden;
   border: 1px solid var(--line-hi);
@@ -1183,10 +1232,8 @@ main {
 /* Button labels never wrap: when thumb and buttons do not fit in one row, the buttons
    drop below the thumb. */
 .kv-actions {
-  flex: 1 1 80px;
-  min-width: max-content;
+  grid-column: 1 / 3;
   display: flex;
-  flex-direction: column;
   gap: 8px;
 }
 .kv-actions .btn {
@@ -1206,18 +1253,18 @@ main {
 }
 .add {
   flex: none;
-  padding: 0 var(--pad) var(--pad);
+  padding: 12px var(--pad) var(--pad);
 }
 .add-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-.add .btn {
+.add .btn:not(.sm) {
   width: 100%;
 }
 .add-row .btn {
-  flex: 1 1 calc(50% - 4px);
+  flex: 0 0 auto;
   min-width: 0;
   white-space: nowrap;
 }
@@ -1374,7 +1421,7 @@ main {
 }
 .ptitle .where {
   min-width: 0;
-  font: 400 16px/1.2 var(--font-sans);
+  font: 400 16px/1.5 var(--font-sans);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1505,8 +1552,8 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px 16px;
-  height: 40px;
+  gap: 16px;
+  height: var(--h-md);
   padding: 0 var(--pad);
   overflow: hidden;
   color: var(--text-2);
@@ -1520,10 +1567,13 @@ main {
 }
 .pgm-meta .mono {
   color: var(--text-3);
-  font: 500 12px var(--font-mono);
+  font: 400 12px/1.5 var(--font-mono);
 }
 .pgm-meta .note {
   flex: 0 1 auto;
+  font-size: 14px;
+  line-height: inherit;
+  color: inherit;
 }
 
 /* Transport bar (TransportBar.tsx): one 56px row under the monitor. */
@@ -1724,14 +1774,17 @@ main {
   gap: 8px;
 }
 kbd {
-  font: 500 12px/1 var(--font-mono);
-  color: var(--text-2);
-  border: 1px solid var(--edge);
-  border-radius: var(--r-sm);
-  padding: 3px 5px;
-  background: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
   min-width: 20px;
-  text-align: center;
+  padding: 0 4px;
+  font: 500 12px/1 var(--font-mono);
+  color: var(--text-3);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r-sm);
+  background: transparent;
 }
 .cbtn {
   height: var(--h-sm);
@@ -1742,7 +1795,7 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 14px;
   white-space: nowrap;
 }
@@ -1761,20 +1814,27 @@ kbd {
   color: var(--text-3);
 }
 
-/* No overflow:hidden here, it would clip the focus ring; the outer corners are
-   rounded on the buttons and the ring sits inside each segment. */
+/* Segmented control (mock): a raised track, the chosen segment lifts to the panel colour
+   with a ring, accent ink and a heavier weight, so it does not rest on colour alone. */
 .seg {
   display: inline-flex;
-  height: var(--h-md);
-  border: 1px solid var(--edge);
+  gap: 2px;
+  padding: 3px;
+  background: var(--raised);
+  border: 1px solid var(--line);
   border-radius: var(--r);
 }
 .seg button {
-  padding: 0 16px;
-  border-radius: 0;
+  height: var(--h-sm);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--r-sm);
   font-weight: 500;
   color: var(--text-2);
-  background: var(--bg);
+  background: transparent;
 }
 .seg.fill {
   display: flex;
@@ -1782,32 +1842,22 @@ kbd {
 }
 .seg.fill button {
   flex: 1;
-  padding: 0 8px;
 }
 .seg button[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.seg button:first-child {
-  border-radius: var(--r-sm) 0 0 var(--r-sm);
-}
-.seg button:last-child {
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
-}
-.seg button + button {
-  border-left: 1px solid var(--edge);
-}
 .seg button:hover {
-  background: var(--raised);
+  background: var(--raised-hi);
 }
 .seg button:focus-visible {
-  outline-offset: -3px;
+  outline-offset: -2px;
 }
-/* The chosen segment is also marked by a bar, so it does not rest on fill alone. */
 .seg button[aria-checked='true'] {
-  background: var(--raised-hi);
-  color: var(--text);
-  box-shadow: inset 0 -2px 0 var(--text);
+  background: var(--panel);
+  color: var(--accent-ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-0);
 }
 
 /* right panel: underlined tabs, then sections (Up next, Transition, Deck settings, ...) */
@@ -1832,6 +1882,7 @@ kbd {
 .tabs [role='tab'][aria-selected='true'] {
   box-shadow: inset 0 -2px 0 var(--accent);
   color: var(--accent-ink);
+  font-weight: 600;
 }
 .tabs [role='tab']:focus-visible {
   outline-offset: -3px;
@@ -1930,10 +1981,13 @@ kbd {
 /* The Canvas dialog of the event opens under its row, across the panel. */
 .deck-canvas {
   position: relative;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 12px;
 }
 .deck-canvas .v {
   margin-left: auto;
+  min-width: 0;
+  font-size: 12px;
 }
 .deck-canvas .popover.canvas-dialog {
   left: 0;
@@ -1997,8 +2051,8 @@ kbd {
 /* Caption sentences are prose: sans, wrapping at word boundaries. */
 .next-card .cap {
   min-height: 1.4em;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--text-2);
   text-wrap: pretty;
 }
@@ -2021,8 +2075,12 @@ kbd {
 footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) var(--h-lg);
+  grid-template-rows: minmax(0, 1fr) 48px;
+  /* Inside the Program column, under the transport bar (mock). */
+  flex: none;
+  height: var(--strip-h, 176px);
   min-height: 0;
+  overflow: hidden;
   border-top: 1px solid var(--line);
   background: var(--panel);
 }
@@ -2047,6 +2105,8 @@ footer .empty {
   overflow-x: auto;
   overflow-y: hidden;
   align-items: center;
+  /* The strip runs off the right edge with a fade, not a scrollbar bar. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
 }
 .th {
   flex: 0 0 140px;
@@ -2172,6 +2232,8 @@ footer .empty {
 .sbar .count {
   flex: none;
   white-space: nowrap;
+  font: 400 12px var(--font-mono);
+  color: var(--text-3);
 }
 .sbar .legend {
   flex: none;
@@ -2221,7 +2283,7 @@ footer .empty {
 .splitter[data-axis='left'],
 .splitter[data-axis='right'] {
   top: var(--h-lg);
-  bottom: var(--strip-h, 176px);
+  bottom: 0;
   width: 12px;
   cursor: col-resize;
 }
@@ -2244,8 +2306,8 @@ footer .empty {
   left: 1px;
 }
 .splitter[data-axis='strip'] {
-  left: 0;
-  right: 0;
+  left: var(--left-w, 288px);
+  right: var(--right-w, 352px);
   bottom: calc(var(--strip-h, 176px) - 10px);
   height: 12px;
   cursor: row-resize;
@@ -2691,9 +2753,6 @@ footer .empty {
   color: var(--bg);
   font-weight: 700;
 }
-.deck-row > .deck:has(.chip) {
-  padding-right: 44px;
-}
 
 /* Add web page / Edit URL: a modal over the app. */
 .modal-scrim {
@@ -2787,9 +2846,6 @@ footer .empty {
   flex: none;
   display: flex;
   gap: 8px;
-}
-.deck-row > .deck:has(.pb) {
-  padding-right: 44px;
 }
 /* The chip may not widen the row: the slide count beside it would run under the options button. */
 .deck .sub {
@@ -2954,25 +3010,41 @@ footer .empty {
   transition: none;
 }
 
-/* A state tag or web chip sits on its own line under the name: in a 256px Decks column the
-   name keeps its width and the tag never squeezes it or runs over the next control. */
+/* A state tag or web chip sits in the right column beside the name and its sub line (mock),
+   so every row stays two lines tall. The name gives way with an ellipsis. */
 .deck > .stag,
 .deck > .chip {
-  grid-column: 2;
-  grid-row: 2;
-  justify-self: start;
+  grid-column: 3;
+  grid-row: 1 / 3;
+  justify-self: end;
 }
-.deck:has(> .stag, > .chip) .sub {
-  grid-row: 3;
+/* Playback format on a deck row: plain words in the sub line. Only the native engine state
+   (opening, ready, fallback) stays a chip. */
+.deck .pb:not([data-engine]) {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  font: 400 12px var(--font-sans);
+  color: var(--text-3);
 }
-.deck:has(> .stag, > .chip) .tile {
-  grid-row: 1 / 4;
+.deck.live .pb:not([data-engine]),
+.deck.frozen .pb:not([data-engine]) {
+  display: none;
+}
+.deck .pb:not([data-engine])::before {
+  content: '\00b7';
+  margin-right: 8px;
+}
+.deck .sub {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /* Events home: the console stays mounted underneath (nothing on air changes) but cannot be
    reached while Home is up. */
-.app[data-view='home'] > main,
-.app[data-view='home'] > footer {
+.app[data-view='home'] > main {
   visibility: hidden;
 }
 /* Home (event browser): flat page over the console; one centred column. */
