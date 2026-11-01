@@ -7,7 +7,7 @@ import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
 import type { DeckAudio } from './audio-levels'
 import type { SlideshowStatus } from './playback'
-import type { PrepareInput, WebCaptureWarning, WebOutputs, WebStatus } from './web'
+import type { PrepareInput, WebCaptureWarning, WebNavState, WebOutputs, WebStatus } from './web'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
 export const Invoke = {
@@ -51,6 +51,10 @@ export const Invoke = {
   webSetUrl: 'web:setUrl',
   webReload: 'web:reload',
   webNav: 'web:nav',
+  webStop: 'web:stop',
+  webHome: 'web:home',
+  webSetZoom: 'web:setZoom',
+  webNavStates: 'web:navStates',
   webInput: 'web:input',
   webSourceId: 'web:sourceId',
   webFrame: 'web:frame',
@@ -103,6 +107,7 @@ export const Broadcast = {
   omtStatus: 'omt:status',
   ndiStatus: 'ndi:status',
   webStatus: 'web:status',
+  webNavState: 'web:navState',
   webOutputs: 'web:outputs',
   webCaptureWarnings: 'web:captureWarnings',
   slideshowNote: 'slideshow:note',
@@ -246,6 +251,14 @@ export interface InvokeMap {
   'web:setUrl': { args: [deckId: string, url: string]; result: DeckMeta }
   'web:reload': { args: [deckId: string]; result: void }
   'web:nav': { args: [deckId: string, dir: 'back' | 'forward']; result: void }
+  /** Stops the page's load. Allowed on air (it only stops a load). */
+  'web:stop': { args: [deckId: string]; result: void }
+  /** Loads the deck's saved address (HOLD first when the page is on air). */
+  'web:home': { args: [deckId: string]; result: void }
+  /** Page zoom of a web deck (one of `PAGE_ZOOMS`); refused while the deck is on air and not frozen. */
+  'web:setZoom': { args: [deckId: string, zoom: number]; result: DeckMeta }
+  /** Current navigation state of every open page (later changes arrive as `web:navState`). */
+  'web:navStates': { args: []; result: WebNavState[] }
   /** Prepare input; false when refused (deck on air and not frozen, or not valid). */
   'web:input': { args: [deckId: string, input: PrepareInput]; result: boolean }
   /** Capture id of the deck's page for the calling window (valid 10 s, `chromeMediaSource: 'tab'`). */
@@ -305,6 +318,7 @@ export interface BroadcastMap {
   'omt:status': OmtStatus
   'ndi:status': NdiStatus
   'web:status': WebStatusEvent
+  'web:navState': WebNavState
   'web:outputs': WebOutputs
   'web:captureWarnings': WebCaptureWarning[]
   'slideshow:note': string | null
@@ -409,6 +423,11 @@ export interface Api {
   setWebUrl(deckId: string, url: string): Promise<DeckMeta>
   reloadWeb(deckId: string): Promise<void>
   navWeb(deckId: string, dir: 'back' | 'forward'): Promise<void>
+  stopWeb(deckId: string): Promise<void>
+  homeWeb(deckId: string): Promise<void>
+  setWebZoom(deckId: string, zoom: number): Promise<DeckMeta>
+  webNavStates(): Promise<WebNavState[]>
+  onWebNavState(cb: (s: WebNavState) => void): () => void
   webInput(deckId: string, input: PrepareInput): Promise<boolean>
   webSourceId(deckId: string): Promise<string>
   /** Ready gate: report the first frame of the page's capture. */

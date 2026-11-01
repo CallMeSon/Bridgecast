@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WebNavState } from '../../shared/web'
 import {
   updateCaptureWarnings,
   failLoadIsError,
@@ -9,6 +10,7 @@ import {
   pageSizeWarning,
   isAppPageUrl,
   mergeDisableFeatures,
+  NavCoalescer,
   syncPlan,
   webDeckName
 } from './host-rules'
@@ -235,5 +237,81 @@ describe('pageSizeWarning', () => {
     expect(pageSizeWarning([2560, 1080], { width: 3840, height: 1080 })).toBe(
       'The web page is 2560x1080 on this PC, not the canvas size 3840x1080. The output shows it stretched. Use a smaller canvas, or check the display settings.'
     )
+  })
+})
+
+describe('NavCoalescer', () => {
+  const st = (deckId: string, over: Partial<WebNavState> = {}): WebNavState => ({
+    deckId,
+    url: 'https://a.com/',
+    title: '',
+    canGoBack: false,
+    canGoForward: false,
+    loading: false,
+    zoom: 1,
+    cursor: 'default',
+    ...over
+  })
+  const make = (): { sent: WebNavState[]; c: NavCoalescer } => {
+    const sent: WebNavState[] = []
+    const c = new NavCoalescer(
+      (s) => sent.push(s),
+      (fn, ms) => setTimeout(fn, ms),
+      (h) => clearTimeout(h as ReturnType<typeof setTimeout>)
+    )
+    return { sent, c }
+  }
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('sends the first state at once and coalesces a burst into the last one', () => {
+    const { sent, c } = make()
+    c.push(st('d'))
+    expect(sent).toHaveLength(1)
+    for (let i = 0; i < 10; i++) c.push(st('d', { cursor: `c${i}` }))
+    expect(sent).toHaveLength(1)
+    vi.advanceTimersByTime(50)
+    expect(sent).toHaveLength(2)
+    expect(sent[1].cursor).toBe('c9')
+    vi.advanceTimersByTime(500)
+    expect(sent).toHaveLength(2)
+  })
+
+  it('sends a loading change at once with the newest fields', () => {
+    const { sent, c } = make()
+    c.push(st('d'))
+    c.push(st('d', { cursor: 'hand' }))
+    c.push(st('d', { cursor: 'wait', loading: true }))
+    expect(sent).toHaveLength(2)
+    expect(sent[1]).toMatchObject({ loading: true, cursor: 'wait' })
+    vi.advanceTimersByTime(500)
+    expect(sent).toHaveLength(2)
+  })
+
+  it('does not delay one deck because of another', () => {
+    const { sent, c } = make()
+    c.push(st('a'))
+    c.push(st('b'))
+    expect(sent.map((s) => s.deckId)).toEqual(['a', 'b'])
+  })
+
+  it('drop cancels a pending send', () => {
+    const { sent, c } = make()
+    c.push(st('d'))
+    c.push(st('d', { cursor: 'x' }))
+    c.drop('d')
+    vi.advanceTimersByTime(500)
+    expect(sent).toHaveLength(1)
+  })
+
+  it('flush sends the pending state now', () => {
+    const { sent, c } = make()
+    c.push(st('d'))
+    c.push(st('d', { title: 'T' }))
+    c.flush('d')
+    expect(sent).toHaveLength(2)
+    expect(sent[1].title).toBe('T')
+    vi.advanceTimersByTime(500)
+    expect(sent).toHaveLength(2)
   })
 })

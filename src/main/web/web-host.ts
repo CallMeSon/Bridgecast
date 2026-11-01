@@ -7,18 +7,20 @@ import type { Library } from '../library'
 import type { AppState } from '../state'
 import type { Canvas } from '../../shared/canvas'
 import type { DeckMeta } from '../../shared/types'
-import { webDomain, type WebStatus } from '../../shared/web'
+import { webDomain, ZOOM_LIVE_REFUSED, type WebNavState, type WebStatus } from '../../shared/web'
 import {
   applyWebSession,
   electronKeyName,
   frameNavigationAllowed,
   navigationAllowed,
   popupAllowed,
-  validatePrepareInput
+  validatePrepareInput,
+  zoomAllowed
 } from './policy'
 import {
   failLoadIsError,
   holdBeforeNavigate,
+  NavCoalescer,
   pageSizeWarning,
   syncPlan,
   webDeckName
@@ -69,6 +71,8 @@ interface Page {
   sizeOk: boolean
   /** Operator warning about the page window (its size), sent with its status. */
   warning?: string
+  /** Last cursor type of the page (Electron cursor type string). */
+  cursor: string
 }
 
 /**
@@ -101,8 +105,18 @@ export class WebHost {
     /** Where popups (sign-in windows) open: the operator window's display. */
     private operatorWindow: () => BrowserWindow | null = () => null,
     /** The dev server URL in development: its origin counts as an app window for tab capture. */
-    private devUrl?: string
-  ) {}
+    private devUrl?: string,
+    /** Navigation state of a page changed (coalesced; `loading` changes go at once). */
+    onNav: (s: WebNavState) => void = () => {}
+  ) {
+    this.coalescer = new NavCoalescer(
+      onNav,
+      (fn, ms) => setTimeout(fn, ms),
+      (h) => clearTimeout(h as ReturnType<typeof setTimeout>)
+    )
+  }
+
+  private coalescer: NavCoalescer
 
   private session(): Session {
     if (!this.ses) {
@@ -201,6 +215,68 @@ export class WebHost {
     const p = this.page(deckId)
     this.clearCrashReload(p)
     this.load(p, url)
+  }
+
+  /** Stops a load in progress. Allowed on air: it only ends a load. */
+  stop(deckId: string): void {
+    this.page(deckId).win.webContents.stop()
+  }
+
+  /** Loads the deck's saved address (HOLD first on air, like a new URL). */
+  async home(deckId: string): Promise<void> {
+    const url = this.lib.getDeck(deckId).web?.url
+    if (!url) throw new Error(NOT_OPEN)
+    await this.navigate(deckId, url)
+  }
+
+  /**
+   * Page zoom of the deck, saved and applied. It changes what the audience sees, so it
+   * is refused while the deck is on air and not frozen.
+   */
+  setZoom(deckId: string, zoom: number): DeckMeta {
+    const p = this.page(deckId)
+    if (!zoomAllowed({ live: this.live(deckId), frozen: this.state.state.frozen })) {
+      throw new Error(ZOOM_LIVE_REFUSED)
+    }
+    const ev = this.lib.listEvents().find((e) => e.deckIds.includes(deckId))
+    if (!ev) throw new Error(NOT_OPEN)
+    const deck = this.lib.setWebZoom(ev.id, deckId, zoom)
+    p.win.webContents.setZoomFactor(zoom)
+    this.pushNav(p)
+    return deck
+  }
+
+  /** Navigation state of every open page. */
+  navStates(): WebNavState[] {
+    return [...this.pages.values()].filter((p) => !p.win.isDestroyed()).map((p) => this.navState(p))
+  }
+
+  private navState(p: Page): WebNavState {
+    const wc = p.win.webContents
+    const h = wc.navigationHistory
+    return {
+      deckId: p.deckId,
+      url: wc.getURL(),
+      title: wc.getTitle(),
+      canGoBack: h.canGoBack(),
+      canGoForward: h.canGoForward(),
+      loading: wc.isLoading(),
+      zoom: this.storedZoom(p.deckId),
+      cursor: p.cursor
+    }
+  }
+
+  private storedZoom(deckId: string): number {
+    try {
+      return this.lib.getDeck(deckId).web?.zoom ?? 1
+    } catch {
+      return 1
+    }
+  }
+
+  private pushNav(p: Page): void {
+    if (this.closed || p.win.isDestroyed()) return
+    this.coalescer.push(this.navState(p))
   }
 
   async back(deckId: string): Promise<void> {
@@ -391,7 +467,8 @@ export class WebHost {
       unresponsive: null,
       crashReload: null,
       autoName: false,
-      sizeOk: true
+      sizeOk: true,
+      cursor: 'default'
     }
     this.pages.set(deckId, p)
     this.fitSize(p)
@@ -412,6 +489,24 @@ export class WebHost {
     win.on('leave-full-screen', keepWindow)
     win.on('enter-html-full-screen', keepWindow)
     win.on('leave-html-full-screen', keepWindow)
+
+    // Chromium keeps zoom per origin and drops it on a new document: each deck re-applies
+    // its own stored factor after every main-frame navigation, so two decks on one site
+    // never share a zoom.
+    wc.on('did-navigate', () => {
+      wc.setZoomFactor(this.storedZoom(deckId))
+      this.pushNav(p)
+    })
+    wc.on('did-navigate-in-page', (_e, _url, isMainFrame) => {
+      if (isMainFrame) this.pushNav(p)
+    })
+    wc.on('did-start-loading', () => this.pushNav(p))
+    wc.on('did-stop-loading', () => this.pushNav(p))
+    wc.on('page-title-updated', () => this.pushNav(p))
+    wc.on('cursor-changed', (_e, type) => {
+      p.cursor = type
+      this.pushNav(p)
+    })
 
     wc.on('did-start-navigation', (details) => {
       if (!details.isMainFrame || details.isSameDocument) return
@@ -463,7 +558,10 @@ export class WebHost {
     win.on('closed', () => {
       this.clearTimers(p)
       for (const w of p.popups) if (!w.isDestroyed()) w.destroy()
-      if (this.pages.get(deckId) === p) this.pages.delete(deckId)
+      if (this.pages.get(deckId) === p) {
+        this.pages.delete(deckId)
+        this.coalescer.drop(deckId)
+      }
     })
     this.onStatus(deckId, p.status, undefined, p.warning)
     this.load(p, url)
@@ -603,6 +701,7 @@ export class WebHost {
     const p = this.pages.get(deckId)
     if (!p) return
     this.pages.delete(deckId)
+    this.coalescer.drop(deckId)
     this.clearTimers(p)
     for (const w of p.popups) if (!w.isDestroyed()) w.destroy()
     if (!p.win.isDestroyed()) p.win.destroy()

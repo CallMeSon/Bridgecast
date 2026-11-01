@@ -89,7 +89,7 @@ import { isOrderItem } from '../shared/sections'
 import { kvOnAir, type Action } from '../shared/program'
 import { defaultPlayback, engineStates, playbackOf, type SlideshowStatus } from '../shared/playback'
 import { pdfSourceFields } from './import/pdf-source'
-import { sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
+import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
 import {
   frameSenderAllowed,
@@ -836,6 +836,20 @@ function registerWebIpc(
     else if (dir === 'forward') await web.forward(deckId)
     else throw new Error('The navigation is not valid. Use Back or Forward.')
   })
+  appHandle(Invoke.webStop, (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    web.stop(deckId)
+  })
+  appHandle(Invoke.webHome, async (_e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    await web.home(deckId)
+  })
+  appHandle(Invoke.webSetZoom, (_e, deckId, zoom) => {
+    assertString(deckId, 'Deck ID')
+    if (!isPageZoom(zoom)) throw new Error('Choose a page zoom from the list.')
+    return web.setZoom(deckId, zoom)
+  })
+  appHandle(Invoke.webNavStates, () => web.navStates())
   appHandle(Invoke.webInput, (_e, deckId, input) => {
     assertString(deckId, 'Deck ID')
     return web.prepareInput(deckId, input)
@@ -1357,7 +1371,8 @@ Location: ${root}`
         ...(warning ? { warning } : {})
       }),
     () => operator,
-    is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+    is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined,
+    (s) => broadcast(Broadcast.webNavState, s)
   )
   web = host
   isWebPage = (wc) => host.owns(wc)

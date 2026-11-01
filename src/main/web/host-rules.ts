@@ -1,6 +1,11 @@
 import { pathToFileURL } from 'url'
 import { DECK_NAME_MAX } from '../../shared/types'
-import { webDomain, type CaptureKind, type WebCaptureWarning } from '../../shared/web'
+import {
+  webDomain,
+  type CaptureKind,
+  type WebCaptureWarning,
+  type WebNavState
+} from '../../shared/web'
 
 /** Pure decisions of WebHost, kept apart so they can be unit tested without Electron. */
 
@@ -186,4 +191,60 @@ export function pageSizeWarning(
   const [w, h] = actual
   if (w === canvas.width && h === canvas.height) return undefined
   return `The web page is ${w}x${h} on this PC, not the canvas size ${canvas.width}x${canvas.height}. The output shows it stretched. Use a smaller canvas, or check the display settings.`
+}
+
+/**
+ * Coalesces `web:navState` sends per deck: a change of `loading` goes at once (with the
+ * newest fields); anything else (cursor, title) at most once per `ms`, newest state wins.
+ * The clock is injected so the timing is testable.
+ */
+export class NavCoalescer {
+  private last = new Map<string, WebNavState>()
+  private pending = new Map<string, { s: WebNavState; handle: unknown }>()
+
+  constructor(
+    private send: (s: WebNavState) => void,
+    private schedule: (fn: () => void, ms: number) => unknown,
+    private cancel: (h: unknown) => void,
+    private ms = 50
+  ) {}
+
+  push(s: WebNavState): void {
+    const prev = this.last.get(s.deckId)
+    const pend = this.pending.get(s.deckId)
+    if (!prev || prev.loading !== s.loading) {
+      this.emit(s)
+      return
+    }
+    if (pend) {
+      pend.s = s
+      return
+    }
+    if (JSON.stringify(prev) === JSON.stringify(s)) return
+    const entry = { s, handle: undefined as unknown }
+    entry.handle = this.schedule(() => this.flush(s.deckId), this.ms)
+    this.pending.set(s.deckId, entry)
+  }
+
+  /** Sends the pending state of a deck now. */
+  flush(deckId: string): void {
+    const pend = this.pending.get(deckId)
+    if (!pend) return
+    this.emit(pend.s)
+  }
+
+  drop(deckId: string): void {
+    const pend = this.pending.get(deckId)
+    if (pend) this.cancel(pend.handle)
+    this.pending.delete(deckId)
+    this.last.delete(deckId)
+  }
+
+  private emit(s: WebNavState): void {
+    const pend = this.pending.get(s.deckId)
+    if (pend) this.cancel(pend.handle)
+    this.pending.delete(s.deckId)
+    this.last.set(s.deckId, s)
+    this.send(s)
+  }
 }
