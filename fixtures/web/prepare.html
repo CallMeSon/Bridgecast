@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Prepare fixture</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 3000px;
+        background: #204080;
+        color: #fff;
+        font: 14px sans-serif;
+      }
+      #top {
+        position: absolute;
+        left: 40px;
+        top: 40px;
+        width: 520px;
+      }
+      input {
+        display: block;
+        width: 360px;
+        height: 28px;
+        margin: 0 0 12px;
+        font-size: 14px;
+      }
+      a,
+      button {
+        font-size: 14px;
+      }
+      #hover {
+        display: inline-block;
+        padding: 6px 10px;
+        background: #335;
+      }
+      #menu {
+        display: none;
+        padding: 6px 10px;
+        background: #447;
+      }
+      #hover:hover #menu {
+        display: block;
+      }
+      #dialog {
+        display: none;
+        position: fixed;
+        left: 700px;
+        top: 200px;
+        padding: 20px;
+        background: #fff;
+        color: #000;
+      }
+      #dialog.open {
+        display: block;
+      }
+      #scroll {
+        position: absolute;
+        left: 40px;
+        top: 700px;
+        width: 300px;
+        height: 200px;
+        overflow: auto;
+        background: #123;
+      }
+      #scroll div {
+        height: 3000px;
+      }
+      #corner {
+        position: absolute;
+        right: 20px;
+        bottom: 1900px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="top">
+      <input id="email" type="text" placeholder="Email" autocomplete="off" />
+      <input id="password" type="password" placeholder="Password" autocomplete="off" />
+      <p><a id="link" href="/prepare2">Second page</a></p>
+      <p><button id="btn" style="cursor: pointer">Click me</button></p>
+      <p>
+        <span id="hover"
+          >Hover me
+          <span id="menu">Menu open</span>
+        </span>
+      </p>
+      <p><button id="opendlg">Open dialog</button></p>
+    </div>
+    <div id="dialog" role="dialog">Cookie dialog. Esc closes it.</div>
+    <div id="scroll"><div>Scroll area</div></div>
+    <script>
+      window.__clicks = 0
+      window.__keys = []
+      document.addEventListener('click', () => (window.__clicks += 1), true)
+      document.addEventListener('keydown', (e) => window.__keys.push(e.key), true)
+      document.getElementById('opendlg').addEventListener('click', () => {
+        document.getElementById('dialog').classList.add('open')
+        document.getElementById('dialog').tabIndex = -1
+        document.getElementById('dialog').focus()
+      })
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') document.getElementById('dialog').classList.remove('open')
+      })
+    </script>
+  </body>
+</html>

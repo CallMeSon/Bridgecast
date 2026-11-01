@@ -32,6 +32,7 @@ const PROBE_ID = 515151
 
 // ---------------------------------------------------------------- local web server
 const fixture = fs.readFileSync(path.join(root, 'fixtures/web/index.html'))
+const prepareFixture = fs.readFileSync(path.join(root, 'fixtures/web/prepare.html'))
 let release = null
 const slowGate = new Promise((r) => (release = r))
 // A second slow page, for Edit URL while live (HOLD first, Resume web only once ready).
@@ -42,7 +43,7 @@ const server = http.createServer(async (req, res) => {
   if (req.url?.startsWith('/slow')) await slowGate
   if (req.url?.startsWith('/gate2')) await gate2
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', connection: 'close' })
-  res.end(fixture)
+  res.end(req.url?.includes('prepare') ? prepareFixture : fixture)
 })
 server.on('connection', (s) => {
   sockets.add(s)
@@ -481,6 +482,198 @@ async function main() {
     check(st.shown && !st.shown.web, 'a slide of the new event goes on air')
     await waitWeb(app, (d) => Object.keys(d).length === 0, 'the old page closes after leaving air')
     check(true, 'taking a slide of the new event closes the web page window')
+    // ---- Prepare browser: its own deck, never on air while it is driven
+    // The failure test above closed the local server; bring it back on the same port.
+    if (!server.listening)
+      await new Promise((r) => server.listen(Number(new URL(base).port), '127.0.0.1', r))
+    const addHere = (u) => win.evaluate(([e, x]) => window.api.addWebDeck(e, x), [other, u])
+    const P = await addHere(`${base}/prepare`)
+    const Q = await addHere(`${base}/zz-prepare`)
+    await win.evaluate((d) => window.api.openPrepare(d), P.id)
+    let prep = null
+    for (let i = 0; i < 100 && !prep; i++) {
+      prep = app.windows().find((w) => w.url().includes('#/prepare')) ?? null
+      if (!prep) await sleep(100)
+    }
+    check(!!prep, 'the Prepare window opened')
+    await prep
+      .waitForSelector('.prepare-stage video', { state: 'attached', timeout: 15000 })
+      .catch(async (e) => {
+        console.log(prep.url(), await prep.evaluate(() => document.body.innerText.slice(0, 500)))
+        throw e
+      })
+    await prep
+      .waitForFunction(() => document.querySelector('.prepare-stage video')?.videoWidth > 0, null, {
+        timeout: 20_000
+      })
+      .catch(async (e) => {
+        console.log(
+          await prep.evaluate(
+            () =>
+              JSON.stringify(
+                [...document.querySelectorAll('.prepare-stage video')].map((v) => [
+                  v.videoWidth,
+                  v.readyState,
+                  v.paused
+                ])
+              ) + document.querySelector('.prepare').innerText.slice(0, 300)
+          )
+        )
+        throw e
+      })
+    check(true, 'the Prepare preview shows the page stream')
+    const iconW = await prep.$$eval('.prepare-bar .prepare-icon svg', (l) =>
+      l.map((e) => e.getBoundingClientRect().width)
+    )
+    check(
+      iconW.length >= 4 && iconW.every((w) => w === 16),
+      `toolbar icons are 16 px wide (${iconW})`
+    )
+    const addr = () => prep.inputValue('#prepare-url')
+    const interactBtn = prep.getByRole('button', { name: /^Interact/ })
+    const backBtn = prep.getByRole('button', { name: 'Back', exact: true })
+    check(await backBtn.isDisabled(), 'Back is disabled on the fresh page')
+    const PP = `${base}/prepare`
+    const pg = (js) => pageEval(app, PP, js)
+    // Page element centre -> client coordinates of the Prepare window, through the drawn page.
+    const clientOf = async (sel) => {
+      const r = JSON.parse(
+        await pg(
+          `JSON.stringify((() => { if (!document.querySelector(${JSON.stringify(sel)})) return { err: location.href + " " + document.title + " " + document.readyState }; const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })())`
+        )
+      )
+      const pr = await prep.$eval('.prepare-page', (e) => {
+        const b = e.getBoundingClientRect()
+        return { l: b.left, t: b.top, w: b.width }
+      })
+      if (r.err) throw new Error(r.err)
+      const k = pr.w / 1920
+      return { x: pr.l + r.x * k, y: pr.t + r.y * k }
+    }
+    // Interact off: a click does nothing.
+    check(
+      (await interactBtn.getAttribute('aria-pressed')) === 'true',
+      'Interact starts on for a deck that is not on air'
+    )
+    await interactBtn.click()
+    check(
+      (await interactBtn.getAttribute('aria-pressed')) === 'false',
+      'Interact can be turned off'
+    )
+    let c = await clientOf('#btn')
+    await prep.mouse.click(c.x, c.y)
+    await sleep(300)
+    check((await pg('window.__clicks')) === 0, 'Interact off: a click does not reach the page')
+    await interactBtn.click()
+    check((await interactBtn.getAttribute('aria-pressed')) === 'true', 'Interact is on')
+    await prep.mouse.move(c.x, c.y)
+    await sleep(600)
+    check(
+      (await prep.$eval('.prepare-stage', (e) => e.style.cursor)) === 'pointer',
+      'hovering the button gives the pointer cursor'
+    )
+    c = await clientOf('#link')
+    await prep.mouse.click(c.x, c.y)
+    for (let i = 0; i < 60 && !(await addr()).endsWith('/prepare2'); i++) await sleep(100)
+    check((await addr()).endsWith('/prepare2'), `the address shows /prepare2 (${await addr()})`)
+    check(await backBtn.isEnabled(), 'Back is enabled after the link')
+    await backBtn.click()
+    for (let i = 0; i < 60 && !(await addr()).endsWith('/prepare'); i++) await sleep(100)
+    check((await addr()).endsWith('/prepare'), `Back returns to /prepare (${await addr()})`)
+    await sleep(800)
+    // 100%: page width is 1920 / dpr, a drag pans (Interact off), a click lands (Interact on)
+    await prep.getByRole('button', { name: '100%', exact: true }).click()
+    const dpr = await prep.evaluate(() => window.devicePixelRatio)
+    const pw = await prep.$eval('.prepare-page', (e) => e.getBoundingClientRect().width)
+    check(Math.abs(pw - 1920 / dpr) < 1, `100% draws the page at 1920 / dpr (${pw}, dpr ${dpr})`)
+    await interactBtn.click()
+    const sc = await prep.$eval('.prepare-stage', (e) => {
+      const b = e.getBoundingClientRect()
+      return { x: b.left + b.width / 2, y: b.top + b.height / 2 }
+    })
+    for (let i = 0; i < 4; i++) {
+      await prep.mouse.move(sc.x - 150, sc.y - 100)
+      await prep.mouse.down()
+      await prep.mouse.move(sc.x + 150, sc.y + 100, { steps: 6 })
+      await prep.mouse.up()
+    }
+    await interactBtn.click()
+    c = await clientOf('#email')
+    const sb = await prep.$eval('.prepare-stage', (e) => e.getBoundingClientRect().toJSON())
+    check(
+      c.x > sb.left && c.x < sb.right && c.y > sb.top && c.y < sb.bottom,
+      `the email field is inside the stage after panning (${JSON.stringify(c)})`
+    )
+    await prep.mouse.click(c.x, c.y)
+    await prep.keyboard.type('ann@example.com')
+    await sleep(400)
+    check(
+      (await pg("document.getElementById('email').value")) === 'ann@example.com',
+      'a click and typing at 100% land in the email field'
+    )
+    // Esc with the keyboard in the page closes the page dialog and releases the keyboard.
+    c = await clientOf('#opendlg')
+    await prep.mouse.click(c.x, c.y)
+    await sleep(300)
+    const dlg = "document.getElementById('dialog').classList.contains('open')"
+    check(await pg(dlg), 'the page dialog is open')
+    await prep.keyboard.press('Escape')
+    await sleep(400)
+    check(!(await pg(dlg)), 'Esc closed the page dialog')
+    check(
+      await prep.evaluate(() => document.activeElement?.classList.contains('prepare-interact')),
+      'after Esc the focus is on the Interact button'
+    )
+    const keysBefore = await pg('window.__keys.length')
+    await prep.locator('.prepare-stage').focus()
+    await prep.keyboard.press('F6')
+    await sleep(300)
+    check((await pg('window.__keys.length')) === keysBefore, 'F6 sends nothing to the page')
+    // Page zoom is per deck and survives Reload.
+    const zoomP = (z) => win.evaluate(([d, v]) => window.api.setWebZoom(d, v), [P.id, z])
+    await zoomP(1.5)
+    await sleep(500)
+    check((await pg('window.innerWidth')) === 1280, 'the Prepare deck at 150%: innerWidth 1280')
+    const qz = (await win.evaluate((e) => window.api.listDecks(e), other)).find(
+      (d) => d.id === Q.id
+    )
+    check(qz?.web?.zoom === undefined, 'another deck on the same origin keeps zoom 100%')
+    await win.evaluate((d) => window.api.reloadWeb(d), P.id)
+    await waitWeb(app, (d) => d[P.id]?.status === 'ready', 'prepare deck ready after reload')
+    await sleep(600)
+    check((await pg('window.innerWidth')) === 1280, 'Reload keeps 150%')
+    await zoomP(1)
+    await sleep(300)
+    // On air, not frozen: everything from Prepare is locked.
+    const onAir = await dispatch(win, { type: 'selectDeck', deckId: P.id })
+    check(onAir.shown?.web?.deckId === P.id, 'the Prepare deck goes on air')
+    await sleep(800)
+    check(
+      await zoomP(2)
+        .then(() => false)
+        .catch((e) =>
+          String(e).includes('Freeze first or take another deck, then change the page zoom.')
+        ),
+      'on air: page zoom is refused with the exact message'
+    )
+    check(await interactBtn.isDisabled(), 'on air: the Interact button is disabled')
+    const sent = await win.evaluate(
+      ([d, i]) => window.api.webInput(d, i),
+      [P.id, { kind: 'key', type: 'keyDown', keyCode: 'a', modifiers: [] }]
+    )
+    check(sent === false, 'on air: webInput returns false')
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find(
+        (x) => !x.isDestroyed() && x.webContents.getURL().includes('prepare')
+      )
+      w?.setContentSize(800, 560)
+    })
+    await sleep(600)
+    const hp = await hostWin(app, PP)
+    check(
+      hp && hp.size[0] === 1920 && hp.size[1] === 1080,
+      `the page window stays 1920x1080 with Prepare at 800x560 (${JSON.stringify(hp?.size)})`
+    )
     check(errors.length === 0, `no page errors in the operator window ${JSON.stringify(errors)}`)
   } finally {
     await app.close().catch(() => undefined)

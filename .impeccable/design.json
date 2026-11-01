@@ -149,6 +149,22 @@
       "description": "Floating menu: Panel fill, Line High border, 4px radius, pop shadow.",
       "html": "<div class=\"ds-menu\"><button>Add files</button><button>Add web page</button><hr><button>Add section</button></div>",
       "css": ".ds-menu { min-width: 200px; padding: 4px; background: var(--panel); border: 1px solid var(--line-hi); border-radius: var(--r); box-shadow: var(--pop-shadow); } .ds-menu button { display: flex; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--r); background: none; color: var(--text); font: 14px var(--font-sans); text-align: left; cursor: pointer; } .ds-menu button:hover { background: var(--raised); } .ds-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }"
+    },
+    {
+      "name": "Page Zoom Menu",
+      "kind": "nav",
+      "refersTo": "dialog",
+      "description": "Radio group inside the Menu, opened from the More button of the Prepare window: a 12px Ink 3 label (Page zoom, changes the output), eight steps from 50% to 200%, the checked one bold with a tick. Steps are disabled while the deck is on air and not frozen.",
+      "html": "<div class=\"ds-zmenu\" role=\"menu\"><span class=\"ds-zlabel\">Page zoom (changes the output)</span><button role=\"menuitemradio\" aria-checked=\"false\"><span class=\"ds-zchk\"></span>90%</button><button role=\"menuitemradio\" aria-checked=\"true\"><span class=\"ds-zchk\">&#10003;</span>100%</button><button role=\"menuitemradio\" aria-checked=\"false\" disabled><span class=\"ds-zchk\"></span>125%</button></div>",
+      "css": ".ds-zmenu { min-width: 230px; padding: 4px; background: var(--panel); border: 1px solid var(--line-hi); border-radius: var(--r-lg); box-shadow: var(--pop-shadow); } .ds-zlabel { display: block; padding: 8px 12px 2px; font-size: 12px; color: var(--text-3); } .ds-zmenu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: 0; background: transparent; color: var(--text); font: 500 14px var(--font-sans); text-align: left; cursor: pointer; } .ds-zmenu button:hover { background: var(--raised); } .ds-zmenu button[aria-checked=\"true\"] { font-weight: 600; } .ds-zmenu button:disabled { color: var(--text-3); cursor: not-allowed; } .ds-zchk { width: 16px; flex: none; }"
+    },
+    {
+      "name": "Prepare Mini-map",
+      "kind": "custom",
+      "refersTo": "strip-thumb",
+      "description": "Page position control of the Prepare window at 100% view, bottom-right of the stage. Chip fill and Chip Ink 1px border, 3px radius, 168px wide in the page aspect; the part in view is a rectangle in 55% accent. Drag, click or arrow keys move the view. Shown only when the page is larger than the stage; the Map button hides it.",
+      "html": "<div class=\"ds-map\" role=\"group\" aria-label=\"Page position\" tabindex=\"0\"><span class=\"ds-map-view\"></span></div>",
+      "css": ".ds-map { position: relative; width: 168px; height: 94px; background: var(--chip); border: 1px solid var(--chip-ink); border-radius: var(--r-sm); cursor: pointer; } .ds-map:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; } .ds-map-view { position: absolute; left: 36px; top: 20px; width: 95px; height: 53px; background: color-mix(in srgb, var(--accent) 55%, transparent); border: 1px solid var(--chip-ink); }"
     }
   ],
   "narrative": {

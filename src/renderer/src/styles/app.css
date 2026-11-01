@@ -2388,6 +2388,10 @@ footer .empty {
     order: 1;
     flex: 1 0 100%;
   }
+  /* The More menu opens leftwards from its button, so keep the button at the right edge. */
+  .prepare-more {
+    margin-left: auto;
+  }
 }
 /* Loading: a 2 px bar along the bottom edge of the field; reduced motion gets the word instead. */
 .prepare-loadbar {

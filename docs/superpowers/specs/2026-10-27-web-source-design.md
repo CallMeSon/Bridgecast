@@ -116,3 +116,21 @@ Canva present dari link view dan dari akun; clicker menggerakkan Canva; YouTube 
 ### Dokumen
 - `PRODUCT.md`: deck web, pengecualian offline, tombol D/Shift+D, HOLD.
 - `docs/superpowers/specs/2026-10-06-ppt-share-design.md`: deck web.
+
+## 8. Catatan: jendela Prepare sebagai browser kecil (2026-11-02)
+
+Rencana: `docs/superpowers/plans/2026-11-02-prepare-browser.md`. Pembanding interaksi: Stagecast (`C:\stagecast`, `docs/PLAN_UI.md`). Aturan di bagian 4 tidak berubah: input hanya diterima di main bila deck tidak live atau sedang frozen.
+
+- **Toolbar:** Back, Forward, Reload (jadi Stop saat memuat), Home (alamat deck), kolom alamat (teks yang sedang diketik tidak ditimpa oleh navigasi halaman; Esc membatalkan) dan menu More (zoom halaman, Sign out). Saat live, tombol navigasi dikunci dan Reload/Home masuk HOLD dulu seperti Edit URL.
+- **Tampilan Fit / 100%:** dua jenis zoom sengaja dipisah. Fit dan 100% hanya mengubah cara preview digambar (tidak ikut ke output). 100% menggambar satu piksel halaman per piksel layar (skala = 1 / devicePixelRatio) dan digeser dengan seret, wheel, tombol panah atau mini-map (`PrepareMiniMap`; tombol Map menyembunyikannya). Pemetaan klik ke koordinat halaman adalah matematika murni (`prepare-view.ts`, unit test) dan diuji juga di e2e untuk Fit dan 100%.
+- **Interact:** saklar. Nyala bawaan untuk deck yang tidak on air; mati bila frozen atau live; tidak pernah menyala sendiri setelah Unfreeze. Mati: seret menggeser tampilan dan klik tidak sampai ke halaman. Nyala: klik, scroll dan ketik diteruskan. Esc mengirim satu Escape ke halaman lalu melepas keyboard (fokus ke tombol Interact); F6 pindah ke kolom alamat; Spasi mengetik spasi di halaman. Kursor halaman diikuti di stage lewat `web:navState` yang digabung (coalescing) agar IPC tidak banjir.
+- **Zoom halaman:** 50% sampai 200% dari menu More, disimpan per deck (`DeckMeta.web.zoom`), diterapkan lagi setelah navigasi dan Reload, dan hanya untuk deck itu (deck lain di situs yang sama tetap 100%). Ini mengubah halaman, jadi ikut ke semua output: diberi label "changes the output" dan ditolak saat live dan tidak frozen (`Freeze first or take another deck, then change the page zoom.`). Saat frozen diizinkan; penonton melihatnya setelah Unfreeze.
+- **Tally:** bingkai stage dan baris status memakai kata dan ikon: Not on air, Frozen, Live (terisi = on air). Warna hanya dari token DESIGN.md.
+- **Ukuran jendela:** jendela Prepare 92% area kerja (maksimum 1600x1000), minimum 800x560; ukuran dan posisinya diingat per PC. Hanya jendela Prepare yang berubah ukuran; jendela halaman yang memberi gambar ke output tetap seukuran canvas.
+
+Keputusan:
+1. Esc dikirim ke halaman lalu melepas keyboard (bukan hanya melepas), supaya dialog cookie dan menu halaman tertutup.
+2. Suara preview Prepare tetap bisu (hanya satu jendela memutar suara di PC ini).
+3. Zoom halaman saat frozen diizinkan.
+4. **Task 9 (spike daftar `<select>` native) tidak dikerjakan.** Daftar `<select>`, pemilih tanggal dan autofill tidak tampak di preview. Batas yang diterima: pakai keyboard (fokus kolom, lalu tombol panah). Spike dijalankan hanya bila pengguna memutuskan setelah uji Windows.
+5. Temuan terbuka: di PC pengembangan, aliran preview Prepare berukuran 320x180 (bukan 1920x1080), jadi pada 100% teks halaman terlihat buram. Penyebabnya belum diselidiki (kode `tabConstraints` hanya memberi `maxWidth`/`maxHeight`; menambah `minWidth`/`minHeight` tidak mengubahnya). Cek ulang di Windows nyata (lihat `docs/test-checklist.md`).
