@@ -2504,6 +2504,71 @@ footer .empty {
 .prepare-stage[data-locked='true'] {
   cursor: not-allowed;
 }
+.prepare-stage[data-pan='ready'] {
+  cursor: grab;
+}
+.prepare-stage[data-pan='active'] {
+  cursor: grabbing;
+}
+/* The drawn page: sized and placed from layout(); pointer input is normalized against it. */
+.prepare-page {
+  position: absolute;
+}
+/* View row: Fit | 100% segmented control. */
+.prepare-viewrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 0;
+}
+.prepare-seg {
+  display: inline-flex;
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.prepare-segbtn {
+  height: var(--h-sm);
+  min-width: 56px;
+  padding: 0 12px;
+  font: 600 13px var(--font-sans);
+  color: var(--text-2);
+  background: var(--panel);
+  border: 0;
+  cursor: pointer;
+}
+.prepare-segbtn + .prepare-segbtn {
+  border-left: 1px solid var(--edge);
+}
+.prepare-segbtn:hover {
+  background: var(--raised);
+}
+.prepare-segbtn[aria-pressed='true'] {
+  color: var(--on-accent);
+  background: var(--accent-fill);
+}
+.prepare-segbtn:focus-visible,
+.prepare-map:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* Mini-map: page outline with a filled rectangle for the part in view. */
+.prepare-map {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  background: var(--chip);
+  border: 1px solid var(--chip-ink);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  touch-action: none;
+}
+.prepare-map-view {
+  position: absolute;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  border: 1px solid var(--chip-ink);
+  pointer-events: none;
+}
 .prepare-stage:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

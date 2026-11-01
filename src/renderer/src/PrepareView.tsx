@@ -28,10 +28,33 @@ import {
   toPrepareInput
 } from './model'
 import { addressShown, homeDisabled } from './prepare-ui'
-import { stageRect } from './stage'
+import { PrepareMiniMap } from './components/PrepareMiniMap'
+import { centred, clampPan, layout, panBy, type View, type ViewMode } from './prepare-view'
 
 /** The preview is for looking and clicking: video only at 30 fps (spec 3). */
 const PREVIEW_FPS = 30
+const VIEW_KEY = 'prepare-view'
+
+function readViewMode(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'actual' ? 'actual' : 'fit'
+  } catch {
+    return 'fit'
+  }
+}
+
+/** Device pixels per CSS pixel; follows the window to a display with another scale. */
+function useDpr(): number {
+  const [dpr, setDpr] = useState(window.devicePixelRatio || 1)
+  useEffect(() => {
+    const mq = window.matchMedia(`(resolution: ${dpr}dppx)`)
+    const on = (): void => setDpr(window.devicePixelRatio || 1)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [dpr])
+  return dpr
+}
+
 const SIGN_OUT_CONFIRM = 'Sign out of all websites on this PC? Web decks will reload.'
 
 /**
@@ -55,9 +78,15 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   const [edited, setEdited] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [box, setBox] = useState({ width: 0, height: 0 })
+  const [mode, setMode] = useState<ViewMode>(readViewMode)
+  const [pan, setPan] = useState<{ x: number; y: number } | null>(null)
+  const [panning, setPanning] = useState(false)
+  const [spaceHeld, setSpaceHeld] = useState(false)
+  const dpr = useDpr()
 
   const wrap = useRef<HTMLDivElement>(null)
   const stage = useRef<HTMLDivElement>(null)
+  const page = useRef<HTMLDivElement>(null)
   const urlField = useRef<HTMLInputElement>(null)
   const menuButton = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
@@ -144,7 +173,36 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   const banner = program ? prepareBanner(program, deckId) : null
   const live = banner === 'live'
   const canvas = program?.canvas
-  const size = canvas ? stageRect(canvas, box) : { width: 0, height: 0, left: 0, top: 0 }
+  // Fit draws the whole page in the box; 100% draws one page pixel per device pixel and pans.
+  // A pan of null means centred; it is re-clamped on every render, so a resize never strands it.
+  const view: View = !canvas
+    ? { mode: 'fit', panX: 0, panY: 0 }
+    : mode === 'fit'
+      ? { mode: 'fit', panX: 0, panY: 0 }
+      : pan
+        ? clampPan(canvas, box, { mode: 'actual', panX: pan.x, panY: pan.y }, dpr)
+        : centred(canvas, box, dpr)
+  const lay = canvas
+    ? layout(canvas, box, view, dpr)
+    : { left: 0, top: 0, width: 0, height: 0, scale: 0, cropped: false }
+  const stageSize =
+    mode === 'fit'
+      ? { width: lay.width, height: lay.height }
+      : { width: box.width, height: box.height }
+  const pageLeft = mode === 'fit' ? 0 : lay.left
+  const pageTop = mode === 'fit' ? 0 : lay.top
+  const setView = (m: ViewMode): void => {
+    setMode(m)
+    setPan(null)
+    try {
+      localStorage.setItem(VIEW_KEY, m)
+    } catch {
+      /* private window: the choice just is not remembered */
+    }
+  }
+  const panTo = (v: View): void => {
+    if (canvas) setPan({ x: v.panX, y: v.panY })
+  }
 
   // Live: app shortcuts work from here (a clicker presses Next); every other key is ignored.
   useEffect(() => {
@@ -171,7 +229,53 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     [api, deckId]
   )
   const canSend = banner === 'idle' || banner === 'frozen'
-  const stageBox = (): DOMRect | null => stage.current?.getBoundingClientRect() ?? null
+  // Pointer positions are normalized against the drawn page (not the clipping stage), so a
+  // click maps to the right page point at every view mode and pan offset.
+  const stageBox = (): DOMRect | null => page.current?.getBoundingClientRect() ?? null
+  // While input is locked (on air) a drag pans; otherwise Space+drag pans when the page does
+  // not hold the keyboard (the stage is not focused), so clicks and Space typing reach the page.
+  const canPan = lay.cropped
+  const dragPans = (): boolean =>
+    canPan && (!canSend || (spaceHeld && document.activeElement !== stage.current))
+  const panDrag = useRef<{ x: number; y: number; view: View } | null>(null)
+  useEffect(() => {
+    if (!panning) return
+    const onMove = (e: MouseEvent): void => {
+      const d = panDrag.current
+      if (!d || !canvas) return
+      panTo(panBy(canvas, box, d.view, dpr, e.clientX - d.x, e.clientY - d.y))
+    }
+    const onUp = (): void => {
+      panDrag.current = null
+      setPanning(false)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    // panTo only sets state; the drag reads its start view from the ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panning, canvas, box, dpr])
+  // Space is tracked on the window so the pan hand shows before the drag starts.
+  useEffect(() => {
+    const down = (e: KeyboardEvent): void => {
+      if (e.code === 'Space' && !e.repeat) setSpaceHeld(true)
+    }
+    const up = (e: KeyboardEvent): void => {
+      if (e.code === 'Space') setSpaceHeld(false)
+    }
+    const off = (): void => setSpaceHeld(false)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    window.addEventListener('blur', off)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', off)
+    }
+  }, [])
 
   // Mouse moves are sent at most once per frame (the latest position).
   const pendingMove = useRef<MouseEvent | null>(null)
@@ -207,6 +311,12 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   }, [canSend, send])
 
   const onMouse = (e: React.MouseEvent): void => {
+    if (e.type === 'mousedown' && e.button === 0 && canvas && dragPans()) {
+      e.preventDefault()
+      panDrag.current = { x: e.clientX, y: e.clientY, view }
+      setPanning(true)
+      return
+    }
     if (!canSend) return
     const r = stageBox()
     if (!r) return
@@ -228,6 +338,11 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     send(toPrepareInput(e.nativeEvent, r))
   }
   const onWheel = (e: React.WheelEvent): void => {
+    // Locked: the wheel pans a cropped page. Otherwise it scrolls the page.
+    if (!canSend) {
+      if (canvas && canPan) panTo(panBy(canvas, box, view, dpr, -e.deltaX / dpr, -e.deltaY / dpr))
+      return
+    }
     const r = stageBox()
     if (canSend && r) send(toPrepareInput(e.nativeEvent, r))
   }
@@ -467,20 +582,46 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
         </p>
       )}
 
+      <div className="prepare-viewrow">
+        <div className="prepare-seg" role="group" aria-label="Page view">
+          <button
+            type="button"
+            className="prepare-segbtn"
+            aria-pressed={mode === 'fit'}
+            title="Fit the whole page in the window"
+            onClick={() => setView('fit')}
+          >
+            Fit
+          </button>
+          <button
+            type="button"
+            className="prepare-segbtn"
+            aria-pressed={mode === 'actual'}
+            title="One page pixel per screen pixel. Drag or use the mini-map to move."
+            onClick={() => setView('actual')}
+          >
+            100%
+          </button>
+        </div>
+      </div>
+
       <div className="prepare-wrap">
         <div className="prepare-fit" ref={wrap}>
-          {canvas && deck && size.width > 0 && (
+          {canvas && deck && stageSize.width > 0 && (
             <div
               ref={stage}
               className="prepare-stage"
               data-locked={String(!canSend)}
+              data-pan={
+                canPan && (!canSend || spaceHeld) ? (panning ? 'active' : 'ready') : undefined
+              }
               // Focusable so the keyboard reaches the page; F6 leaves it.
               tabIndex={0}
               role="application"
               aria-label={`Preview of ${domain}. ${
                 canSend ? 'Keys and clicks go to the page. F6 leaves the page.' : 'Input is locked.'
               }`}
-              style={{ width: size.width, height: size.height }}
+              style={{ width: stageSize.width, height: stageSize.height }}
               onMouseDown={onMouse}
               onMouseUp={onMouse}
               onMouseMove={onMouse}
@@ -489,18 +630,33 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
               onKeyDown={onKey}
               onKeyUp={onKey}
             >
-              <StreamLayer
-                source="tab"
-                id={deckId}
-                poster={slideUrl(deckId, '001.png')}
-                paused={false}
-                canvas={canvas}
-                fps={PREVIEW_FPS}
-                muted
-                generation={generation}
-                onReady={() => undefined}
-              />
+              <div
+                ref={page}
+                className="prepare-page"
+                style={{ left: pageLeft, top: pageTop, width: lay.width, height: lay.height }}
+              >
+                <StreamLayer
+                  source="tab"
+                  id={deckId}
+                  poster={slideUrl(deckId, '001.png')}
+                  paused={false}
+                  canvas={canvas}
+                  fps={PREVIEW_FPS}
+                  muted
+                  generation={generation}
+                  onReady={() => undefined}
+                />
+              </div>
             </div>
+          )}
+          {canvas && mode === 'actual' && (
+            <PrepareMiniMap
+              canvas={canvas}
+              box={box}
+              view={view}
+              dpr={dpr}
+              onPan={(v) => panTo(clampPan(canvas, box, v, dpr))}
+            />
           )}
         </div>
       </div>
