@@ -739,6 +739,16 @@ describe('toPrepareInput', () => {
       clickCount: 1
     })
   })
+  it('maps mouseleave to mouseLeave at the clamped last position', () => {
+    expect(toPrepareInput(mouse('mouseleave', 520, 162.5, { detail: 0 }), rect)).toEqual({
+      kind: 'mouse',
+      type: 'mouseLeave',
+      x: 1,
+      y: 0.5,
+      button: 'left',
+      clickCount: 0
+    })
+  })
   it('maps up, move (no click count) and the button', () => {
     expect(toPrepareInput(mouse('mouseup', 100, 50, { button: 2 }), rect)).toMatchObject({
       type: 'mouseUp',

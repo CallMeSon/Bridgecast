@@ -2501,15 +2501,6 @@ footer .empty {
   box-shadow: 0 0 0 1px var(--line-hi);
   cursor: default;
 }
-.prepare-stage[data-locked='true'] {
-  cursor: not-allowed;
-}
-.prepare-stage[data-pan='ready'] {
-  cursor: grab;
-}
-.prepare-stage[data-pan='active'] {
-  cursor: grabbing;
-}
 /* The drawn page: sized and placed from layout(); pointer input is normalized against it. */
 .prepare-page {
   position: absolute;
@@ -2548,9 +2539,55 @@ footer .empty {
   background: var(--accent-fill);
 }
 .prepare-segbtn:focus-visible,
+.prepare-togglebtn:focus-visible,
 .prepare-map:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
+}
+/* Interact and Map toggles: pressed = filled accent plus the word On, so state is not colour alone. */
+.prepare-togglebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--h-sm);
+  padding: 0 12px;
+  font: 600 13px var(--font-sans);
+  color: var(--text-2);
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.prepare-togglebtn svg {
+  flex: none;
+}
+.prepare-togglebtn:hover:not(:disabled) {
+  background: var(--raised);
+}
+.prepare-togglebtn[aria-pressed='true'] {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.prepare-togglebtn[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--accent-soft-hi);
+}
+.prepare-togglebtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.prepare-interact {
+  margin-left: auto;
+}
+.prepare-togglestate {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.prepare-released {
+  margin-left: 12px;
+  font-weight: 600;
 }
 /* Mini-map: page outline with a filled rectangle for the part in view. */
 .prepare-map {

@@ -3,8 +3,10 @@ import {
   ArrowClockwiseIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  CursorClickIcon,
   DotsThreeVerticalIcon,
   HouseSimpleIcon,
+  MapTrifoldIcon,
   SignOutIcon,
   XIcon
 } from '@phosphor-icons/react'
@@ -22,18 +24,37 @@ import { StreamLayer } from './components/StreamLayer'
 import {
   errorMessage,
   keyToAction,
+  type PrepareBanner,
   prepareBanner,
   prepareBannerText,
   toPrepareChar,
   toPrepareInput
 } from './model'
-import { addressShown, homeDisabled } from './prepare-ui'
+import {
+  addressShown,
+  homeDisabled,
+  interactLocked,
+  keyRoute,
+  nextInteract,
+  stageCursor
+} from './prepare-ui'
 import { PrepareMiniMap } from './components/PrepareMiniMap'
 import { centred, clampPan, layout, panBy, type View, type ViewMode } from './prepare-view'
 
 /** The preview is for looking and clicking: video only at 30 fps (spec 3). */
 const PREVIEW_FPS = 30
 const VIEW_KEY = 'prepare-view'
+const MAP_KEY = 'prepare-map'
+/** How long the "keyboard released" note stays in the status line. */
+const RELEASED_MS = 4000
+
+function readMapShown(): boolean {
+  try {
+    return localStorage.getItem(MAP_KEY) !== 'hidden'
+  } catch {
+    return true
+  }
+}
 
 function readViewMode(): ViewMode {
   try {
@@ -82,6 +103,10 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   const [pan, setPan] = useState<{ x: number; y: number } | null>(null)
   const [panning, setPanning] = useState(false)
   const [spaceHeld, setSpaceHeld] = useState(false)
+  const [interact, setInteract] = useState(false)
+  const [mapShown, setMapShown] = useState(readMapShown)
+  const [stageFocused, setStageFocused] = useState(false)
+  const [released, setReleased] = useState(false)
   const dpr = useDpr()
 
   const wrap = useRef<HTMLDivElement>(null)
@@ -90,6 +115,10 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   const urlField = useRef<HTMLInputElement>(null)
   const menuButton = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
+  const interactButton = useRef<HTMLButtonElement>(null)
+  const prevBanner = useRef<PrepareBanner | null>(null)
+  const lastPoint = useRef<{ x: number; y: number } | null>(null)
+  const releasedTimer = useRef(0)
 
   // Program state (same source as the operator and output windows): a broadcast is newer than the first fetch.
   useEffect(() => {
@@ -172,6 +201,14 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
 
   const banner = program ? prepareBanner(program, deckId) : null
   const live = banner === 'live'
+  // Interact: starts on for a deck that is not on air, off when frozen; live forces it off.
+  useEffect(() => {
+    if (!banner) return
+    const prev = prevBanner.current
+    prevBanner.current = banner
+    setInteract((on) => nextInteract(on, prev, { kind: 'banner', banner }))
+  }, [banner])
+  useEffect(() => () => window.clearTimeout(releasedTimer.current), [])
   const canvas = program?.canvas
   // Fit draws the whole page in the box; 100% draws one page pixel per device pixel and pans.
   // A pan of null means centred; it is re-clamped on every render, so a resize never strands it.
@@ -228,15 +265,32 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     },
     [api, deckId]
   )
-  const canSend = banner === 'idle' || banner === 'frozen'
+  // Input reaches the page only with Interact on; main still refuses it while live and not frozen.
+  const locked = banner !== null && interactLocked(banner)
+  const canSend = (banner === 'idle' || banner === 'frozen') && interact
+  const sendLeave = useCallback(
+    (clientX: number, clientY: number) => {
+      const r = page.current?.getBoundingClientRect()
+      if (!r) return
+      send(
+        toPrepareInput(
+          { type: 'mouseleave', clientX, clientY, button: 0, detail: 0 } as MouseEvent,
+          r
+        )
+      )
+    },
+    [send]
+  )
   // Pointer positions are normalized against the drawn page (not the clipping stage), so a
   // click maps to the right page point at every view mode and pan offset.
   const stageBox = (): DOMRect | null => page.current?.getBoundingClientRect() ?? null
-  // While input is locked (on air) a drag pans; otherwise Space+drag pans when the page does
-  // not hold the keyboard (the stage is not focused), so clicks and Space typing reach the page.
+  // Interact off (or locked on air): a drag pans a cropped page and nothing reaches the page.
+  // Interact on: clicks go to the page; Space+drag pans while the page does not hold the
+  // keyboard (the stage is not focused), so Space typed into a field is never taken.
   const canPan = lay.cropped
   const dragPans = (): boolean =>
     canPan && (!canSend || (spaceHeld && document.activeElement !== stage.current))
+  const panReady = canPan && (!canSend || (spaceHeld && !stageFocused))
   const panDrag = useRef<{ x: number; y: number; view: View } | null>(null)
   useEffect(() => {
     if (!panning) return
@@ -321,6 +375,7 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     const r = stageBox()
     if (!r) return
     if (e.type === 'mousemove') {
+      lastPoint.current = { x: e.clientX, y: e.clientY }
       pendingMove.current = e.nativeEvent
       if (!moveFrame.current) {
         moveFrame.current = requestAnimationFrame(() => {
@@ -337,8 +392,27 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     if (e.type === 'mouseup') dragging.current = false
     send(toPrepareInput(e.nativeEvent, r))
   }
+  // Leaving the preview tells the page the pointer left, so a hover menu does not stay open.
+  const onMouseLeave = (e: React.MouseEvent): void => {
+    cancelAnimationFrame(moveFrame.current)
+    moveFrame.current = 0
+    pendingMove.current = null
+    const had = lastPoint.current
+    lastPoint.current = null
+    if (!canSend || dragging.current || !had) return
+    sendLeave(e.clientX, e.clientY)
+  }
+  const toggleInteract = (): void => {
+    const turningOff = interact
+    setInteract((on) => nextInteract(on, prevBanner.current, { kind: 'press' }))
+    const had = lastPoint.current
+    if (turningOff && canSend && had) {
+      lastPoint.current = null
+      sendLeave(had.x, had.y)
+    }
+  }
   const onWheel = (e: React.WheelEvent): void => {
-    // Locked: the wheel pans a cropped page. Otherwise it scrolls the page.
+    // Interact off or locked: the wheel pans a cropped page. Otherwise it scrolls the page.
     if (!canSend) {
       if (canvas && canPan) panTo(panBy(canvas, box, view, dpr, -e.deltaX / dpr, -e.deltaY / dpr))
       return
@@ -347,8 +421,12 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     if (canSend && r) send(toPrepareInput(e.nativeEvent, r))
   }
   const onKey = (e: React.KeyboardEvent): void => {
+    // The stage is the target, so it holds the keyboard whenever Interact is on.
+    const route = banner
+      ? keyRoute({ key: e.key, spaceForPan: canPan }, { interact, holdsKeyboard: true, banner })
+      : 'none'
     // F6 moves focus out of the page, so the keyboard is never trapped in the preview.
-    if (e.key === 'F6') {
+    if (route === 'leave') {
       e.preventDefault()
       urlField.current?.focus()
       return
@@ -356,6 +434,29 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     if (!canSend) return
     const r = stageBox()
     if (!r) return
+    if (route === 'release') {
+      e.preventDefault()
+      // Esc reaches the page once (it closes page dialogs), then the keyboard is given back.
+      // The key-up lands on the button, so both halves are sent now.
+      if (e.type === 'keydown') {
+        send(toPrepareInput(e.nativeEvent, r))
+        const up = {
+          type: 'keyup',
+          key: e.key,
+          shiftKey: e.shiftKey,
+          ctrlKey: e.ctrlKey,
+          altKey: e.altKey,
+          metaKey: e.metaKey
+        } as KeyboardEvent
+        send(toPrepareInput(up, r))
+        interactButton.current?.focus()
+        setReleased(true)
+        window.clearTimeout(releasedTimer.current)
+        releasedTimer.current = window.setTimeout(() => setReleased(false), RELEASED_MS)
+      }
+      return
+    }
+    if (route !== 'page') return
     e.preventDefault()
     send(toPrepareInput(e.nativeEvent, r))
     if (e.type === 'keydown') send(toPrepareChar(e.nativeEvent))
@@ -574,6 +675,9 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
 
       <div className="prepare-banner" data-state={banner ?? 'idle'} role="status">
         {banner && <span>{prepareBannerText(banner)}</span>}
+        {released && (
+          <span className="prepare-released">Keyboard released. Click the page to type again.</span>
+        )}
       </div>
 
       {failure && (
@@ -603,6 +707,44 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
             100%
           </button>
         </div>
+        {mode === 'actual' && lay.cropped && (
+          <button
+            type="button"
+            className="prepare-togglebtn"
+            aria-pressed={mapShown}
+            title={mapShown ? 'Hide the mini-map to reach the corner' : 'Show the mini-map'}
+            onClick={() => {
+              setMapShown(!mapShown)
+              try {
+                localStorage.setItem(MAP_KEY, mapShown ? 'hidden' : 'shown')
+              } catch {
+                /* the choice just is not remembered */
+              }
+            }}
+          >
+            <MapTrifoldIcon size={16} weight="bold" aria-hidden="true" />
+            Map
+          </button>
+        )}
+        <button
+          ref={interactButton}
+          type="button"
+          className="prepare-togglebtn prepare-interact"
+          aria-pressed={interact}
+          disabled={locked}
+          title={
+            locked
+              ? 'Locked while on air. Press F to freeze first.'
+              : interact
+                ? 'Interact is on: clicks, scroll and typing go to the page. Esc releases the keyboard.'
+                : 'Interact is off: you only look. Turn on to click and type in the page.'
+          }
+          onClick={toggleInteract}
+        >
+          <CursorClickIcon size={16} weight={interact ? 'fill' : 'bold'} aria-hidden="true" />
+          Interact
+          <span className="prepare-togglestate">{interact ? 'On' : 'Off'}</span>
+        </button>
       </div>
 
       <div className="prepare-wrap">
@@ -612,16 +754,30 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
               ref={stage}
               className="prepare-stage"
               data-locked={String(!canSend)}
-              data-pan={
-                canPan && (!canSend || spaceHeld) ? (panning ? 'active' : 'ready') : undefined
-              }
               // Focusable so the keyboard reaches the page; F6 leaves it.
               tabIndex={0}
               role="application"
               aria-label={`Preview of ${domain}. ${
-                canSend ? 'Keys and clicks go to the page. F6 leaves the page.' : 'Input is locked.'
+                canSend
+                  ? 'Interact is on: keys and clicks go to the page. Esc releases the keyboard. F6 moves to the address.'
+                  : locked
+                    ? 'Input is locked while on air.'
+                    : 'Interact is off: you only look.'
               }`}
-              style={{ width: stageSize.width, height: stageSize.height }}
+              style={{
+                width: stageSize.width,
+                height: stageSize.height,
+                cursor: stageCursor({
+                  interact,
+                  locked,
+                  canPan: panReady,
+                  panning,
+                  page: nav?.cursor ?? 'default'
+                })
+              }}
+              onFocus={() => setStageFocused(true)}
+              onBlur={() => setStageFocused(false)}
+              onMouseLeave={onMouseLeave}
               onMouseDown={onMouse}
               onMouseUp={onMouse}
               onMouseMove={onMouse}
@@ -649,7 +805,7 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
               </div>
             </div>
           )}
-          {canvas && mode === 'actual' && (
+          {canvas && mode === 'actual' && mapShown && (
             <PrepareMiniMap
               canvas={canvas}
               box={box}
@@ -662,8 +818,12 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
       </div>
       <p className="prepare-hint">
         {canSend
-          ? 'Click the page, then type. F6 moves focus to the address.'
-          : 'Next, Previous and the other shortcuts work here while the page is on air.'}
+          ? 'Click the page, then type. Esc releases the keyboard. F6 moves focus to the address.'
+          : locked
+            ? 'Next, Previous and the other shortcuts work here while the page is on air.'
+            : lay.cropped
+              ? 'Interact is off. Drag or scroll to move the page; turn on Interact to click and type.'
+              : 'Interact is off. Turn it on to click and type in the page.'}
       </p>
     </main>
   )

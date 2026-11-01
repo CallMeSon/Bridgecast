@@ -550,6 +550,17 @@ export function toPrepareInput(
   if (rect.width <= 0 || rect.height <= 0) return null
   const x = (m.clientX - rect.left) / rect.width
   const y = (m.clientY - rect.top) / rect.height
+  // Leaving the preview reports the last position inside it (clamped), so hover menus close.
+  if (e.type === 'mouseleave') {
+    return {
+      kind: 'mouse',
+      type: 'mouseLeave',
+      x: Math.min(1, Math.max(0, x)),
+      y: Math.min(1, Math.max(0, y)),
+      button: 'left',
+      clickCount: 0
+    }
+  }
   if (x < 0 || x > 1 || y < 0 || y > 1) return null
   if (e.type === 'wheel') {
     const w = e as WheelEvent
