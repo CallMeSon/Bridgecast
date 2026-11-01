@@ -20,6 +20,7 @@ import {
   type WebNavState,
   type WebStatus
 } from '../../shared/web'
+import { StatusTag } from './components/StatusTag'
 import { StreamLayer } from './components/StreamLayer'
 import {
   errorMessage,
@@ -674,7 +675,8 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
       )}
 
       <div className="prepare-banner" data-state={banner ?? 'idle'} role="status">
-        {banner && <span>{prepareBannerText(banner)}</span>}
+        {banner && banner !== 'idle' && <StatusTag kind={banner === 'live' ? 'live' : 'frozen'} />}
+        {banner && <span>{prepareBannerText(banner, interact)}</span>}
         {released && (
           <span className="prepare-released">Keyboard released. Click the page to type again.</span>
         )}
@@ -754,6 +756,7 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
               ref={stage}
               className="prepare-stage"
               data-locked={String(!canSend)}
+              data-tally={banner ?? 'idle'}
               // Focusable so the keyboard reaches the page; F6 leaves it.
               tabIndex={0}
               role="application"
@@ -762,7 +765,9 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
                   ? 'Interact is on: keys and clicks go to the page. Esc releases the keyboard. F6 moves to the address.'
                   : locked
                     ? 'Input is locked while on air.'
-                    : 'Interact is off: you only look.'
+                    : `Interact is off: you only look. ${
+                        lay.cropped ? 'Drag or scroll to move the page. ' : ''
+                      }Turn on Interact to click and type.`
               }`}
               style={{
                 width: stageSize.width,
@@ -816,15 +821,6 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
           )}
         </div>
       </div>
-      <p className="prepare-hint">
-        {canSend
-          ? 'Click the page, then type. Esc releases the keyboard. F6 moves focus to the address.'
-          : locked
-            ? 'Next, Previous and the other shortcuts work here while the page is on air.'
-            : lay.cropped
-              ? 'Interact is off. Drag or scroll to move the page; turn on Interact to click and type.'
-              : 'Interact is off. Turn it on to click and type in the page.'}
-      </p>
     </main>
   )
 }

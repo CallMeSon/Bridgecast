@@ -2361,6 +2361,7 @@ footer .empty {
 }
 .prepare-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--sm, 8px);
   padding: 8px 16px;
@@ -2380,6 +2381,13 @@ footer .empty {
   position: relative;
   flex: 1;
   min-width: 0;
+}
+@media (max-width: 899px) {
+  /* Two rows: the address field takes a row of its own below the buttons. */
+  .prepare-address {
+    order: 1;
+    flex: 1 0 100%;
+  }
 }
 /* Loading: a 2 px bar along the bottom edge of the field; reduced motion gets the word instead. */
 .prepare-loadbar {
@@ -2460,12 +2468,15 @@ footer .empty {
   color: var(--text);
   font-weight: 600;
 }
-/* The banner states on-air status in words; the shape differs too: idle is plain, frozen is
-   outlined, live is a solid red bar. */
+/* Status line: state first, in words. Idle is plain, frozen is tinted with an accent edge,
+   live is the filled accent bar (filled = on air). The StatusTag adds the icon and the word. */
 .prepare-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
   padding: 8px 16px;
-  font: 700 14px var(--font-mono);
-  letter-spacing: 0.02em;
+  font: 600 13px/1.3 var(--font-sans);
   border-bottom: 1px solid var(--line);
   color: var(--text-2);
   background: var(--panel);
@@ -2475,9 +2486,15 @@ footer .empty {
   border-bottom-color: var(--tally);
   color: var(--on-tally);
 }
+.prepare-banner[data-state='live'] .stag {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--on-tally);
+  color: var(--on-tally);
+}
 .prepare-banner[data-state='frozen'] {
-  color: var(--tally-ink);
-  border: 2px solid var(--tally);
+  background: var(--accent-soft);
+  color: var(--text);
+  border-bottom-color: var(--tally);
 }
 .prepare-wrap {
   flex: 1;
@@ -2500,6 +2517,15 @@ footer .empty {
   /* A shadow, not a border: the stage rect is the page rect, input is normalized against it. */
   box-shadow: 0 0 0 1px var(--line-hi);
   cursor: default;
+}
+/* Tally: a 2 px accent ring outside the page rect (a shadow, so the rect and input mapping stay
+   exact). On air and frozen both show it; the status line says which in words. */
+.prepare-stage[data-tally='live'],
+.prepare-stage[data-tally='frozen'] {
+  box-shadow: 0 0 0 2px var(--tally);
+}
+.prepare-stage[data-tally='frozen'] {
+  box-shadow: 0 0 0 2px var(--tally), 0 0 0 4px var(--accent-soft);
 }
 /* The drawn page: sized and placed from layout(); pointer input is normalized against it. */
 .prepare-page {
@@ -2610,7 +2636,6 @@ footer .empty {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-.prepare-hint,
 .prepare-gone {
   margin: 0;
   padding: 8px 16px 12px;

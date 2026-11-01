@@ -491,14 +491,17 @@ export function prepareBanner(s: ProgramState, deckId: string): PrepareBanner {
   return s.frozen ? 'frozen' : 'live'
 }
 
-export function prepareBannerText(b: PrepareBanner): string {
+/** Status line words, state first. `interact` only changes the not-on-air line. */
+export function prepareBannerText(b: PrepareBanner, interact = false): string {
   switch (b) {
     case 'idle':
-      return 'Not on air. You can click and type.'
+      return interact
+        ? 'Not on air. Interact is on: clicks and typing go to the page.'
+        : 'Not on air. Interact to click and type in the page.'
     case 'live':
-      return 'ON AIR: input locked. Press F to freeze before you click.'
+      return 'On air. Input is locked. Press F to freeze, then turn on Interact.'
     case 'frozen':
-      return 'FROZEN: the output holds the last frame. Your clicks are not on air until you unfreeze.'
+      return 'Frozen. The output holds the last frame. Your clicks show on air after Unfreeze.'
   }
 }
 

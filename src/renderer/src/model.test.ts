@@ -714,12 +714,15 @@ describe('prepareBanner', () => {
     expect(prepareBanner(live('w', true), 'w')).toBe('frozen')
   })
   it('has the exact words for each state', () => {
-    expect(prepareBannerText('idle')).toBe('Not on air. You can click and type.')
+    expect(prepareBannerText('idle')).toBe('Not on air. Interact to click and type in the page.')
+    expect(prepareBannerText('idle', true)).toBe(
+      'Not on air. Interact is on: clicks and typing go to the page.'
+    )
     expect(prepareBannerText('live')).toBe(
-      'ON AIR: input locked. Press F to freeze before you click.'
+      'On air. Input is locked. Press F to freeze, then turn on Interact.'
     )
     expect(prepareBannerText('frozen')).toBe(
-      'FROZEN: the output holds the last frame. Your clicks are not on air until you unfreeze.'
+      'Frozen. The output holds the last frame. Your clicks show on air after Unfreeze.'
     )
   })
 })
