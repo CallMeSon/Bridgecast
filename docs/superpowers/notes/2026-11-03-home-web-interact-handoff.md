@@ -78,3 +78,30 @@ Arah perbaikan yang diusulkan, belum dicoba: pertahankan jendela "tampil" tapi t
 (seperti jendela OMT di `net-output.ts`) + `focusable: false`, `skipTaskbar: true`, `frame: false`, `opacity: 0` atau diletakkan di luar layar;
 atau pakai `webPreferences.offscreen` untuk halaman. Uji lagi: `test:e2e:web`, scroll/wheel lewat Interact, dan jendela tidak mencuri fokus
 atau muncul di taskbar. Cek juga di Windows (target utama) supaya tidak mengubah perilaku yang sudah jalan.
+
+### Perbaikan web Linux, percobaan agent (2026-11-03, BELUM di-commit: `src/main/web/web-host.ts` modified)
+Perubahan (khusus Linux): `showParkedOnLinux(win)` = `setResizable(false)` + `showInactive()` + `setPosition(-10000,-10000)`, dan opsi
+konstruktor `focusable: false`. Hasil `test:e2e:web`: lolos ready gate (web.mjs:200), ukuran jendela 1920x1080 (205), fokus tidak dicuri, Interact, zoom,
+HOLD; GAGAL di web.mjs:428 "the output holds its stream" (video:false, poster:true). Temuan agent:
+- Electron di xvfb melihat layar 1920x1080; jendela yang bisa di-resize terpotong ke 1028/965 -> `setResizable(false)` memperbaiki ukuran.
+- Jendela tersembunyi tidak pernah menggambar; switch Chromium (backgrounding/occlusion) TIDAK membantu.
+- Tab capture jendela tampil hanya mengirim 2-4 frame lalu macet pada probe (halaman beranimasi) -> output live di Linux bisa membeku. Belum
+  diverifikasi (bisa jadi artefak render perangkat lunak xvfb). Perlu uji di layar Linux sungguhan.
+- `isVisible()` kini true; jalur HTML full-screen memanggil `hide()` dan jendela lalu tak ter-capture sampai di-show lagi.
+- WM sungguhan bisa menggeser jendela dari (-10000,-10000) kembali ke layar; belum diuji.
+Langkah berikut: selidiki web.mjs:428 (track capture HDMI berakhir saat navigasi "Edit URL while live"?), uji di desktop Linux nyata (preview muncul,
+scroll lewat Interact, jendela tidak terlihat), baru commit dan rilis 1.0.3. Probe agent: scratchpad/probe.
+
+## KOREKSI (menggantikan dugaan "Linux/xvfb/tab capture macet" di atas) — penyebab asli: sesi WAYLAND
+Laptop ini GNOME Wayland (`XDG_SESSION_TYPE=wayland`). Compositor Wayland hanya menggambar jendela yang tampil, dan klien tidak bisa memosisikan
+jendelanya; jadi jendela halaman web yang tersembunyi tidak pernah menghasilkan frame (preview kosong, status `loading`, Interact tidak scroll).
+- `xvfb-run` TIDAK mengisolasi Electron: ia memilih backend Wayland dan membuka jendela di desktop nyata. Semua hasil "xvfb" sebelumnya adalah hasil Wayland.
+- Di X11 murni (`env -u WAYLAND_DISPLAY -u XDG_SESSION_TYPE -u EGL_PLATFORM xvfb-run ...`) kode HEAD (`show:false`) sudah lulus seluruh e2e web.
+- "Tab capture macet 2-4 frame" tidak nyata (artefak probe: halaman statis + membaca `readyState` setelah `stop()`).
+- Windows tidak terpengaruh (user sudah mengecek).
+Perbaikan: `needsX11Relaunch(platform, env, argv)` di `src/main/platform.ts` + relaunch sekali dengan `--ozone-platform=x11` di `src/main/index.ts`
+(hanya Linux + sesi Wayland + `DISPLAY` ada + belum ada flag). `e2e/web.mjs` memberi `--ozone-platform=x11` di Linux. `web-host.ts` kembali ke HEAD (tanpa jendela diparkir).
+Risiko: berjalan lewat Xwayland (bisa buram di skala pecahan, jendela HDMI ditempatkan Xwayland/Mutter, uji di layar kedua nyata); tanpa `DISPLAY` tidak
+ada relaunch dan deck web tetap rusak di Wayland murni (app sebaiknya memberi tahu). .deb/AppImage belum diuji; alternatif: `executableArgs: ["--ozone-platform=x11"]`
+di `electron-builder.yml` bagian `linux` (hanya untuk peluncuran via menu).
+Catatan: jangan jalankan e2e di mesin Wayland tanpa menghapus env Wayland, karena jendela e2e muncul di desktop nyata.

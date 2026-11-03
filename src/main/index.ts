@@ -33,7 +33,7 @@ import { slideshowSourceId } from './slideshow/capture'
 import { importPptx, configureImport } from './import'
 import { importPptxPowerPoint } from './import/pptx'
 import { importPptxLibreOffice, installedFonts } from './import/libreoffice'
-import { detectEngine, probeLinux, type EngineInfo } from './platform'
+import { detectEngine, needsX11Relaunch, probeLinux, type EngineInfo } from './platform'
 import { readFolderDeck } from './import/folder'
 import { ImportQueue } from './import-queue'
 import type { DeckMeta } from '../shared/types'
@@ -116,6 +116,13 @@ const IMPORT_WIDTH = 1920
 const PPTX_RE = /\.pptx?$/i
 /** Upper bound for one import request (a drop of a whole folder's worth of files). */
 const MAX_FILES = 200
+
+// Linux in a Wayland session: restart on X11 (Xwayland) so the hidden web deck pages paint (see
+// needsX11Relaunch). Runs before anything else starts; the second start has the flag.
+if (needsX11Relaunch(process.platform, process.env, process.argv)) {
+  app.relaunch({ args: [...process.argv.slice(1), '--ozone-platform=x11'] })
+  app.exit(0)
+}
 
 // Hidden web deck pages must keep painting on Windows when covered or minimised
 // (merged with any features already disabled on the command line).

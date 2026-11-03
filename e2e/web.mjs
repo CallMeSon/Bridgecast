@@ -56,7 +56,13 @@ const base = `http://127.0.0.1:${server.address().port}`
 async function launch() {
   const userData = mkTmp('ppt-share-web-')
   const app = await electron.launch({
-    args: ['--use-fake-device-for-media-stream', root],
+    // Linux: the hidden page window paints on X11 only (see needsX11Relaunch); the app relaunches itself
+    // with this flag, which would drop Playwright's connection, so it is given here.
+    args: [
+      '--use-fake-device-for-media-stream',
+      ...(process.platform === 'linux' ? ['--ozone-platform=x11'] : []),
+      root
+    ],
     cwd: root,
     env: {
       ...process.env,

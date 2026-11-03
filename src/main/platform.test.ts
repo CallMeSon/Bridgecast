@@ -4,7 +4,8 @@ import {
   NO_POWERPOINT_ENGINE,
   WAYLAND_STILLS,
   detectEngine,
-  engineName
+  engineName,
+  needsX11Relaunch
 } from './platform'
 
 const linux = { platform: 'linux' as const, hasSoffice: true, hasPyUno: true }
@@ -67,5 +68,18 @@ describe('engineName', () => {
     expect(engineName('libreoffice')).toBe('LibreOffice')
     expect(engineName('powerpoint')).toBe('PowerPoint')
     expect(engineName('none')).toBe('PowerPoint')
+  })
+})
+
+describe('needsX11Relaunch', () => {
+  const wayland = { XDG_SESSION_TYPE: 'wayland', WAYLAND_DISPLAY: 'wayland-0', DISPLAY: ':0' }
+  it('restarts on X11 in a Wayland session with an X server', () => {
+    expect(needsX11Relaunch('linux', wayland, ['electron', '.'])).toBe(true)
+  })
+  it('does not restart twice, on other systems, on X11 or without an X server', () => {
+    expect(needsX11Relaunch('linux', wayland, ['electron', '--ozone-platform=x11'])).toBe(false)
+    expect(needsX11Relaunch('win32', wayland, [])).toBe(false)
+    expect(needsX11Relaunch('linux', { XDG_SESSION_TYPE: 'x11', DISPLAY: ':0' }, [])).toBe(false)
+    expect(needsX11Relaunch('linux', { ...wayland, DISPLAY: undefined }, [])).toBe(false)
   })
 })

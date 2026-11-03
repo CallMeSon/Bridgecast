@@ -64,3 +64,21 @@ export async function probeLinux(): Promise<{ hasSoffice: boolean; hasPyUno: boo
   ])
   return { hasSoffice, hasPyUno }
 }
+
+/**
+ * Linux in a Wayland session: the app must run on X11 (Xwayland). A Wayland compositor draws
+ * only mapped windows, so the hidden web deck page window never gets a frame to capture, and a
+ * window cannot be placed off-screen to hide it. On X11 the hidden window paints. The platform
+ * is chosen before any script runs, so this takes a restart with `--ozone-platform=x11`.
+ * Not when the flag is already given, and not without an X server to fall back on (DISPLAY).
+ */
+export function needsX11Relaunch(
+  platform: NodeJS.Platform,
+  env: Record<string, string | undefined>,
+  argv: readonly string[]
+): boolean {
+  if (platform !== 'linux') return false
+  if (argv.some((a) => a.startsWith('--ozone-platform'))) return false
+  const wayland = env['XDG_SESSION_TYPE'] === 'wayland' || !!env['WAYLAND_DISPLAY']
+  return wayland && !!env['DISPLAY']
+}
