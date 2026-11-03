@@ -48,3 +48,17 @@ Diverifikasi: typecheck bersih, `npm test` 70 file / 1339 tes lulus, `test:e2e:n
 4. Lint: 8 error (CLAUDE.md bilang 7); semuanya di file yang tidak disentuh (`scripts/canva-*`, `program.test.ts`, `test/integration/libreoffice.test.ts`).
 5. Commit (stage hanya file sendiri; `git -c user.name="Gerson Sebastian" -c user.email="sebastiangerson24@gmail.com" commit ...`).
    Stash lama (`git stash list`, "wip home/contentRect/crop ...") boleh dihapus; isinya sudah digantikan upstream/pekerjaan baru.
+
+## BUG dilaporkan user (2026-11-03, paket Linux .deb): Interact di web tidak bisa scroll, halaman web tampak tidak termuat sempurna
+Belum diselidiki sampai selesai (jatah weekly hampir habis). Hipotesis, urut paling mungkin:
+1. **Jendela halaman web tersembunyi di Linux.** `web-host.ts:491` membuat `BrowserWindow({ show: false, ... })`; capture dan input
+   (`sendInputEvent`, `web-host.ts:326`) lewat jendela itu. Di Linux Chromium bisa tidak menyusun/menggambar jendela tersembunyi,
+   sehingga halaman tampak setengah termuat dan wheel tidak men-scroll. Cocok dengan kegagalan `test:e2e:web` yang SAYA ANGGAP
+   masalah xvfb: "pages become ready after a captured frame" (halaman B dan C `loading`, `frameSeen:false`) -- gagal juga di HEAD bersih.
+   Itu mungkin bug Linux sungguhan, bukan lingkungan. Cek cepat: ubah sementara `show: false` -> `show: true` (atau `showInactive()` di luar layar)
+   dan lihat apakah e2e web lulus dan scroll jalan. Bandingkan di Windows (target utama).
+2. **Overlay Interact di monitor Program** (`Program.tsx`, `.pgm-capture`): pastikan `onWheel` terpasang dan overlay tidak menelan
+   scroll (`pointer-events`, `touch-action`), dan bahwa React `onWheel` yang pasif tidak dipakai untuk `preventDefault`.
+3. Arah/besar delta wheel di `src/main/web/policy.ts:169-181` (`deltaX/deltaY` dinegasikan, `canScroll: true`): uji dengan halaman panjang.
+4. Ukuran jendela = Canvas (1920x1080); halaman responsif bisa terlihat berbeda dari browser biasa.
+Cara uji: jalankan `.deb` dengan `PPT_OUTPUT_DUMP` / log, buka Prepare di web deck lokal berhalaman panjang, aktifkan Interact, scroll.
