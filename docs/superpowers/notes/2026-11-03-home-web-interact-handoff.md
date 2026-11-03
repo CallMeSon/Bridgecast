@@ -62,3 +62,9 @@ Belum diselidiki sampai selesai (jatah weekly hampir habis). Hipotesis, urut pal
 3. Arah/besar delta wheel di `src/main/web/policy.ts:169-181` (`deltaX/deltaY` dinegasikan, `canScroll: true`): uji dengan halaman panjang.
 4. Ukuran jendela = Canvas (1920x1080); halaman responsif bisa terlihat berbeda dari browser biasa.
 Cara uji: jalankan `.deb` dengan `PPT_OUTPUT_DUMP` / log, buka Prepare di web deck lokal berhalaman panjang, aktifkan Interact, scroll.
+
+## Permintaan baru (belum dikerjakan): tombol Save di bawah popup Prepare (Interact)
+User ingin tombol "Save" di bagian bawah jendela Prepare. Maksud Save belum dikonfirmasi; pilihan yang diusulkan:
+(a) simpan keadaan halaman sekarang (URL akhir setelah navigasi/login, snapshot poster) dan tutup Prepare,
+(b) hanya menyimpan URL akhir tanpa menutup, (c) simpan lalu keluar dari Interact. Lokasi: `src/renderer/src/PrepareView.tsx`
+(area bawah, dekat banner `prepare-banner`), memakai `api` yang ada (`web:setUrl` / snapshot di `src/main/web/*`).
