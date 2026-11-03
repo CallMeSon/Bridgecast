@@ -68,3 +68,13 @@ User ingin tombol "Save" di bagian bawah jendela Prepare. Maksud Save belum diko
 (a) simpan keadaan halaman sekarang (URL akhir setelah navigasi/login, snapshot poster) dan tutup Prepare,
 (b) hanya menyimpan URL akhir tanpa menutup, (c) simpan lalu keluar dari Interact. Lokasi: `src/renderer/src/PrepareView.tsx`
 (area bawah, dekat banner `prepare-banner`), memakai `api` yang ada (`web:setUrl` / snapshot di `src/main/web/*`).
+
+### Hasil uji hipotesis 1 (2026-11-03, worktree sementara, kode utama tidak diubah)
+Dengan `show: false` -> `show: true` di `web-host.ts:491`, `test:e2e:web` LOLOS asersi "pages become ready after a captured frame"
+(e2e/web.mjs:200) yang gagal terus sebelumnya, dan baru gagal di asersi berikutnya (web.mjs:205, "host window content size equals the canvas",
+1920x965 vs 1920x1080) karena jendela yang tampil dipotong tinggi layar. Jadi penyebab "halaman tidak termuat sempurna" di Linux sangat
+mungkin jendela tersembunyi tidak digambar Chromium. `show: true` polos bukan perbaikan (jendela terlihat dan dipotong layar).
+Arah perbaikan yang diusulkan, belum dicoba: pertahankan jendela "tampil" tapi tak terlihat, mis. `show: true` + `enableLargerThanScreen: true`
+(seperti jendela OMT di `net-output.ts`) + `focusable: false`, `skipTaskbar: true`, `frame: false`, `opacity: 0` atau diletakkan di luar layar;
+atau pakai `webPreferences.offscreen` untuk halaman. Uji lagi: `test:e2e:web`, scroll/wheel lewat Interact, dan jendela tidak mencuri fokus
+atau muncul di taskbar. Cek juga di Windows (target utama) supaya tidak mengubah perilaku yang sudah jalan.
