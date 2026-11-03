@@ -3,7 +3,7 @@ import { Segmented } from './Segmented'
 
 const OPTIONS: readonly { value: PptImportFormat; label: string }[] = [
   { value: 'odp', label: 'LibreOffice (.odp)' },
-  { value: 'original', label: 'PowerPoint (as imported)' }
+  { value: 'original', label: 'As imported' }
 ]
 
 /**

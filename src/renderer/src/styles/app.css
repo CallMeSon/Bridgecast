@@ -1834,6 +1834,8 @@ kbd {
 .seg button {
   height: var(--h-sm);
   padding: 0 12px;
+  min-width: 0;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3103,6 +3105,10 @@ footer .empty {
   background: var(--panel);
   border-radius: var(--r-lg);
   box-shadow: 0 0 0 1px var(--accent);
+}
+.onair .btn {
+  flex: none;
+  white-space: nowrap;
 }
 .onair .msg {
   display: grid;
