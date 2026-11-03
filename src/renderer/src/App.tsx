@@ -14,6 +14,7 @@ import { NewEventDialog } from './components/NewEventDialog'
 import { Library, type ImportRow, type LibraryHandle } from './components/Library'
 import { DropOverlay } from './components/DropOverlay'
 import { Program } from './components/Program'
+import { keysClaimed } from './use-web-interact'
 import { Controls } from './components/Controls'
 import { NextPanel } from './components/NextPanel'
 import { DeckSettings } from './components/DeckSettings'
@@ -88,13 +89,14 @@ const IMPORT_WIDTH = 1920
 let importSeq = 0
 const newImportId = (): string => `imp-${Date.now()}-${importSeq++}`
 
-function App(): React.JSX.Element {
+/** `skipHome` (PPT_SKIP_HOME=1, e2e only) opens the console instead of Home. */
+function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
   const api = window.api
   const [events, setEvents] = useState<EventMeta[]>([])
   const [eventId, setEventId] = useState<string | null>(null)
-  // Open event tabs (this window's localStorage) and what the main area shows.
+  // Open event tabs (this window's localStorage) and what the main area shows. Home opens first.
   const [openIds, setOpenIds] = useState<string[]>([])
-  const [view, setView] = useState<'console' | 'home'>('console')
+  const [view, setView] = useState<'console' | 'home'>(skipHome ? 'console' : 'home')
   const tabsLoaded = useRef(false)
   const viewRef = useRef(view)
   useEffect(() => {
@@ -287,6 +289,8 @@ function App(): React.JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       // Home pauses the console keys (a clicker does nothing while the operator browses).
       if (viewRef.current === 'home') return
+      // Interact on the monitor takes the keys for the live page: no shortcut fires meanwhile.
+      if (keysClaimed()) return
       const a = keyToAction(e)
       if (!a) return
       e.preventDefault()
@@ -793,15 +797,6 @@ function App(): React.JSX.Element {
   }, [api])
 
   // Web decks. Main checks the address again; its refusal goes back to the dialog.
-  const addWeb = useCallback(
-    async (url: string, name: string | undefined) => {
-      const target = eventRef.current
-      if (!target) throw new Error('Choose an event first, then add the web page.')
-      await api.addWebDeck(target, url, name)
-      await reloadDecks(target)
-    },
-    [api, reloadDecks]
-  )
   const setWebUrl = useCallback(
     async (deckId: string, url: string) => {
       const target = eventRef.current
@@ -823,6 +818,18 @@ function App(): React.JSX.Element {
       api.openPrepare(deckId).catch((e) => reportError(name, e))
     },
     [api, decks, reportError]
+  )
+  // A new page opens in Prepare (log in, close pop-ups) before anyone takes it to air. The id comes
+  // from main's answer; if there is none, no window opens.
+  const addWeb = useCallback(
+    async (url: string, name: string | undefined) => {
+      const target = eventRef.current
+      if (!target) throw new Error('Choose an event first, then add the web page.')
+      const added = await api.addWebDeck(target, url, name)
+      if (added?.id) prepareWeb(added.id)
+      await reloadDecks(target)
+    },
+    [api, reloadDecks, prepareWeb]
   )
 
   const chooseThemePref = (p: ThemePref): void => {
@@ -1020,6 +1027,8 @@ function App(): React.JSX.Element {
           program={program}
           airEvent={program.airEvent}
           airHeadline={airHeadline}
+          hdmiEnabled={output.hdmi?.enabled ?? null}
+          slideOnProgram={program.shown !== null}
           onOpen={selectEvent}
           onBack={backToConsole}
           onNew={openNewEvent}

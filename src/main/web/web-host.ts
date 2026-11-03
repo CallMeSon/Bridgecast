@@ -12,6 +12,7 @@ import {
   applyWebSession,
   electronKeyName,
   frameNavigationAllowed,
+  interactAllowed,
   navigationAllowed,
   popupAllowed,
   validatePrepareInput,
@@ -25,6 +26,7 @@ import {
   syncPlan,
   webDeckName
 } from './host-rules'
+import { InteractSwitches } from './interact'
 
 export type { WebStatus }
 
@@ -41,6 +43,8 @@ const SNAPSHOT_RETRY_MS = 500
 const HOLD_SETTLE_MS = 300
 
 export const SIGN_OUT_LIVE = 'Take another deck first, then sign out.'
+export const INTERACT_NOT_LIVE =
+  'Interact works only while the web page is on air. Take the deck first, then turn Interact on.'
 const NOT_OPEN = 'The web page is not open. Reload the deck, then try again.'
 
 /** Same rules as the host page: separate profile, no Node, no preload. */
@@ -84,6 +88,10 @@ interface Page {
  */
 export class WebHost {
   private pages = new Map<string, Page>()
+  /** Interact per deck (see interact.ts); the owner is the window that turned it on. */
+  private interact = new InteractSwitches<WebContents>()
+  /** Owner windows whose close and navigation already drop their switches. */
+  private watched = new WeakSet<WebContents>()
   private ses: Session | null = null
   /** The web deck on air at the last syncEvent, to snapshot it when it leaves. */
   private onAir: string | null = null
@@ -326,11 +334,48 @@ export class WebHost {
     if (!this.pages.has(deckId)) return false
     const ev = validatePrepareInput(raw, this.canvas(), {
       live: this.live(deckId),
-      frozen: this.state.state.frozen
+      frozen: this.state.state.frozen,
+      interact: this.interacting(deckId)
     })
     if (!ev) return false
     this.input(deckId, ev)
     return true
+  }
+
+  /**
+   * Interact on or off for a deck. On needs the page on air (refused otherwise); the
+   * window that asked owns the switch and loses it when it closes or navigates. Off is
+   * always allowed. Showing or hiding Interact never changes HOLD or Freeze.
+   */
+  setInteract(deckId: string, on: boolean, owner: WebContents): void {
+    if (!interactAllowed(on, this.live(deckId))) throw new Error(INTERACT_NOT_LIVE)
+    if (!on) {
+      this.interact.clear(deckId)
+      return
+    }
+    this.interact.set(deckId, owner)
+    this.watchOwner(owner)
+  }
+
+  /** Interact is on for the deck on air: its page takes input while it is live. */
+  interacting(deckId: string): boolean {
+    return this.interact.has(deckId) && this.live(deckId)
+  }
+
+  /** Keeps Interact only for the deck on air in the open event (after every Program change). */
+  syncInteract(eventId: string | null, onAir: string | null): void {
+    this.interact.sync(eventId, onAir)
+  }
+
+  /** A window that owns Interact drops it when it is destroyed or loads another page. */
+  private watchOwner(owner: WebContents): void {
+    if (this.watched.has(owner)) return
+    this.watched.add(owner)
+    const drop = (): void => this.interact.releaseOwner(owner)
+    owner.once('destroyed', drop)
+    owner.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) drop()
+    })
   }
 
   /** Capture id of the page for `requester` (valid 10 s, only for that WebContents). */
@@ -703,6 +748,7 @@ export class WebHost {
     const p = this.pages.get(deckId)
     if (!p) return
     this.pages.delete(deckId)
+    this.interact.clear(deckId)
     this.coalescer.drop(deckId)
     this.clearTimers(p)
     for (const w of p.popups) if (!w.isDestroyed()) w.destroy()

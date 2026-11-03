@@ -719,7 +719,10 @@ describe('prepareBanner', () => {
       'Not on air. Interact is on: clicks and typing go to the page.'
     )
     expect(prepareBannerText('live')).toBe(
-      'On air. Input is locked. Press F to freeze, then turn on Interact.'
+      'On air. Turn on Interact to click and type in the page.'
+    )
+    expect(prepareBannerText('live', true)).toBe(
+      'On air. Interact is on: your clicks reach the audience. Press Esc to stop.'
     )
     expect(prepareBannerText('frozen')).toBe(
       'Frozen. The output holds the last frame. Your clicks show on air after Unfreeze.'

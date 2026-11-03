@@ -62,7 +62,13 @@ import {
   type NetStatus,
   type OmtSettings
 } from '../shared/omt'
-import { CANVAS_INVALID, sanitizeCanvas, type Canvas } from '../shared/canvas'
+import {
+  CANVAS_INVALID,
+  contentRect,
+  sanitizeCanvas,
+  type Canvas,
+  type ContentRect
+} from '../shared/canvas'
 import {
   mergeAudio,
   sanitizeAudio,
@@ -86,7 +92,7 @@ import {
   type RenderedDeck
 } from '../shared/ipc'
 import { isOrderItem } from '../shared/sections'
-import { kvOnAir, type Action } from '../shared/program'
+import { kvOnAir, type Action, type ProgramState } from '../shared/program'
 import { defaultPlayback, engineStates, playbackOf, type SlideshowStatus } from '../shared/playback'
 import { pdfSourceFields } from './import/pdf-source'
 import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
@@ -746,6 +752,13 @@ function registerIpc(
     net.apply({ omt: saved.omt, ndi: saved.ndi })
     return saved
   })
+  handle(Invoke.networkSetContentOnly, (on: boolean) => {
+    if (typeof on !== 'boolean')
+      throw new Error('Send content only is not valid. Reload the app, then try again.')
+    const saved = settings.saveSendContentOnly(on)
+    net.contentChanged()
+    return saved
+  })
   handle(Invoke.ndiGetStatus, () => net.status('ndi'))
   handle(Invoke.ndiSet, (input: NdiSettings) => {
     const saved = settings.saveNdi(sanitizeNdi(input))
@@ -757,6 +770,8 @@ function registerIpc(
     broadcast(Broadcast.programState, s)
     // The Canvas may differ (event override, machine default): the OMT frame size follows it.
     net.canvasChanged()
+    // What is on air may be a Fit slide now, or not: the sent rectangle follows it.
+    net.contentChanged()
   })
 }
 
@@ -853,6 +868,14 @@ function registerWebIpc(
   appHandle(Invoke.webInput, (_e, deckId, input) => {
     assertString(deckId, 'Deck ID')
     return web.prepareInput(deckId, input)
+  })
+  appHandle(Invoke.webSetInteract, (e, deckId, on) => {
+    assertString(deckId, 'Deck ID')
+    if (typeof on !== 'boolean') throw new Error('Interact must be on or off.')
+    // The operator and Prepare windows take input; the outputs only show the audience a picture.
+    const role = roleOf(e.sender)
+    if (role !== 'operator' && role !== 'prepare') throw new Error(NOT_APP_WINDOW)
+    web.setInteract(deckId, on, e.sender)
   })
   appHandle(Invoke.webSourceId, (e, deckId) => {
     assertString(deckId, 'Deck ID')
@@ -994,6 +1017,10 @@ class SettingsStore {
 
   saveNdi(ndi: NdiSettings): Settings {
     return this.save({ ...this.settings, ndi })
+  }
+
+  saveSendContentOnly(sendContentOnly: boolean): Settings {
+    return this.save({ ...this.settings, sendContentOnly })
   }
 
   saveAudio(audio: AudioSettings): Settings {
@@ -1197,7 +1224,28 @@ function createSlideShow(
  * (e2e, no native library); PPT_NDI_FAKE=1 does the same for NDI and
  * PPT_NDI_FAKE=missing simulates an absent NDI runtime.
  */
-function createNetOutput(settings: SettingsStore, state: AppState): NetOutput {
+/**
+ * The part of the Canvas the network outputs send. Only an image or PDF slide of a Fit deck
+ * is cut to its own rectangle (no black bars). KV, Black, web pages, streams, the native
+ * slideshow and video slides send the whole Canvas, as does everything when the setting is off.
+ */
+function sendRectOf(lib: Library, sendContentOnly: boolean, s: ProgramState): ContentRect {
+  const whole = contentRect(s.canvas, null, 'fit')
+  if (!sendContentOnly || s.black || kvOnAir(s)) return whole
+  const shown = s.shown
+  if (!shown || shown.video) return whole
+  let deck: DeckMeta
+  try {
+    deck = lib.getDeck(shown.deckId)
+  } catch {
+    return whole
+  }
+  if (deck.source !== 'pptx' && deck.source !== 'pdf' && deck.source !== 'folder') return whole
+  if ((shown.playback ?? playbackOf(deck)) === 'native') return whole
+  return contentRect(s.canvas, { width: deck.width, height: deck.height }, shown.fit ?? 'fit')
+}
+
+function createNetOutput(settings: SettingsStore, state: AppState, lib: Library): NetOutput {
   const dump = !!process.env['PPT_OUTPUT_DUMP']
   const ndiFake = process.env['PPT_NDI_FAKE']
   const net = new NetOutput(
@@ -1212,7 +1260,8 @@ function createNetOutput(settings: SettingsStore, state: AppState): NetOutput {
       fake: process.env['PPT_OMT_FAKE'] === '1',
       fakeNdi: ndiFake === 'missing' ? 'missing' : ndiFake === '1',
       debug: dump
-    }
+    },
+    () => sendRectOf(lib, settings.get().sendContentOnly, state.state)
   )
   if (dump) {
     Object.defineProperty(globalThis, '__pptOmt', { configurable: true, get: () => net.debug })
@@ -1269,10 +1318,13 @@ function createWindow(onReady?: () => void): BrowserWindow {
   // The operator window never navigates away from the app (e.g. a stray file drop).
   mainWindow.webContents.on('will-navigate', (e) => e.preventDefault())
 
+  // PPT_SKIP_HOME=1 (e2e): the operator window opens on the console instead of Home. It reaches
+  // the renderer as a hash query (`#/?skipHome=1`), read in main.tsx.
+  const hash = process.env['PPT_SKIP_HOME'] === '1' ? '/?skipHome=1' : ''
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + (hash ? `#${hash}` : ''))
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined)
   }
   return mainWindow
 }
@@ -1333,7 +1385,8 @@ Location: ${root}`
     () => settings.get().canvas,
     (deckId) => web?.webReady(deckId) ?? false,
     (deckId, key) => web?.key(deckId, key),
-    (deckId) => slides?.ready(deckId) ?? false
+    (deckId) => slides?.ready(deckId) ?? false,
+    (deckId) => web?.interacting(deckId) ?? false
   )
   const slideShow = createSlideShow(lib, state, settings, engineInfo)
   configureImport({
@@ -1357,7 +1410,7 @@ Location: ${root}`
     }
   })
   const hdmi = createHdmiOutput(settings)
-  const net = createNetOutput(settings, state)
+  const net = createNetOutput(settings, state, lib)
   let operator: BrowserWindow | null = null
   const host = new WebHost(
     lib,
@@ -1379,7 +1432,10 @@ Location: ${root}`
   // Pages follow the open event's web decks; the one on air stays until it leaves air.
   const syncWeb = (): void => {
     try {
-      host.syncEvent(state.decks(), state.state.shown?.web?.deckId ?? null)
+      const onAir = state.state.shown?.web?.deckId ?? null
+      host.syncEvent(state.decks(), onAir)
+      // Interact ends with the deck on air and with the event it was turned on in.
+      host.syncInteract(state.eventId, onAir)
     } catch (err) {
       console.error('[web] pages could not follow the deck list:', err)
     }

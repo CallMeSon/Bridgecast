@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ContentRect } from '../../shared/canvas'
 import {
   DEFAULT_NDI,
   DEFAULT_OMT,
@@ -87,6 +88,7 @@ function rig(
   const ndiStatuses: NetStatus[] = []
   let clock = 1_000_000
   let cv = { ...canvas }
+  let rect: ContentRect | null = null
   const deps: OmtDeps = {
     createWorker: () => {
       const w = new FakeWorker()
@@ -115,7 +117,9 @@ function rig(
     cfg(settings, ndi),
     () => cv,
     (id, s) => (id === 'omt' ? statuses : ndiStatuses).push(s),
-    deps
+    deps,
+    false,
+    () => rect ?? { x: 0, y: 0, width: cv.width, height: cv.height }
   )
   const fire = (ms: number): void => {
     for (const t of timers.filter((x) => x.live && x.ms === ms)) {
@@ -132,6 +136,8 @@ function rig(
     ndiStatuses,
     fire,
     setCanvas: (c: { width: number; height: number }) => (cv = c),
+    /** The content rect to send; null is the whole Canvas. */
+    setRect: (r: ContentRect | null) => (rect = r),
     tick: (ms: number) => (clock += ms)
   }
 }
@@ -745,5 +751,159 @@ describe('NetController with OMT and NDI', () => {
     expect(t.workers.length).toBe(starts + 1)
     expect(t.out.status('ndi').state).toBe('starting')
     expect(t.out.status('omt').state).toBe('starting')
+  })
+})
+
+describe('NetController sends the content rect', () => {
+  const fourThree: ContentRect = { x: 240, y: 0, width: 1440, height: 1080 }
+  /** Pixel (x, y) is blue = x, green = y (both mod 256), red 0, alpha 255. */
+  const picture = (w = 1920, h = 1080): ArrayBuffer => {
+    const data = new ArrayBuffer(w * h * 4)
+    const px = new Uint8Array(data)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        px[i] = x & 255
+        px[i + 1] = y & 255
+        px[i + 3] = 255
+      }
+    }
+    return data
+  }
+  const types = (w: FakeWorker, from = 0): string[] => w.posted.slice(from).map((p) => p.m.type)
+  const frames = (
+    w: FakeWorker
+  ): { m: { type: string; [k: string]: unknown }; transfer?: unknown[] }[] =>
+    w.posted.filter((p) => p.m.type === 'frame')
+  const starts = (w: FakeWorker): { type: string; [k: string]: unknown }[] =>
+    w.posted.map((p) => p.m).filter((m) => m.type === 'start')
+
+  it('a Fit slide is cut out of the Canvas picture and sent at the content size; the window keeps the Canvas size', () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    t.windows[0].h.onReady()
+    t.setRect(fourThree)
+    t.out.contentChanged()
+    expect(types(t.workers[0])).toContain('stop')
+    expect(t.windows[0].sizes).toEqual([])
+    t.fire(1000)
+    expect(starts(t.workers[0]).at(-1)).toMatchObject({ width: 1440, height: 1080 })
+
+    const src = picture()
+    t.windows[0].h.onPaint(1920, 1080, src)
+    const f = frames(t.workers[0]).at(-1)!
+    expect(f.m).toMatchObject({ width: 1440, height: 1080 })
+    const data = f.m.data as ArrayBuffer
+    expect(data.byteLength).toBe(1440 * 1080 * 4)
+    expect(f.transfer).toEqual([data])
+    const out = new Uint8Array(data)
+    const from = new Uint8Array(src)
+    const at = (x: number, y: number): Uint8Array =>
+      from.subarray((y * 1920 + x) * 4, (y * 1920 + x) * 4 + 4)
+    // First output pixel is the picture's (240, 0); the last one is (1679, 1079).
+    expect(out.subarray(0, 4)).toEqual(at(240, 0))
+    expect(out.subarray((1080 * 1440 - 1) * 4, 1080 * 1440 * 4)).toEqual(at(1679, 1079))
+  })
+
+  it('while the sender is rebuilt, a paint of the old size and any black frame are not sent', () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    t.windows[0].h.onReady()
+    t.windows[0].h.onPaint(1920, 1080, picture())
+    const before = t.workers[0].posted.length
+    t.setRect(fourThree)
+    t.out.contentChanged()
+    t.windows[0].h.onPaint(1920, 1080, picture())
+    expect(types(t.workers[0], before)).toEqual(['stop'])
+    const inv = t.windows[0].invalidates
+    t.fire(1000)
+    // The new sender starts; the ready window is asked for a fresh picture, not sent black.
+    expect(types(t.workers[0], before)).toEqual(['stop', 'start'])
+    expect(t.windows[0].invalidates).toBe(inv + 1)
+    t.windows[0].h.onPaint(1920, 1080, picture())
+    expect(frames(t.workers[0]).at(-1)!.m).toMatchObject({ width: 1440, height: 1080 })
+  })
+
+  it('after a renderer restart, a rebuild sends no black frame until the new window paints', () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    t.windows[0].h.onReady()
+    t.windows[0].h.onPaint(1920, 1080, picture())
+    t.windows[0].h.onGone()
+    const before = t.workers[0].posted.length
+    t.setRect(fourThree)
+    t.out.contentChanged()
+    t.fire(1000)
+    expect(t.windows).toHaveLength(2)
+    expect(types(t.workers[0], before)).toEqual(['stop', 'start'])
+    t.windows[1].h.onReady()
+    t.windows[1].h.onPaint(1920, 1080, picture())
+    expect(frames(t.workers[0]).at(-1)!.m).toMatchObject({ width: 1440, height: 1080 })
+  })
+
+  it('a move of the content rect at the same size does not restart the sender; the next frame is cut from the new place', () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    t.windows[0].h.onReady()
+    t.setRect(fourThree)
+    t.out.contentChanged()
+    t.fire(1000)
+    const stops = types(t.workers[0]).filter((x) => x === 'stop').length
+    t.setRect({ ...fourThree, x: 200 })
+    t.out.contentChanged()
+    expect(types(t.workers[0]).filter((x) => x === 'stop')).toHaveLength(stops)
+    const src = picture()
+    t.windows[0].h.onPaint(1920, 1080, src)
+    const data = frames(t.workers[0]).at(-1)!.m.data as ArrayBuffer
+    expect(new Uint8Array(data).subarray(0, 4)).toEqual(
+      new Uint8Array(src).subarray(200 * 4, 200 * 4 + 4)
+    )
+  })
+
+  it('a Canvas change keeps the content rect and rebuilds the sender once at the content size', () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    t.windows[0].h.onReady()
+    t.setRect(fourThree)
+    t.out.contentChanged()
+    t.fire(1000)
+    t.setCanvas({ width: 3840, height: 1080 })
+    t.out.canvasChanged()
+    expect(t.windows[0].sizes).toEqual([[3840, 1080]])
+    t.fire(1000)
+    expect(starts(t.workers[0]).at(-1)).toMatchObject({ width: 1440, height: 1080 })
+  })
+
+  it('a rect outside the Canvas falls back to the whole Canvas', () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    t.windows[0].h.onReady()
+    t.setRect({ x: 1000, y: 0, width: 1440, height: 1080 })
+    t.out.contentChanged()
+    expect(types(t.workers[0])).not.toContain('stop')
+    const ab = picture()
+    t.windows[0].h.onPaint(1920, 1080, ab)
+    expect(frames(t.workers[0]).at(-1)!.m).toMatchObject({ width: 1920, height: 1080, data: ab })
+  })
+
+  it('with the whole Canvas as the rect (setting off), frames are sent unchanged, as before', () => {
+    const t = setup({ enabled: true })
+    t.out.start()
+    t.windows[0].h.onReady()
+    t.setRect(fourThree)
+    t.out.contentChanged()
+    t.fire(1000)
+    // Setting off: the getter answers the whole Canvas, which is a size change back to 1920.
+    t.setRect(null)
+    t.out.contentChanged()
+    t.fire(1000)
+    expect(starts(t.workers[0]).at(-1)).toMatchObject({ width: 1920, height: 1080 })
+    const before = t.workers[0].posted.length
+    const ab = picture()
+    t.windows[0].h.onPaint(1920, 1080, ab)
+    const last = t.workers[0].posted[t.workers[0].posted.length - 1]
+    expect(t.workers[0].posted.length).toBe(before + 1)
+    expect(last.m).toMatchObject({ type: 'frame', width: 1920, height: 1080, data: ab })
+    expect(last.transfer).toEqual([ab])
   })
 })

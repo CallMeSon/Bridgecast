@@ -47,6 +47,7 @@ export const Invoke = {
   ndiSet: 'ndi:set',
   ndiGetStatus: 'ndi:getStatus',
   networkSetFps: 'network:setFps',
+  networkSetContentOnly: 'network:setContentOnly',
   webAdd: 'web:add',
   webSetUrl: 'web:setUrl',
   webReload: 'web:reload',
@@ -56,6 +57,7 @@ export const Invoke = {
   webSetZoom: 'web:setZoom',
   webNavStates: 'web:navStates',
   webInput: 'web:input',
+  webSetInteract: 'web:setInteract',
   webSourceId: 'web:sourceId',
   webFrame: 'web:frame',
   webEnded: 'web:ended',
@@ -242,6 +244,8 @@ export interface InvokeMap {
   'ndi:getStatus': { args: []; result: NdiStatus }
   /** Saves `omt.fps` (30 or 60, anything else becomes 30) without touching `omt.enabled`; restarts the running targets. */
   'network:setFps': { args: [fps: 30 | 60]; result: Settings }
+  /** Saves `sendContentOnly` (a non-boolean is refused); the network outputs follow it at the next program change. */
+  'network:setContentOnly': { args: [on: boolean]; result: Settings }
   /**
    * Adds a web deck (URL checked with `sanitizeWebUrl`); without a name the deck
    * is named after the domain, then after the page title once it has loaded.
@@ -261,6 +265,12 @@ export interface InvokeMap {
   'web:navStates': { args: []; result: WebNavState[] }
   /** Prepare input; false when refused (deck on air and not frozen, or not valid). */
   'web:input': { args: [deckId: string, input: PrepareInput]; result: boolean }
+  /**
+   * Interact on or off for a web deck. On only while the page is on air (refused otherwise);
+   * off always. Main keeps the switch only while the deck is on air in the open event and its
+   * window is open, so a stale renderer cannot keep it on. Operator and Prepare windows only.
+   */
+  'web:setInteract': { args: [deckId: string, on: boolean]; result: void }
   /** Capture id of the deck's page for the calling window (valid 10 s, `chromeMediaSource: 'tab'`). */
   'web:sourceId': { args: [deckId: string]; result: string }
   /** The calling window received the first captured frame of the page (ready gate). */
@@ -411,6 +421,8 @@ export interface Api {
   onNdiStatus(cb: (s: NdiStatus) => void): () => void
   /** Frame rate of every network protocol; updates `omt.fps` and leaves `omt.enabled` alone. */
   setNetworkFps(fps: 30 | 60): Promise<Settings>
+  /** Whether OMT and NDI send only the slide without Fit bars; saved at once. */
+  setNetworkContentOnly(on: boolean): Promise<Settings>
   /**
    * OMT output window only. Main answers with a fresh MessagePort that the
    * preload forwards to the page as `window.postMessage('omt:audio-port', '*', ports)`
@@ -429,6 +441,8 @@ export interface Api {
   webNavStates(): Promise<WebNavState[]>
   onWebNavState(cb: (s: WebNavState) => void): () => void
   webInput(deckId: string, input: PrepareInput): Promise<boolean>
+  /** Interact on or off for a web deck (see `web:setInteract`). */
+  setWebInteract(deckId: string, on: boolean): Promise<void>
   webSourceId(deckId: string): Promise<string>
   /** Ready gate: report the first frame of the page's capture. */
   webFrame(deckId: string): Promise<void>

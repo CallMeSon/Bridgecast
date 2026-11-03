@@ -7,6 +7,7 @@ import {
   DEFAULT_AUDIO,
   DEFAULT_HDMI,
   DEFAULT_PPT_IMPORT_FORMAT,
+  DEFAULT_SEND_CONTENT_ONLY,
   sanitizeSettings,
   type Settings
 } from '../shared/settings'
@@ -21,6 +22,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   canvas: DEFAULT_CANVAS,
   omt: DEFAULT_OMT,
   ndi: DEFAULT_NDI,
+  sendContentOnly: DEFAULT_SEND_CONTENT_ONLY,
   pptImportFormat: DEFAULT_PPT_IMPORT_FORMAT
 })
 

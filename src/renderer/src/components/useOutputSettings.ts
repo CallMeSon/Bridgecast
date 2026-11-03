@@ -12,6 +12,8 @@ export interface OutputSettingsState {
   canvas: Canvas | null
   omt: OmtSettings | null
   ndi: NdiSettings | null
+  /** OMT and NDI send only the slide without Fit bars. */
+  sendContentOnly: boolean | null
   status: HdmiStatus | null
   displays: DisplayInfo[]
   omtStatus: NetStatus | null
@@ -21,6 +23,7 @@ export interface OutputSettingsState {
   setCanvas(v: Canvas): void
   setOmt(v: OmtSettings): void
   setNdi(v: NdiSettings): void
+  setSendContentOnly(v: boolean): void
   /** Read the saved settings and the screens again (main may re-save the HDMI display id). */
   reload(): void
 }
@@ -36,6 +39,7 @@ export function useOutputSettings(): OutputSettingsState {
   const [canvas, setCanvas] = useState<Canvas | null>(null)
   const [omt, setOmt] = useState<OmtSettings | null>(null)
   const [ndi, setNdi] = useState<NdiSettings | null>(null)
+  const [sendContentOnly, setSendContentOnly] = useState<boolean | null>(null)
   const [status, setStatus] = useState<HdmiStatus | null>(null)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const omtStatus = useOmtStatus()
@@ -53,6 +57,7 @@ export function useOutputSettings(): OutputSettingsState {
       setCanvas(s.canvas)
       setOmt(s.omt)
       setNdi(s.ndi)
+      setSendContentOnly(s.sendContentOnly)
     })
     // A status pushed before this resolves is newer; keep it.
     api.getHdmiStatus().then((s) => setStatus((cur) => cur ?? s))
@@ -66,6 +71,7 @@ export function useOutputSettings(): OutputSettingsState {
       setCanvas(s.canvas)
       setOmt(s.omt)
       setNdi(s.ndi)
+      setSendContentOnly(s.sendContentOnly)
     })
     api.listDisplays().then(setDisplays)
   }, [api])
@@ -76,6 +82,7 @@ export function useOutputSettings(): OutputSettingsState {
     canvas,
     omt,
     ndi,
+    sendContentOnly,
     status,
     displays,
     omtStatus,
@@ -85,6 +92,7 @@ export function useOutputSettings(): OutputSettingsState {
     setCanvas,
     setOmt,
     setNdi,
+    setSendContentOnly,
     reload
   }
 }

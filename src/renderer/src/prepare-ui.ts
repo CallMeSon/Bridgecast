@@ -25,37 +25,41 @@ export function homeDisabled(pageUrl: string | null, deckUrl: string | undefined
 export type InteractEvent = { kind: 'banner'; banner: PrepareBanner } | { kind: 'press' }
 
 /**
- * The Interact switch. Safest defaults: on only when the window opens on a deck that is
- * not on air; it never turns itself on after that. Live forces it off; frozen and "left
- * air" keep what the operator chose (off after live), so a click that changes what the
- * audience sees after Unfreeze is always deliberate.
+ * The Interact switch. It opens on only for a deck that is not on air, and a press turns
+ * it either way. Going live turns it off (a deliberate press turns it on again, and main
+ * needs that press to accept input on air); so does leaving air, where main drops it too.
+ * Frozen keeps the choice.
  */
 export function nextInteract(on: boolean, prev: PrepareBanner | null, e: InteractEvent): boolean {
-  if (e.kind === 'press') return prev === 'live' ? false : !on
+  if (e.kind === 'press') return !on
   if (e.banner === 'live') return false
+  if (e.banner === 'idle' && prev !== null && prev !== 'idle') return false
   if (prev === null) return e.banner === 'idle'
   return on
 }
 
-/** On air and not frozen: main refuses input, so the switch is disabled. */
-export function interactLocked(b: PrepareBanner): boolean {
-  return b === 'live'
+/** On air with Interact off: the page takes no input (the audience sees it as it is). */
+export function inputLocked(b: PrepareBanner, interact: boolean): boolean {
+  return b === 'live' && !interact
 }
 
-export type KeyRoute = 'page' | 'release' | 'leave' | 'pan' | 'app' | 'none'
+export type KeyRoute = 'page' | 'release' | 'stop' | 'leave' | 'pan' | 'app' | 'none'
 
 /**
- * Where a key goes. F6 always leaves the page. Esc releases the keyboard (the caller also
- * sends it to the page). Live: app shortcuts. Space pans only while the page does not hold
- * the keyboard (Space in a text field types a space).
+ * Where a key goes. F6 always leaves the page. On air with Interact on, Esc stops Interact
+ * (it does not reach the page). Esc releases the keyboard while Interact is on and not
+ * live (the caller also sends it to the page). On air without Interact: app shortcuts, and
+ * never the page. Space pans only while the page does not hold the keyboard (Space in a
+ * text field types a space).
  */
 export function keyRoute(
   e: { key: string; spaceForPan: boolean },
   s: { interact: boolean; holdsKeyboard: boolean; banner: PrepareBanner }
 ): KeyRoute {
   if (e.key === 'F6') return 'leave'
+  if (e.key === 'Escape' && s.interact && s.banner === 'live') return 'stop'
   if (e.key === 'Escape' && s.holdsKeyboard && s.interact) return 'release'
-  if (s.banner === 'live') return 'app'
+  if (s.banner === 'live' && !s.interact) return 'app'
   if (e.key === ' ' && e.spaceForPan && !s.holdsKeyboard) return 'pan'
   if (s.interact && s.holdsKeyboard) return 'page'
   return 'none'

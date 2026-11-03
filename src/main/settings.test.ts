@@ -24,6 +24,7 @@ describe('loadSettings / saveSettings', () => {
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: false, name: 'Bridgecast' },
+      sendContentOnly: true,
       pptImportFormat: 'odp'
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
@@ -37,6 +38,7 @@ describe('loadSettings / saveSettings', () => {
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: true, name: 'Aula', fps: 60 as const },
       ndi: { enabled: true, name: 'Sala NDI' },
+      sendContentOnly: false,
       pptImportFormat: 'original' as const
     }
     saveSettings(file, s)
@@ -82,6 +84,7 @@ describe('hdmi settings', () => {
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: false, name: 'Aula' },
+      sendContentOnly: true,
       pptImportFormat: 'odp'
     })
   })
@@ -96,6 +99,7 @@ describe('hdmi settings', () => {
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: true, name: 'Bridgecast' },
+      sendContentOnly: true,
       pptImportFormat: 'odp'
     })
   })
@@ -315,6 +319,21 @@ describe('ndi setting', () => {
     expect(loadSettings(file).pptImportFormat).toBe('odp')
     fs.writeFileSync(file, JSON.stringify({ pptImportFormat: 'original' }))
     expect(loadSettings(file).pptImportFormat).toBe('original')
+  })
+})
+
+describe('send content only setting', () => {
+  it('defaults to on, and keeps an explicit false through save then load', () => {
+    expect(DEFAULT_SETTINGS.sendContentOnly).toBe(true)
+    expect(loadSettings(file).sendContentOnly).toBe(true)
+    saveSettings(file, { ...DEFAULT_SETTINGS, sendContentOnly: false })
+    expect(loadSettings(file).sendContentOnly).toBe(false)
+  })
+
+  it('a non-boolean value falls back to true', () => {
+    for (const sendContentOnly of ['no', 0, 1, null, undefined, {}, []]) {
+      expect(sanitizeSettings({ sendContentOnly }).sendContentOnly).toBe(true)
+    }
   })
 })
 

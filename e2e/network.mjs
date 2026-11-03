@@ -66,6 +66,7 @@ async function launch(extraEnv) {
       ...process.env,
       PPT_SHARE_USER_DATA: userData,
       PPT_OUTPUT_DUMP: frameDir,
+      PPT_SKIP_HOME: '1',
       ELECTRON_RENDERER_URL: '',
       ...extraEnv
     }
@@ -351,6 +352,8 @@ async function fakeScenario() {
 
     // ---- event canvas 3840x1080 -> frames 3840x1080
     const sess = await win.evaluate(() => window.api.getSession())
+    // These checks are about the canvas size: send the whole canvas, not just the slide.
+    await win.evaluate(() => window.api.setNetworkContentOnly(false))
     await win.evaluate(
       (id) => window.api.setEventCanvas(id, { width: 3840, height: 1080 }),
       sess.eventId
@@ -684,6 +687,8 @@ async function bothScenario() {
 
     // ---- event canvas 3840x1080 reaches both targets
     const sess = await win.evaluate(() => window.api.getSession())
+    // These checks are about the canvas size: send the whole canvas, not just the slide.
+    await win.evaluate(() => window.api.setNetworkContentOnly(false))
     await win.evaluate(
       (id) => window.api.setEventCanvas(id, { width: 3840, height: 1080 }),
       sess.eventId

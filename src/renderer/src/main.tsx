@@ -23,6 +23,8 @@ const query = new URLSearchParams(hashQuery)
 const role = query.get('role') === 'omt' ? 'omt' : 'hdmi'
 // `#/prepare?deck=<id>` is a web deck's Prepare window (see main/web/prepare-window.ts).
 const prepareDeck = hashPath === '#/prepare' ? query.get('deck') : null
+// `#/?skipHome=1` (PPT_SKIP_HOME=1, e2e only): the operator window opens on the console, not Home.
+const skipHome = hashPath === '#/' && query.get('skipHome') === '1'
 
 // Apply the saved appearance before the first paint (the OS theme is the default).
 if (!isOutput) {
@@ -37,7 +39,7 @@ createRoot(document.getElementById('root')!).render(
     ) : prepareDeck ? (
       <PrepareView deckId={prepareDeck} />
     ) : (
-      <App />
+      <App skipHome={skipHome} />
     )}
   </StrictMode>
 )

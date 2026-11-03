@@ -1,4 +1,6 @@
 import type { FakeDebug } from './worker'
+import type { ContentRect } from '../../shared/canvas'
+import { cropBgra } from './crop'
 import {
   NDI_COPY,
   networkOn,
@@ -80,6 +82,23 @@ export interface OmtDebug {
 }
 
 type Size = { width: number; height: number }
+
+/** A rectangle lies whole inside a `c`-sized picture, with whole-pixel sides and origin. */
+function inside(r: ContentRect, c: Size): boolean {
+  return (
+    Number.isInteger(r.x) &&
+    Number.isInteger(r.y) &&
+    Number.isInteger(r.width) &&
+    Number.isInteger(r.height) &&
+    r.x >= 0 &&
+    r.y >= 0 &&
+    r.width > 0 &&
+    r.height > 0 &&
+    r.x + r.width <= c.width &&
+    r.y + r.height <= c.height
+  )
+}
+
 type WorkerMsg =
   | { type: 'status'; id: string; status: Partial<NetStatus> }
   | { type: 'stopped' }
@@ -95,6 +114,9 @@ const STARTING: NetStatus = { state: 'starting', connections: 0, address: null }
  *   gets a target list, so switching NDI on or off never touches OMT's frames;
  * - a name change restarts only that target (removed, RESTART_DELAY_MS, added);
  *   an fps or Canvas change restarts the whole sender once (stop, wait, start);
+ * - the sender sends the content rect (the whole Canvas, or the slide without Fit
+ *   bars): frames are cut from the window's picture, the window stays Canvas-sized,
+ *   and a change of the rect's size rebuilds the sender like a Canvas change;
  * - black frames until THIS window sent output:ready; a crashed renderer never
  *   produces black (the worker repeats its last good frame);
  * - 3 worker failures within a minute: status error until turned off and on;
@@ -124,6 +146,10 @@ export class NetController {
    */
   private soundLost = false
   private winSize: Size = { width: 0, height: 0 }
+  /** The part of the window's picture the sender sends; its size is the sender's frame size. */
+  private rect: ContentRect = { x: 0, y: 0, width: 0, height: 0 }
+  /** This window has posted a frame since enable(); after that no black frame is sent (see kick). */
+  private painted = false
   private startTimer: unknown = null
   private winTimer: unknown = null
   private stopWaiters = new Map<WorkerLike, () => void>()
@@ -133,12 +159,17 @@ export class NetController {
   private dbg: OmtDebug['frames'] = null
   private debugPoll: unknown = null
 
+  /**
+   * `sendRect` gives the part of the Canvas to send, re-read on every program change;
+   * absent or outside the Canvas means the whole Canvas.
+   */
   constructor(
     private cfg: NetSettings,
     private canvas: () => Size,
     private onStatus: (id: NetId, s: NetStatus) => void,
     private deps: OmtDeps,
-    private debugEnabled = false
+    private debugEnabled = false,
+    private sendRect: (() => ContentRect) | null = null
   ) {}
 
   /** Starts the output when a target is enabled in the saved settings. */
@@ -188,10 +219,41 @@ export class NetController {
   canvasChanged(): void {
     if (!this.active || this.gaveUp || this.quitting) return
     const c = this.canvas()
-    if (c.width === this.winSize.width && c.height === this.winSize.height) return
-    this.winSize = { width: c.width, height: c.height }
-    this.win?.resize(c.width, c.height)
-    this.restartSender()
+    const sized = c.width !== this.winSize.width || c.height !== this.winSize.height
+    if (sized) {
+      this.winSize = { width: c.width, height: c.height }
+      this.win?.resize(c.width, c.height)
+    }
+    // The content rect lies inside the Canvas, so it follows a Canvas change too.
+    const resized = this.syncRect()
+    if (sized || resized) this.restartSender()
+  }
+
+  /**
+   * What is on air may have changed (a Fit slide, KV, Black, a web page...): re-read the
+   * content rect. Only a change of its size rebuilds the sender; the window is not resized.
+   */
+  contentChanged(): void {
+    if (!this.active || this.gaveUp || this.quitting) return
+    if (this.syncRect()) this.restartSender()
+  }
+
+  /**
+   * Re-reads the rect to send: the injected one when it lies inside the Canvas, else the
+   * whole Canvas (winSize). Returns true when its size changed.
+   */
+  private syncRect(): boolean {
+    const whole: ContentRect = {
+      x: 0,
+      y: 0,
+      width: this.winSize.width,
+      height: this.winSize.height
+    }
+    const want = this.sendRect?.()
+    const next = want && inside(want, whole) ? { ...want } : whole
+    const prev = this.rect
+    this.rect = next
+    return prev.width !== next.width || prev.height !== next.height
   }
 
   status(id: NetId): NetStatus {
@@ -244,6 +306,8 @@ export class NetController {
     this.failures = []
     for (const id of IDS) this.setStatus(id, this.cfg[id].enabled ? STARTING : OFF)
     this.winSize = { ...this.canvas() }
+    this.syncRect()
+    this.painted = false
     if (!this.spawnWorker()) return
     this.createWindow()
     this.beginSender()
@@ -322,7 +386,18 @@ export class NetController {
           // A clamped or scaled frame would break the sender's fixed size.
           if (data.byteLength !== width * height * 4) return
           if (width !== this.winSize.width || height !== this.winSize.height) return
-          this.worker.postMessage({ type: 'frame', width, height, data }, [data])
+          const r = this.rect
+          if (!inside(r, { width, height })) return
+          this.painted = true
+          if (r.x === 0 && r.y === 0 && r.width === width && r.height === height) {
+            this.worker.postMessage({ type: 'frame', width, height, data }, [data])
+            return
+          }
+          // Only the slide: cut it out of the Canvas picture; the sender is built for this size.
+          const cut = cropBgra(data, width, r)
+          this.worker.postMessage({ type: 'frame', width: r.width, height: r.height, data: cut }, [
+            cut
+          ])
         },
         onReady: () => {
           if (!mine()) return
@@ -384,13 +459,17 @@ export class NetController {
     return this.enabledIds().map((id) => ({ id, name: this.cfg[id].name }))
   }
 
-  /** A new clock has no frame yet; get one (the renderer's, or black until it is ready). */
+  /**
+   * A new clock has no frame yet; get one (the renderer's, or black until it is ready).
+   * After this window's first frame, a rebuild never sends black: it waits for the next real one.
+   */
   private kick(): void {
     if (this.ready) {
       this.win?.invalidate()
       return
     }
-    const { width, height } = this.winSize
+    if (this.painted) return
+    const { width, height } = this.rect
     const data = new ArrayBuffer(width * height * 4)
     const px = new Uint8Array(data)
     for (let i = 3; i < px.length; i += 4) px[i] = 255
@@ -401,7 +480,7 @@ export class NetController {
   private beginSender(): void {
     const w = this.worker
     if (!w) return
-    const { width, height } = this.winSize
+    const { width, height } = this.rect
     const targets = this.wanted()
     this.cancelAllWaits()
     this.cur = new Map(targets.map((t) => [t.id, t.name]))

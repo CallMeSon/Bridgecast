@@ -15,7 +15,12 @@ const check = (c, m) => {
 const app = await electron.launch({
   args: [root],
   cwd: root,
-  env: { ...process.env, PPT_SHARE_USER_DATA: userData, ELECTRON_RENDERER_URL: '' }
+  env: {
+    ...process.env,
+    PPT_SHARE_USER_DATA: userData,
+    PPT_SKIP_HOME: '1',
+    ELECTRON_RENDERER_URL: ''
+  }
 })
 try {
   const page = await app.firstWindow()

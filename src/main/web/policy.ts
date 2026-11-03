@@ -121,17 +121,26 @@ function wheelDelta(v: unknown): number | null {
 }
 
 /**
- * Checks one input event from the Prepare window and turns it into an Electron
- * input event in canvas pixels. Returns null for anything wrong, and for any input
- * while the deck is on air and not frozen (a stale renderer must not click on air).
- * Wheel deltas use the DOM sign (positive scrolls down); Electron wants the opposite.
+ * Interact may be turned on only for a page on air (it is what the audience sees); off
+ * is always allowed.
+ */
+export function interactAllowed(on: boolean, live: boolean): boolean {
+  return !on || live
+}
+
+/**
+ * Checks one input event from the Prepare window or the operator monitor and turns it
+ * into an Electron input event in canvas pixels. Returns null for anything wrong, and
+ * for any input while the deck is on air, not frozen and without Interact (a stale
+ * renderer must not click on air). Wheel deltas use the DOM sign (positive scrolls
+ * down); Electron wants the opposite.
  */
 export function validatePrepareInput(
   raw: unknown,
   canvas: Canvas,
-  deck: { live: boolean; frozen: boolean }
+  deck: { live: boolean; frozen: boolean; interact?: boolean }
 ): PrepareEvent | null {
-  if (deck.live && !deck.frozen) return null
+  if (deck.live && !deck.frozen && !deck.interact) return null
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
 

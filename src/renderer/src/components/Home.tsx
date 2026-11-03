@@ -25,6 +25,8 @@ import {
   type HomeTab
 } from '../home'
 import { StatusTag } from './StatusTag'
+import { BrandMark } from './BrandMark'
+import { GettingStarted } from './GettingStarted'
 import { onMenuKeyDown } from './menuNav'
 
 interface Props {
@@ -37,6 +39,10 @@ interface Props {
   airEvent: string | null
   /** "Opening Keynote, slide 3" for the banner; null while it is being read. */
   airHeadline: string | null
+  /** Settings hdmi.enabled; null while the settings are still being read. */
+  hdmiEnabled: boolean | null
+  /** A slide (not a Key visual or black) is on Program. */
+  slideOnProgram: boolean
   onOpen(id: string): void
   onBack(): void
   onNew(): void
@@ -220,6 +226,14 @@ export function Home(p: Props): React.JSX.Element {
   return (
     <section className="home" aria-label="Events home" data-testid="home">
       <div className="hwrap">
+        <div className="hero">
+          <p className="hero-kicker">Welcome to</p>
+          <h1 className="hero-title">
+            <BrandMark size={36} />
+            <span>Bridgecast</span>
+          </h1>
+        </div>
+
         {onAir && (
           <div className="onair" role="status" data-testid="home-onair">
             <StatusTag kind={kind} variant="word" />
@@ -277,6 +291,15 @@ export function Home(p: Props): React.JSX.Element {
             <kbd>W</kbd>
           </button>
         </div>
+
+        <GettingStarted
+          facts={{
+            hasEvent: hasEvents,
+            hasDecks: p.summaries.some((s) => s.deckCount > 0),
+            hdmiEnabled: p.hdmiEnabled,
+            slideOnProgram: p.slideOnProgram
+          }}
+        />
 
         <div className="lhead">
           <div className="ltabs" role="tablist" aria-label="Event lists">

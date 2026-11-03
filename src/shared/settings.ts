@@ -43,6 +43,16 @@ export function sanitizePptImportFormat(raw: unknown): PptImportFormat {
   return raw === 'original' || raw === 'odp' ? raw : DEFAULT_PPT_IMPORT_FORMAT
 }
 
+/**
+ * NDI and OMT send only the slide's own rectangle (no black bars of a Fit deck). On by default;
+ * off sends the whole Canvas, for receivers that cannot handle a size change.
+ */
+export const DEFAULT_SEND_CONTENT_ONLY = true
+
+export function sanitizeSendContentOnly(raw: unknown): boolean {
+  return typeof raw === 'boolean' ? raw : DEFAULT_SEND_CONTENT_ONLY
+}
+
 export interface Settings {
   hdmi: HdmiSettings
   /** Next/Prev may leave the live deck (see ProgramState.autoAdvance). Default off. */
@@ -54,6 +64,8 @@ export interface Settings {
   omt: OmtSettings
   /** NDI network output. */
   ndi: NdiSettings
+  /** OMT and NDI send only the slide without Fit bars (see DEFAULT_SEND_CONTENT_ONLY). */
+  sendContentOnly: boolean
   /** Linux: convert imported PowerPoint files to .odp (default) or keep them as imported. */
   pptImportFormat: PptImportFormat
 }
@@ -136,6 +148,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     canvas: sanitizeCanvas(r.canvas) ?? { ...DEFAULT_CANVAS },
     omt: sanitizeOmt(r.omt),
     ndi: sanitizeNdi(r.ndi),
+    sendContentOnly: sanitizeSendContentOnly(r.sendContentOnly),
     pptImportFormat: sanitizePptImportFormat(r.pptImportFormat)
   }
 }

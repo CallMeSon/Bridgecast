@@ -90,3 +90,46 @@ export function isDeckFit(v: unknown): v is DeckFit {
 export function sanitizeFit(raw: unknown): DeckFit {
   return isDeckFit(raw) ? raw : 'fit'
 }
+
+/** A rectangle inside the canvas, in canvas pixels. */
+export interface ContentRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * Rounds down to an even number. The tiny epsilon keeps float error (1919.9999999999998)
+ * from dropping a pixel.
+ */
+function evenDown(n: number): number {
+  const whole = Math.floor(n + 1e-6)
+  return whole - (whole % 2)
+}
+
+/**
+ * The part of the canvas that holds the slide, without the black bars of a Fit deck.
+ * `content` is the slide's own size (deck width/height) and `fit` its DeckFit; null `content`
+ * (KV, Black, web pages, streams) or a fit other than 'fit' gives the whole canvas.
+ * Sides are rounded down to even numbers (senders want even sides), x/y are even too, and the
+ * rect never leaves the canvas and is never smaller than 2x2.
+ */
+export function contentRect(
+  canvas: Canvas,
+  content: { width: number; height: number } | null,
+  fit: DeckFit
+): ContentRect {
+  const whole: ContentRect = { x: 0, y: 0, width: canvas.width, height: canvas.height }
+  if (content === null || fit !== 'fit') return whole
+  const cw = content.width
+  const ch = content.height
+  if (!(Number.isFinite(cw) && cw > 0 && Number.isFinite(ch) && ch > 0)) return whole
+
+  const scale = Math.min(canvas.width / cw, canvas.height / ch)
+  const width = Math.min(canvas.width, Math.max(2, evenDown(cw * scale)))
+  const height = Math.min(canvas.height, Math.max(2, evenDown(ch * scale)))
+  const x = Math.max(0, Math.min(canvas.width - width, evenDown((canvas.width - width) / 2)))
+  const y = Math.max(0, Math.min(canvas.height - height, evenDown((canvas.height - height) / 2)))
+  return { x, y, width, height }
+}

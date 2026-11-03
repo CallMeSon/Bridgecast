@@ -4,6 +4,7 @@ import { Worker } from 'worker_threads'
 import { is } from '@electron-toolkit/utils'
 import { OMT_AUDIO_PORT, Send } from '../shared/ipc'
 import type { NetStatus } from '../shared/omt'
+import type { ContentRect } from '../shared/canvas'
 import { libomtDir } from './omt/lib-dir'
 import { AudioPortFeed } from './omt/audio-port'
 import {
@@ -122,7 +123,8 @@ export class NetOutput extends NetController {
     settings: NetSettings,
     canvas: () => { width: number; height: number },
     onStatus: (id: NetId, s: NetStatus) => void,
-    opts: { fake?: boolean; fakeNdi?: boolean | 'missing'; debug?: boolean } = {}
+    opts: { fake?: boolean; fakeNdi?: boolean | 'missing'; debug?: boolean } = {},
+    sendRect?: () => ContentRect
   ) {
     const deps: OmtDeps = {
       createWorker: (): WorkerLike =>
@@ -140,6 +142,6 @@ export class NetOutput extends NetController {
       restartDelayMs: RESTART_DELAY_MS,
       stopWaitMs: STOP_WAIT_MS
     }
-    super(settings, canvas, onStatus, deps, opts.debug === true)
+    super(settings, canvas, onStatus, deps, opts.debug === true, sendRect ?? null)
   }
 }

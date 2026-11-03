@@ -43,6 +43,7 @@ const app = await electron.launch({
     ...process.env,
     PPT_SHARE_USER_DATA: userData,
     PPT_OUTPUT_DUMP: fs.mkdtempSync(path.join(os.tmpdir(), 'dump-')),
+    PPT_SKIP_HOME: '1',
     ELECTRON_RENDERER_URL: ''
   }
 })

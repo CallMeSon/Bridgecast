@@ -28,6 +28,7 @@ const launchOptions = {
     ...process.env,
     PPT_SHARE_USER_DATA: userData,
     PPT_OUTPUT_DUMP: frameDir,
+    PPT_SKIP_HOME: '1',
     ELECTRON_RENDERER_URL: ''
   }
 }
@@ -3106,6 +3107,54 @@ try {
   fs.rmSync(userData, { recursive: true, force: true })
   if (failed) console.error(`output frames kept in ${frameDir}`)
   else fs.rmSync(frameDir, { recursive: true, force: true })
+}
+
+// --- First run, launched WITHOUT PPT_SKIP_HOME on empty user data: Home opens first, and an
+// event created from Home opens the console with that event ---
+{
+  const firstData = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-home-'))
+  const firstApp = await electron.launch({
+    args: [root],
+    cwd: root,
+    env: { ...process.env, PPT_SHARE_USER_DATA: firstData, ELECTRON_RENDERER_URL: '' }
+  })
+  try {
+    const win = await firstApp.firstWindow()
+    await win.waitForSelector('.app')
+    await win.getByTestId('home').waitFor()
+    check(
+      (await win.locator('.app').getAttribute('data-view')) === 'home',
+      'a first run opens on Home, not the console'
+    )
+    check(
+      (await win.locator('.hero-title').textContent())?.includes('Bridgecast') &&
+        (await win.getByText('Welcome to').isVisible()),
+      'Home opens with the Welcome hero and the Bridgecast logo'
+    )
+    check(await win.getByTestId('guide').isVisible(), 'Home shows the Getting started checklist')
+    check(
+      (await win.getByTestId('guide-step').first().getAttribute('data-done')) === 'false',
+      'the first checklist step (Create an event) is not done yet'
+    )
+    await win.getByTestId('home-new').click()
+    await win.fill('[data-testid=new-event-name]', 'Home Smoke Event')
+    await win.press('[data-testid=new-event-name]', 'Enter')
+    await win.getByTestId('home').waitFor({ state: 'detached' })
+    check(
+      (await win.locator('.app').getAttribute('data-view')) === 'console',
+      'creating an event from Home shows the console'
+    )
+    check(
+      await win.locator('.evtabs').getByText('Home Smoke Event').isVisible(),
+      'the event created on Home is open in the console'
+    )
+  } catch (e) {
+    failed = true
+    console.error(e)
+  } finally {
+    await firstApp.close().catch(() => {})
+    fs.rmSync(firstData, { recursive: true, force: true })
+  }
 }
 console.log(failed ? 'SMOKE FAILED' : 'SMOKE PASSED')
 process.exit(failed ? 1 : 0)

@@ -134,6 +134,7 @@ async function launch(userData) {
       PPT_SHARE_USER_DATA: userData,
       PPT_OUTPUT_DUMP: mkTmp('ppt-share-native-dump-'),
       PPT_ENGINE_FAKE: '1',
+      PPT_SKIP_HOME: '1',
       ELECTRON_RENDERER_URL: ''
     }
   })

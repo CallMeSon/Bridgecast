@@ -8,6 +8,7 @@ import {
   DEFAULT_CANVAS,
   DECK_FITS,
   canvasLabel,
+  contentRect,
   displayCanvas,
   isDeckFit,
   resolveCanvas,
@@ -143,5 +144,95 @@ describe('deck fit', () => {
     expect(DECK_FITS).toEqual(['fit', 'fill', 'stretch'])
     expect(isDeckFit('stretch')).toBe(true)
     expect(isDeckFit('x')).toBe(false)
+  })
+})
+
+describe('contentRect', () => {
+  const HD: Canvas = { width: 1920, height: 1080 }
+  const whole = { x: 0, y: 0, width: 1920, height: 1080 }
+
+  it('centres a 4:3 slide with black bars left and right', () => {
+    expect(contentRect(HD, { width: 4000, height: 3000 }, 'fit')).toEqual({
+      x: 240,
+      y: 0,
+      width: 1440,
+      height: 1080
+    })
+  })
+
+  it('gives the whole canvas for a 16:9 slide', () => {
+    expect(contentRect(HD, { width: 1600, height: 900 }, 'fit')).toEqual(whole)
+  })
+
+  it('gives full width and bars top and bottom for a 2:1 slide, with even numbers', () => {
+    expect(contentRect(HD, { width: 2000, height: 1000 }, 'fit')).toEqual({
+      x: 0,
+      y: 60,
+      width: 1920,
+      height: 960
+    })
+  })
+
+  it('gives the whole canvas for fill and stretch', () => {
+    expect(contentRect(HD, { width: 4000, height: 3000 }, 'fill')).toEqual(whole)
+    expect(contentRect(HD, { width: 4000, height: 3000 }, 'stretch')).toEqual(whole)
+  })
+
+  it('gives the whole canvas for null content (KV, Black, web, streams)', () => {
+    expect(contentRect(HD, null, 'fit')).toEqual(whole)
+  })
+
+  it('gives the whole canvas for zero, negative, NaN or infinite content sizes', () => {
+    const bad = [
+      { width: 0, height: 3000 },
+      { width: 4000, height: 0 },
+      { width: -4000, height: 3000 },
+      { width: NaN, height: 1080 },
+      { width: 4000, height: Infinity }
+    ]
+    for (const content of bad) expect(contentRect(HD, content, 'fit')).toEqual(whole)
+  })
+
+  it('centres a 4:3 slide on an ultrawide canvas', () => {
+    expect(
+      contentRect({ width: 3840, height: 1080 }, { width: 4000, height: 3000 }, 'fit')
+    ).toEqual({ x: 1200, y: 0, width: 1440, height: 1080 })
+  })
+
+  it('keeps every side and offset even and inside the canvas', () => {
+    const canvases: Canvas[] = [
+      { width: 1920, height: 1080 },
+      { width: 1280, height: 720 },
+      { width: 3840, height: 2160 },
+      { width: 3840, height: 1080 },
+      { width: 320, height: 1080 },
+      { width: 1080, height: 1920 },
+      { width: 1000, height: 750 }
+    ]
+    const decks = [
+      { width: 4000, height: 3000 },
+      { width: 2000, height: 1000 },
+      { width: 1600, height: 900 },
+      { width: 1, height: 10000 },
+      { width: 10000, height: 1 },
+      { width: 1080, height: 1920 },
+      { width: 1234, height: 567 },
+      { width: 3, height: 7 }
+    ]
+    for (const canvas of canvases) {
+      for (const deck of decks) {
+        const r = contentRect(canvas, deck, 'fit')
+        expect(r.width % 2).toBe(0)
+        expect(r.height % 2).toBe(0)
+        expect(r.x % 2).toBe(0)
+        expect(r.y % 2).toBe(0)
+        expect(r.width).toBeGreaterThanOrEqual(2)
+        expect(r.height).toBeGreaterThanOrEqual(2)
+        expect(r.x).toBeGreaterThanOrEqual(0)
+        expect(r.y).toBeGreaterThanOrEqual(0)
+        expect(r.x + r.width).toBeLessThanOrEqual(canvas.width)
+        expect(r.y + r.height).toBeLessThanOrEqual(canvas.height)
+      }
+    }
   })
 })

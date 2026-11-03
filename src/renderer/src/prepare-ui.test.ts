@@ -3,11 +3,12 @@ import {
   addressShown,
   cssCursor,
   homeDisabled,
-  interactLocked,
+  inputLocked,
   keyRoute,
   nextInteract,
   stageCursor,
-  zoomLabel
+  zoomLabel,
+  type InteractEvent
 } from './prepare-ui'
 
 describe('addressShown', () => {
@@ -40,40 +41,44 @@ describe('homeDisabled', () => {
 })
 
 describe('nextInteract', () => {
-  it('opens on when the deck is not on air', () => {
-    expect(nextInteract(false, null, { kind: 'banner', banner: 'idle' })).toBe(true)
+  const banner = (b: 'idle' | 'live' | 'frozen'): InteractEvent => ({ kind: 'banner', banner: b })
+  it('opens on when the deck is not on air, off when it is frozen or live', () => {
+    expect(nextInteract(false, null, banner('idle'))).toBe(true)
+    expect(nextInteract(false, null, banner('frozen'))).toBe(false)
+    expect(nextInteract(false, null, banner('live'))).toBe(false)
   })
-  it('opens off when the deck is frozen or live', () => {
-    expect(nextInteract(false, null, { kind: 'banner', banner: 'frozen' })).toBe(false)
-    expect(nextInteract(false, null, { kind: 'banner', banner: 'live' })).toBe(false)
+  it('going live turns it off, whatever it was', () => {
+    expect(nextInteract(true, 'idle', banner('live'))).toBe(false)
+    expect(nextInteract(true, 'frozen', banner('live'))).toBe(false)
+    expect(nextInteract(false, 'idle', banner('live'))).toBe(false)
   })
-  it('goes off when the deck goes live', () => {
-    expect(nextInteract(true, 'idle', { kind: 'banner', banner: 'live' })).toBe(false)
-    expect(nextInteract(true, 'frozen', { kind: 'banner', banner: 'live' })).toBe(false)
+  it('leaving air turns it off (main drops its switch too)', () => {
+    expect(nextInteract(true, 'live', banner('idle'))).toBe(false)
+    expect(nextInteract(true, 'frozen', banner('idle'))).toBe(false)
+    expect(nextInteract(false, 'frozen', banner('idle'))).toBe(false)
   })
-  it('stays off when live is frozen and when the deck leaves air', () => {
-    expect(nextInteract(false, 'live', { kind: 'banner', banner: 'frozen' })).toBe(false)
-    expect(nextInteract(false, 'frozen', { kind: 'banner', banner: 'idle' })).toBe(false)
+  it('freezing keeps the choice', () => {
+    expect(nextInteract(true, 'idle', banner('frozen'))).toBe(true)
+    expect(nextInteract(true, 'live', banner('frozen'))).toBe(true)
   })
-  it('keeps an operator choice when frozen arrives', () => {
-    expect(nextInteract(true, 'idle', { kind: 'banner', banner: 'frozen' })).toBe(true)
-  })
-  it('a press toggles, except while live', () => {
+  it('a press toggles, on air too (main is asked first on air)', () => {
     expect(nextInteract(false, 'frozen', { kind: 'press' })).toBe(true)
     expect(nextInteract(true, 'idle', { kind: 'press' })).toBe(false)
-    expect(nextInteract(false, 'live', { kind: 'press' })).toBe(false)
+    expect(nextInteract(false, 'live', { kind: 'press' })).toBe(true)
+    expect(nextInteract(true, 'live', { kind: 'press' })).toBe(false)
   })
   it('unfreezing to live turns it off again', () => {
     const on = nextInteract(false, 'frozen', { kind: 'press' })
-    expect(nextInteract(on, 'frozen', { kind: 'banner', banner: 'live' })).toBe(false)
+    expect(nextInteract(on, 'frozen', banner('live'))).toBe(false)
   })
 })
 
-describe('interactLocked', () => {
-  it('is locked only while live', () => {
-    expect(interactLocked('live')).toBe(true)
-    expect(interactLocked('frozen')).toBe(false)
-    expect(interactLocked('idle')).toBe(false)
+describe('inputLocked', () => {
+  it('is locked only on air with Interact off', () => {
+    expect(inputLocked('live', false)).toBe(true)
+    expect(inputLocked('live', true)).toBe(false)
+    expect(inputLocked('frozen', false)).toBe(false)
+    expect(inputLocked('idle', false)).toBe(false)
   })
 })
 
@@ -95,8 +100,31 @@ describe('keyRoute', () => {
   it('Space pans when cropped and the page does not hold the keyboard', () => {
     expect(keyRoute({ key: ' ', spaceForPan: true }, { ...held, holdsKeyboard: false })).toBe('pan')
   })
-  it('live keeps the app shortcuts', () => {
-    expect(keyRoute({ key: ' ', spaceForPan: true }, { ...held, banner: 'live' })).toBe('app')
+  it('on air without Interact the app shortcuts keep the keys', () => {
+    expect(
+      keyRoute({ key: ' ', spaceForPan: true }, { ...held, interact: false, banner: 'live' })
+    ).toBe('app')
+    expect(
+      keyRoute(
+        { key: 'ArrowRight', spaceForPan: false },
+        { ...held, interact: false, banner: 'live' }
+      )
+    ).toBe('app')
+  })
+  it('on air with Interact the keys go to the page, not to the shortcuts', () => {
+    expect(keyRoute({ key: ' ', spaceForPan: true }, { ...held, banner: 'live' })).toBe('page')
+    expect(keyRoute({ key: 'ArrowRight', spaceForPan: false }, { ...held, banner: 'live' })).toBe(
+      'page'
+    )
+    expect(keyRoute({ key: 'f', spaceForPan: false }, { ...held, banner: 'live' })).toBe('page')
+  })
+  it('on air with Interact, Esc stops Interact and never reaches the page', () => {
+    expect(keyRoute({ key: 'Escape', spaceForPan: false }, { ...held, banner: 'live' })).toBe(
+      'stop'
+    )
+  })
+  it('F6 leaves the page on air too', () => {
+    expect(keyRoute({ key: 'F6', spaceForPan: false }, { ...held, banner: 'live' })).toBe('leave')
   })
   it('nothing goes to the page with Interact off', () => {
     expect(keyRoute({ key: 'a', spaceForPan: false }, { ...held, interact: false })).toBe('none')

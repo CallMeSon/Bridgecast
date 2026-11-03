@@ -4,9 +4,11 @@ import type { Settings } from '../../../shared/settings'
 import { NETWORK_CHANGE_CONFIRM, hasConnections, type NetStatus } from '../../../shared/omt'
 import { errorMessage } from '../model'
 import { Segmented } from './Segmented'
+import { Switch } from './Switch'
 
 interface Props {
   fps: 30 | 60
+  sendContentOnly: boolean
   omtStatus: NetStatus | null
   ndiStatus: NetStatus | null
   onSaved(s: Settings): void
@@ -22,7 +24,13 @@ const FPS = [
  * shares. Today that is the frame rate. Changing it restarts the streams, so with
  * receivers connected on any of them it asks first.
  */
-export function NetworkSection({ fps, omtStatus, ndiStatus, onSaved }: Props): React.JSX.Element {
+export function NetworkSection({
+  fps,
+  sendContentOnly,
+  omtStatus,
+  ndiStatus,
+  onSaved
+}: Props): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [pendingFps, setPendingFps] = useState<30 | 60 | null>(null)
@@ -40,17 +48,18 @@ export function NetworkSection({ fps, omtStatus, ndiStatus, onSaved }: Props): R
     )
   }
 
-  const save = async (next: 30 | 60): Promise<void> => {
+  const saveWith = async (call: () => Promise<Settings>): Promise<void> => {
     setBusy(true)
     setError(null)
     try {
-      onSaved(await window.api.setNetworkFps(next))
+      onSaved(await call())
     } catch (e) {
       setError(errorMessage(e))
     } finally {
       setBusy(false)
     }
   }
+  const save = (next: 30 | 60): Promise<void> => saveWith(() => window.api.setNetworkFps(next))
 
   const chooseFps = (next: 30 | 60): void => {
     if (next === fps) return
@@ -125,6 +134,27 @@ export function NetworkSection({ fps, omtStatus, ndiStatus, onSaved }: Props): R
           </span>
         </div>
       )}
+
+      <div className="field">
+        <div className="pop-head">
+          <span className="row-label" id="network-content-title">
+            Send content only
+          </span>
+          <Switch
+            id="network-content-switch"
+            labelledBy="network-content-title"
+            checked={sendContentOnly}
+            disabled={busy}
+            describedBy="network-content-hint"
+            testId="network-content-switch"
+            onChange={(on) => void saveWith(() => window.api.setNetworkContentOnly(on))}
+          />
+        </div>
+        <span className="hint" id="network-content-hint">
+          NDI and OMT send the slide without black bars. Turn off if your receiver does not handle
+          size changes.
+        </span>
+      </div>
 
       {error && (
         <p className="pop-error" role="alert" data-testid="network-error">

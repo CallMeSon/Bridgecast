@@ -4,6 +4,7 @@ import {
   chromeUserAgent,
   electronKeyName,
   frameNavigationAllowed,
+  interactAllowed,
   navigationAllowed,
   permissionAllowed,
   popupAllowed,
@@ -150,6 +151,22 @@ describe('validatePrepareInput', () => {
   it('accepts while live and frozen', () => {
     expect(validatePrepareInput(click, canvas, { live: true, frozen: true })).not.toBeNull()
   })
+  it('accepts while live and not frozen when Interact is on', () => {
+    expect(
+      validatePrepareInput(click, canvas, { live: true, frozen: false, interact: true })
+    ).not.toBeNull()
+  })
+  it('refuses while live and not frozen when Interact is off', () => {
+    expect(
+      validatePrepareInput(click, canvas, { live: true, frozen: false, interact: false })
+    ).toBeNull()
+  })
+  it('Interact changes nothing for a page that is not on air', () => {
+    expect(validatePrepareInput(click, canvas, { live: false, frozen: false })).not.toBeNull()
+    expect(
+      validatePrepareInput(click, canvas, { live: false, frozen: false, interact: false })
+    ).not.toBeNull()
+  })
   it('maps normalised coordinates to rounded canvas pixels', () => {
     expect(validatePrepareInput(click, canvas, idle)).toEqual({
       type: 'mouseDown',
@@ -226,6 +243,15 @@ describe('validatePrepareInput', () => {
     expect(validatePrepareInput({ ...k, type: 'keyPress' }, canvas, idle)).toBeNull()
     expect(validatePrepareInput({ ...k, modifiers: ['hyper'] }, canvas, idle)).toBeNull()
     expect(validatePrepareInput({ ...k, modifiers: 'shift' }, canvas, idle)).toBeNull()
+  })
+})
+
+describe('interactAllowed', () => {
+  it('turns on only for a page on air; off is always allowed', () => {
+    expect(interactAllowed(true, true)).toBe(true)
+    expect(interactAllowed(true, false)).toBe(false)
+    expect(interactAllowed(false, true)).toBe(true)
+    expect(interactAllowed(false, false)).toBe(true)
   })
 })
 

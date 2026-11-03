@@ -645,6 +645,38 @@ describe('AppState web decks', () => {
     expect(cb).not.toHaveBeenCalled()
   })
 
+  it('with Interact on, Next and Prev send no key and never move the position', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const w = addWeb(lib, a.id)
+    addDeck(lib, a.id, 2)
+    const forward = vi.fn()
+    let interact = false
+    const app = new AppState(
+      lib,
+      false,
+      undefined,
+      () => true,
+      forward,
+      () => true,
+      (deckId) => interact && deckId === w
+    )
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    const before = app.state
+    const cb = vi.fn()
+    app.onChange(cb)
+    interact = true
+    expect(app.dispatch({ type: 'next' })).toBe(before)
+    expect(app.dispatch({ type: 'prev' })).toBe(before)
+    expect(forward).not.toHaveBeenCalled()
+    expect(cb).not.toHaveBeenCalled()
+    // Interact off again: the arrows reach the page as before.
+    interact = false
+    expect(app.dispatch({ type: 'next' })).toBe(before)
+    expect(forward).toHaveBeenCalledTimes(1)
+    expect(forward).toHaveBeenCalledWith(w, 'ArrowRight')
+  })
+
   it('Next on a frozen web deck does not forward a key', () => {
     const lib = new Library(root)
     const a = lib.createEvent('A')

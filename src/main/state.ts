@@ -67,6 +67,8 @@ export class AppState {
    * @param forwardKey sends Next/Prev to the live web page as one arrow key.
    * @param engineReady the native slideshow of a deck is open and ready; a take of a
    *   native deck while it is not plays that take as images (never black, never desktop).
+   * @param interacting Interact is on for this live web deck: the operator is working in
+   *   the page, so Next/Prev do not send it an arrow key (the position still never moves).
    */
   constructor(
     private lib: Library,
@@ -74,7 +76,8 @@ export class AppState {
     private machineCanvas: () => Canvas = () => DEFAULT_CANVAS,
     private webReady: (deckId: string) => boolean = () => true,
     private forwardKey: (deckId: string, key: 'ArrowRight' | 'ArrowLeft') => void = () => {},
-    private engineReady: (deckId: string) => boolean = () => true
+    private engineReady: (deckId: string) => boolean = () => true,
+    private interacting: (deckId: string) => boolean = () => false
   ) {
     this.activeEvent = lib.listEvents()[0]?.id ?? null
     this.current = this.normalize({ ...initialState, autoAdvance })
@@ -104,8 +107,9 @@ export class AppState {
   dispatch(a: Action): ProgramState {
     const decks = this.decks()
     // A live web page owns Next/Prev: one press is one arrow key, the position never moves.
+    // With Interact on, no arrow key is sent (the reducer below keeps the state as it is).
     const key = webKey(this.current, decks, a)
-    if (key && this.current.shown) {
+    if (key && this.current.shown && !this.interacting(this.current.shown.deckId)) {
       this.forwardKey(this.current.shown.deckId, key)
       return this.current
     }

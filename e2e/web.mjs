@@ -62,6 +62,7 @@ async function launch() {
       ...process.env,
       PPT_SHARE_USER_DATA: userData,
       PPT_OUTPUT_DUMP: mkTmp('ppt-share-web-dump-'),
+      PPT_SKIP_HOME: '1',
       ELECTRON_RENDERER_URL: ''
     }
   })
@@ -284,6 +285,24 @@ async function main() {
     const key = (type) => ({ kind: 'key', type, keyCode: 'ArrowRight', modifiers: [] })
     let ok = await win.evaluate(([d, i]) => window.api.webInput(d, i), [S.id, key('keyDown')])
     check(ok === false, 'Prepare input refused while the deck is live and not frozen')
+    // Interact: a live page takes input only while the operator has turned Interact on
+    const move = { kind: 'mouse', type: 'mouseMove', x: 0.5, y: 0.5, button: 'left', clickCount: 0 }
+    const sendTo = (d, i) => win.evaluate(([dd, ii]) => window.api.webInput(dd, ii), [d, i])
+    const interactOn = (d, on) =>
+      win.evaluate(([dd, oo]) => window.api.setWebInteract(dd, oo), [d, on])
+    check(
+      await interactOn(B.id, true)
+        .then(() => false)
+        .catch((e) => String(e).includes('Interact works only while the web page is on air.')),
+      'Interact is refused for a page that is not on air, with the exact message'
+    )
+    await interactOn(S.id, true)
+    check(
+      (await sendTo(S.id, move)) === true,
+      'Interact on: input accepted while live and not frozen'
+    )
+    await interactOn(S.id, false)
+    check((await sendTo(S.id, move)) === false, 'Interact off again: input refused while live')
     await win.keyboard.press('f')
     await waitState(win, (s) => s.frozen, 'frozen')
     ok = await win.evaluate(([d, i]) => window.api.webInput(d, i), [S.id, key('keyDown')])
@@ -329,6 +348,18 @@ async function main() {
       'page zoom refused with the exact message while live and not frozen'
     )
     check((await iw('/slow')) === 1920, 'refused zoom changed nothing')
+
+    // ---- Interact ends when the deck leaves air: back on air, the page refuses input again
+    await interactOn(S.id, true)
+    check((await sendTo(S.id, move)) === true, 'Interact on again while live: input accepted')
+    await dispatch(win, { type: 'selectDeck', deckId: B.id })
+    await waitState(win, (x) => x.shown?.web?.deckId === B.id, 'B on air')
+    await dispatch(win, { type: 'selectDeck', deckId: S.id })
+    await waitState(win, (x) => x.shown?.web?.deckId === S.id, 'S back on air')
+    check(
+      (await sendTo(S.id, move)) === false,
+      'Interact cleared when S left air: back on air, input is refused'
+    )
 
     // ---- HDMI output: pixels are not black
     const prim = await app.evaluate(({ screen }) => {
@@ -655,7 +686,7 @@ async function main() {
     check((await pg('window.innerWidth')) === 1280, 'Reload keeps 150%')
     await zoomP(1)
     await sleep(300)
-    // On air, not frozen: everything from Prepare is locked.
+    // On air, not frozen: the page takes input only with Interact on.
     const onAir = await dispatch(win, { type: 'selectDeck', deckId: P.id })
     check(onAir.shown?.web?.deckId === P.id, 'the Prepare deck goes on air')
     await sleep(800)
@@ -667,12 +698,26 @@ async function main() {
         ),
       'on air: page zoom is refused with the exact message'
     )
-    check(await interactBtn.isDisabled(), 'on air: the Interact button is disabled')
+    check(!(await interactBtn.isDisabled()), 'on air: the Interact button is enabled')
     const sent = await win.evaluate(
       ([d, i]) => window.api.webInput(d, i),
       [P.id, { kind: 'key', type: 'keyDown', keyCode: 'a', modifiers: [] }]
     )
     check(sent === false, 'on air: webInput returns false')
+    await interactBtn.click()
+    await sleep(300)
+    check(
+      (await interactBtn.getAttribute('aria-pressed')) === 'true',
+      'on air: Interact turns on from Prepare'
+    )
+    check((await sendTo(P.id, move)) === true, 'on air with Interact on: input accepted')
+    await interactBtn.click()
+    await sleep(300)
+    check(
+      (await interactBtn.getAttribute('aria-pressed')) === 'false',
+      'on air: Interact turns off again from Prepare'
+    )
+    check((await sendTo(P.id, move)) === false, 'on air with Interact off: input refused again')
     await app.evaluate(({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows().find(
         (x) => !x.isDestroyed() && x.webContents.getURL().includes('prepare')

@@ -491,7 +491,10 @@ export function prepareBanner(s: ProgramState, deckId: string): PrepareBanner {
   return s.frozen ? 'frozen' : 'live'
 }
 
-/** Status line words, state first. `interact` only changes the not-on-air line. */
+/** The operator monitor's banner while Interact is on (its words; the icon says it too). */
+export const INTERACTING_TEXT = 'INTERACTING: your clicks reach the audience. Esc to stop.'
+
+/** Status line words, state first. `interact` changes the not-on-air and the on-air lines. */
 export function prepareBannerText(b: PrepareBanner, interact = false): string {
   switch (b) {
     case 'idle':
@@ -499,7 +502,9 @@ export function prepareBannerText(b: PrepareBanner, interact = false): string {
         ? 'Not on air. Interact is on: clicks and typing go to the page.'
         : 'Not on air. Interact to click and type in the page.'
     case 'live':
-      return 'On air. Input is locked. Press F to freeze, then turn on Interact.'
+      return interact
+        ? 'On air. Interact is on: your clicks reach the audience. Press Esc to stop.'
+        : 'On air. Turn on Interact to click and type in the page.'
     case 'frozen':
       return 'Frozen. The output holds the last frame. Your clicks show on air after Unfreeze.'
   }
@@ -535,20 +540,22 @@ const SILENT_KEYS = new Set([
  * the DOM sign (positive = down): main flips them for Electron. Key events carry
  * the DOM `key` and the modifiers; `keypress` does not exist here, see toPrepareChar.
  */
+/** A keydown or keyup as page input (the key itself; no typed character). Null for silent keys. */
+export function toPrepareKey(e: KeyboardEvent): PrepareInput | null {
+  if (SILENT_KEYS.has(e.key)) return null
+  return {
+    kind: 'key',
+    type: e.type === 'keydown' ? 'keyDown' : 'keyUp',
+    keyCode: e.key,
+    modifiers: modifiersOf(e)
+  }
+}
+
 export function toPrepareInput(
   e: MouseEvent | WheelEvent | KeyboardEvent,
   rect: DOMRect
 ): PrepareInput | null {
-  if (e.type === 'keydown' || e.type === 'keyup') {
-    const k = e as KeyboardEvent
-    if (SILENT_KEYS.has(k.key)) return null
-    return {
-      kind: 'key',
-      type: e.type === 'keydown' ? 'keyDown' : 'keyUp',
-      keyCode: k.key,
-      modifiers: modifiersOf(k)
-    }
-  }
+  if (e.type === 'keydown' || e.type === 'keyup') return toPrepareKey(e as KeyboardEvent)
   const m = e as MouseEvent
   if (rect.width <= 0 || rect.height <= 0) return null
   const x = (m.clientX - rect.left) / rect.width

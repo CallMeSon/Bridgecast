@@ -26,8 +26,8 @@ interface Props {
  */
 export function OutputStatus({ out, program, isOpen, onToggle }: Props): React.JSX.Element {
   const api = window.api
-  const { hdmi, audio, canvas, omt, ndi } = out
-  if (!hdmi || !audio || !omt || !ndi) {
+  const { hdmi, audio, canvas, omt, ndi, sendContentOnly } = out
+  if (!hdmi || !audio || !omt || !ndi || sendContentOnly === null) {
     return (
       <div data-testid="output-panel">
         <PanelSection
@@ -96,11 +96,13 @@ export function OutputStatus({ out, program, isOpen, onToggle }: Props): React.J
       >
         <NetworkSection
           fps={omt.fps}
+          sendContentOnly={sendContentOnly}
           omtStatus={out.omtStatus}
           ndiStatus={out.ndiStatus}
           onSaved={(s) => {
             out.setOmt(s.omt)
             out.setNdi(s.ndi)
+            out.setSendContentOnly(s.sendContentOnly)
           }}
         />
         <OmtSection
