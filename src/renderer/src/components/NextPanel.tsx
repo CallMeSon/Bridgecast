@@ -188,6 +188,36 @@ export function NextPanel({
         ))}
       </div>
       <div className="props">
+        {/* Visible on both tabs: the preview of what Next takes does not belong to one tab. */}
+        <section className="sec static" aria-label={held ? 'Preview' : 'Up next'}>
+          <div className="sb up-next">
+            <h2 className="ptl">{held ? 'Preview' : 'Up next'}</h2>
+            <div
+              className="next-card"
+              data-testid="next-card"
+              data-kind={nx.kind}
+              data-web={webText ?? undefined}
+              data-held={held || undefined}
+              data-step={stepText !== null || undefined}
+              data-video={(nx.kind === 'slide' && nx.video) || undefined}
+            >
+              {card}
+              <div className="nextmeta">
+                {nx.kind === 'slide' && !held && <StatusTag kind="next" size="sm" />}
+                <span className="t" title={deck?.name}>
+                  {deck?.name ?? ''}
+                </span>
+                <span className="next-pos" data-testid="next-pos">
+                  {nextPos}
+                </span>
+              </div>
+              <div className="cap">
+                <span>{cap}</span>
+              </div>
+            </div>
+            {navigation}
+          </div>
+        </section>
         <div
           className="pane"
           id="ppane-info"
@@ -213,35 +243,6 @@ export function NextPanel({
           aria-labelledby="ptab-controls"
           hidden={tab !== 'controls'}
         >
-          <section className="sec static" aria-label={held ? 'Preview' : 'Up next'}>
-            <div className="sb up-next">
-              <h2 className="ptl">{held ? 'Preview' : 'Up next'}</h2>
-              <div
-                className="next-card"
-                data-testid="next-card"
-                data-kind={nx.kind}
-                data-web={webText ?? undefined}
-                data-held={held || undefined}
-                data-step={stepText !== null || undefined}
-                data-video={(nx.kind === 'slide' && nx.video) || undefined}
-              >
-                {card}
-                <div className="nextmeta">
-                  {nx.kind === 'slide' && !held && <StatusTag kind="next" size="sm" />}
-                  <span className="t" title={deck?.name}>
-                    {deck?.name ?? ''}
-                  </span>
-                  <span className="next-pos" data-testid="next-pos">
-                    {nextPos}
-                  </span>
-                </div>
-                <div className="cap">
-                  <span>{cap}</span>
-                </div>
-              </div>
-              {navigation}
-            </div>
-          </section>
           <PanelSection
             title="Transition"
             open={isOpen('transition')}

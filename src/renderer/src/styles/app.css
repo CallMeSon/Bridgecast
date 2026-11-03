@@ -1906,6 +1906,11 @@ kbd {
 .pane > .sec:first-child {
   border-top: 0;
 }
+/* The Up next card sits above both tabs: it has no top rule, the first section below it keeps none. */
+.props > .sec.static {
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+}
 .sec-h {
   margin: 0;
   font: inherit;
