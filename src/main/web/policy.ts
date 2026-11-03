@@ -63,6 +63,19 @@ export function popupAllowed(live: boolean): boolean {
   return !live
 }
 
+export type PopupAction = 'deny' | 'window' | 'samePage'
+
+/**
+ * What a page that asks for a new window gets. On air: nothing. Otherwise a link that wants a new
+ * tab (target=_blank, ctrl-click, window.open without features) loads in the same page instead of
+ * opening a stray window; only a real popup (window.open with features, e.g. a sign-in popup)
+ * is a window.
+ */
+export function popupAction(live: boolean, disposition: string, url: string): PopupAction {
+  if (!popupAllowed(live) || !navigationAllowed(url)) return 'deny'
+  return disposition === 'new-window' || disposition === 'other' ? 'window' : 'samePage'
+}
+
 /** Page zoom changes the output, so it follows the input rule: refused only live and not frozen. */
 export function zoomAllowed(s: { live: boolean; frozen: boolean }): boolean {
   return !(s.live && !s.frozen)

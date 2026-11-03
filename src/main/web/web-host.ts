@@ -14,7 +14,7 @@ import {
   frameNavigationAllowed,
   interactAllowed,
   navigationAllowed,
-  popupAllowed,
+  popupAction,
   validatePrepareInput,
   zoomAllowed
 } from './policy'
@@ -625,9 +625,13 @@ export class WebHost {
     wc.on('will-frame-navigate', (e) => block(e, e.url, e.isMainFrame))
     wc.on('will-redirect', (e) => block(e, e.url, e.isMainFrame))
     wc.setWindowOpenHandler((details) => {
-      if (!popupAllowed(this.live(p.deckId)) || !navigationAllowed(details.url)) {
+      const action = popupAction(this.live(p.deckId), details.disposition, details.url)
+      if (action === 'samePage') {
+        // A link that wants a new tab: show it in this page, not in a stray window.
+        void this.navigate(p.deckId, details.url).catch(() => undefined)
         return { action: 'deny' }
       }
+      if (action === 'deny') return { action: 'deny' }
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {

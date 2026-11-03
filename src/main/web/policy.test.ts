@@ -7,6 +7,7 @@ import {
   interactAllowed,
   navigationAllowed,
   permissionAllowed,
+  popupAction,
   popupAllowed,
   validatePrepareInput,
   zoomAllowed
@@ -286,5 +287,24 @@ describe('appTabCapture', () => {
     expect(appTabCapture('display-capture', 'http://localhost:5173', undefined)).toBe(false)
     expect(appTabCapture('display-capture', undefined, undefined)).toBe(false)
     expect(appTabCapture('media', 'file:///', undefined)).toBe(false)
+  })
+})
+
+describe('popupAction', () => {
+  const url = 'https://example.com/a'
+  it('denies everything on air', () => {
+    expect(popupAction(true, 'new-window', url)).toBe('deny')
+    expect(popupAction(true, 'foreground-tab', url)).toBe('deny')
+  })
+  it('loads a new-tab link in the same page', () => {
+    expect(popupAction(false, 'foreground-tab', url)).toBe('samePage')
+    expect(popupAction(false, 'background-tab', url)).toBe('samePage')
+    expect(popupAction(false, 'default', url)).toBe('samePage')
+  })
+  it('keeps a real popup (window.open with features) as a window', () => {
+    expect(popupAction(false, 'new-window', url)).toBe('window')
+  })
+  it('denies a url the page may not open', () => {
+    expect(popupAction(false, 'new-window', 'javascript:alert(1)')).toBe('deny')
   })
 })
