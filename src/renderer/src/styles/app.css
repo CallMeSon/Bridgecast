@@ -3597,3 +3597,11 @@ footer .empty {
 .pgm-interact-note svg {
   flex: none;
 }
+
+.prepare-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}

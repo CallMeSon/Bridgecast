@@ -307,6 +307,11 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
       .setWebInteract(deckId, false)
       .catch((e: unknown) => setAddressNote({ text: errorMessage(e), problem: true }))
   }
+  // Done: stop Interact (so nothing keeps reaching a live page) and close this window.
+  const done = (): void => {
+    if (interact) turnOff()
+    window.close()
+  }
   const turnOn = (): void => {
     // Not on air (or frozen) main takes the input without its switch: only this window changes.
     if (banner !== 'live') {
@@ -843,6 +848,11 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
             />
           )}
         </div>
+      </div>
+      <div className="prepare-footer">
+        <button type="button" className="btn primary" data-testid="prepare-done" onClick={done}>
+          Done
+        </button>
       </div>
     </main>
   )
