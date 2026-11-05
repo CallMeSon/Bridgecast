@@ -64,20 +64,22 @@ export function TransportBar({
       >
         <CaretLeftIcon size={18} weight="bold" aria-hidden="true" />
       </button>
-      <span
-        className="tpos"
-        title="Operator position. While Freeze is on, it can differ from what is on air."
-        data-testid="pos"
-      >
-        {deck ? (
-          <>
-            {cur}
-            <small> / {total}</small>
-          </>
-        ) : (
-          ''
-        )}
-      </span>
+      {deck?.source !== 'web' && (
+        <span
+          className="tpos"
+          title="Operator position. While Freeze is on, it can differ from what is on air."
+          data-testid="pos"
+        >
+          {deck ? (
+            <>
+              {cur}
+              <small> / {total}</small>
+            </>
+          ) : (
+            ''
+          )}
+        </span>
+      )}
       <button
         className="tbtn icon next"
         aria-label="Next slide"
