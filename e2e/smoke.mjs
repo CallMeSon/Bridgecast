@@ -799,16 +799,28 @@ async function behaviourChecks(win, tally, pos) {
   const idsBefore = await deckIds()
   check(idsBefore.length >= 2, `at least two decks to reorder (${idsBefore.length})`)
   const tallyBefore = await tally.textContent()
-  await win.locator(`[data-deck-id="${idsBefore[0]}"]`).focus()
-  // The library re-renders after earlier checks (reloadAll): a key pressed before focus settles
-  // on the deck is lost. Wait until the deck holds focus and the list has stopped changing.
-  await win.waitForFunction((id) => document.activeElement?.dataset?.deckId === id, idsBefore[0])
-  await sleep(300)
-  await win.keyboard.press('Alt+ArrowDown')
-  await win.waitForFunction((id) => {
-    const first = document.querySelector('[data-testid=decks] .deck[data-deck-id]')
-    return first?.dataset.deckId !== id
-  }, idsBefore[0])
+  // The library re-renders after earlier checks (reloadAll), and a key pressed while that happens
+  // is lost (seen in about 1 of 3 runs). Focus the deck, press, and retry the press up to 3 times.
+  let moved = false
+  for (let attempt = 0; attempt < 3 && !moved; attempt++) {
+    await win.locator(`[data-deck-id="${idsBefore[0]}"]`).focus()
+    await win.waitForFunction((id) => document.activeElement?.dataset?.deckId === id, idsBefore[0])
+    await sleep(400)
+    await win.keyboard.press('Alt+ArrowDown')
+    moved = await win
+      .waitForFunction(
+        (id) =>
+          document.querySelector('[data-testid=decks] .deck[data-deck-id]')?.dataset.deckId !== id,
+        idsBefore[0],
+        { timeout: 4000 }
+      )
+      .then(
+        () => true,
+        () => false
+      )
+    if (!moved) console.log(`  (Alt+ArrowDown not applied, attempt ${attempt + 1})`)
+  }
+  check(moved, 'Alt+ArrowDown reorders the focused deck')
   const idsAfter = await deckIds()
   check(
     idsAfter[0] === idsBefore[1] && idsAfter[1] === idsBefore[0],
@@ -2168,6 +2180,9 @@ async function canvasAndLevelsChecks(win, tally) {
     try {
       await tab.click({ timeout: 4000 })
     } catch (e) {
+      // Only the pointer-interception error is the known bug; a missing or closed tab rethrows.
+      if (!/intercepts pointer events/.test(String(e.message))) throw e
+      // Remove this fallback when the tab overflow fix (audit Task 8) lands.
       // KNOWN APP BUG (audit finding 6, event tabs): the on-air tab is position:sticky and covers
       // the tabs scrolled under it, so a mouse cannot reach them. The check stays strict (it
       // is recorded and fails the run at the end); a DOM click lets the rest of the suite run.
