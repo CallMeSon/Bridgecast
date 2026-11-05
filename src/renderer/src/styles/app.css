@@ -1261,7 +1261,7 @@ main {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px 12px;
+  gap: 8px;
 }
 .kv-text {
   min-width: 0;
@@ -1306,14 +1306,19 @@ main {
 }
 /* One row: thumb, title, action. With a KV set there are two actions, so they drop below. */
 .kv-actions {
-  display: flex;
-  gap: 8px;
-}
-.kv-body[data-has-kv='true'] .kv-actions {
-  grid-column: 1 / 4;
+  display: contents;
 }
 .kv-actions .btn {
   white-space: nowrap;
+}
+.kv-actions .btn.icon {
+  width: var(--h-sm);
+  padding: 0;
+  border-color: var(--edge);
+}
+.kv-actions .btn.remove {
+  grid-column: 1 / 4;
+  justify-self: start;
 }
 .kv-hint {
   margin-top: 8px;
@@ -2539,6 +2544,7 @@ footer .empty {
 /* .btn.sm sets 12px side padding; the single-class rule lost to it and left an 8 px icon box. */
 .btn.sm.prepare-icon {
   width: var(--h-sm);
+  border-color: var(--edge);
   padding: 0;
   flex: none;
 }
@@ -3663,7 +3669,7 @@ footer .empty {
   gap: 6px;
   height: var(--h-sm);
   padding: 0 12px;
-  font: 600 13px var(--font-sans);
+  font: 600 14px var(--font-sans);
   color: var(--text-2);
   background: var(--panel);
   border: 1px solid var(--edge);
@@ -3746,4 +3752,9 @@ footer .empty {
    Text fields keep theirs. */
 :root[data-input='mouse'] :focus-visible:not(input, textarea, select) {
   outline: none;
+}
+
+/* An icon never shrinks inside a flex button: a squashed glyph reads as a bug. */
+button > svg {
+  flex: none;
 }

@@ -176,7 +176,21 @@ const measure = () => {
         ?.textContent?.trim() ?? 'unknown',
     // The footer is the KV block plus the Add row (siblings at the bottom of the Decks column).
     footer: kv && add ? add.getBoundingClientRect().bottom - kv.getBoundingClientRect().top : null,
-    deckName: deckName ? deckName.getBoundingClientRect().width : null
+    deckName: deckName ? deckName.getBoundingClientRect().width : null,
+    kvClipped: [...(kv?.querySelectorAll('.kv-head, .kv-sub') ?? [])]
+      .filter((e) => e.scrollWidth > e.clientWidth)
+      .map((e) => `${e.className} ${e.scrollWidth}>${e.clientWidth}`),
+    badIcons: [...document.querySelectorAll('button svg')]
+      .filter(visible)
+      .map((e) => ({
+        r: e.getBoundingClientRect(),
+        t:
+          e.closest('button')?.getAttribute('aria-label') ||
+          e.closest('button')?.textContent?.trim() ||
+          '?'
+      }))
+      .filter(({ r }) => Math.abs(r.width - r.height) > 1 || r.width < 12)
+      .map(({ r, t }) => `${t} ${r.width.toFixed(1)}x${r.height.toFixed(1)}`)
   }
 }
 
@@ -236,6 +250,12 @@ function sizeChecks(m, size) {
     'decks footer is compact' + at,
     m.footer !== null && m.footer <= 150,
     m.footer === null ? 'kv-block or Add row missing' : `${Math.round(m.footer)}px`
+  )
+  check('KV title is not truncated' + at, m.kvClipped.length === 0, m.kvClipped.join('; '))
+  check(
+    'every button icon is square and 12px or more' + at,
+    m.badIcons.length === 0,
+    m.badIcons.join('; ')
   )
   check(
     'deck name has its own row' + at,
@@ -559,7 +579,20 @@ try {
     await sleep(150)
     const afterTab = await ring()
     check('ring back after Tab', afterTab !== 'none', afterTab)
+    // Arrow keys inside a tablist bring the ring back; arrows elsewhere leave it off.
+    await win.getByRole('tab', { name: 'Info' }).click({ timeout: SHORT_WAIT })
+    await win.keyboard.press('ArrowRight')
+    await sleep(150)
+    check('ring back on Arrow inside a tablist', (await ring()) !== 'none', await ring())
+    await win.getByRole('button', { name: 'Light', exact: true }).click({ timeout: SHORT_WAIT })
+    await win.keyboard.press('ArrowDown')
+    await sleep(150)
+    check('no ring on Arrow outside a tablist', (await ring()) === 'none', await ring())
     await win.evaluate(() => document.activeElement?.blur?.())
+    check(
+      'Prev deck key cap reads the short form',
+      (await win.getByRole('button', { name: /^Prev deck/ }).textContent()) === 'Prev deck ⇧D'
+    )
   })
 
   // ---- Nine events with OMT and NDI on: the tab overflow menu.

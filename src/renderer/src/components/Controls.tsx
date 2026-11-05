@@ -49,7 +49,7 @@ export function Controls({
           disabled={!canPrevDeck}
           onClick={() => onAction({ type: 'prevDeck' })}
         >
-          Prev deck <kbd>Shift+D</kbd>
+          Prev deck <kbd>⇧D</kbd>
         </button>
         <button
           className="cbtn"

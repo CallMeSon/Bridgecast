@@ -47,6 +47,14 @@ if (!isOutput && !prepareDeck) {
     'keydown',
     (e) => {
       if (e.key === 'Tab') delete root.dataset.input
+      // Arrow navigation inside a tablist, radiogroup or menu needs a visible position. Arrows
+      // elsewhere (a clicker during a show) leave the ring off.
+      else if (
+        ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key) &&
+        e.target instanceof Element &&
+        e.target.closest('[role=tablist], [role=radiogroup], [role=menu]')
+      )
+        delete root.dataset.input
     },
     true
   )

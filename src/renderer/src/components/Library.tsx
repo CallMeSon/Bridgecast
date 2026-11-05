@@ -31,6 +31,7 @@ import {
   SpeakerLowIcon,
   SpeakerSlashIcon,
   TrashIcon,
+  UploadSimpleIcon,
   WarningCircleIcon,
   WarningIcon
 } from '@phosphor-icons/react'
@@ -769,14 +770,20 @@ function KvBlock({
         </div>
         <div className="kv-actions">
           <button
-            className="btn sm"
+            className="btn sm icon"
             disabled={!canEdit || busy}
+            aria-label={kvUrl ? 'Replace image' : 'Choose image'}
+            title={kvUrl ? 'Replace image' : 'Choose image'}
             onClick={() => input.current?.click()}
           >
-            {kvUrl ? 'Replace image' : 'Choose image'}
+            <UploadSimpleIcon size={16} />
           </button>
           {kvUrl && (
-            <button className="btn sm" disabled={busy || onAir} onClick={() => void run(onClear)}>
+            <button
+              className="btn sm remove"
+              disabled={busy || onAir}
+              onClick={() => void run(onClear)}
+            >
               Remove
             </button>
           )}
@@ -1425,11 +1432,7 @@ export function Library(p: Props): React.JSX.Element {
       />
       <div className="add">
         <div className="add-row">
-          <button
-            className="btn sm"
-            disabled={!p.canImport}
-            onClick={() => input.current?.click()}
-          >
+          <button className="btn sm" disabled={!p.canImport} onClick={() => input.current?.click()}>
             <PlusIcon size={16} />
             Add files
           </button>
