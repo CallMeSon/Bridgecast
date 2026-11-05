@@ -5,6 +5,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-e2e-'))
@@ -13,7 +14,7 @@ const check = (c, m) => {
   console.log(`ok - ${m}`)
 }
 const app = await electron.launch({
-  args: [root],
+  args: [...linuxArgs, root],
   cwd: root,
   env: {
     ...process.env,
@@ -136,6 +137,12 @@ try {
   await page.keyboard.press('Escape')
   check((await page.locator('[data-testid=new-event-dialog]').count()) === 0, 'Escape closes')
   check((await tabs.count()) === before, 'Escape creates nothing')
+  // Focus returns in a timer after the dialog unmounts: poll, do not read it once.
+  await page
+    .waitForFunction(() => document.activeElement?.classList.contains('newbtn'), null, {
+      timeout: 3000
+    })
+    .catch(() => {})
   check(
     await page.evaluate(() => document.activeElement?.classList.contains('newbtn')),
     'focus back on New'

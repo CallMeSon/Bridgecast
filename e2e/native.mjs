@@ -21,6 +21,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import * as zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const tmpDirs = []
@@ -127,7 +128,7 @@ function seed(userData) {
 // ---------------------------------------------------------------- app helpers
 async function launch(userData) {
   const app = await electron.launch({
-    args: [root],
+    args: [...linuxArgs, root],
     cwd: root,
     env: {
       ...process.env,
@@ -260,7 +261,7 @@ async function main() {
     check(near(h.px, RED), 'the output shows slide 1 (no black)')
 
     // ---- Next walks the steps, take changes only at the slide change
-    const upNext = win.getByRole('complementary', { name: 'Up next' })
+    const upNext = win.locator('section[aria-label="Up next"]')
     for (const n of [1, 2, 3]) {
       await upNext.getByText(`Next: step ${n} of 3 on this slide`).waitFor({ timeout: 8000 })
       check(true, `Up next says "Next: step ${n} of 3 on this slide"`)

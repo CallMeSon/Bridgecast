@@ -10,6 +10,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const tmpDirs = []
@@ -60,7 +61,7 @@ async function launch(extraEnv) {
   const userData = mkTmp('ppt-share-net-')
   const frameDir = mkTmp('ppt-share-net-frames-')
   const app = await electron.launch({
-    args: [root],
+    args: [...linuxArgs, root],
     cwd: root,
     env: {
       ...process.env,

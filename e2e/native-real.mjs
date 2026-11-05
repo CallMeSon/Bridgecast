@@ -12,6 +12,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = process.env.OUT || fs.mkdtempSync(path.join(os.tmpdir(), 'native-win-'))
@@ -37,7 +38,7 @@ if (pptRunning()) {
 }
 
 const app = await electron.launch({
-  args: [root],
+  args: [...linuxArgs, root],
   cwd: root,
   env: {
     ...process.env,

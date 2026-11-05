@@ -26,6 +26,9 @@
     "test:e2e:network": "electron-vite build && node e2e/network.mjs",
     "test:e2e:web": "electron-vite build && node e2e/web.mjs",
     "test:e2e:native": "electron-vite build && node e2e/native.mjs",
+    "test:e2e:settings": "electron-vite build && node e2e/settings.mjs",
+    "test:e2e:layout": "electron-vite build && node e2e/layout.mjs",
+    "test:e2e:all": "electron-vite build && node e2e/smoke.mjs && node e2e/network.mjs && node e2e/web.mjs && node e2e/native.mjs && node e2e/settings.mjs && node e2e/layout.mjs",
     "test:e2e:native:win": "electron-vite build && node e2e/native-real.mjs",
     "test:packaged": "node e2e/packaged.mjs"
   },

@@ -14,6 +14,7 @@ import * as http from 'node:http'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const tmpDirs = []
@@ -56,13 +57,8 @@ const base = `http://127.0.0.1:${server.address().port}`
 async function launch() {
   const userData = mkTmp('ppt-share-web-')
   const app = await electron.launch({
-    // Linux: the hidden page window paints on X11 only (see needsX11Relaunch); the app relaunches itself
-    // with this flag, which would drop Playwright's connection, so it is given here.
-    args: [
-      '--use-fake-device-for-media-stream',
-      ...(process.platform === 'linux' ? ['--ozone-platform=x11'] : []),
-      root
-    ],
+    // Linux: the hidden page window paints on X11 only (see launch-args.mjs).
+    args: ['--use-fake-device-for-media-stream', ...linuxArgs, root],
     cwd: root,
     env: {
       ...process.env,
