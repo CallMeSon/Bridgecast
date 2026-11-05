@@ -170,6 +170,19 @@ const measure = () => {
         })()
       : null,
     spills,
+    rightScroll: (() => {
+      const e = document.querySelector('[data-testid=right-panel]')
+      return e ? [e.scrollWidth, e.clientWidth] : null
+    })(),
+    changeBtn: (() => {
+      const p = document.querySelector('[data-testid=right-panel]')?.getBoundingClientRect()
+      const b = [...document.querySelectorAll('[data-testid=right-panel] .deck-canvas button')]
+        .find((x) => x.textContent?.trim() === 'Change')
+        ?.getBoundingClientRect()
+      return p && b
+        ? { inside: b.left >= p.left && b.right <= p.right, l: b.left, r: b.right, pr: p.right }
+        : null
+    })(),
     panelTab:
       document
         .querySelector('[data-testid=right-panel] [role=tab][aria-selected=true]')
@@ -230,6 +243,16 @@ function sizeChecks(m, size) {
       : 'missing'
   )
   check(
+    'right panel does not scroll sideways' + at,
+    !!m.rightScroll && m.rightScroll[0] <= m.rightScroll[1],
+    String(m.rightScroll)
+  )
+  check(
+    'Canvas Change button is inside the right panel' + at,
+    !!m.changeBtn && m.changeBtn.inside,
+    JSON.stringify(m.changeBtn)
+  )
+  check(
     'monitor is 16:9' + at,
     !!m.screen && Math.abs(m.screen.width / m.screen.height - 16 / 9) < 0.02,
     m.screen ? `${m.screen.width}x${m.screen.height}` : 'missing'
@@ -281,6 +304,19 @@ async function sweep(theme) {
     const m = await win.evaluate(measure)
     sizeChecks(m, `${w}x${h}${theme === 'dark' ? ' (dark)' : ''}`)
   }
+}
+
+/** What the console keys act on: any change here means a key reached the Program. */
+const prog = async () => {
+  const st = (await api('getSession')).state
+  return JSON.stringify({
+    deckId: st.deckId,
+    index: st.index,
+    black: st.black,
+    frozen: st.frozen,
+    kv: st.kv,
+    shown: st.shown
+  })
 }
 
 const tagOf = (deckId) =>
@@ -500,6 +536,95 @@ try {
     await sleep(600)
   })
 
+  // ---- After a click on a row, Space must not leave the options button over the LIVE tag.
+  await phase('row tag stays visible', async () => {
+    await setSize(1440, 900)
+    await api('dispatch', { type: 'selectDeck', deckId: pdfId })
+    await sleep(500)
+    await win.locator(`.deck[data-deck-id="${pdfId}"] .name`).click()
+    await win.mouse.move(700, 450)
+    await win.keyboard.press('Space')
+    await sleep(300)
+    const r = await win.evaluate((id) => {
+      const tag = document.querySelector(`.deck[data-deck-id="${id}"] .stag`)
+      if (!tag) return { tag: false }
+      const b = tag.getBoundingClientRect()
+      const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+      // Covered = hidden itself, or a visible options button on top (an invisible one is no cover).
+      const more = at?.closest('.deck-more')
+      const covered =
+        getComputedStyle(tag).visibility === 'hidden' ||
+        (!!more && parseFloat(getComputedStyle(more).opacity) > 0)
+      return { tag: true, text: tag.textContent?.trim(), on: !covered }
+    }, pdfId)
+    check(
+      'LIVE tag is not covered by the options button after click and Space',
+      r.tag && r.on,
+      JSON.stringify(r)
+    )
+    await api('dispatch', { type: 'selectDeck', deckId: pdfId })
+  })
+
+  // ---- Buttons: hover keeps primary/danger borders, disabled icon buttons look disabled.
+  await phase('buttons', async () => {
+    const r = await win.evaluate(() => {
+      const host = document.createElement('div')
+      host.id = 'btn-probe'
+      host.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99;display:flex;gap:8px'
+      host.innerHTML =
+        '<button class="btn primary" id="p">P</button>' +
+        '<button class="btn danger" id="d">D</button>' +
+        '<button class="btn sm quiet" id="q">Q</button>' +
+        '<span class="kv-actions"><button class="btn sm icon" id="i" disabled>I</button></span>' +
+        '<button class="btn sm prepare-icon" id="x" disabled>X</button>'
+      document.body.appendChild(host)
+      const line = getComputedStyle(document.documentElement).getPropertyValue('--line').trim()
+      return { line }
+    })
+    const css = (id) =>
+      win.evaluate((i) => {
+        const cs = getComputedStyle(document.getElementById(i))
+        return { border: cs.borderTopColor, bg: cs.backgroundColor }
+      }, id)
+    await win.locator('#p').hover()
+    await sleep(250)
+    const p = await css('p')
+    check('primary keeps its border on hover', p.border === p.bg, JSON.stringify(p))
+    const d0 = await css('d')
+    await win.locator('#d').hover()
+    await sleep(250)
+    const d = await css('d')
+    check('danger keeps its border on hover', d.border === d0.border, `${d0.border} -> ${d.border}`)
+    const q0 = await css('q')
+    await win.locator('#q').hover()
+    await sleep(250)
+    const q1 = await css('q')
+    check('quiet button reacts to hover', q0.bg !== q1.bg, `${q0.bg} -> ${q1.bg}`)
+    const lineColor = await win.evaluate((c) => {
+      const t = document.createElement('i')
+      t.style.cssText = `border:1px solid ${c};position:fixed;top:0;left:0`
+      t.id = 'line-probe'
+      document.body.appendChild(t)
+      return getComputedStyle(t).borderTopColor
+    }, r.line)
+    const i = await css('i')
+    const x = await css('x')
+    check(
+      'disabled icon button has the disabled border',
+      i.border === lineColor,
+      `${i.border} vs ${lineColor}`
+    )
+    check(
+      'disabled Prepare icon button has the disabled border',
+      x.border === lineColor,
+      `${x.border} vs ${lineColor}`
+    )
+    await win.evaluate(() => {
+      document.getElementById('btn-probe')?.remove()
+      document.getElementById('line-probe')?.remove()
+    })
+  })
+
   // ---- Popovers at 1024x640.
   await phase('popovers', async () => {
     await setSize(1024, 640)
@@ -519,6 +644,46 @@ try {
     } catch {
       rect = null
     }
+    // Keys inside the dialog never reach the console: a click on its text leaves focus on the
+    // dialog box (not the body), Space does not take Next and Tab stays inside.
+    {
+      const before = await prog()
+      let keys = null
+      try {
+        await win.locator('[data-testid=event-canvas-dialog] .hint').first().click()
+        await win.keyboard.press('Space')
+        await win.keyboard.press('b')
+        await win.keyboard.press('ArrowRight')
+        await sleep(200)
+        const same = (await prog()) === before
+        const inside = []
+        for (let i = 0; i < 30; i++) {
+          await win.keyboard.press(i % 2 ? 'Shift+Tab' : 'Tab')
+          inside.push(
+            await win.evaluate(
+              () =>
+                !!document.activeElement?.closest('[data-testid=event-canvas-dialog]') ||
+                document.activeElement ===
+                  document.querySelector('[data-testid=event-canvas-dialog]')
+            )
+          )
+        }
+        const rootInert = await win.evaluate(() => document.getElementById('root')?.inert === true)
+        keys = { same, stays: inside.every(Boolean), rootInert }
+      } catch (e) {
+        keys = { error: String(e).slice(0, 300) }
+      }
+      check(
+        'canvas dialog: Space after a click on its text does not act on the Program',
+        !!keys && keys.same === true,
+        JSON.stringify(keys)
+      )
+      check(
+        'canvas dialog: Tab stays inside and the app behind is inert',
+        !!keys && keys.stays === true && keys.rootInert === true,
+        JSON.stringify(keys)
+      )
+    }
     check(
       'canvas dialog fits the window',
       !!rect && rect.bottom <= rect.innerHeight && rect.top >= 0,
@@ -530,7 +695,9 @@ try {
     let esc = null
     try {
       await win
-        .locator('.canvas-opt:not(:disabled)[aria-pressed="false"]')
+        .locator(
+          '[data-testid=event-canvas-dialog] .canvas-opt:not(:disabled)[aria-pressed="false"]'
+        )
         .first()
         .evaluate((e) => e.click())
       await win.locator('[data-testid=canvas-confirm]').waitFor({ timeout: SHORT_WAIT })
@@ -682,6 +849,92 @@ try {
       opened && menuItems === 8,
       opened ? `${menuItems} items` : 'no overflow control'
     )
+    // Keys in the menu never reach the console: B, arrows, F, K do nothing to the Program, and
+    // Space chooses the item without taking Next.
+    const itemSel = '[role=menu] [role=menuitem], [role=menu] [role=menuitemradio]'
+    const selectedTab = async () =>
+      (
+        await win
+          .locator('.evtabs [role=tab][aria-selected=true] .tn')
+          .first()
+          .textContent({ timeout: SHORT_WAIT })
+      )?.trim() ?? ''
+    const geometry = async (where) => {
+      const g = await win.evaluate((sel) => {
+        const t = document.querySelector('[data-testid=tab-overflow]')?.getBoundingClientRect()
+        const m = document.querySelector('.tab-menu')?.getBoundingClientRect()
+        const items = [...document.querySelectorAll(sel)]
+        const covered = items.filter((it) => {
+          const r = it.getBoundingClientRect()
+          const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+          return !at || !it.contains(at)
+        })
+        return {
+          trigger: !!t,
+          menu: !!m,
+          underCaret:
+            !!t && !!m && m.left <= t.left + t.width / 2 && m.right >= t.left + t.width / 2,
+          items: items.length,
+          covered: covered.length
+        }
+      }, itemSel)
+      check(
+        `tab overflow menu sits under the caret and is not covered (${where})`,
+        g.trigger && g.menu && g.underCaret && g.items > 0 && g.covered === 0,
+        JSON.stringify(g)
+      )
+    }
+    if (opened) {
+      try {
+        await geometry('console')
+        const before = await prog()
+        await win
+          .locator(itemSel)
+          .filter({ hasText: 'Event 6' })
+          .first()
+          .evaluate((e) => e.focus())
+        for (const k of ['b', 'ArrowRight', 'ArrowLeft', 'f', 'k', 'PageDown']) {
+          await win.keyboard.press(k)
+        }
+        await sleep(150)
+        check('keys in the tab menu do not act on the Program', (await prog()) === before)
+        await win.keyboard.press('Space')
+        await sleep(300)
+        check(
+          'Space on a tab menu item selects the tab and leaves the Program alone',
+          (await selectedTab()) === 'Event 6' && (await prog()) === before,
+          `"${await selectedTab()}"`
+        )
+        // Resize with the menu open: closes it, throws nothing.
+        const errs = pageErrors.length
+        await trigger.click({ timeout: SHORT_WAIT })
+        await win.locator(itemSel).first().waitFor({ timeout: SHORT_WAIT })
+        await setSize(1180, 700)
+        await sleep(300)
+        check(
+          'resize closes the tab menu without a page error',
+          pageErrors.length === errs && (await win.locator('.tab-menu').count()) === 0,
+          `${pageErrors.length - errs} new error(s)`
+        )
+        await setSize(1280, 720)
+        await sleep(300)
+        // The same on Home, where the page paints over the header.
+        await win.click('[data-testid=home-btn]')
+        await win.waitForSelector('[data-testid=home]')
+        await trigger.click({ timeout: SHORT_WAIT })
+        await win.locator(itemSel).first().waitFor({ timeout: SHORT_WAIT })
+        await geometry('Home')
+        await win.keyboard.press('Escape')
+        await sleep(200)
+        await win.locator('.evtabs [role=tab]').first().click({ timeout: SHORT_WAIT })
+        await sleep(300)
+        await trigger.click({ timeout: SHORT_WAIT })
+        await win.locator(itemSel).first().waitFor({ timeout: SHORT_WAIT })
+      } catch (e) {
+        failed++
+        console.log(`FAIL - tab menu keyboard checks crashed: ${String(e).split('\n')[0]}`)
+      }
+    }
     let selectedTabName = ''
     if (opened) {
       try {
@@ -881,7 +1134,9 @@ try {
   await app.close().catch(() => {})
 }
 
-if (pageErrors.length)
-  console.log(`note: ${pageErrors.length} page error(s), first: ${pageErrors[0]}`)
+if (pageErrors.length) {
+  failed++
+  console.log(`FAIL - page errors: ${pageErrors.length}, first: ${pageErrors[0]}`)
+}
 console.log(`\nLAYOUT: ${passed} ok, ${failed} FAIL`)
 process.exit(failed ? 1 : 0)

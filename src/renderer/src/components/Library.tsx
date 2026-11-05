@@ -753,7 +753,7 @@ function KvBlock({
   }
   return (
     <div className="kv-block" role="group" aria-label="Key visual (KV)" data-testid="kv-block">
-      <div className="kv-body" data-has-kv={kvUrl !== null}>
+      <div className="kv-body">
         <div className="kv-thumb" data-testid="kv-thumb" data-empty={kvUrl === null}>
           {kvUrl ? (
             <img src={kvUrl} alt="Event key visual" draggable={false} />

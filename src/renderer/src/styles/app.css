@@ -130,9 +130,11 @@ header > .evtabs {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
-.tab-menu {
+/* .menu.tab-menu: outranks the later .menu rule; above Home (z 5), which covers the header. */
+.menu.tab-menu {
   left: auto;
   right: 0;
+  z-index: 20;
   max-width: 320px;
   max-height: calc(100vh - 64px);
   overflow-y: auto;
@@ -542,7 +544,18 @@ button.output-btn:hover,
   header .canvas-tag {
     display: none;
   }
-  header .ind-more {
+  /* The full status stays for readers; the short word (OMT 2) is what shows. */
+  header .ind-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+@media (min-width: 1600px) {
+  header .ind-short {
     display: none;
   }
 }
@@ -551,7 +564,7 @@ button.output-btn:hover,
   .theme .theme-word {
     display: none;
   }
-  .theme button {
+  header .theme button {
     padding: 0;
     width: var(--h-sm);
     justify-content: center;
@@ -864,7 +877,7 @@ main {
   background: var(--raised);
   font-weight: 500;
 }
-.btn:hover:not(:disabled) {
+.btn:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--raised-hi);
   border-color: var(--edge);
 }
@@ -886,8 +899,9 @@ main {
   border-color: var(--text);
   color: var(--bg);
 }
-.btn.danger:hover:not(:disabled) {
+.btn.danger:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--text-2);
+  border-color: var(--text);
 }
 
 /* library: soft rows, a 64x36 tile (first slide or source icon), name and sub line */
@@ -995,7 +1009,7 @@ main {
   opacity: 0;
 }
 .deck-row:hover .deck-more,
-.deck-row:has(:focus-visible) .deck-more,
+.deck-more:focus-visible,
 .deck-more[aria-expanded='true'] {
   opacity: 1;
   background: var(--raised-hi);
@@ -1315,6 +1329,10 @@ main {
   width: var(--h-sm);
   padding: 0;
   border-color: var(--edge);
+}
+.kv-actions .btn.icon:disabled,
+.kv-actions .btn.icon[aria-disabled='true'] {
+  border-color: var(--line);
 }
 .kv-actions .btn.remove {
   grid-column: 1 / 4;
@@ -1871,13 +1889,14 @@ main {
   .right .seg.fill button {
     flex: 1 1 auto;
   }
-  .deck-canvas {
+  /* .right: outranks the base .deck-canvas rules further down */
+  .right .deck-canvas {
     flex-wrap: wrap;
   }
-  .deck-canvas .k {
+  .right .deck-canvas .k {
     flex: 1 0 100%;
   }
-  .deck-canvas .v {
+  .right .deck-canvas .v {
     margin-left: 0;
     flex: 1;
   }
@@ -2094,9 +2113,7 @@ kbd {
   font-size: 12px;
   line-height: 1.5;
 }
-/* The Canvas dialog of the event opens under its row, across the panel. */
 .deck-canvas {
-  position: relative;
   flex-wrap: nowrap;
   gap: 12px;
 }
@@ -2547,6 +2564,10 @@ footer .empty {
   border-color: var(--edge);
   padding: 0;
   flex: none;
+}
+.btn.sm.prepare-icon:disabled,
+.btn.sm.prepare-icon[aria-disabled='true'] {
+  border-color: var(--line);
 }
 .prepare-icon svg {
   flex: none;
@@ -3006,9 +3027,6 @@ footer .empty {
   color: var(--text);
 }
 .set-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   background: var(--panel);
   flex: none;
   display: flex;
@@ -3194,8 +3212,9 @@ footer .empty {
   color: var(--on-accent);
   border-color: var(--accent-fill);
 }
-.btn.primary:hover:not(:disabled) {
+.btn.primary:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--accent-fill);
+  border-color: var(--accent-fill);
   filter: brightness(1.08);
 }
 .btn.sm kbd,
@@ -3658,6 +3677,11 @@ footer .empty {
   border-color: transparent;
   background: transparent;
   color: var(--text-2);
+}
+.btn.sm.quiet:hover:not(:disabled):not([aria-disabled='true']) {
+  border-color: transparent;
+  background: var(--raised);
+  color: var(--text);
 }
 
 /* Interact on the operator monitor (Program.tsx). The toggle follows the Prepare switch; the
