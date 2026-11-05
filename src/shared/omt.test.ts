@@ -13,6 +13,7 @@ import {
   dropWarning,
   noReceiversHint,
   ndiBadge,
+  netShortText,
   networkOn,
   omtBadge,
   sanitizeNdi,
@@ -308,5 +309,23 @@ describe('networkRunning', () => {
     expect(networkRunning(st('running'), null)).toBe(true)
     expect(networkRunning(null, st('running'))).toBe(true)
     expect(networkRunning(st('off'), st('running'))).toBe(true)
+  })
+})
+
+describe('netShortText', () => {
+  const st = (state: OmtStatus['state'], connections = 0): OmtStatus => ({
+    state,
+    connections,
+    address: null
+  })
+
+  it('off, no receivers, a count, starting and error each keep a word', () => {
+    expect(netShortText('OMT', null)).toBe('OMT off')
+    expect(netShortText('OMT', st('off'))).toBe('OMT off')
+    expect(netShortText('OMT', st('running', 0))).toBe('OMT 0')
+    expect(netShortText('OMT', st('running', 2))).toBe('OMT 2')
+    expect(netShortText('NDI', st('running', 1))).toBe('NDI 1')
+    expect(netShortText('NDI', st('starting'))).toBe('NDI …')
+    expect(netShortText('NDI', st('error'))).toBe('NDI')
   })
 })

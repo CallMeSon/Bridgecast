@@ -202,6 +202,18 @@ export function ndiBadge(s: NdiStatus | null): OmtBadge {
   return { text: 'NDI · no receivers', tone: 'neutral' }
 }
 
+/**
+ * The short header word for a network output when the header is tight: `OMT off`, `OMT 0`
+ * (on, no receivers), `OMT 2` (receivers), `OMT …` (starting). An error keeps only the name;
+ * its warning icon says the rest. State is never colour alone.
+ */
+export function netShortText(name: 'OMT' | 'NDI', s: NetStatus | null): string {
+  if (!s || s.state === 'off') return `${name} off`
+  if (s.state === 'error') return name
+  if (s.state === 'starting') return `${name} …`
+  return `${name} ${s.connections}`
+}
+
 export const NO_RECEIVERS_AFTER_MS = 15_000
 
 /**

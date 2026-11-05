@@ -1,19 +1,22 @@
 import { BroadcastIcon, MonitorIcon, WarningIcon } from '@phosphor-icons/react'
 import { canvasLabel } from '../../../shared/canvas'
 import type { ProgramState } from '../../../shared/program'
-import { ndiBadge, omtBadge } from '../../../shared/omt'
+import { ndiBadge, netShortText, omtBadge } from '../../../shared/omt'
 import { hdmiBadge } from '../model'
 import type { OutputSettingsState } from './useOutputSettings'
 
-/** `OMT · 2 receivers`: the name stays, the rest gives way under 1600 px (CSS, `.ind-more`). */
-function NetText({ text }: { text: string }): React.JSX.Element {
-  const at = text.indexOf(' ')
-  if (at < 0) return <span>{text}</span>
+/**
+ * The full status (`OMT · 2 receivers`) from 1600 px up; under it the short word (`OMT 2`, CSS
+ * `.ind-full` / `.ind-short`). The full text stays in the page, visually hidden, for readers.
+ */
+function NetText({ full, short }: { full: string; short: string }): React.JSX.Element {
   return (
-    <span>
-      {text.slice(0, at)}
-      <span className="ind-more">{text.slice(at)}</span>
-    </span>
+    <>
+      <span className="ind-full">{full}</span>
+      <span className="ind-short" aria-hidden="true">
+        {short}
+      </span>
+    </>
   )
 }
 
@@ -70,7 +73,7 @@ export function OutputMenu({
           aria-label={omtTone.text}
         >
           {omtTone.tone === 'error' ? <WarningIcon size={16} /> : <BroadcastIcon size={16} />}
-          <NetText text={omtTone.text} />
+          <NetText full={omtTone.text} short={netShortText('OMT', out.omtStatus)} />
         </span>
         <span
           className="ind"
@@ -80,7 +83,7 @@ export function OutputMenu({
           aria-label={ndiTone.text}
         >
           {ndiTone.tone === 'error' ? <WarningIcon size={16} /> : <BroadcastIcon size={16} />}
-          <NetText text={ndiTone.text} />
+          <NetText full={ndiTone.text} short={netShortText('NDI', out.ndiStatus)} />
         </span>
         <span
           className="canvas-tag"
