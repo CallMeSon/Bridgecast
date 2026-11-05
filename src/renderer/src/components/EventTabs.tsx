@@ -4,7 +4,7 @@ import type { EventMeta } from '../../../shared/types'
 import type { Tally } from '../model'
 import { onMenuKeyDown, menuItems } from './menuNav'
 import { StatusTag } from './StatusTag'
-import { hiddenTabs, stickyPadding } from './tab-overflow'
+import { stickyPadding } from './tab-overflow'
 
 interface Props {
   events: EventMeta[]
@@ -79,13 +79,9 @@ export function EventTabs({
     const el = list.current
     if (!el) return
     const measure = (): void => {
-      const view = el.getBoundingClientRect()
-      const rects = Array.from(el.querySelectorAll<HTMLElement>('.otab')).map((t) => {
-        const r = t.getBoundingClientRect()
-        return { left: r.left, right: r.right }
-      })
-      // Half a pixel of slack: subpixel layout must not read as a cut-off tab.
-      const over = hiddenTabs(rects, view.left - 0.5, view.right + 0.5).length > 0
+      // The list scrolls when its tabs do not fit; a tab under the sticky on-air one counts too.
+      // One pixel of slack: subpixel layout must not read as a cut-off tab.
+      const over = el.scrollWidth > el.clientWidth + 1
       setOverflowing(over)
       // The trigger is gone: the menu goes with it and stays closed when overflow returns.
       if (!over) setMenuOpen(false)
@@ -109,8 +105,9 @@ export function EventTabs({
         if ((e as KeyboardEvent).key !== 'Escape') return
         trigger.current?.focus()
       } else if (
-        menuRef.current?.contains(e.target as Node) ||
-        trigger.current?.contains(e.target as Node)
+        // A resize targets the window, not a node: it falls through and closes the menu.
+        e.target instanceof Node &&
+        (menuRef.current?.contains(e.target) || trigger.current?.contains(e.target))
       )
         return
       setMenuOpen(false)
@@ -237,6 +234,7 @@ export function EventTabs({
           className="menu tab-menu"
           role="menu"
           aria-label="All open events"
+          data-no-shortcuts
           onKeyDown={onMenuKeyDown}
         >
           {tabs.map((ev) => {

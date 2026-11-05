@@ -18,6 +18,8 @@ interface Props {
   onClose(restoreFocus: boolean): void
 }
 
+const FOCUSABLE = 'input, select, button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
+
 /**
  * "Canvas for this event": the event's own output size, or Use default to
  * follow the machine canvas of the output settings. A centred modal like AddWebDialog,
@@ -74,6 +76,38 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
     }
   }, [onClose])
 
+  // The rest of the app is inert while the dialog is open (as in AddWebDialog): no Tab and no
+  // key reaches the console behind it; the cleanup also runs when the dialog unmounts abruptly.
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (!root) return
+    root.inert = true
+    return () => {
+      root.inert = false
+    }
+  }, [])
+
+  // Focus trap: Tab and Shift+Tab wrap inside the dialog; from the dialog itself (a click on
+  // its text) they enter at the matching end.
+  const trap = (e: React.KeyboardEvent): void => {
+    if (e.key !== 'Tab' || !box.current) return
+    const items = [...box.current.querySelectorAll<HTMLElement>(FOCUSABLE)]
+    if (items.length === 0) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    const at = document.activeElement
+    if (!box.current.contains(at) || at === box.current) {
+      e.preventDefault()
+      ;(e.shiftKey ? last : first).focus()
+    } else if (e.shiftKey && at === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && at === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
   // Portal events still bubble to the React parent (the Canvas row of the right panel).
   const contain = (e: React.SyntheticEvent): void => e.stopPropagation()
   return createPortal(
@@ -82,6 +116,7 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
       onClick={contain}
       onKeyDown={(e) => {
         // Escape goes on to the window listener above; other keys stay out of the right panel.
+        trap(e)
         if (e.key !== 'Escape') e.stopPropagation()
       }}
       onKeyUp={contain}
@@ -93,6 +128,7 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
         role="dialog"
         aria-modal="true"
         aria-labelledby="event-canvas-title"
+        tabIndex={-1}
         data-no-shortcuts
         data-testid="event-canvas-dialog"
       >
