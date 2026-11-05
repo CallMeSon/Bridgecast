@@ -1421,33 +1421,26 @@ main {
 }
 .ptitle .where {
   min-width: 0;
+  display: flex;
   font: 400 16px/1.5 var(--font-sans);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .ptitle .where .nm {
-  font-weight: 600;
-  color: var(--text);
-}
-.ptitle .where .sub {
-  color: var(--text-3);
-}
-/* The air event's name (shown while another event is open) gives way before the deck name. */
-.ptitle .where:has(.air) {
-  display: flex;
-}
-.ptitle .where:has(.air) .nm {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--text);
 }
-.ptitle .where:has(.air) .sub {
+.ptitle .where .sub {
   flex: none;
   white-space: pre;
+  color: var(--text-3);
 }
-.ptitle .where:has(.air) .sub.air {
+/* The air event's name (shown while another event is open) gives way before the deck name. */
+.ptitle .where .sub.air {
   flex: 0 100 auto;
   min-width: 0;
   overflow: hidden;
@@ -1710,8 +1703,8 @@ main {
 .transport kbd {
   background: transparent;
 }
-/* Key caps only where they fit: a Program column under 560px drops them. */
-@container stage (max-width: 559px) {
+/* Key caps only where they fit: a Program column under 640px drops them. */
+@container stage (max-width: 639px) {
   .transport kbd {
     display: none;
   }
@@ -1719,8 +1712,8 @@ main {
     margin: 0 8px;
   }
 }
-/* Tightest Program column (about 420px): smaller gaps and hold padding so the row fits. */
-@container stage (max-width: 459px) {
+/* Narrow Program column (under 520px): smaller gaps and hold padding so the row fits. */
+@container stage (max-width: 519px) {
   .transport {
     gap: 2px;
   }
