@@ -93,10 +93,13 @@ async function setSize(w, h) {
   }
 }
 
+/** Switches the theme and confirms it took effect; false when it did not. */
 async function setTheme(t) {
-  if ((await win.evaluate(() => document.documentElement.dataset.theme)) === t) return
+  const cur = () => win.evaluate(() => document.documentElement.dataset.theme)
+  if ((await cur()) === t) return true
   await win.locator('header button', { hasText: t === 'dark' ? 'Dark' : 'Light' }).click()
-  await sleep(200)
+  await sleep(250)
+  return (await cur()) === t
 }
 
 /** Runs one phase; a crash in it is a FAIL and the run goes on. */
@@ -136,9 +139,10 @@ const measure = () => {
   const where = document.querySelector('.ptitle .where')
   const sub = where?.querySelector('.sub')
   const kv = document.querySelector('[data-testid=kv-block]')
-  const left = document.querySelector('.left')
+  const add = document.querySelector('.left > .add')
   const spills = [...document.querySelectorAll('[role=radio], .seg button, .k')]
     .filter(visible)
+    .filter((e) => getComputedStyle(e).textOverflow !== 'ellipsis')
     .filter((e) => e.scrollWidth > e.clientWidth + 1)
     .map(
       (e) =>
@@ -166,10 +170,25 @@ const measure = () => {
         })()
       : null,
     spills,
-    footer:
-      kv && left ? left.getBoundingClientRect().bottom - kv.getBoundingClientRect().top : null,
+    panelTab:
+      document
+        .querySelector('[data-testid=right-panel] [role=tab][aria-selected=true]')
+        ?.textContent?.trim() ?? 'unknown',
+    // The footer is the KV block plus the Add row (siblings at the bottom of the Decks column).
+    footer: kv && add ? add.getBoundingClientRect().bottom - kv.getBoundingClientRect().top : null,
     deckName: deckName ? deckName.getBoundingClientRect().width : null
   }
+}
+
+/** The Sound button is inside the window and inside the transport bar. */
+function soundInView(m) {
+  return (
+    !!m.mute &&
+    !!m.transport &&
+    m.mute.right <= m.innerWidth &&
+    m.mute.left >= m.transport.left &&
+    m.mute.right <= m.transport.right + 1
+  )
 }
 
 function sizeChecks(m, size) {
@@ -191,8 +210,10 @@ function sizeChecks(m, size) {
   )
   check(
     'sound button in view' + at,
-    !!m.mute && !!m.transport && m.mute.right <= m.innerWidth && m.mute.left >= m.transport.left,
-    m.mute ? `right ${Math.round(m.mute.right)}, left ${Math.round(m.mute.left)}` : 'missing'
+    soundInView(m),
+    m.mute && m.transport
+      ? `mute ${Math.round(m.mute.left)}..${Math.round(m.mute.right)}, transport ${Math.round(m.transport.left)}..${Math.round(m.transport.right)}`
+      : 'missing'
   )
   check(
     'monitor is 16:9' + at,
@@ -206,11 +227,15 @@ function sizeChecks(m, size) {
       ? `sub right ${Math.round(m.sub.right)}, title right ${Math.round(m.where.right)}, width ${Math.round(m.sub.width)}`
       : 'missing'
   )
-  check('no text spills from a control' + at, m.spills.length === 0, m.spills.join('; '))
+  check(
+    'no text spills from a control' + at,
+    m.spills.length === 0,
+    `right panel tab: ${m.panelTab}` + (m.spills.length ? `; ${m.spills.join('; ')}` : '')
+  )
   check(
     'decks footer is compact' + at,
     m.footer !== null && m.footer <= 150,
-    `${Math.round(m.footer ?? -1)}px`
+    m.footer === null ? 'kv-block or Add row missing' : `${Math.round(m.footer)}px`
   )
   check(
     'deck name has its own row' + at,
@@ -220,7 +245,17 @@ function sizeChecks(m, size) {
 }
 
 async function sweep(theme) {
-  await setTheme(theme)
+  if (!(await setTheme(theme))) {
+    failed++
+    console.log(`FAIL - theme ${theme} did not apply, sweep skipped`)
+    return
+  }
+  // Right panel on Controls, so its rows are the ones measured by the spill check.
+  await win
+    .getByRole('tab', { name: 'Controls' })
+    .click({ timeout: SHORT_WAIT })
+    .catch(() => {})
+  await sleep(150)
   for (const [w, h] of SIZES) {
     await setSize(w, h)
     const m = await win.evaluate(measure)
@@ -242,7 +277,10 @@ let webId = ''
 
 try {
   await win.waitForSelector('[data-testid=home]', { timeout: 30000 })
-  await setTheme('light')
+  if (!(await setTheme('light'))) {
+    failed++
+    console.log('FAIL - theme light did not apply')
+  }
 
   // ---- Empty event: first event, made through the dialog, nothing on air.
   await phase('empty event', async () => {
@@ -319,15 +357,15 @@ try {
       await win.mouse.up()
       await sleep(250)
       const got = Math.round(await stageWidth())
-      if (Math.abs(got - target) > 3) console.log(`note: Program asked ${target}px, got ${got}px`)
+      if (Math.abs(got - target) > 3) {
+        failed++
+        console.log(`FAIL - Program column reached ${target}px (got ${got}px)`)
+        continue
+      }
       const m = await win.evaluate(measure)
       check(
         `sound button in view at Program ${target}`,
-        !!m.mute &&
-          !!m.transport &&
-          m.mute.right <= m.innerWidth &&
-          m.mute.left >= m.transport.left &&
-          m.mute.right <= m.transport.right + 1,
+        soundInView(m),
         m.mute
           ? `mute ${Math.round(m.mute.left)}..${Math.round(m.mute.right)}, transport ${Math.round(m.transport.left)}..${Math.round(m.transport.right)}, Program ${got}px`
           : 'missing'
@@ -361,13 +399,15 @@ try {
   await phase('web deck', async () => {
     await api('dispatch', { type: 'selectDeck', deckId: webId })
     await sleep(3000)
+    const live = (await api('getSession')).state.shown?.web?.deckId === webId
+    check('web deck is live', live)
     const transportText = await win
       .locator('[data-testid=transport]')
       .innerText({ timeout: SHORT_WAIT })
     const metaText = await win.locator('.pgm-meta').innerText({ timeout: SHORT_WAIT })
     check(
       'web deck has no slide position',
-      !transportText.includes('/ 01'),
+      live && !/\d+\s*\/\s*\d+/.test(transportText),
       JSON.stringify(transportText.replace(/\s+/g, ' '))
     )
     check(
@@ -393,39 +433,42 @@ try {
         .first()
         .evaluate((e) => {
           const r = e.getBoundingClientRect()
-          return { bottom: r.bottom, innerHeight }
+          return { top: r.top, bottom: r.bottom, innerHeight }
         })
     } catch {
       rect = null
     }
     check(
       'canvas dialog fits the window',
-      !!rect && rect.bottom <= rect.innerHeight,
-      rect ? `bottom ${Math.round(rect.bottom)} of ${rect.innerHeight}` : 'dialog did not open'
+      !!rect && rect.bottom <= rect.innerHeight && rect.top >= 0,
+      rect
+        ? `top ${Math.round(rect.top)}, bottom ${Math.round(rect.bottom)} of ${rect.innerHeight}`
+        : 'dialog did not open'
     )
     await win.keyboard.press('Escape')
     await sleep(250)
 
     rect = null
     try {
-      await win.locator(`.deck[data-deck-id="${pdfId}"]`).hover({ timeout: SHORT_WAIT })
-      await win
-        .locator('[data-testid=deck-more]')
-        .first()
-        .click({ force: true, timeout: SHORT_WAIT })
+      // The last row: its menu has the least room below.
+      const row = win.locator('.deck-row').last()
+      await row.hover({ timeout: SHORT_WAIT })
+      await row.locator('[data-testid=deck-more]').click({ timeout: SHORT_WAIT })
       await win.locator('[data-testid=deck-menu]').waitFor({ timeout: SHORT_WAIT })
       await sleep(200)
       rect = await win.locator('[data-testid=deck-menu]').evaluate((e) => {
         const r = e.getBoundingClientRect()
-        return { bottom: r.bottom, innerHeight }
+        return { top: r.top, bottom: r.bottom, innerHeight }
       })
     } catch {
       rect = null
     }
     check(
       'deck menu fits the window',
-      !!rect && rect.bottom <= rect.innerHeight,
-      rect ? `bottom ${Math.round(rect.bottom)} of ${rect.innerHeight}` : 'menu did not open'
+      !!rect && rect.bottom <= rect.innerHeight && rect.top >= 0,
+      rect
+        ? `top ${Math.round(rect.top)}, bottom ${Math.round(rect.bottom)} of ${rect.innerHeight}`
+        : 'menu did not open'
     )
     await win.keyboard.press('Escape')
     await sleep(250)
