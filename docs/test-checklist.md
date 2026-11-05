@@ -181,10 +181,13 @@ Hanya bisa dicek di Windows. Tangkapan layar Electron di Linux dan Windows sudah
 
 - [ ] Tema mengikuti sistem: Settings → Theme = Auto, lalu ganti Windows antara mode terang dan gelap (Settings → Personalization → Colors). Jendela ikut berganti tanpa restart; pilihan Light atau Dark di header menimpa Auto dan bertahan setelah restart.
 - [ ] Skala layar 125% dan 150%: tidak ada teks terpotong, tombol tumpang tindih, atau scroll horizontal di kolom Decks, Program dan panel kanan. Cek juga baris deck (tag LIVE, FROZEN, HOLD dan chip Vector tetap utuh) dan dialog Settings.
-- [ ] Transport bar di jendela selebar 1180px (dan skala 125%): Prev, posisi, Next, Freeze, KV, Black dan ikon suara muat satu baris di kolom Program; tidak ada tombol yang terpotong.
+- [ ] Transport bar di jendela selebar 1024px dan 1180px (dan skala 125%): Prev, posisi, Next, Freeze, KV, Black dan ikon suara muat satu baris di kolom Program; tidak ada tombol yang terpotong.
 - [ ] Ikon aplikasi di taskbar pada 16px dan 24px (skala 100% dan 125%): lengkungan ikon menyatu pada 16px, titik oranye tetap terlihat dan ikon tetap bisa dikenali. Cek juga ikon di Alt+Tab, jendela output dan installer.
 - [ ] Dialog Settings (ikon gerigi): terbuka di tengah, Tab tidak keluar dari dialog, Esc menutup dan fokus kembali ke gerigi; tema, aksen (termasuk Custom) dan Reduce motion tersimpan setelah restart; About menampilkan logo Bridgecast dan versi.
 - [ ] Mode kontras tinggi Windows aktif: status LIVE, FROZEN, BLACK, KV dan NEXT masih terbaca (ikon dan kata, tidak hanya warna).
+
+- [ ] Header di laptop 1366x768 dengan HDMI, OMT dan NDI aktif: brand, Home, tab event, New, tema dan gerigi muat satu baris; tab yang tidak muat masuk ke menu overflow, tab live ditandai dan tetap terlihat; kolom Program tidak menyembunyikan judul atau tombol transport yang penting (key cap hilang di bawah 640px, baris rapat di bawah 520px).
+- [ ] Format impor sudah pindah: Settings → Import (antara Appearance dan Sound) menyimpan pilihan "Save imported PowerPoint files as" (LibreOffice .odp atau As imported), dan footer panel Decks tidak punya pilihan itu lagi. Impor PowerPoint baru memakai format yang dipilih, dan setelah restart pilihannya tetap.
 
 ## Home dan tab event (Windows)
 
@@ -194,7 +197,7 @@ Otomatis di Linux hanya untuk tab, Home dan Settings (`e2e/web.mjs`, `e2e/settin
 - [ ] Tab bertahan setelah restart aplikasi: buka beberapa event, tutup aplikasi, buka lagi; tab yang sama muncul dan event yang aktif tetap terpilih.
 - [ ] Event yang sedang on air tetap hidup saat tabnya ditutup: tampilkan slide, tutup tab event itu dan buka Home; HDMI dan receiver network tidak berubah (slide, canvas, KV). Tombol Back to console kembali ke event itu.
 - [ ] Pindah tab dan buka Home saat slide, deck PowerPoint native dan halaman web sedang on air: tidak ada yang berubah di HDMI maupun di receiver network (vMix, OBS).
-- [ ] Delapan tab terbuka di jendela 1180px: daftar tab bisa digulir, tab live tetap terlihat di tepi, nama panjang terpotong dengan elipsis dan tombol New, HDMI, tema dan gerigi tidak keluar jendela.
+- [ ] Delapan tab terbuka di jendela 1180px: menu overflow tab memuat semua event, tab live tetap terlihat di tepi, nama panjang terpotong dengan elipsis dan tombol New, HDMI, tema dan gerigi tidak keluar jendela.
 
 ## Selesai
 
