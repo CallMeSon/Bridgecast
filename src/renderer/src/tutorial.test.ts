@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   currentStep,
+  guideMode,
   GUIDE_KEY,
   loadGuideHidden,
   saveGuideHidden,
   tutorialSteps,
-  type TutorialFacts
+  type TutorialFacts,
+  type TutorialStep
 } from './tutorial'
 
 const none: TutorialFacts = {
@@ -118,4 +120,14 @@ describe('guide visibility storage', () => {
     expect(() => saveGuideHidden(broken, true)).not.toThrow()
     expect(() => saveGuideHidden(null, true)).not.toThrow()
   })
+})
+
+describe('guideMode', () => {
+  const steps = (done: number): TutorialStep[] =>
+    tutorialSteps(none).map((s, i) => ({ ...s, done: i < done }))
+  it('no events: full, even if hidden', () => expect(guideMode(steps(0), true, 0)).toBe('full'))
+  it('some events, not finished: compact', () =>
+    expect(guideMode(steps(2), false, 3)).toBe('compact'))
+  it('hidden stays off', () => expect(guideMode(steps(2), true, 3)).toBe('off'))
+  it('all done: off', () => expect(guideMode(steps(4), false, 3)).toBe('off'))
 })

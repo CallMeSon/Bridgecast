@@ -54,6 +54,19 @@ export function currentStep(steps: TutorialStep[]): TutorialStep | null {
   return steps.find((s) => !s.done) ?? null
 }
 
+export type GuideMode = 'full' | 'compact' | 'off'
+
+/**
+ * How much of the guide Home shows. With no events it is always the full checklist (a first run is
+ * never left without it, hidden or not). Otherwise it shrinks to one row, and goes away once the
+ * user hid it or every step is done.
+ */
+export function guideMode(steps: TutorialStep[], hidden: boolean, eventCount: number): GuideMode {
+  if (eventCount === 0) return 'full'
+  if (hidden || currentStep(steps) === null) return 'off'
+  return 'compact'
+}
+
 export const GUIDE_KEY = 'home-guide'
 
 /** Whether the user hid the guide. Missing or unreadable storage means shown. */

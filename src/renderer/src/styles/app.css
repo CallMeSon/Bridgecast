@@ -3184,7 +3184,7 @@ footer .empty {
   background: var(--bg);
 }
 .hwrap {
-  max-width: 1120px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 24px 0 0;
   display: grid;
@@ -3357,7 +3357,7 @@ footer .empty {
 }
 .evgrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
 .evgrid.list {
@@ -3633,10 +3633,35 @@ footer .empty {
 .guide-off {
   display: flex;
 }
-@media (max-width: 1100px) {
-  .evgrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+/* Compact guide: one 52 px row with a 1px ring; the steps open below it for this view only. */
+.guide.compact {
+  padding: 0 var(--pad);
+  border-radius: var(--r-lg);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.guide.compact .guide-head {
+  min-height: 52px;
+}
+.guide.compact .guide-count {
+  margin-right: 0;
+}
+.guide-next {
+  margin-right: auto;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guide.compact .guide-steps {
+  margin-top: 0;
+  padding: 12px 0 16px;
+}
+.btn.sm.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-2);
 }
 
 /* Interact on the operator monitor (Program.tsx). The toggle follows the Prepare switch; the

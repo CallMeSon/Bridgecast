@@ -27,6 +27,13 @@ import {
 import { StatusTag } from './StatusTag'
 import { BrandMark } from './BrandMark'
 import { GettingStarted } from './GettingStarted'
+import {
+  currentStep,
+  guideMode,
+  loadGuideHidden,
+  saveGuideHidden,
+  tutorialSteps
+} from '../tutorial'
 import { onMenuKeyDown } from './menuNav'
 
 interface Props {
@@ -220,19 +227,33 @@ export function Home(p: Props): React.JSX.Element {
     setQuery('')
     choose({ filter: 'all' })
   }
+  const [guideHidden, setGuideHidden] = useState(() => loadGuideHidden(localStorage))
+  const hideGuide = (next: boolean): void => {
+    setGuideHidden(next)
+    saveGuideHidden(localStorage, next)
+  }
+  const steps = tutorialSteps({
+    hasEvent: hasEvents,
+    hasDecks: p.summaries.some((s) => s.deckCount > 0),
+    hdmiEnabled: p.hdmiEnabled,
+    slideOnProgram: p.slideOnProgram
+  })
+  const mode = guideMode(steps, guideHidden, p.events.length)
   const noEventReason = hasEvents ? undefined : 'Create an event first.'
   const q = query.trim()
 
   return (
     <section className="home" aria-label="Events home" data-testid="home">
       <div className="hwrap">
-        <div className="hero">
-          <p className="hero-kicker">Welcome to</p>
-          <h1 className="hero-title">
-            <BrandMark size={36} />
-            <span>Bridgecast</span>
-          </h1>
-        </div>
+        {!hasEvents && (
+          <div className="hero">
+            <p className="hero-kicker">Welcome to</p>
+            <h1 className="hero-title">
+              <BrandMark size={36} />
+              <span>Bridgecast</span>
+            </h1>
+          </div>
+        )}
 
         {onAir && (
           <div className="onair" role="status" data-testid="home-onair">
@@ -292,14 +313,9 @@ export function Home(p: Props): React.JSX.Element {
           </button>
         </div>
 
-        <GettingStarted
-          facts={{
-            hasEvent: hasEvents,
-            hasDecks: p.summaries.some((s) => s.deckCount > 0),
-            hdmiEnabled: p.hdmiEnabled,
-            slideOnProgram: p.slideOnProgram
-          }}
-        />
+        {mode !== 'off' && (
+          <GettingStarted steps={steps} mode={mode} onHide={() => hideGuide(true)} />
+        )}
 
         <div className="lhead">
           <div className="ltabs" role="tablist" aria-label="Event lists">
@@ -321,6 +337,15 @@ export function Home(p: Props): React.JSX.Element {
             ))}
           </div>
           <div className="lright">
+            {mode === 'off' && guideHidden && currentStep(steps) !== null && (
+              <button
+                className="btn sm quiet"
+                onClick={() => hideGuide(false)}
+                data-testid="guide-show"
+              >
+                Show the guide again
+              </button>
+            )}
             <button
               ref={filterBtn}
               className="btn sm"
