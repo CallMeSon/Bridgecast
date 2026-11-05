@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
-    "koffi": "3.3.4"
+    "koffi": "3.3.6"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
