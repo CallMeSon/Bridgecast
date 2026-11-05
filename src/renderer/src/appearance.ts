@@ -7,7 +7,7 @@ export type AccentId = 'orange' | 'violet' | 'blue' | 'rose' | 'sand' | 'custom'
 export const ACCENT_IDS: readonly AccentId[] = ['orange', 'violet', 'blue', 'rose', 'sand', 'custom']
 
 /** Panel surface per theme; equals `--panel` in tokens.css. */
-export const PANEL: Record<Theme, string> = { light: '#ffffff', dark: '#17181d' }
+export const PANEL: Record<Theme, string> = { light: '#ffffff', dark: '#1d1e25' }
 
 export interface AccentTokens {
   /** Rings and tints. */

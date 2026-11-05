@@ -14,7 +14,7 @@
       "light-text": { "role": "neutral", "displayName": "Ink 1 (light)", "canonical": "var(--text)" },
       "light-text-2": { "role": "neutral", "displayName": "Ink 2 (light)", "canonical": "var(--text-2)" },
       "light-text-3": { "role": "neutral", "displayName": "Ink 3 (light)", "canonical": "var(--text-3)" },
-      "dark-bg": { "role": "neutral", "displayName": "Ground (dark)", "canonical": "var(--bg)", "tonalRamp": ["#0e0f12", "#17181d", "#202228", "#262830", "#2a2c34", "#383b45", "#81869a", "#ecedf2"] },
+      "dark-bg": { "role": "neutral", "displayName": "Ground (dark)", "canonical": "var(--bg)", "tonalRamp": ["#16171c", "#1d1e25", "#26272f", "#2e3039", "#30323b", "#3f4250", "#8b90a1", "#dfe1e8"] },
       "dark-panel": { "role": "neutral", "displayName": "Panel (dark)", "canonical": "var(--panel)" },
       "dark-raised": { "role": "neutral", "displayName": "Raised (dark)", "canonical": "var(--raised)" },
       "dark-raised-hi": { "role": "neutral", "displayName": "Raised High (dark)", "canonical": "var(--raised-hi)" },

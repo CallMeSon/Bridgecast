@@ -237,6 +237,11 @@ describe('keyToAction', () => {
     expect(keyToAction({ key: 'PageUp', target: body })).toEqual({ type: 'prev' })
     expect(keyToAction({ key: '.', target: body })).toEqual({ type: 'toggleBlack' })
   })
+  it('maps clickers that send Down/Up arrows (Down = Next, Up = Prev)', () => {
+    expect(keyToAction({ key: 'ArrowDown', target: body })).toEqual({ type: 'next' })
+    expect(keyToAction({ key: 'ArrowUp', target: body })).toEqual({ type: 'prev' })
+    expect(keyToAction({ key: 'ArrowDown', repeat: true, target: body })).toBeNull()
+  })
   it('ignores typing targets, modifiers and repeated toggles', () => {
     for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) {
       expect(keyToAction({ key: ' ', target: { tagName } as unknown as EventTarget })).toBeNull()
@@ -245,7 +250,15 @@ describe('keyToAction', () => {
     expect(keyToAction({ key: 'f', repeat: true, target: body })).toBeNull()
   })
   it('ignores held next/prev keys (repeat) so a held key or clicker never skips slides', () => {
-    for (const key of [' ', 'ArrowRight', 'PageDown', 'ArrowLeft', 'PageUp']) {
+    for (const key of [
+      ' ',
+      'ArrowRight',
+      'ArrowDown',
+      'PageDown',
+      'ArrowLeft',
+      'ArrowUp',
+      'PageUp'
+    ]) {
       expect(keyToAction({ key, repeat: true, target: body })).toBeNull()
       expect(keyToAction({ key, repeat: false, target: body })).not.toBeNull()
     }

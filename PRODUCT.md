@@ -29,7 +29,7 @@ web
 ## Operating Context
 
 - Workflow: create an event (starts empty), import .pptx/.ppt/.pdf by button or drag and drop (per-file progress), reorder and rename decks, set an optional KV (key visual) image per event, connect HDMI and choose the target display, then run the show with keys or clicker.
-- Controls: Space / Right / PageDown = Next, Left / PageUp = Prev, F = Freeze, B or "." = Black, K = KV, N = Next section, Shift+N = Prev section, D = Next deck, Shift+D = Prev deck (D / Shift+D work for every deck; on a live web page Next/Prev go to the page, so the keys that leave it are D, Shift+D, N, Shift+N, B and K). Keys work only while the operator window has focus (a speaker's clicker therefore only works when that window is active).
+- Controls: Space / Right / Down / PageDown = Next, Left / Up / PageUp = Prev (Down and Up are for clickers that send arrow keys), F = Freeze, B or "." = Black, K = KV, N = Next section, Shift+N = Prev section, D = Next deck, Shift+D = Prev deck (D / Shift+D work for every deck; on a live web page Next/Prev go to the page, so the keys that leave it are D, Shift+D, N, Shift+N, B and K). Keys work only while the operator window has focus (a speaker's clicker therefore only works when that window is active).
 - Auto advance to the next deck is off by default so a clicker stops at the end of the live deck; it is a saved switch.
 - Freeze holds the output while the operator moves a preview; unfreeze keeps the held slide live and returns the position to it (changed 2026-10-08 at the user's request; before, unfreeze took the preview live).
 - HDMI can disappear mid-show: the output hides and returns when the same display reconnects.

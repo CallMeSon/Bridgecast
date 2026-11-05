@@ -68,17 +68,17 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #0e0f12;
-  --panel: #17181d;
-  --raised: #202228;
-  --raised-hi: #2a2c34;
-  --line: #262830;
-  --line-hi: #383b45;
-  --edge: #81869a;
-  --text: #ecedf2;
-  --text-2: #b4b7c4;
-  --text-3: #9195a6;
-  --focus: #ecedf2;
+  --bg: #16171c;
+  --panel: #1d1e25;
+  --raised: #26272f;
+  --raised-hi: #30323b;
+  --line: #2e3039;
+  --line-hi: #3f4250;
+  --edge: #8b90a1;
+  --text: #dfe1e8;
+  --text-2: #a9adb9;
+  --text-3: #83879a;
+  --focus: #dfe1e8;
   --placeholder: #0d0d0d;
   --placeholder-ink: #9a9a98;
   --shadow-1: 0 0 0 1px var(--line);

@@ -191,9 +191,11 @@ export function keyToAction(e: KeyLike): Action | null {
   switch (e.key) {
     case ' ':
     case 'ArrowRight':
+    case 'ArrowDown': // some clickers send Down/Up instead of PageDown/PageUp
     case 'PageDown': // presentation clickers
       return { type: 'next' }
     case 'ArrowLeft':
+    case 'ArrowUp':
     case 'PageUp':
       return { type: 'prev' }
     case 'f':
