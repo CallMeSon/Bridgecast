@@ -3630,9 +3630,6 @@ footer .empty {
   font-size: 12px;
   line-height: 1.5;
 }
-.guide-off {
-  display: flex;
-}
 /* Compact guide: one 52 px row with a 1px ring; the steps open below it for this view only. */
 .guide.compact {
   padding: 0 var(--pad);

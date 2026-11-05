@@ -769,6 +769,40 @@ try {
       !!r && r.bottom <= r.innerHeight,
       r ? `bottom ${Math.round(r.bottom)} of ${r.innerHeight}` : 'no event card'
     )
+    const h1s = await win.locator('[data-testid=home] h1').count()
+    check('Home with events has exactly one h1', h1s === 1, `${h1s} h1`)
+    await setSize(1024, 640)
+    await sleep(300)
+    const g = await win.evaluate(() => {
+      const el = document.querySelector('[data-testid=guide]')
+      if (!el) return null
+      const b = el.getBoundingClientRect()
+      const btns = [...el.querySelectorAll('button')].map((x) => {
+        const r = x.getBoundingClientRect()
+        return { l: r.left, r: r.right, w: r.width, h: r.height }
+      })
+      return {
+        compact: el.classList.contains('compact'),
+        h: b.height,
+        l: b.left,
+        r: b.right,
+        sw: el.scrollWidth,
+        cw: el.clientWidth,
+        iw: innerWidth,
+        btns
+      }
+    })
+    check(
+      'compact guide row fits at 1024x640 with both buttons usable',
+      !!g &&
+        g.compact &&
+        Math.round(g.h) === 52 &&
+        g.sw <= g.cw &&
+        g.r <= g.iw &&
+        g.btns.length === 2 &&
+        g.btns.every((x) => x.l >= g.l && x.r <= g.r && x.w >= 32 && x.h >= 32),
+      JSON.stringify(g)
+    )
   })
 } catch (e) {
   failed++

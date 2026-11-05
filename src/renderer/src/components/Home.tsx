@@ -245,6 +245,7 @@ export function Home(p: Props): React.JSX.Element {
   return (
     <section className="home" aria-label="Events home" data-testid="home">
       <div className="hwrap">
+        {hasEvents && <h1 className="visually-hidden">Events</h1>}
         {!hasEvents && (
           <div className="hero">
             <p className="hero-kicker">Welcome to</p>
