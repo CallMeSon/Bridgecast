@@ -58,17 +58,19 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
     const onPointer = (e: PointerEvent): void => {
       if (!box.current?.contains(e.target as Node)) onClose(false)
     }
+    // Bubble phase, as before: the confirmation's own Escape handler stops its key first,
+    // so that Escape only dismisses the question. Focus may be on the body after that.
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
       e.preventDefault()
       onClose(true)
     }
-    // Capture: the scrim stops these from reaching the right panel through the React tree.
+    addEventListener('keydown', onKey)
+    // Capture: the scrim stops pointerdown from reaching the right panel through the React tree.
     addEventListener('pointerdown', onPointer, true)
-    addEventListener('keydown', onKey, true)
     return () => {
       removeEventListener('pointerdown', onPointer, true)
-      removeEventListener('keydown', onKey, true)
+      removeEventListener('keydown', onKey)
     }
   }, [onClose])
 
@@ -78,7 +80,10 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
     <div
       className="modal-scrim"
       onClick={contain}
-      onKeyDown={contain}
+      onKeyDown={(e) => {
+        // Escape goes on to the window listener above; other keys stay out of the right panel.
+        if (e.key !== 'Escape') e.stopPropagation()
+      }}
       onKeyUp={contain}
       onPointerDown={contain}
     >

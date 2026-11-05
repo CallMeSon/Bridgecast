@@ -472,6 +472,33 @@ try {
         ? `top ${Math.round(rect.top)}, bottom ${Math.round(rect.bottom)} of ${rect.innerHeight}`
         : 'dialog did not open'
     )
+    // Escape in the confirmation closes only the confirmation; a second Escape closes the dialog.
+    let esc = null
+    try {
+      await win
+        .locator('.canvas-opt:not(:disabled)[aria-pressed="false"]')
+        .first()
+        .evaluate((e) => e.click())
+      await win.locator('[data-testid=canvas-confirm]').waitFor({ timeout: SHORT_WAIT })
+      await win.keyboard.press('Escape')
+      await sleep(250)
+      const open = () =>
+        win.evaluate(() => ({
+          confirm: !!document.querySelector('[data-testid=canvas-confirm]'),
+          dialog: !!document.querySelector('[data-testid=event-canvas-dialog]')
+        }))
+      const first = await open()
+      await win.keyboard.press('Escape')
+      await sleep(250)
+      esc = { first, second: await open() }
+    } catch (e) {
+      esc = { error: String(e).slice(0, 600) }
+    }
+    check(
+      'Escape in the canvas confirmation keeps the dialog',
+      !!esc && !esc.error && !esc.first.confirm && esc.first.dialog && !esc.second.dialog,
+      JSON.stringify(esc)
+    )
     await win.keyboard.press('Escape')
     await sleep(250)
 

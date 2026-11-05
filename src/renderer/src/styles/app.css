@@ -258,6 +258,8 @@ header > .evtabs {
 }
 .menu.ctx-menu {
   position: fixed;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   min-width: 180px;
   z-index: 20;
 }
@@ -1813,6 +1815,10 @@ main {
   .seg button {
     padding: 0 4px;
   }
+  /* .right: outranks the later .seg.fill button rule */
+  .right .seg.fill button {
+    flex: 1 1 auto;
+  }
   .deck-canvas {
     flex-wrap: wrap;
   }
@@ -1894,7 +1900,7 @@ kbd {
   width: 100%;
 }
 .seg.fill button {
-  flex: 1 1 auto;
+  flex: 1;
 }
 .seg button[aria-disabled='true'] {
   opacity: 0.5;
