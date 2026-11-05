@@ -2910,7 +2910,7 @@ footer .empty {
 }
 .btn[aria-disabled='true'] {
   background: transparent;
-  border: 1px dashed var(--line-hi);
+  border: 1px solid var(--line);
   color: var(--text-3);
   cursor: not-allowed;
 }
