@@ -1213,9 +1213,18 @@ main {
 }
 .kv-body {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px 16px;
+  gap: 8px 12px;
+}
+.kv-text {
+  min-width: 0;
+}
+.kv-head,
+.kv-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .kv-thumb {
   position: relative;
@@ -1249,12 +1258,13 @@ main {
   font-size: 12px;
   text-align: center;
 }
-/* Button labels never wrap: when thumb and buttons do not fit in one row, the buttons
-   drop below the thumb. */
+/* One row: thumb, title, action. With a KV set there are two actions, so they drop below. */
 .kv-actions {
-  grid-column: 1 / 3;
   display: flex;
   gap: 8px;
+}
+.kv-body[data-has-kv='true'] .kv-actions {
+  grid-column: 1 / 4;
 }
 .kv-actions .btn {
   white-space: nowrap;
@@ -1276,16 +1286,16 @@ main {
   padding: 12px var(--pad) var(--pad);
 }
 .add-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 .add .btn:not(.sm) {
   width: 100%;
 }
 .add-row .btn {
-  flex: 0 0 auto;
   min-width: 0;
+  justify-content: center;
   white-space: nowrap;
 }
 .add p {
@@ -2896,7 +2906,6 @@ footer .empty {
 
 /* Linux: what an imported PowerPoint file becomes */
 .import-format {
-  margin-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2905,8 +2914,9 @@ footer .empty {
   color: var(--text-2);
   font-size: 12px;
 }
-.add .import-format p {
-  margin-top: 0;
+.import-format p {
+  color: var(--text-3);
+  font-size: 12px;
 }
 
 /* Settings dialog */

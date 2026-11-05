@@ -56,8 +56,6 @@ import { orderItems, type OrderItem } from '../../../shared/sections'
 import { onMenuKeyDown, useContextMenu } from './menuNav'
 import { DeckSound } from './DeckSound'
 import { FIT_NAMES } from './deck-fit'
-import { ImportFormat } from './ImportFormat'
-import type { PptImportFormat } from '../../../shared/settings'
 import { AddWebDialog } from './AddWebDialog'
 import { StatusTag } from './StatusTag'
 import { webRowParts, type DeckRowTag } from './deck-row'
@@ -101,7 +99,6 @@ interface Props {
   /** The program of this computer (PowerPoint on Windows, LibreOffice on Linux). */
   engineName?: 'PowerPoint' | 'LibreOffice'
   /** Linux only (LibreOffice engine): what an imported PowerPoint file becomes; absent elsewhere. */
-  importFormat?: { value: PptImportFormat; onChange(v: PptImportFormat): void }
   /** Indices are into the ordered list of decks and sections (`orderItems`). */
   onMoveItem(from: number, to: number): void
   onRemoveDeck(deckId: string): void
@@ -742,7 +739,7 @@ function KvBlock({
   }
   return (
     <div className="kv-block" role="group" aria-label="Key visual (KV)" data-testid="kv-block">
-      <div className="kv-body">
+      <div className="kv-body" data-has-kv={kvUrl !== null}>
         <div className="kv-thumb" data-testid="kv-thumb" data-empty={kvUrl === null}>
           {kvUrl ? (
             <img src={kvUrl} alt="Event key visual" draggable={false} />
@@ -1440,9 +1437,6 @@ export function Library(p: Props): React.JSX.Element {
           </button>
         </div>
         {!p.canImport && <p>Create an event in the Event menu to enable importing.</p>}
-        {p.importFormat && (
-          <ImportFormat value={p.importFormat.value} onChange={p.importFormat.onChange} />
-        )}
       </div>
       <input
         ref={input}

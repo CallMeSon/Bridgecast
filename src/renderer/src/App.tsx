@@ -1018,6 +1018,11 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
         onReduceMotion={chooseReduceMotion}
         audio={outputAudio}
         onAudioSaved={setOutputAudio}
+        importFormat={
+          slideshow.status.engine === 'libreoffice'
+            ? { value: importFormat, onChange: changeImportFormat }
+            : undefined
+        }
       />
       {view === 'home' && (
         <Home
@@ -1056,11 +1061,6 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
           onDismissImport={(id) => setImports((xs) => xs.filter((x) => x.id !== id))}
           onFiles={importFiles}
           engineName={engineName(slideshow.status.engine)}
-          importFormat={
-            slideshow.status.engine === 'libreoffice'
-              ? { value: importFormat, onChange: changeImportFormat }
-              : undefined
-          }
           onMoveItem={moveListItem}
           sections={sections}
           onAddSection={addSection}

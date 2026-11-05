@@ -3,7 +3,8 @@ import { XIcon } from '@phosphor-icons/react'
 import { BrandMark } from './BrandMark'
 import { AppearanceSection } from './AppearanceSection'
 import { SoundSection } from './SoundSection'
-import type { AudioSettings } from '../../../shared/settings'
+import { ImportFormat } from './ImportFormat'
+import type { AudioSettings, PptImportFormat } from '../../../shared/settings'
 import type { AccentId, Theme, ThemePref } from '../appearance'
 
 interface Props {
@@ -20,6 +21,8 @@ interface Props {
   onReduceMotion(on: boolean): void
   audio: AudioSettings | null
   onAudioSaved(a: AudioSettings): void
+  /** Only given on Linux (LibreOffice engine). */
+  importFormat?: { value: PptImportFormat; onChange(v: PptImportFormat): void }
 }
 
 // Roving-tabindex radios (tabindex -1) are not tab stops, so they are not trap ends.
@@ -119,6 +122,16 @@ export function SettingsDialog(p: Props): React.JSX.Element | null {
         </div>
         <div className="set-body">
           <AppearanceSection {...p} />
+          {p.importFormat && (
+            <section
+              className="set-section"
+              aria-labelledby="set-import"
+              data-testid="settings-import"
+            >
+              <h3 id="set-import">Import</h3>
+              <ImportFormat value={p.importFormat.value} onChange={p.importFormat.onChange} />
+            </section>
+          )}
           <SoundSection audio={p.audio} onSaved={p.onAudioSaved} />
           <AboutSection />
         </div>
