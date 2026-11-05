@@ -18,13 +18,6 @@ function check(cond, msg) {
   console.log(`ok - ${msg}`)
 }
 
-/** Failures of real app bugs, kept strict: reported and failing the run, without stopping it. */
-const knownFailures = []
-function knownFailure(msg) {
-  knownFailures.push(msg)
-  console.log(`KNOWN FAILURE - ${msg}`)
-}
-
 const frameDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-frames-'))
 const W = 1920
 const H = 1080
@@ -2176,21 +2169,7 @@ async function canvasAndLevelsChecks(win, tally) {
     win.evaluate(() => document.querySelector('.deck.live')?.getAttribute('data-deck-id') ?? null)
   const { eventId } = await session()
   const pickEvent = async (name) => {
-    const tab = win.locator('[role=tab]', { hasText: name })
-    try {
-      await tab.click({ timeout: 4000 })
-    } catch (e) {
-      // Only the pointer-interception error is the known bug; a missing or closed tab rethrows.
-      if (!/intercepts pointer events/.test(String(e.message))) throw e
-      // Remove this fallback when the tab overflow fix (audit Task 8) lands.
-      // KNOWN APP BUG (audit finding 6, event tabs): the on-air tab is position:sticky and covers
-      // the tabs scrolled under it, so a mouse cannot reach them. The check stays strict (it
-      // is recorded and fails the run at the end); a DOM click lets the rest of the suite run.
-      knownFailure(
-        `event tab "${name}" can be clicked (covered by the sticky on-air tab: ${String(e.message).split('\n')[0]})`
-      )
-      await tab.evaluate((el) => el.click())
-    }
+    await win.locator('[role=tab]', { hasText: name }).click({ timeout: 4000 })
     await win.locator('[role=tab][aria-selected=true]', { hasText: name }).waitFor()
   }
 
@@ -3233,11 +3212,6 @@ try {
     await firstApp.close().catch(() => {})
     fs.rmSync(firstData, { recursive: true, force: true })
   }
-}
-if (knownFailures.length > 0) {
-  failed = true
-  console.error(`${knownFailures.length} known failure(s) (real app bugs):`)
-  for (const m of knownFailures) console.error(`  - ${m}`)
 }
 console.log(failed ? 'SMOKE FAILED' : 'SMOKE PASSED')
 process.exit(failed ? 1 : 0)

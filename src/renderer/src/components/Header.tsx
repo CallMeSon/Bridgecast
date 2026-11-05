@@ -50,13 +50,23 @@ export function ThemeSwitch({
 }): React.JSX.Element {
   return (
     <div className="theme" role="group" aria-label="Theme">
-      <button aria-pressed={theme === 'light'} onClick={() => onSet('light')}>
+      <button
+        aria-pressed={theme === 'light'}
+        aria-label="Light"
+        title="Light"
+        onClick={() => onSet('light')}
+      >
         <SunIcon size={16} />
-        Light
+        <span className="theme-word">Light</span>
       </button>
-      <button aria-pressed={theme === 'dark'} onClick={() => onSet('dark')}>
+      <button
+        aria-pressed={theme === 'dark'}
+        aria-label="Dark"
+        title="Dark"
+        onClick={() => onSet('dark')}
+      >
         <MoonIcon size={16} />
-        Dark
+        <span className="theme-word">Dark</span>
       </button>
     </div>
   )

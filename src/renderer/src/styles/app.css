@@ -75,6 +75,7 @@ header > .grow {
 /* Open-event tabs: only the tab list gives way. A long name is cut with an ellipsis, so the
    live tag, New, HDMI, theme and settings controls never leave the window. */
 header > .evtabs {
+  position: relative;
   flex: 0 1 auto;
   min-width: 0;
   gap: 4px;
@@ -110,6 +111,38 @@ header > .evtabs {
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  /* A tab the keyboard or a click scrolls to clears the on-air tab pinned at the edge. */
+  scroll-padding-inline: 232px;
+}
+.tab-overflow {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  color: var(--text-2);
+}
+.tab-overflow:hover,
+.tab-overflow[aria-expanded='true'] {
+  background: var(--raised);
+  color: var(--text);
+}
+.tab-overflow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.tab-menu {
+  left: auto;
+  right: 0;
+  max-width: 320px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+.tab-menu .tn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .otab {
   display: flex;
@@ -505,10 +538,24 @@ button.output-btn:hover,
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
-/* Under 1280px the open-event tabs get the room: the canvas size is also in the Program footer. */
-@media (max-width: 1279px) {
+/* Under 1600px the open-event tabs get the room: the canvas size is also in the Program footer. */
+@media (max-width: 1599px) {
   header .canvas-tag {
     display: none;
+  }
+  header .ind-more {
+    display: none;
+  }
+}
+/* Icons only for Light / Dark when the header is tight. */
+@media (max-width: 1439px) {
+  .theme .theme-word {
+    display: none;
+  }
+  .theme button {
+    padding: 0;
+    width: var(--h-sm);
+    justify-content: center;
   }
 }
 .canvas-tag {
@@ -2650,7 +2697,9 @@ footer .empty {
   box-shadow: 0 0 0 2px var(--tally);
 }
 .prepare-stage[data-tally='frozen'] {
-  box-shadow: 0 0 0 2px var(--tally), 0 0 0 4px var(--accent-soft);
+  box-shadow:
+    0 0 0 2px var(--tally),
+    0 0 0 4px var(--accent-soft);
 }
 /* The drawn page: sized and placed from layout(); pointer input is normalized against it. */
 .prepare-page {

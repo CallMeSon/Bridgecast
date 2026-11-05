@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react'
-import { PlusIcon, SquaresFourIcon, XIcon } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from 'react'
+import { CaretDownIcon, PlusIcon, SquaresFourIcon, XIcon } from '@phosphor-icons/react'
 import type { EventMeta } from '../../../shared/types'
 import type { Tally } from '../model'
+import { onMenuKeyDown, menuItems } from './menuNav'
 import { StatusTag } from './StatusTag'
+import { hiddenTabs } from './tab-overflow'
 
 interface Props {
   events: EventMeta[]
@@ -39,6 +41,10 @@ export function EventTabs({
   onNew
 }: Props): React.JSX.Element {
   const list = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const [overflowing, setOverflowing] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const tabs = ids.flatMap((id) => events.find((e) => e.id === id) ?? [])
   const selected = view === 'console' ? current : null
@@ -50,6 +56,59 @@ export function EventTabs({
       ?.querySelector('[aria-selected=true]')
       ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [selected, ids.length])
+
+  // The All open events button appears while any tab is cut off by the list's edges.
+  useEffect(() => {
+    const el = list.current
+    if (!el) return
+    const measure = (): void => {
+      const view = el.getBoundingClientRect()
+      const rects = Array.from(el.querySelectorAll<HTMLElement>('.otab')).map((t) => {
+        const r = t.getBoundingClientRect()
+        return { left: r.left, right: r.right }
+      })
+      // Half a pixel of slack: subpixel layout must not read as a cut-off tab.
+      setOverflowing(hiddenTabs(rects, view.left - 0.5, view.right + 0.5).length > 0)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    el.addEventListener('scroll', measure, { passive: true })
+    return () => {
+      ro.disconnect()
+      el.removeEventListener('scroll', measure)
+    }
+  }, [ids.length, events])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const items = menuItems(menuRef.current!)
+    ;(items.find((i) => i.getAttribute('aria-checked') === 'true') ?? items[0])?.focus()
+    const close = (e: Event): void => {
+      if (e.type === 'keydown') {
+        if ((e as KeyboardEvent).key !== 'Escape') return
+        trigger.current?.focus()
+      } else if (
+        menuRef.current?.contains(e.target as Node) ||
+        trigger.current?.contains(e.target as Node)
+      )
+        return
+      setMenuOpen(false)
+    }
+    document.addEventListener('keydown', close)
+    document.addEventListener('mousedown', close)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('keydown', close)
+      document.removeEventListener('mousedown', close)
+      window.removeEventListener('resize', close)
+    }
+  }, [menuOpen, overflowing])
+
+  // A vertical wheel over the list scrolls it sideways.
+  const onWheel = (e: React.WheelEvent<HTMLDivElement>): void => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY
+  }
 
   const tabButtons = (): HTMLElement[] =>
     Array.from(list.current?.querySelectorAll<HTMLElement>('[role=tab]') ?? [])
@@ -97,6 +156,7 @@ export function EventTabs({
         role="tablist"
         aria-label="Open events"
         onKeyDown={onKeyDown}
+        onWheel={onWheel}
       >
         {tabs.map((ev) => {
           const live = ev.id === airEvent && airState !== 'idle'
@@ -137,6 +197,50 @@ export function EventTabs({
           )
         })}
       </div>
+      {overflowing && (
+        <button
+          ref={trigger}
+          className="tab-overflow"
+          data-testid="tab-overflow"
+          aria-label="All open events"
+          title="All open events"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          <CaretDownIcon size={16} />
+        </button>
+      )}
+      {menuOpen && overflowing && (
+        <div
+          ref={menuRef}
+          className="menu tab-menu"
+          role="menu"
+          aria-label="All open events"
+          onKeyDown={onMenuKeyDown}
+        >
+          {tabs.map((ev) => {
+            const live = ev.id === airEvent && airState !== 'idle'
+            return (
+              <button
+                key={ev.id}
+                role="menuitemradio"
+                aria-checked={ev.id === selected}
+                aria-label={live ? `${ev.name}, on air` : ev.name}
+                onClick={() => {
+                  setMenuOpen(false)
+                  onSelect(ev.id)
+                }}
+              >
+                <span className="tn">{ev.name}</span>
+                {live && (
+                  <StatusTag kind={airState as Exclude<Tally, 'idle'>} variant="icon" size="sm" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
       <button className="newbtn" aria-label="New event" aria-haspopup="dialog" onClick={onNew}>
         <PlusIcon size={16} />
         New
