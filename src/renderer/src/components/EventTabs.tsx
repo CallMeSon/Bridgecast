@@ -52,9 +52,19 @@ export function EventTabs({
   const stop = tabs.some((t) => t.id === selected) ? selected : (tabs[0]?.id ?? null)
 
   useEffect(() => {
-    list.current
-      ?.querySelector('[aria-selected=true]')
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    const el = list.current
+    const sel = el?.querySelector('[aria-selected=true]')
+    if (!el || !sel) return
+    // The on-air tab is sticky at one edge: at the left when the chosen tab comes after it,
+    // at the right when it comes before. Keep the chosen tab clear of that edge only.
+    const all = Array.from(el.querySelectorAll('.otab'))
+    const liveAt = all.findIndex((t) => t.hasAttribute('data-live'))
+    const at = all.indexOf(sel.parentElement as Element)
+    const pad = liveAt < 0 || liveAt === at ? 0 : all[liveAt].getBoundingClientRect().width + 2
+    el.style.scrollPaddingLeft = liveAt >= 0 && at > liveAt ? `${pad}px` : '0'
+    el.style.scrollPaddingRight = liveAt >= 0 && at < liveAt ? `${pad}px` : '0'
+    // The whole tab (its close button too), not just the name button.
+    sel.parentElement?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [selected, ids.length])
 
   // The All open events button appears while any tab is cut off by the list's edges.
@@ -68,7 +78,10 @@ export function EventTabs({
         return { left: r.left, right: r.right }
       })
       // Half a pixel of slack: subpixel layout must not read as a cut-off tab.
-      setOverflowing(hiddenTabs(rects, view.left - 0.5, view.right + 0.5).length > 0)
+      const over = hiddenTabs(rects, view.left - 0.5, view.right + 0.5).length > 0
+      setOverflowing(over)
+      // The trigger is gone: the menu goes with it and stays closed when overflow returns.
+      if (!over) setMenuOpen(false)
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -81,8 +94,8 @@ export function EventTabs({
   }, [ids.length, events])
 
   useEffect(() => {
-    if (!menuOpen) return
-    const items = menuItems(menuRef.current!)
+    if (!menuOpen || !overflowing) return
+    const items = menuRef.current ? menuItems(menuRef.current) : []
     ;(items.find((i) => i.getAttribute('aria-checked') === 'true') ?? items[0])?.focus()
     const close = (e: Event): void => {
       if (e.type === 'keydown') {

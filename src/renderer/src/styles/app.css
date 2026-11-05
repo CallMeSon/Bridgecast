@@ -111,8 +111,7 @@ header > .evtabs {
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
-  /* A tab the keyboard or a click scrolls to clears the on-air tab pinned at the edge. */
-  scroll-padding-inline: 232px;
+  /* scroll-padding is set per selection in EventTabs: it clears the on-air tab on its side only. */
 }
 .tab-overflow {
   flex: none;

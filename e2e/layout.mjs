@@ -639,6 +639,58 @@ try {
     await win.keyboard.press('Escape').catch(() => {})
   })
 
+  // ---- A real mouse click reaches every tab with the on-air tab pinned at the list edge, and
+  // the chosen tab is scrolled clear of it (scroll-padding on .tabsbar).
+  await phase('tab reach', async () => {
+    for (const [w, h] of [
+      [1024, 640],
+      [1180, 700]
+    ]) {
+      await setSize(w, h)
+      await sleep(300)
+      const n = await win.locator('.evtabs [role=tab]').count()
+      const order = [...Array(n).keys()]
+      const bad = []
+      for (const i of [...order, ...order.reverse()]) {
+        const tab = win.locator('.evtabs [role=tab]').nth(i)
+        try {
+          await tab.click({ timeout: SHORT_WAIT })
+        } catch (e) {
+          bad.push(`#${i} ${String(e.message).split('\n')[0].slice(0, 60)}`)
+          continue
+        }
+        await sleep(250)
+        const r = await win.evaluate((k) => {
+          const list = document.querySelector('.tabsbar').getBoundingClientRect()
+          const tabEl = document.querySelectorAll('.evtabs .otab')[k]
+          const t = tabEl.getBoundingClientRect()
+          const live = document.querySelector('.otab[data-live]')
+          const l = live && live !== tabEl ? live.getBoundingClientRect() : null
+          const clear = !l || t.right <= l.left + 1 || t.left >= l.right - 1
+          return {
+            selected: tabEl.hasAttribute('data-selected'),
+            listW: Math.round(list.width),
+            tw: Math.round(t.width),
+            sl: Math.round(document.querySelector('.tabsbar').scrollLeft),
+            sw: document.querySelector('.tabsbar').scrollWidth,
+            tl: Math.round(t.left - list.left),
+            ll: l ? Math.round(l.left - list.left) : null,
+            lr: l ? Math.round(l.right - list.left) : null,
+            inside: t.left >= list.left - 1 && t.right <= list.right + 1,
+            clear
+          }
+        }, i)
+        if (!r.selected || !r.inside || !r.clear) bad.push(`#${i} ${JSON.stringify(r)}`)
+      }
+      check(
+        `every tab is reachable by mouse and scrolled into view at ${w}x${h}`,
+        bad.length === 0,
+        bad.slice(0, 3).join('; ')
+      )
+    }
+    await setSize(1280, 720)
+  })
+
   // ---- Home with nine events and the guide still showing.
   await phase('home', async () => {
     await setSize(1366, 768)
