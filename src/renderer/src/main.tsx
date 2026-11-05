@@ -32,6 +32,26 @@ if (!isOutput) {
   applyReduceMotion(loadReduceMotion())
 }
 
+// Operator only: after a mouse press the focus ring stays off buttons, Tab brings it back.
+// Focus itself never moves (dialogs and the gear depend on it).
+if (!isOutput && !prepareDeck) {
+  const root = document.documentElement
+  window.addEventListener(
+    'pointerdown',
+    () => {
+      root.dataset.input = 'mouse'
+    },
+    true
+  )
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key === 'Tab') delete root.dataset.input
+    },
+    true
+  )
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {isOutput ? (
