@@ -60,6 +60,7 @@ import { ImportFormat } from './ImportFormat'
 import type { PptImportFormat } from '../../../shared/settings'
 import { AddWebDialog } from './AddWebDialog'
 import { StatusTag } from './StatusTag'
+import type { DeckRowTag } from './deck-row'
 import { SectionMenu, SectionRenameRow, SectionRow, type SectionMenuAt } from './SectionRow'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
@@ -82,6 +83,8 @@ interface Props {
   live: ShownSlide | null
   /** The slide still on the output while Program is FROZEN. */
   frozen: ShownSlide | null
+  /** The on-air tag of a deck row (LIVE, FROZEN, BLACK or KV), null for any other deck. */
+  airTag(deckId: string): DeckRowTag | null
   canImport: boolean
   /** Lets Home open the file picker or the Add web page dialog. */
   handle?: Ref<LibraryHandle>
@@ -1034,6 +1037,7 @@ export function Library(p: Props): React.JSX.Element {
           }
           const d = deckById.get(item.deck)
           if (!d) return null
+          const tag = p.airTag(d.id)
           return renaming === d.id ? (
             <RenameRow
               key={d.id}
@@ -1111,27 +1115,7 @@ export function Library(p: Props): React.JSX.Element {
                 <span className="name" title={d.name}>
                   {d.name}
                 </span>
-                {d.source === 'web' ? (
-                  <WebChip kind={webChip(p.webStatuses[d.id], p.holdDeckId === d.id)} />
-                ) : p.live?.deckId === d.id ? (
-                  <StatusTag kind="live" size="sm" />
-                ) : p.frozen?.deckId === d.id ? (
-                  <StatusTag kind="frozen" size="sm" />
-                ) : (
-                  <span className="meta" title={countOf(d.slides.length, 'slide')}>
-                    {d.slides.length}
-                    <span className="visually-hidden">
-                      {d.slides.length === 1 ? ' slide' : ' slides'}
-                    </span>
-                  </span>
-                )}
                 <span className="sub">
-                  {d.source === 'web' && p.live?.deckId === d.id && (
-                    <StatusTag kind="live" size="sm" />
-                  )}
-                  {d.source === 'web' && p.frozen?.deckId === d.id && (
-                    <StatusTag kind="frozen" size="sm" />
-                  )}
                   {d.source === 'web'
                     ? webDomain(d.web?.url ?? '')
                     : p.live?.deckId === d.id
@@ -1153,6 +1137,18 @@ export function Library(p: Props): React.JSX.Element {
                   )}
                   <DeckSoundMark audio={d.audio} />
                 </span>
+                {d.source === 'web' ? (
+                  <WebChip kind={webChip(p.webStatuses[d.id], p.holdDeckId === d.id)} />
+                ) : tag ? (
+                  <StatusTag kind={tag} size="sm" />
+                ) : (
+                  <span className="meta" title={countOf(d.slides.length, 'slide')}>
+                    {d.slides.length}
+                    <span className="visually-hidden">
+                      {d.slides.length === 1 ? ' slide' : ' slides'}
+                    </span>
+                  </span>
+                )}
               </button>
               {/* Visible way to the deck menu (also: right-click, F2). */}
               <button
@@ -1192,7 +1188,11 @@ export function Library(p: Props): React.JSX.Element {
                 {x.name}
               </span>
               <span className="meta">{x.meta ?? 'Failed'}</span>
-              {x.message && <span className="msg">{x.message}</span>}
+              {x.message && (
+                <span className="msg" title={x.message}>
+                  {x.message}
+                </span>
+              )}
             </button>
           ) : (
             // Importing rows are not decks yet: no drag, no delete (v1 cannot cancel).

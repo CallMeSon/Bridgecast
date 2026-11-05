@@ -67,6 +67,7 @@ import {
   UNSUPPORTED,
   visibleCaptureWarnings
 } from './model'
+import { deckRowTag } from './components/deck-row'
 import {
   applyAppearance,
   applyReduceMotion,
@@ -1044,6 +1045,7 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
           currentDeckId={ready ? program.deckId : null}
           live={tally(program) === 'live' ? program.shown : null}
           frozen={tally(program) === 'frozen' ? program.shown : null}
+          airTag={(deckId) => deckRowTag(deckId, program.shown?.deckId ?? null, tally(program))}
           canImport={eventId !== null}
           handle={library}
           kvUrl={program.kvUrl}

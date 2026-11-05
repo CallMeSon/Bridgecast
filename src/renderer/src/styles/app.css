@@ -912,7 +912,7 @@ main {
   display: block;
 }
 .deck .name {
-  grid-column: 2;
+  grid-column: 2 / -1;
   grid-row: 1;
   min-width: 0;
   font-weight: 500;
@@ -968,19 +968,29 @@ main {
 .deck-more:focus-visible {
   outline-offset: -2px;
 }
+/* The options button is as tall as the row: while it shows, the name stops before it. */
+.deck-row:hover > .deck > .name,
+.deck-row:has(.deck-more:focus-visible) > .deck > .name,
+.deck-row:has(.deck-more[aria-expanded='true']) > .deck > .name {
+  padding-right: 40px;
+}
+/* Row 2: the sub line on the left (ellipsis), the tag, chip or count on the right. */
 .deck .sub {
   grid-column: 2;
   grid-row: 2;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   line-height: 1.3;
   color: var(--text-3);
 }
 /* Sound mark on a deck row: icon beside its words, in mono because it is a level. */
+.deck .sub > * {
+  margin-left: 8px;
+  vertical-align: middle;
+}
 .deck .snd {
   display: inline-flex;
   align-items: center;
@@ -991,7 +1001,7 @@ main {
 .deck .meta,
 .deck .n {
   grid-column: 3;
-  grid-row: 1 / 3;
+  grid-row: 2;
   min-width: 0;
   text-align: right;
   font: 400 12px var(--font-mono);
@@ -1017,6 +1027,7 @@ main {
   background: none;
 }
 .deck.busy .name {
+  grid-column: 2;
   color: var(--text-2);
 }
 .deck.busy .meta,
@@ -1067,6 +1078,12 @@ main {
 .deck .msg {
   grid-column: 2 / 4;
   grid-row: 3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-2);
@@ -2730,7 +2747,7 @@ footer .empty {
    pause bars); never red, which stays the on-air tally. HOLD is the filled one. */
 .deck .chip {
   grid-column: 3;
-  grid-row: 1 / 3;
+  grid-row: 2;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -3017,13 +3034,16 @@ footer .empty {
   transition: none;
 }
 
-/* A state tag or web chip sits in the right column beside the name and its sub line (mock),
-   so every row stays two lines tall. The name gives way with an ellipsis. */
+/* A state tag or web chip sits at the right of row 2, opposite the sub line, so the name has
+   row 1 to itself and every row stays two lines tall. */
 .deck > .stag,
 .deck > .chip {
   grid-column: 3;
-  grid-row: 1 / 3;
+  grid-row: 2;
   justify-self: end;
+  align-self: center;
+  /* Taller than the sub line: the negative margin keeps row 2, and the row, as high as before. */
+  margin-block: -4px;
 }
 /* Playback format on a deck row: plain words in the sub line. Only the native engine state
    (opening, ready, fallback) stays a chip. */
