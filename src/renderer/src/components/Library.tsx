@@ -60,7 +60,7 @@ import { ImportFormat } from './ImportFormat'
 import type { PptImportFormat } from '../../../shared/settings'
 import { AddWebDialog } from './AddWebDialog'
 import { StatusTag } from './StatusTag'
-import type { DeckRowTag } from './deck-row'
+import { webRowParts, type DeckRowTag } from './deck-row'
 import { SectionMenu, SectionRenameRow, SectionRow, type SectionMenuAt } from './SectionRow'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
@@ -454,6 +454,26 @@ function WebChip({ kind }: { kind: WebChipKind }): React.JSX.Element {
       {WEB_CHIP_TEXT[kind]}
     </span>
   )
+}
+
+/** The right side of a web deck row: state tag, chip, or both side by side. */
+function WebEnd({
+  tag,
+  chip
+}: {
+  tag: DeckRowTag | null
+  chip: WebChipKind | null
+}): React.JSX.Element | null {
+  if (tag && chip) {
+    return (
+      <span className="row-end">
+        <StatusTag kind={tag} size="sm" />
+        <WebChip kind={chip} />
+      </span>
+    )
+  }
+  if (tag) return <StatusTag kind={tag} size="sm" />
+  return chip ? <WebChip kind={chip} /> : null
 }
 
 /**
@@ -1138,7 +1158,9 @@ export function Library(p: Props): React.JSX.Element {
                   <DeckSoundMark audio={d.audio} />
                 </span>
                 {d.source === 'web' ? (
-                  <WebChip kind={webChip(p.webStatuses[d.id], p.holdDeckId === d.id)} />
+                  <WebEnd
+                    {...webRowParts(tag, webChip(p.webStatuses[d.id], p.holdDeckId === d.id))}
+                  />
                 ) : tag ? (
                   <StatusTag kind={tag} size="sm" />
                 ) : (

@@ -954,12 +954,15 @@ main {
   opacity: 1;
   background: var(--raised-hi);
 }
+.deck-row:hover > .deck > .row-end,
 .deck-row:hover > .deck > .stag,
 .deck-row:hover > .deck > .chip,
 .deck-row:hover > .deck > .meta,
+.deck-row:has(.deck-more:focus-visible) > .deck > .row-end,
 .deck-row:has(.deck-more:focus-visible) > .deck > .stag,
 .deck-row:has(.deck-more:focus-visible) > .deck > .chip,
 .deck-row:has(.deck-more:focus-visible) > .deck > .meta,
+.deck-row:has(.deck-more[aria-expanded='true']) > .deck > .row-end,
 .deck-row:has(.deck-more[aria-expanded='true']) > .deck > .stag,
 .deck-row:has(.deck-more[aria-expanded='true']) > .deck > .chip,
 .deck-row:has(.deck-more[aria-expanded='true']) > .deck > .meta {
@@ -3036,6 +3039,7 @@ footer .empty {
 
 /* A state tag or web chip sits at the right of row 2, opposite the sub line, so the name has
    row 1 to itself and every row stays two lines tall. */
+.deck > .row-end,
 .deck > .stag,
 .deck > .chip {
   grid-column: 3;
@@ -3044,6 +3048,12 @@ footer .empty {
   align-self: center;
   /* Taller than the sub line: the negative margin keeps row 2, and the row, as high as before. */
   margin-block: -4px;
+}
+/* A web deck on air: state tag and chip side by side; the sub line gives way first. */
+.deck > .row-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 /* Playback format on a deck row: plain words in the sub line. Only the native engine state
    (opening, ready, fallback) stays a chip. */

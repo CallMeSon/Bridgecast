@@ -415,6 +415,33 @@ try {
       metaText.includes('web page'),
       JSON.stringify(metaText.replace(/\s+/g, ' '))
     )
+    const rowOf = () =>
+      win.evaluate((id) => {
+        const d = document.querySelector(`.deck[data-deck-id="${id}"]`)
+        if (!d) return null
+        const r = d.getBoundingClientRect()
+        const kids = [...d.querySelectorAll('.stag, .chip, .sub, .name')].map((e) =>
+          e.getBoundingClientRect()
+        )
+        return {
+          tag: (d.querySelector('.stag')?.textContent || '').trim(),
+          h: Math.round(r.height),
+          spill: d.scrollWidth > d.clientWidth + 1 || kids.some((k) => k.right > r.right + 1),
+          col: Math.round(r.width)
+        }
+      }, webId)
+    for (const [w, h] of [
+      [1440, 900],
+      [1024, 640]
+    ]) {
+      await setSize(w, h)
+      const row = await rowOf()
+      check(
+        `web deck row shows LIVE at ${w}x${h}`,
+        live && row !== null && row.tag === 'LIVE' && row.h === 52 && !row.spill,
+        JSON.stringify(row)
+      )
+    }
     await api('dispatch', { type: 'selectDeck', deckId: pdfId })
     await sleep(600)
   })
