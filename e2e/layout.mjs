@@ -413,6 +413,40 @@ try {
     check('deck row shows KV', tagText === 'KV', `"${tagText}"`)
     await api('dispatch', { type: 'toggleKv' })
     await sleep(300)
+    // KV set (Replace plus Remove): the footer cap is 190 px and the title shows in full,
+    // at the 256 px column (1024 wide) and the 288 px column (1440 wide).
+    for (const theme of ['light', 'dark']) {
+      await setTheme(theme)
+      for (const [w, h] of [
+        [1024, 640],
+        [1440, 900]
+      ]) {
+        await setSize(w, h)
+        await sleep(200)
+        const m = await win.evaluate(measure)
+        const at = ` with KV set at ${w}x${h}${theme === 'dark' ? ' (dark)' : ''}`
+        check(
+          'decks footer is compact' + at + ' (cap 190)',
+          m.footer !== null && m.footer <= 190,
+          String(m.footer && Math.round(m.footer))
+        )
+        check('KV title is not truncated' + at, m.kvClipped.length === 0, m.kvClipped.join('; '))
+        if (process.env.LAYOUT_SHOTS) {
+          const box = await win.evaluate(() => {
+            const b = document.querySelector('.left > .add').getBoundingClientRect()
+            const k = document.querySelector('[data-testid=kv-block]').getBoundingClientRect()
+            const l = document.querySelector('.left').getBoundingClientRect()
+            return { x: l.left, y: k.top - 8, width: l.width, height: b.bottom - k.top + 8 }
+          })
+          await win.screenshot({
+            path: `${process.env.LAYOUT_SHOTS}/kv-footer-${theme}-${box.width}px.png`,
+            clip: box
+          })
+        }
+      }
+    }
+    await setTheme('light')
+    await setSize(1440, 900)
   })
 
   // ---- Web deck live.

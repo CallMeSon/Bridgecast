@@ -3755,6 +3755,7 @@ footer .empty {
 }
 
 /* An icon never shrinks inside a flex button: a squashed glyph reads as a bug. */
-button > svg {
+button > svg,
+.ind > svg {
   flex: none;
 }
