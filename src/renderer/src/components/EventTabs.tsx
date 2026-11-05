@@ -4,7 +4,7 @@ import type { EventMeta } from '../../../shared/types'
 import type { Tally } from '../model'
 import { onMenuKeyDown, menuItems } from './menuNav'
 import { StatusTag } from './StatusTag'
-import { hiddenTabs } from './tab-overflow'
+import { hiddenTabs, stickyPadding } from './tab-overflow'
 
 interface Props {
   events: EventMeta[]
@@ -60,7 +60,14 @@ export function EventTabs({
     const all = Array.from(el.querySelectorAll('.otab'))
     const liveAt = all.findIndex((t) => t.hasAttribute('data-live'))
     const at = all.indexOf(sel.parentElement as Element)
-    const pad = liveAt < 0 || liveAt === at ? 0 : all[liveAt].getBoundingClientRect().width + 2
+    const pad =
+      liveAt < 0 || liveAt === at
+        ? 0
+        : stickyPadding(
+            all[liveAt].getBoundingClientRect().width,
+            el.clientWidth,
+            all[at].getBoundingClientRect().width
+          )
     el.style.scrollPaddingLeft = liveAt >= 0 && at > liveAt ? `${pad}px` : '0'
     el.style.scrollPaddingRight = liveAt >= 0 && at < liveAt ? `${pad}px` : '0'
     // The whole tab (its close button too), not just the name button.

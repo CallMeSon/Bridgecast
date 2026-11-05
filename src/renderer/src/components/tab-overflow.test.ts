@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hiddenTabs } from './tab-overflow'
+import { hiddenTabs, stickyPadding } from './tab-overflow'
 
 const tabs = [
   { left: 0, right: 100 },
@@ -19,5 +19,17 @@ describe('hiddenTabs', () => {
   })
   it('lists a tab cut on the left', () => {
     expect(hiddenTabs(tabs, 50, 300)).toEqual([0])
+  })
+})
+
+describe('stickyPadding', () => {
+  it('clears the on-air tab and its gap when there is room', () => {
+    expect(stickyPadding(112, 443, 112)).toBe(114)
+  })
+  it('leaves room for the chosen tab when the on-air tab is wide', () => {
+    expect(stickyPadding(210, 287, 112)).toBe(175)
+  })
+  it('is 0 when the list cannot hold both tabs', () => {
+    expect(stickyPadding(210, 100, 112)).toBe(0)
   })
 })

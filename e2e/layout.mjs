@@ -640,53 +640,112 @@ try {
   })
 
   // ---- A real mouse click reaches every tab with the on-air tab pinned at the list edge, and
-  // the chosen tab is scrolled clear of it (scroll-padding on .tabsbar).
+  // the chosen tab is scrolled clear of it (scroll padding set by EventTabs). The on-air tab is
+  // first, then last and in the middle, with a short and a 60+ character name.
   await phase('tab reach', async () => {
-    for (const [w, h] of [
-      [1024, 640],
-      [1180, 700]
-    ]) {
-      await setSize(w, h)
-      await sleep(300)
-      const n = await win.locator('.evtabs [role=tab]').count()
-      const order = [...Array(n).keys()]
-      const bad = []
-      for (const i of [...order, ...order.reverse()]) {
-        const tab = win.locator('.evtabs [role=tab]').nth(i)
-        try {
-          await tab.click({ timeout: SHORT_WAIT })
-        } catch (e) {
-          bad.push(`#${i} ${String(e.message).split('\n')[0].slice(0, 60)}`)
-          continue
-        }
-        await sleep(250)
-        const r = await win.evaluate((k) => {
-          const list = document.querySelector('.tabsbar').getBoundingClientRect()
-          const tabEl = document.querySelectorAll('.evtabs .otab')[k]
-          const t = tabEl.getBoundingClientRect()
-          const live = document.querySelector('.otab[data-live]')
-          const l = live && live !== tabEl ? live.getBoundingClientRect() : null
-          const clear = !l || t.right <= l.left + 1 || t.left >= l.right - 1
-          return {
-            selected: tabEl.hasAttribute('data-selected'),
-            listW: Math.round(list.width),
-            tw: Math.round(t.width),
-            sl: Math.round(document.querySelector('.tabsbar').scrollLeft),
-            sw: document.querySelector('.tabsbar').scrollWidth,
-            tl: Math.round(t.left - list.left),
-            ll: l ? Math.round(l.left - list.left) : null,
-            lr: l ? Math.round(l.right - list.left) : null,
-            inside: t.left >= list.left - 1 && t.right <= list.right + 1,
-            clear
+    const reach = async (label) => {
+      for (const [w, h] of [
+        [1024, 640],
+        [1180, 700]
+      ]) {
+        await setSize(w, h)
+        await sleep(300)
+        const n = await win.locator('.evtabs [role=tab]').count()
+        const order = [...Array(n).keys()]
+        const bad = []
+        for (const i of [...order, ...order.reverse()]) {
+          const tab = win.locator('.evtabs [role=tab]').nth(i)
+          try {
+            await tab.click({ timeout: SHORT_WAIT })
+          } catch (e) {
+            bad.push(`#${i} ${String(e.message).split('\n')[0].slice(0, 60)}`)
+            continue
           }
-        }, i)
-        if (!r.selected || !r.inside || !r.clear) bad.push(`#${i} ${JSON.stringify(r)}`)
+          await sleep(250)
+          const r = await win.evaluate((k) => {
+            const list = document.querySelector('.tabsbar').getBoundingClientRect()
+            const tabEl = document.querySelectorAll('.evtabs .otab')[k]
+            const t = tabEl.getBoundingClientRect()
+            const live = document.querySelector('.otab[data-live]')
+            const l = live && live !== tabEl ? live.getBoundingClientRect() : null
+            const clear = !l || t.right <= l.left + 1 || t.left >= l.right - 1
+            return {
+              selected: tabEl.hasAttribute('data-selected'),
+              listW: Math.round(list.width),
+              tw: Math.round(t.width),
+              tl: Math.round(t.left - list.left),
+              ll: l ? Math.round(l.left - list.left) : null,
+              lr: l ? Math.round(l.right - list.left) : null,
+              inside: t.left >= list.left - 1 && t.right <= list.right + 1,
+              clear
+            }
+          }, i)
+          if (!r.selected || !r.inside || !r.clear) bad.push(`#${i} ${JSON.stringify(r)}`)
+        }
+        check(
+          `every tab is reachable by mouse and scrolled into view at ${w}x${h} (${label})`,
+          bad.length === 0,
+          bad.slice(0, 3).join('; ')
+        )
       }
-      check(
-        `every tab is reachable by mouse and scrolled into view at ${w}x${h}`,
-        bad.length === 0,
-        bad.slice(0, 3).join('; ')
-      )
+    }
+    const livePos = () =>
+      win.evaluate(() => {
+        const tabs = [...document.querySelectorAll('.evtabs .otab')]
+        const at = tabs.findIndex((t) => t.hasAttribute('data-live'))
+        return at < 0 ? 'none' : at === 0 ? 'first' : at === tabs.length - 1 ? 'last' : 'middle'
+      })
+    await reach(`on-air tab ${await livePos()}`)
+
+    // Takes an event with its own deck live, then opens `after` more events behind it.
+    let seq = 0
+    const goLive = async (name, after) => {
+      seq++
+      const newEvent = async (n) => {
+        await win.click('[data-testid=home-btn]')
+        await win.waitForSelector('[data-testid=home]')
+        await win.click('[data-testid=home-new]')
+        await win.fill('[data-testid=new-event-name]', n)
+        await win.press('[data-testid=new-event-name]', 'Enter')
+        await win.waitForSelector('[data-testid=transport]')
+        await sleep(200)
+        return { id: (await api('getSession')).eventId }
+      }
+      const ev = await newEvent(name)
+      await api('importDecks', ev.id, [
+        { id: `video-reach-${seq}`, path: path.join(root, 'fixtures/video-deck') }
+      ])
+      await sleep(2500)
+      let decks = await api('listDecks', ev.id)
+      decks = decks.decks ?? decks
+      await api('dispatch', { type: 'selectDeck', deckId: decks[0].id })
+      await sleep(600)
+      for (let k = 0; k < after; k++) {
+        await newEvent(`Reach ${seq}.${k}`)
+      }
+      await sleep(400)
+    }
+    const LONG_LIVE = 'Plenary Session on Regional Trade, Logistics and Digital Customs Reform 2026'
+    for (const [name, after, want] of [
+      ['Reach Last', 0, 'last'],
+      ['Reach Middle', 3, 'middle'],
+      [LONG_LIVE, 0, 'last'],
+      ['Closing Plenary on Regional Trade, Logistics and Digital Customs Reform', 3, 'middle']
+    ]) {
+      await goLive(name, after)
+      const pos = await livePos()
+      const dbg = await win.evaluate(async () => {
+        const p = await window.api.getSession()
+        return JSON.stringify({
+          air: p.program?.airEvent ?? p.airEvent,
+          tally: document.querySelector('[data-testid=tally]')?.textContent,
+          tabs: [...document.querySelectorAll('.evtabs [role=tab]')].map((t) =>
+            t.textContent.slice(0, 12)
+          )
+        })
+      })
+      check(`on-air tab is ${want} (${name.length} chars)`, pos === want, `${pos} ${dbg}`)
+      await reach(`on-air tab ${pos}, ${name.length} chars`)
     }
     await setSize(1280, 720)
   })
