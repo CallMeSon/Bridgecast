@@ -258,7 +258,7 @@ A single slim row, never two. Left to right: Prev chevron, `03 / 12` in mono, Ne
 - **Hold button:** 32px, Raised fill, 1px Control Edge border (3:1; the state controls and text inputs use Edge, labelled secondary buttons keep Line High), 4px radius, ink label at 600, icon in Ink 2, key cap (mono 12px, 1px Line High border).
 - **Hover:** Raised High, border goes to Control Edge. **Active (mouse down):** Line High fill.
 - **Pressed (the hold is on):** accent fill at 10% over panel, 1px accent border, accent ink text and icon, key cap outlined in the accent. No dot.
-- **Disabled:** transparent, 1px solid Line border, Ink 3 text. Disabled buttons are solid, including `aria-disabled` ones such as Resume web. A dashed border only marks something still in progress (the Loading chip, the opening pill); the one other dashed edge is the disabled address field in the Prepare window. Freeze is disabled in STANDBY.
+- **Disabled:** transparent, 1px solid Line border, Ink 3 text. Disabled buttons are solid, including `aria-disabled` ones such as Resume web. A dashed border only marks something still in progress (the Loading chip, the opening pill); other dashes are drag-over and drop outlines and the disabled address field in the Prepare window. Freeze is disabled in STANDBY.
 - Responsive tiers follow the Program column width, not the window: key caps hide under 640px, and under 520px the row goes tight (smaller gaps and padding).
 - Next is the chevron plus the Space key; the Up next panel says in words what it does.
 
