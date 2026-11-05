@@ -558,8 +558,8 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     await sample.waitFor({ state: 'detached' })
     check(
       (await win.locator('.screen img').count()) === 0 &&
-        /No slides yet|Standby/.test(await win.locator('.screen').textContent()),
-      'Program shows the empty card, no image'
+        (await win.locator('.screen .end-body .t').textContent()) === 'Standby',
+      'Program shows the standby card, no image'
     )
     await waitFrame(GRID, (px) => px.every(isBlack), 'deleting the live deck blacks out the output')
     check(true, `deleting the live deck makes the output black (${GRID.length} sample points)`)
