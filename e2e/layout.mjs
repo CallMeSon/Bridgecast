@@ -475,30 +475,38 @@ try {
     await win.keyboard.press('Escape')
     await sleep(250)
 
-    rect = null
-    try {
-      // The last row: its menu has the least room below.
-      const row = win.locator('.deck-row').last()
-      await row.hover({ timeout: SHORT_WAIT })
-      await row.locator('[data-testid=deck-more]').click({ timeout: SHORT_WAIT })
-      await win.locator('[data-testid=deck-menu]').waitFor({ timeout: SHORT_WAIT })
-      await sleep(200)
-      rect = await win.locator('[data-testid=deck-menu]').evaluate((e) => {
-        const r = e.getBoundingClientRect()
-        return { top: r.top, bottom: r.bottom, innerHeight }
-      })
-    } catch {
-      rect = null
+    // First row: the audit's overflow (menu opened high, taller than the room below). Last row: least room.
+    const menus = []
+    for (const which of ['first', 'last']) {
+      let m = null
+      try {
+        const row = win.locator('.deck-row')[which]()
+        await row.hover({ timeout: SHORT_WAIT })
+        await row.locator('[data-testid=deck-more]').click({ timeout: SHORT_WAIT })
+        await win.locator('[data-testid=deck-menu]').waitFor({ timeout: SHORT_WAIT })
+        await sleep(200)
+        m = await win.locator('[data-testid=deck-menu]').evaluate((e) => {
+          const r = e.getBoundingClientRect()
+          return { top: r.top, bottom: r.bottom, innerHeight }
+        })
+      } catch {
+        m = null
+      }
+      menus.push([which, m])
+      await win.keyboard.press('Escape')
+      await sleep(250)
     }
     check(
       'deck menu fits the window',
-      !!rect && rect.bottom <= rect.innerHeight && rect.top >= 0,
-      rect
-        ? `top ${Math.round(rect.top)}, bottom ${Math.round(rect.bottom)} of ${rect.innerHeight}`
-        : 'menu did not open'
+      menus.every(([, m]) => !!m && m.bottom <= m.innerHeight && m.top >= 0),
+      menus
+        .map(([w, m]) =>
+          m
+            ? `${w} row: top ${Math.round(m.top)}, bottom ${Math.round(m.bottom)} of ${m.innerHeight}`
+            : `${w} row: menu did not open`
+        )
+        .join('; ')
     )
-    await win.keyboard.press('Escape')
-    await sleep(250)
   })
 
   // ---- Focus ring: a mouse click then keys must not show one; Tab brings it back.

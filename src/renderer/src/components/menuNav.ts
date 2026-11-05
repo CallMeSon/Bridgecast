@@ -10,6 +10,12 @@ export function menuItems(menu: HTMLElement): HTMLElement[] {
   ]
 }
 
+/** Top for a menu `height` tall opened at `top`: shifted up to stay 8 px inside the viewport. */
+export function fitMenuTop(top: number, height: number, viewport: number): number {
+  const margin = 8
+  return Math.max(margin, Math.min(top, viewport - margin - height))
+}
+
 /**
  * Roving focus for a `role="menu"`: ArrowUp/ArrowDown/Home/End move between its
  * enabled items. Attach as `onKeyDown` on the menu element.

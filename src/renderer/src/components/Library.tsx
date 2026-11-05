@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Ref
+} from 'react'
 import {
   DotsThreeVerticalIcon,
   ArrowCounterClockwiseIcon,
@@ -53,7 +61,7 @@ import {
   LO_EDIT_CONFIRM
 } from '../model'
 import { orderItems, type OrderItem } from '../../../shared/sections'
-import { onMenuKeyDown, useContextMenu } from './menuNav'
+import { fitMenuTop, onMenuKeyDown, useContextMenu } from './menuNav'
 import { DeckSound } from './DeckSound'
 import { FIT_NAMES } from './deck-fit'
 import { AddWebDialog } from './AddWebDialog'
@@ -227,6 +235,11 @@ function DeckMenu({
   const ref = useRef<HTMLDivElement>(null)
   // Escape hands focus back to the deck the menu was opened on.
   useContextMenu(ref, `.decks [data-deck-id="${CSS.escape(at.deckId)}"]`, onClose)
+  // Shift up when the menu would pass the bottom edge (before paint, so it never jumps).
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el) el.style.top = `${fitMenuTop(at.y, el.offsetHeight, innerHeight)}px`
+  }, [at.y])
   return (
     <div
       ref={ref}

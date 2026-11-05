@@ -674,10 +674,6 @@ button.output-btn:hover,
   gap: 8px;
   margin-top: 4px;
 }
-.popover.canvas-dialog {
-  right: auto;
-  left: 0;
-}
 .canvas-dialog .pop-title {
   font-size: 12px;
 }
@@ -759,6 +755,7 @@ main {
 .right {
   background: var(--panel);
   border-left: 1px solid var(--line);
+  container: right / inline-size;
 }
 .stage-col {
   background: var(--bg);
@@ -822,10 +819,10 @@ main {
 .btn:hover:not(:disabled) {
   background: var(--raised-hi);
 }
-/* Disabled reads as inactive by shape too: no fill, dashed hairline, dim text. */
+/* Disabled: no fill, a solid hairline, dim text. The text colour is the second cue. */
 .btn:disabled {
   background: transparent;
-  border: 1px dashed var(--line-hi);
+  border: 1px solid var(--line);
   color: var(--text-3);
   cursor: not-allowed;
 }
@@ -1695,10 +1692,10 @@ main {
 .tbtn.sound[aria-pressed='true']:hover:not(:disabled) {
   background: var(--accent-soft-hi);
 }
-/* Disabled is a different shape, not a dimmer one: no fill, a dashed hairline. */
+/* Disabled: no fill, a solid hairline, dim text. */
 .tbtn.hold:disabled {
   background: transparent;
-  border: 1px dashed var(--line-hi);
+  border: 1px solid var(--line);
   color: var(--text-3);
 }
 .tbtn.hold:disabled svg,
@@ -1797,11 +1794,35 @@ main {
   flex-direction: column;
   gap: 8px;
 }
-.controls-extra > div {
-  display: flex;
-  flex-wrap: wrap;
+.controls-extra > div,
+.decks-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: 8px;
+}
+.controls-extra .cbtn {
+  min-width: 0;
+  width: 100%;
+  justify-content: center;
+}
+@container right (max-width: 319px) {
+  .controls-extra kbd {
+    display: none;
+  }
+  .seg button {
+    padding: 0 4px;
+  }
+  .deck-canvas {
+    flex-wrap: wrap;
+  }
+  .deck-canvas .k {
+    flex: 1 0 100%;
+  }
+  .deck-canvas .v {
+    margin-left: 0;
+    flex: 1;
+  }
 }
 kbd {
   display: inline-flex;
@@ -1834,7 +1855,7 @@ kbd {
 }
 .cbtn:disabled {
   background: transparent;
-  border: 1px dashed var(--line-hi);
+  border: 1px solid var(--line);
   color: var(--text-3);
   cursor: not-allowed;
 }
@@ -1873,7 +1894,7 @@ kbd {
   width: 100%;
 }
 .seg.fill button {
-  flex: 1;
+  flex: 1 1 auto;
 }
 .seg button[aria-disabled='true'] {
   opacity: 0.5;
@@ -2026,10 +2047,10 @@ kbd {
   min-width: 0;
   font-size: 12px;
 }
-.deck-canvas .popover.canvas-dialog {
-  left: 0;
-  right: 0;
-  width: auto;
+.canvas-modal {
+  width: min(440px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 /* Output sections reused from the old popover: flat inside a panel section. */
 .sb .pop-title {
@@ -2932,6 +2953,10 @@ footer .empty {
   color: var(--text);
 }
 .set-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
   flex: none;
   display: flex;
   align-items: center;
