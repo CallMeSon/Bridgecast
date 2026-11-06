@@ -973,3 +973,44 @@ describe('AppState web decks', () => {
     })
   })
 })
+
+describe('AppState offAir', () => {
+  it('after a take, offAir goes to STANDBY, keeps the air event and shows its KV', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 2)
+    const kvPath = path.join(src, 'kv.png')
+    fs.writeFileSync(kvPath, 'kv')
+    const kv = lib.setKv(a.id, kvPath).kv
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    expect(app.state.shown).toMatchObject({ deckId: d, index: 0 })
+    const s = app.dispatch({ type: 'offAir' })
+    expect(s).toMatchObject({
+      shown: null,
+      airEvent: a.id,
+      kvUrl: `slide://kv/${a.id}/${kv}`
+    })
+  })
+
+  it('with a web deck live and webReady false, offAir is not refused', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const snap = path.join(src, 'Web-snap.png')
+    fs.writeFileSync(snap, 'snap')
+    const w = lib.addWebDeck(a.id, {
+      name: 'Web',
+      url: 'https://example.com/',
+      snapshotPath: snap,
+      width: 1920,
+      height: 1080
+    }).id
+    let ready = true
+    const app = new AppState(lib, false, undefined, () => ready)
+    app.dispatch({ type: 'selectDeck', deckId: w })
+    app.setWebHold(true)
+    expect(app.state).toMatchObject({ webHold: true, shown: { web: { deckId: w } } })
+    ready = false
+    expect(app.dispatch({ type: 'offAir' })).toMatchObject({ shown: null, webHold: false })
+  })
+})

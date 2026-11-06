@@ -88,6 +88,19 @@ describe('SlideShowManager', () => {
     expect(mgr.windowId('a')).toMatch(/^\d+$/)
   })
 
+  it('offAir from a live native deck goes to STANDBY without a fallback or a ready change', async () => {
+    await goLive('a')
+    expect(mgr.ready('a')).toBe(true)
+    dispatched.length = 0
+    expect(() => app.dispatch({ type: 'offAir' })).not.toThrow()
+    await flush()
+    expect(app.state).toMatchObject({ shown: null, deckId: 'a' })
+    expect(mgr.ready('a')).toBe(true)
+    expect(dispatched).toContain('offAir')
+    expect(dispatched).not.toContain('nativeFallback')
+    expect(engine.calls).toEqual([])
+  })
+
   it('records the first captured frame of an open deck and forgets it with the session', async () => {
     app.dispatch({ type: 'selectDeck', deckId: 'a' })
     await flush()
