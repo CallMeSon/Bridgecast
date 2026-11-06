@@ -108,6 +108,26 @@ try {
       )
   }
   console.log('ok - Tab stays inside')
+  // A short window: the dialog stays inside it and its body scrolls (it used to run off the bottom).
+  const win = await app.browserWindow(page)
+  const size = await win.evaluate((w) => w.getSize())
+  await win.evaluate((w) => w.setSize(1180, 640))
+  await page.waitForFunction(() => window.innerHeight <= 640)
+  const fit = await page.evaluate(() => {
+    const d = document.querySelector('[data-testid=settings-dialog]').getBoundingClientRect()
+    const body = document.querySelector('.settings-dialog .set-body')
+    body.scrollTop = body.scrollHeight
+    return {
+      top: d.top,
+      bottom: d.bottom,
+      vh: window.innerHeight,
+      scrolls: body.scrollHeight > body.clientHeight,
+      moved: body.scrollTop > 0
+    }
+  })
+  check(fit.top >= 0 && fit.bottom <= fit.vh, `dialog fits a short window (${JSON.stringify(fit)})`)
+  check(fit.scrolls && fit.moved, 'settings body scrolls in a short window')
+  await win.evaluate((w, [wd, ht]) => w.setSize(wd, ht), size)
   await page.keyboard.press('Escape')
   check((await page.locator('[data-testid=settings-dialog]').count()) === 0, 'Escape closes')
   check(
