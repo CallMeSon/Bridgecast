@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { closeTab, loadOpenTabs, MAX_TABS, openTab, saveOpenTabs } from './open-tabs'
+import { closeTab, keepAirTab, loadOpenTabs, MAX_TABS, openTab, saveOpenTabs } from './open-tabs'
 
 const store = (raw: string | null): { getItem: () => string | null } => ({ getItem: () => raw })
 const ids = (n: number): string[] => Array.from({ length: n }, (_, i) => `e${i}`)
@@ -89,5 +89,32 @@ describe('closeTab', () => {
   })
   it('unknown id changes nothing', () => {
     expect(closeTab(['a'], 'x', 'a')).toEqual({ ids: ['a'], next: 'a' })
+  })
+  it('closeTab refuses the locked tab', () => {
+    const list = ['a', 'b']
+    const r = closeTab(list, 'a', 'a', 'a')
+    expect(r).toEqual({ ids: ['a', 'b'], next: 'a' })
+    expect(r.ids).toBe(list)
+  })
+  it('closeTab still closes other tabs while one is locked', () => {
+    expect(closeTab(['a', 'b', 'c'], 'b', 'b', 'a')).toEqual({ ids: ['a', 'c'], next: 'a' })
+  })
+})
+
+describe('keepAirTab', () => {
+  it('keepAirTab adds the air event back', () => {
+    expect(keepAirTab(['b'], 'a', true)).toEqual(['b', 'a'])
+  })
+  it('keepAirTab leaves ids when off air or already open', () => {
+    const x = ['b', 'c']
+    expect(keepAirTab(x, 'a', false)).toBe(x)
+    const y = ['a']
+    expect(keepAirTab(y, 'a', true)).toBe(y)
+    expect(keepAirTab(['b'], null, true)).toEqual(['b'])
+  })
+  it('keepAirTab respects MAX_TABS and keeps the air tab', () => {
+    const out = keepAirTab(ids(8), 'a', true)
+    expect(out).toHaveLength(8)
+    expect(out).toContain('a')
   })
 })
