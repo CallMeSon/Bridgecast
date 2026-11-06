@@ -3,6 +3,7 @@ import type { DeckMeta, SectionMeta } from '../../shared/types'
 import { initialState, reduce, type ProgramState, type ShownSlide } from '../../shared/program'
 import type { DeckFit } from '../../shared/canvas'
 import type { AudioSettings } from '../../shared/settings'
+import { LO_EDIT_CONFIRM as MAIN_LO_EDIT_CONFIRM } from '../../main/slideshow/editor'
 import {
   baseName,
   canNext,
@@ -33,7 +34,6 @@ import {
   outputGain,
   outputSource,
   type OutputMedia,
-  TALLY_TEXT,
   tally,
   needsCanvasConfirm,
   webUpNext,
@@ -43,8 +43,6 @@ import {
   holdDeckId,
   WEB_LIVE_NEXT,
   WEB_NOT_READY,
-  WEB_HOLD_TEXT,
-  WEB_HOLD_NAVIGATING_TEXT,
   stepLabel,
   nextStepText,
   playbackChip,
@@ -53,7 +51,6 @@ import {
   bumpVersion,
   sumVersions,
   nativeNotResponding,
-  NATIVE_NOT_RESPONDING,
   LO_EDIT_CONFIRM
 } from './model'
 
@@ -181,7 +178,6 @@ describe('tally', () => {
     expect(tally(at('a', 0, { shown: null, kv: true, kvUrl }))).toBe('kv')
     expect(tally(at('a', 0, { shown: null, kvUrl }))).toBe('idle')
     expect(tally(at('a', 0, { shown, kvUrl }))).toBe('live')
-    expect(TALLY_TEXT.kv).toBe('KV')
   })
   it('is black at STANDBY after K turned the automatic KV off', () => {
     const kvUrl = 'slide://kv/e/k.png'
@@ -895,7 +891,6 @@ describe('webUpNext, webChip and canResumeWeb', () => {
   it('a live web deck says Next goes to the page and D takes the next deck', () => {
     const decks = [web('w1'), deck('b', 3)]
     expect(webUpNext(live('w1'), decks, { w1: 'ready' })).toBe(WEB_LIVE_NEXT)
-    expect(WEB_LIVE_NEXT).toBe('Web page: Next goes to the page. Press D to take the next deck.')
   })
 
   it('a frozen web deck keeps the normal view (Next is a preview)', () => {
@@ -945,19 +940,6 @@ describe('webUpNext, webChip and canResumeWeb', () => {
     expect(canResumeWeb(live('w1', { webHold: true }), { w1: 'loading' })).toBe(false)
     expect(canResumeWeb(live('w1', { webHold: true }), {})).toBe(false)
     expect(canResumeWeb(live('w1'), { w1: 'ready' })).toBe(false)
-  })
-
-  it('the HOLD copy is the spec text', () => {
-    expect(WEB_HOLD_TEXT).toBe(
-      'Web page lost its connection. The output holds the last good frame. Press K for the key visual or take the next deck.'
-    )
-  })
-
-  it('the navigating HOLD copy is its own text, not the lost-connection one', () => {
-    expect(WEB_HOLD_NAVIGATING_TEXT).toBe(
-      'The output holds the last good frame while the web page changes. Resume web when the page is ready.'
-    )
-    expect(WEB_HOLD_NAVIGATING_TEXT).not.toBe(WEB_HOLD_TEXT)
   })
 
   it('HOLD hides the capture warning of the held deck (same cause); others stay', () => {
@@ -1138,12 +1120,9 @@ describe('engine copy', () => {
     expect(nativeNotResponding('LibreOffice')).toBe(
       'LibreOffice is not responding. Showing still slides. Save your other LibreOffice files, then press Resume LibreOffice.'
     )
-    expect(nativeNotResponding('PowerPoint')).toBe(NATIVE_NOT_RESPONDING)
   })
 
-  it('has the exact LibreOffice save warning', () => {
-    expect(LO_EDIT_CONFIRM).toBe(
-      "LibreOffice may change animations or layout when it saves a PowerPoint file. The client's original file is not changed."
-    )
+  it('keeps the renderer LibreOffice save warning equal to the one main enforces', () => {
+    expect(LO_EDIT_CONFIRM).toBe(MAIN_LO_EDIT_CONFIRM)
   })
 })

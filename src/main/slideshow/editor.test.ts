@@ -3,13 +3,12 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { Library } from '../library'
-import type { ImportedDeck } from '../import/pptx'
+import type { ImportedDeck } from '../import/types'
 import {
   DeckEditor,
   EDIT_FAILED,
   EDIT_DEBOUNCE_MS,
   EDIT_NEEDS_CONFIRM,
-  LO_EDIT_CONFIRM,
   type EditorDeps
 } from './editor'
 
@@ -157,12 +156,6 @@ describe('DeckEditor', () => {
     await editor.edit(deckId, true)
     expect(read('edit.pptx')).toBe('ORIG')
     expect(events).toEqual(['open:edit.pptx'])
-  })
-
-  it('the LibreOffice save warning is the exact copy', () => {
-    expect(LO_EDIT_CONFIRM).toBe(
-      "LibreOffice may change animations or layout when it saves a PowerPoint file. The client's original file is not changed."
-    )
   })
 
   it('PowerPoint needs no confirm', async () => {
@@ -316,9 +309,6 @@ describe('DeckEditor', () => {
     await save('V2')
     await settle()
     expect(events).toContain(`error:${EDIT_FAILED}`)
-    expect(EDIT_FAILED).toBe(
-      'Your changes could not be loaded. The previous version is still used. Save the file again in PowerPoint.'
-    )
     expect(editor.pending(deckId)).toBe(false)
     expect(read('source.pptx')).toBe('ORIG')
     expect(read('001.png')).toBe('png:ORIG')

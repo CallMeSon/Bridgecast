@@ -5,6 +5,7 @@ import { OmtSender, type SendTarget } from './sender'
 import { OmtLoadError } from './binding'
 import { NdiLoadError } from '../ndi/binding'
 import { FakeSenderBinding } from '../net/fake-binding'
+import type { NetId } from '../net/sender-binding'
 import { NDI_COPY, type OmtStatus } from '../../shared/omt'
 
 const LOAD_MSG = 'OMT could not start: its library is missing. Reinstall Bridgecast.'
@@ -18,7 +19,7 @@ const frame = (): { width: number; height: number; data: ArrayBuffer } => ({
 
 function setup(
   binding: () => FakeSenderBinding,
-  id: 'omt' | 'ndi' = 'omt'
+  id: NetId = 'omt'
 ): { reports: Partial<OmtStatus>[]; target: SendTarget } {
   const reports: Partial<OmtStatus>[] = []
   const target: SendTarget = { id, name: 'Show', binding, report: (s) => reports.push(s) }
@@ -32,7 +33,7 @@ describe('OmtSender', () => {
   it('reports running with the binding address on start', () => {
     const fake = new FakeSenderBinding('omt')
     const { reports, target } = setup(() => fake)
-    new OmtSender().start({ targets: [target], fps: 30, width: 4, height: 2 })
+    new OmtSender().start({ targets: [target], fps: 30 })
     expect(reports.at(-1)).toMatchObject({ state: 'running', address: 'omt://fake' })
     expect(fake.names).toEqual(['Show'])
   })
@@ -41,7 +42,7 @@ describe('OmtSender', () => {
     const fake = new FakeSenderBinding('omt')
     const { target } = setup(() => fake)
     const s = new OmtSender()
-    s.start({ targets: [target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [target], fps: 30 })
     s.frame(frame())
     vi.advanceTimersByTime(100)
     expect(fake.frames).toHaveLength(3)
@@ -52,13 +53,13 @@ describe('OmtSender', () => {
     const { reports, target } = setup(() => {
       throw new OmtLoadError('nope')
     })
-    new OmtSender().start({ targets: [target], fps: 30, width: 4, height: 2 })
+    new OmtSender().start({ targets: [target], fps: 30 })
     expect(reports.at(-1)).toMatchObject({ state: 'error', message: LOAD_MSG })
   })
 
   it('reports the create copy when create throws', () => {
     const { reports, target } = setup(() => new FakeSenderBinding('omt', { failCreate: true }))
-    new OmtSender().start({ targets: [target], fps: 30, width: 4, height: 2 })
+    new OmtSender().start({ targets: [target], fps: 30 })
     expect(reports.at(-1)).toMatchObject({ state: 'error', message: CREATE_MSG })
   })
 
@@ -66,7 +67,7 @@ describe('OmtSender', () => {
     const fake = new FakeSenderBinding('omt')
     fake.create = () => 0
     const { reports, target } = setup(() => fake)
-    new OmtSender().start({ targets: [target], fps: 30, width: 4, height: 2 })
+    new OmtSender().start({ targets: [target], fps: 30 })
     expect(reports.at(-1)).toMatchObject({ state: 'error', message: CREATE_MSG })
   })
 
@@ -85,7 +86,7 @@ describe('OmtSender', () => {
     }
     const { target } = setup(() => fake)
     const s = new OmtSender()
-    s.start({ targets: [target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [target], fps: 30 })
     s.frame(frame())
     vi.advanceTimersByTime(40)
     s.stop()
@@ -100,7 +101,7 @@ describe('OmtSender', () => {
     const fake = new FakeSenderBinding('omt')
     const { reports, target } = setup(() => fake)
     const s = new OmtSender()
-    s.start({ targets: [target], fps: 60, width: 4, height: 2 })
+    s.start({ targets: [target], fps: 60 })
     for (let sec = 0; sec < 10; sec++) {
       for (let i = 0; i < 60; i++) {
         s.frame(frame())
@@ -115,7 +116,7 @@ describe('OmtSender', () => {
     const fake = new FakeSenderBinding('ndi')
     const { reports, target } = setup(() => fake, 'ndi')
     const s = new OmtSender()
-    s.start({ targets: [target], fps: 60, width: 4, height: 2 })
+    s.start({ targets: [target], fps: 60 })
     for (let i = 0; i < 600; i++) {
       s.frame(frame())
       s.frame(frame())
@@ -128,12 +129,12 @@ describe('OmtSender', () => {
     const fake = new FakeSenderBinding('omt')
     const { target } = setup(() => fake)
     const s = new OmtSender()
-    s.start({ targets: [target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [target], fps: 30 })
     s.frame(frame())
     vi.advanceTimersByTime(100)
     expect(fake.frames).toHaveLength(3)
     s.stop()
-    s.start({ targets: [target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [target], fps: 30 })
     vi.advanceTimersByTime(200)
     expect(fake.frames).toHaveLength(3)
     s.frame(frame())
@@ -160,7 +161,7 @@ describe('OmtSender with several targets', () => {
   it('sends the same frame to both targets on the same tick', () => {
     const { omt, ndi, o, n } = two()
     const s = new OmtSender()
-    s.start({ targets: [o.target, n.target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [o.target, n.target], fps: 30 })
     s.frame(frame())
     vi.advanceTimersByTime(100)
     expect(omt.frames).toHaveLength(3)
@@ -171,7 +172,7 @@ describe('OmtSender with several targets', () => {
   it('adding ndi while omt runs keeps omt cadence and does not touch its binding', () => {
     const { omt, ndi, o, n } = two()
     const s = new OmtSender()
-    s.start({ targets: [o.target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [o.target], fps: 30 })
     s.frame(frame())
     vi.advanceTimersByTime(100)
     expect(omt.frames).toHaveLength(3)
@@ -192,7 +193,7 @@ describe('OmtSender with several targets', () => {
   it('removing ndi destroys only ndi and omt keeps sending', () => {
     const { omt, ndi, o, n } = two()
     const s = new OmtSender()
-    s.start({ targets: [o.target, n.target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [o.target, n.target], fps: 30 })
     s.frame(frame())
     vi.advanceTimersByTime(34)
     s.setTargets([o.target])
@@ -214,7 +215,7 @@ describe('OmtSender with several targets', () => {
       destroy(h)
     }
     const s = new OmtSender()
-    s.start({ targets: [o.target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [o.target], fps: 30 })
     s.setTargets([])
     expect(order).toEqual(['clock-stopped'])
     expect(vi.getTimerCount()).toBe(0)
@@ -223,7 +224,7 @@ describe('OmtSender with several targets', () => {
   it('the clock restarts with no stale frame when a target is added to an empty sender', () => {
     const { omt, o } = two()
     const s = new OmtSender()
-    s.start({ targets: [o.target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [o.target], fps: 30 })
     s.frame(frame())
     vi.advanceTimersByTime(34)
     s.setTargets([])
@@ -243,7 +244,7 @@ describe('OmtSender with several targets', () => {
       throw new NdiLoadError('missing', 'x')
     }, 'ndi')
     const s = new OmtSender()
-    s.start({ targets: [o.target, n.target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [o.target, n.target], fps: 30 })
     expect(n.reports.at(-1)).toMatchObject({ state: 'error', message: NDI_COPY.missing })
     expect(o.reports.at(-1)).toMatchObject({ state: 'running' })
     s.frame(frame())
@@ -255,7 +256,7 @@ describe('OmtSender with several targets', () => {
     const n = setup(() => {
       throw new NdiLoadError('old', 'x')
     }, 'ndi')
-    new OmtSender().start({ targets: [n.target], fps: 30, width: 4, height: 2 })
+    new OmtSender().start({ targets: [n.target], fps: 30 })
     expect(n.reports.at(-1)).toMatchObject({ state: 'error', message: NDI_COPY.tooOld })
   })
 
@@ -263,7 +264,7 @@ describe('OmtSender with several targets', () => {
     const ndi = new FakeSenderBinding('ndi')
     ndi.create = () => 0
     const n = setup(() => ndi, 'ndi')
-    new OmtSender().start({ targets: [n.target], fps: 30, width: 4, height: 2 })
+    new OmtSender().start({ targets: [n.target], fps: 30 })
     expect(n.reports.at(-1)).toMatchObject({ state: 'error', message: NDI_COPY.createFailed })
   })
 
@@ -276,7 +277,7 @@ describe('OmtSender with several targets', () => {
       throw new NdiLoadError('missing', 'x')
     }, 'ndi')
     const s = new OmtSender()
-    s.start({ targets: [n.target], fps: 30, width: 4, height: 2 })
+    s.start({ targets: [n.target], fps: 30 })
     s.setTargets([n.target, o.target])
     expect(tries).toBe(1)
     expect(vi.getTimerCount()).toBeGreaterThan(0)

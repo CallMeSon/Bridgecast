@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'worker_threads'
 import { FakeSenderBinding } from '../net/fake-binding'
-import type { SenderBinding } from '../net/sender-binding'
+import type { NetId, SenderBinding } from '../net/sender-binding'
 import type { OmtStatus } from '../../shared/omt'
 import { OmtLoadError, loadLibomt } from './binding'
 import { NdiLoadError, loadNdi } from '../ndi/binding'
@@ -9,12 +9,10 @@ import { OmtSender, type SendTarget } from './sender'
 type In =
   | {
       type: 'start'
-      targets: { id: 'omt' | 'ndi'; name: string }[]
+      targets: { id: NetId; name: string }[]
       fps: 30 | 60
-      width: number
-      height: number
     }
-  | { type: 'targets'; targets: { id: 'omt' | 'ndi'; name: string }[] }
+  | { type: 'targets'; targets: { id: NetId; name: string }[] }
   | { type: 'frame'; width: number; height: number; data: ArrayBuffer }
   | { type: 'audio'; data: Float32Array; samples: number }
   | { type: 'stop' }
@@ -24,7 +22,7 @@ type In =
 export interface FakeDebug {
   /** Frames each fake target received (PPT_OUTPUT_DUMP's __pptNet). */
   targets?: {
-    id: 'omt' | 'ndi'
+    id: NetId
     frames: { width: number; height: number; fps: number }[]
     lastPx: number[][] | null
   }[]
@@ -36,7 +34,7 @@ export interface FakeDebug {
 }
 
 export type WorkerOut =
-  | { type: 'status'; id: 'omt' | 'ndi'; status: Partial<OmtStatus> }
+  | { type: 'status'; id: NetId; status: Partial<OmtStatus> }
   | { type: 'stopped' }
   | { type: 'debug'; count: number; sizes: string[]; extra?: FakeDebug }
 
@@ -55,7 +53,7 @@ if (port) {
   let fake: FakeSenderBinding | null = null
   let fakeNdi: FakeSenderBinding | null = null
 
-  const bindingFor = (id: 'omt' | 'ndi'): (() => SenderBinding) => {
+  const bindingFor = (id: NetId): (() => SenderBinding) => {
     if (id === 'omt')
       return () => {
         if (data.fake) return (fake = new FakeSenderBinding('omt'))
@@ -70,7 +68,7 @@ if (port) {
     }
   }
 
-  const toTargets = (list: { id: 'omt' | 'ndi'; name: string }[]): SendTarget[] =>
+  const toTargets = (list: { id: NetId; name: string }[]): SendTarget[] =>
     list.map((t) => ({
       id: t.id,
       name: t.name,
@@ -83,9 +81,7 @@ if (port) {
       case 'start':
         sender.start({
           targets: toTargets(m.targets),
-          fps: m.fps,
-          width: m.width,
-          height: m.height
+          fps: m.fps
         })
         break
       case 'targets':

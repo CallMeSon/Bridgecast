@@ -3,14 +3,14 @@ import * as os from 'os'
 import * as path from 'path'
 import { canNative } from '../../shared/playback'
 import type { Library } from '../library'
-import type { ImportedDeck } from '../import/pptx'
+import type { ImportedDeck } from '../import/types'
 
 /** A save is exported this long after the last file change (PowerPoint writes in several steps). */
 export const EDIT_DEBOUNCE_MS = 1000
 
 export const EDIT_FAILED =
   'Your changes could not be loaded. The previous version is still used. Save the file again in PowerPoint.'
-export const REVERT_FAILED =
+const REVERT_FAILED =
   'The imported file could not be restored. The previous version is still used. Try Revert again.'
 
 /** LibreOffice may rewrite a PowerPoint file when it saves: the operator must agree first. */
@@ -21,7 +21,7 @@ export const EDIT_NEEDS_CONFIRM = `${LO_EDIT_CONFIRM} Confirm to open the deck i
 const EDIT_FILE_RE = /^edit\.(pptx|ppt|odp)$/i
 
 /** The parts of the library the editor uses. */
-export type EditorLibrary = Pick<
+type EditorLibrary = Pick<
   Library,
   'getDeck' | 'beginEdit' | 'editChanged' | 'discardEdit' | 'revertDeck' | 'replaceDeckFiles'
 >
@@ -52,7 +52,7 @@ export interface EditorDeps {
 }
 
 /** `fs.watch` on the deck folder, filtered to `edit.pptx` / `edit.ppt` (PowerPoint saves by renaming). */
-export function watchEditFile(file: string, cb: () => void): () => void {
+function watchEditFile(file: string, cb: () => void): () => void {
   const watcher = fs.watch(path.dirname(file), (_ev, name) => {
     if (name === null || name === undefined || EDIT_FILE_RE.test(String(name))) cb()
   })

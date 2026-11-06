@@ -1,5 +1,5 @@
 /** What the app asks of Electron's `desktopCapturer` (a fake in tests). */
-export type GetSources = (types: ['window']) => Promise<{ id: string }[]>
+type GetSources = (types: ['window']) => Promise<{ id: string }[]>
 
 export const SOURCE_NOT_FOUND =
   'The slide show window cannot be captured. The output shows still slides.'

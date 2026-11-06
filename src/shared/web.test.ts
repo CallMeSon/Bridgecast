@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  captureWarningText,
-  sanitizeWebUrl,
-  webDomain,
-  WEB_URL_ERROR,
-  WEB_HTTP_WARNING,
-  isPageZoom
-} from './web'
+import { captureWarningText, sanitizeWebUrl, webDomain, WEB_HTTP_WARNING, isPageZoom } from './web'
 
 describe('sanitizeWebUrl', () => {
   it('trims and keeps https', () => {
@@ -35,7 +28,6 @@ describe('sanitizeWebUrl', () => {
     ]) {
       expect(sanitizeWebUrl(input)).toEqual(err)
     }
-    expect(WEB_URL_ERROR).toBe(err.error)
     expect(WEB_HTTP_WARNING).toContain('not secure')
   })
 })

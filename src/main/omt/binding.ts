@@ -46,28 +46,6 @@ const FRAME_FIELDS = {
   FrameMetadataLength: 'int'
 } as const
 
-// OMTStatistics: 16 x int64_t, named as in libomt.h.
-const STATS_FIELDS = Object.fromEntries(
-  [
-    'BytesSent',
-    'BytesReceived',
-    'BytesSentSinceLast',
-    'BytesReceivedSinceLast',
-    'Frames',
-    'FramesSinceLast',
-    'FramesDropped',
-    'CodecTime',
-    'CodecTimeSinceLast',
-    'Reserved1',
-    'Reserved2',
-    'Reserved3',
-    'Reserved4',
-    'Reserved5',
-    'Reserved6',
-    'Reserved7'
-  ].map((k) => [k, 'int64_t'])
-)
-
 type Koffi = typeof KoffiModule
 
 // koffi is required lazily so a failed native load becomes an OmtLoadError
@@ -78,7 +56,6 @@ let structsDefined = false
 function defineStructs(koffi: Koffi): void {
   if (structsDefined) return // koffi rejects a second definition of a named type
   koffi.struct('OMTMediaFrame', FRAME_FIELDS)
-  koffi.struct('OMTStatistics', STATS_FIELDS)
   structsDefined = true
 }
 
@@ -97,7 +74,6 @@ export function loadLibomt(dir: string, loadKoffi: () => Koffi = defaultKoffi): 
     send: (inst: unknown, frame: object) => number
     connections: (inst: unknown) => number
     getAddress: (inst: unknown, buf: Buffer, max: number) => number
-    videoStats: (inst: unknown, out: Record<string, bigint | number>) => void
     destroy: (inst: unknown) => void
   }
   try {
@@ -110,7 +86,6 @@ export function loadLibomt(dir: string, loadKoffi: () => Koffi = defaultKoffi): 
       send: lib.func('int omt_send(void *inst, _In_ OMTMediaFrame *frame)'),
       connections: lib.func('int omt_send_connections(void *inst)'),
       getAddress: lib.func('int omt_send_getaddress(void *inst, _Out_ uint8_t *addr, int max)'),
-      videoStats: lib.func('void omt_send_getvideostatistics(void *inst, _Out_ OMTStatistics *s)'),
       destroy: lib.func('void omt_send_destroy(void *inst)')
     }
   } catch (e) {
@@ -173,11 +148,6 @@ export function loadLibomt(dir: string, loadKoffi: () => Koffi = defaultKoffi): 
       if (n <= 0) return ''
       const end = buf.indexOf(0)
       return buf.toString('utf8', 0, end < 0 ? n : end)
-    },
-    videoStats(h) {
-      const s: Record<string, bigint | number> = {}
-      fns.videoStats(get(h), s)
-      return { frames: Number(s.Frames ?? 0), dropped: Number(s.FramesDropped ?? 0) }
     },
     destroy(h) {
       const inst = instances.get(h)

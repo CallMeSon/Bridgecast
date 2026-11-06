@@ -689,9 +689,9 @@ const savedHdmi = () =>
 const savedAudio = () =>
   JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).audio
 
-/** The Output and Network sections of the Controls tab (they replaced the header popover). */
+/** The Output and Network sections of the Output tab (they replaced the header popover). */
 async function openOutputPopover(win) {
-  const tab = win.getByRole('tab', { name: 'Controls' })
+  const tab = win.getByRole('tab', { name: 'Output' })
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
   const pop = win.getByTestId('output-panel')
   for (const name of ['Output', 'Network']) {
@@ -2052,6 +2052,8 @@ async function videoChecks(win, tally) {
     (t) => t.kind === 'video' && t.src.endsWith('/003.mp4') && t.ended,
     'slide 3 plays to its end'
   )
+  // Transition lives in the Controls tab; openOutputPopover leaves Output selected.
+  await win.getByRole('tab', { name: 'Controls' }).click()
   await win.getByRole('radio', { name: 'Fade' }).click()
   await blur()
   const fadeRec = hdmiJs(videoRecorderSrc(900, '/none'))
@@ -2748,6 +2750,8 @@ try {
   const deck43 = win.locator('.deck', { has: win.locator('.name', { hasText: 'sample-4x3' }) })
   await deck43.locator('.meta', { hasText: '2 slides' }).waitFor({ timeout: 60_000 })
   check(true, '4:3 PDF imported')
+  // Transition lives in the Controls tab; openOutputPopover leaves Output selected.
+  await win.getByRole('tab', { name: 'Controls' }).click()
   await win.getByRole('radio', { name: 'Fade' }).click()
   await win.waitForFunction(
     () =>
@@ -2916,6 +2920,8 @@ try {
   )
   await sleep(800)
   await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Cut')
+  // Transition lives in the Controls tab; openOutputPopover leaves Output selected.
+  await win.getByRole('tab', { name: 'Controls' }).click()
   await win.getByRole('radio', { name: 'Fade' }).click()
   await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Fade')
   await win.getByRole('radio', { name: 'Cut' }).click()
@@ -3173,7 +3179,12 @@ try {
   const firstApp = await electron.launch({
     args: [...linuxArgs, root],
     cwd: root,
-    env: { ...process.env, PPT_SHARE_USER_DATA: firstData, ELECTRON_RENDERER_URL: '' }
+    env: {
+      ...process.env,
+      PPT_SHARE_USER_DATA: firstData,
+      PPT_SKIP_TOUR: '1',
+      ELECTRON_RENDERER_URL: ''
+    }
   })
   try {
     const win = await firstApp.firstWindow()
@@ -3220,7 +3231,12 @@ try {
   const offApp = await electron.launch({
     args: [...linuxArgs, root],
     cwd: root,
-    env: { ...process.env, PPT_SHARE_USER_DATA: offData, ELECTRON_RENDERER_URL: '' }
+    env: {
+      ...process.env,
+      PPT_SHARE_USER_DATA: offData,
+      PPT_SKIP_TOUR: '1',
+      ELECTRON_RENDERER_URL: ''
+    }
   })
   try {
     const win = await offApp.firstWindow()

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { XIcon } from '@phosphor-icons/react'
 import { BrandMark } from './BrandMark'
+import digiohLogo from '../assets/digioh/digioh-logo.svg'
+import digiohLogoWhite from '../assets/digioh/digioh-logo-white.png'
 import { AppearanceSection } from './AppearanceSection'
 import { SoundSection } from './SoundSection'
 import { ImportFormat } from './ImportFormat'
@@ -21,6 +23,8 @@ interface Props {
   onReduceMotion(on: boolean): void
   audio: AudioSettings | null
   onAudioSaved(a: AudioSettings): void
+  /** Settings > About: shows the first-run tour again. */
+  onReplayTour(): void
   /** Only given on Linux (LibreOffice engine). */
   importFormat?: { value: PptImportFormat; onChange(v: PptImportFormat): void }
 }
@@ -35,7 +39,7 @@ const FOCUSABLE = [
 ].join(', ')
 
 /** About: mark, name, version and tagline. */
-function AboutSection(): React.JSX.Element {
+function AboutSection({ onReplayTour }: { onReplayTour(): void }): React.JSX.Element {
   const [version, setVersion] = useState('')
   useEffect(() => {
     window.api
@@ -53,6 +57,21 @@ function AboutSection(): React.JSX.Element {
           {version && <p className="about-line num">{version}</p>}
           <p className="about-line">From slide to screen, live.</p>
         </div>
+      </div>
+      <p className="about-powered">
+        <span>Powered by</span>
+        <img
+          className="about-digioh about-digioh-light"
+          src={digiohLogo}
+          alt="DigiOH"
+          height={18}
+        />
+        <img className="about-digioh about-digioh-dark" src={digiohLogoWhite} alt="" height={18} />
+      </p>
+      <div className="about-actions">
+        <button type="button" className="btn sm" onClick={onReplayTour} data-testid="show-tour">
+          Show the tour again
+        </button>
       </div>
     </section>
   )
@@ -133,7 +152,7 @@ export function SettingsDialog(p: Props): React.JSX.Element | null {
             </section>
           )}
           <SoundSection audio={p.audio} onSaved={p.onAudioSaved} />
-          <AboutSection />
+          <AboutSection onReplayTour={p.onReplayTour} />
         </div>
       </div>
     </div>

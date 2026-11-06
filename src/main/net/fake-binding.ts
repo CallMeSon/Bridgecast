@@ -1,4 +1,4 @@
-import type { SenderBinding } from './sender-binding'
+import type { NetId, SenderBinding } from './sender-binding'
 
 /** Recording SenderBinding for tests; touches no native library. */
 export class FakeSenderBinding implements SenderBinding {
@@ -17,7 +17,7 @@ export class FakeSenderBinding implements SenderBinding {
   private next = 1
 
   constructor(
-    private readonly kind: 'omt' | 'ndi',
+    private readonly kind: NetId,
     private readonly o: { failCreate?: boolean } = {}
   ) {}
 
@@ -53,10 +53,6 @@ export class FakeSenderBinding implements SenderBinding {
   address(h: number): string {
     void h
     return this.kind === 'omt' ? 'omt://fake' : ''
-  }
-  videoStats(h: number): { frames: number; dropped: number } {
-    void h
-    return { frames: 0, dropped: 0 }
   }
   destroy(h: number): void {
     void h

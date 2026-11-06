@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bridgecast</title>
+    <meta
+      name="description"
+      content="Bridgecast runs the slides of a live event from one operator window and sends the live slide fullscreen to a second display."
+    />
+    <link rel="icon" href="brand/bridgecast-mark.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --bg: #f5f6f9;
+        --panel: #ffffff;
+        --raised: #f3f4f8;
+        --line: #e6e8ee;
+        --line-hi: #d3d6df;
+        --text: #1a1c24;
+        --text-2: #4a4e5c;
+        --text-3: #626776;
+        --accent: #f26f1c;
+        --accent-fill: #c84f0c;
+        --accent-ink: #9a4208;
+        --on-accent: #ffffff;
+        --letterbox: #000000;
+        --r-sm: 3px;
+        --r: 4px;
+        --r-lg: 6px;
+        --font: 'Geist', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        --mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --bg: #13141b;
+          --panel: #1c1d27;
+          --raised: #272936;
+          --line: #2c2e3d;
+          --line-hi: #404459;
+          --text: #e4e6ee;
+          --text-2: #adb2c2;
+          --text-3: #8a8fa6;
+          --accent: #f26f1c;
+          --accent-fill: #f26f1c;
+          --accent-ink: #ff9d5e;
+          --on-accent: #1a0a00;
+        }
+      }
+      :root[data-theme='dark'] {
+        --bg: #13141b;
+        --panel: #1c1d27;
+        --raised: #272936;
+        --line: #2c2e3d;
+        --line-hi: #404459;
+        --text: #e4e6ee;
+        --text-2: #adb2c2;
+        --text-3: #8a8fa6;
+        --accent: #f26f1c;
+        --accent-fill: #f26f1c;
+        --accent-ink: #ff9d5e;
+        --on-accent: #1a0a00;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 400 16px/1.5 var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+      ::selection {
+        background: var(--accent-fill);
+        color: var(--on-accent);
+      }
+      :focus-visible {
+        outline: 2px solid var(--text);
+        outline-offset: 2px;
+      }
+      a {
+        color: inherit;
+      }
+      .wrap {
+        width: min(1080px, 100%);
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      header.top {
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+      header.top .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 56px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font: 600 16px/1 var(--font);
+        letter-spacing: -0.015em;
+        text-decoration: none;
+      }
+      .brand img {
+        width: 24px;
+        height: 24px;
+      }
+      .top nav a {
+        color: var(--text-2);
+        font-size: 14px;
+        text-decoration: none;
+        margin-left: 24px;
+      }
+      .top nav a:hover {
+        color: var(--text);
+      }
+      .hero {
+        padding: 72px 0 56px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font: 600 clamp(40px, 6vw, 64px) / 1.05 var(--font);
+        letter-spacing: -0.025em;
+        text-wrap: balance;
+      }
+      .lede {
+        margin: 0 0 28px;
+        max-width: 58ch;
+        color: var(--text-2);
+        font-size: 18px;
+      }
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        height: 40px;
+        padding: 0 16px;
+        border-radius: var(--r);
+        background: var(--accent-fill);
+        color: var(--on-accent);
+        font: 600 14px/1 var(--font);
+        text-decoration: none;
+      }
+      .cta:hover {
+        filter: brightness(1.05);
+      }
+      .note-link {
+        margin-left: 16px;
+        color: var(--text-2);
+        font-size: 14px;
+      }
+      /* The Program: a 16:9 black monitor with the on-air ring. */
+      .monitor {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        background: var(--letterbox);
+        border-radius: var(--r);
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        overflow: hidden;
+      }
+      .monitor .slide {
+        width: 78%;
+        aspect-ratio: 16 / 9;
+        background: #fff;
+        color: #1a1c24;
+        border-radius: 2px;
+        display: grid;
+        place-items: center;
+        font: 600 clamp(16px, 3vw, 30px) / 1 var(--font);
+      }
+      .monitor .tag {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: var(--r-sm);
+        background: var(--accent-fill);
+        color: var(--on-accent);
+        font: 700 12px/1 var(--font);
+        letter-spacing: 0.04em;
+      }
+      .monitor .num {
+        position: absolute;
+        bottom: 16px;
+        right: 16px;
+        font: 500 12px/1 var(--mono);
+        color: #a7abb8;
+      }
+      section.rows {
+        padding: 24px 0 72px;
+        border-top: 1px solid var(--line);
+      }
+      section.rows h2 {
+        margin: 40px 0 0;
+        font: 600 24px/1.2 var(--font);
+        letter-spacing: -0.015em;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 24px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .row h3 {
+        margin: 0;
+        font: 600 16px/1.3 var(--font);
+        letter-spacing: -0.015em;
+      }
+      .row p {
+        margin: 0;
+        color: var(--text-2);
+        max-width: 64ch;
+      }
+      .status {
+        margin: 32px 0 0;
+        padding: 16px 20px;
+        background: var(--panel);
+        border: 1px solid var(--line-hi);
+        border-radius: var(--r-lg);
+        color: var(--text-2);
+        font-size: 14px;
+      }
+      .status strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      footer.foot {
+        border-top: 1px solid var(--line);
+        padding: 24px 0 40px;
+        color: var(--text-3);
+        font-size: 14px;
+      }
+      footer.foot .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .powered {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .powered img {
+        height: 20px;
+        width: auto;
+      }
+      .powered .dark {
+        display: none;
+      }
+      :root[data-theme='dark'] .powered .light,
+      :root:not([data-theme='light']) .powered .light {
+        display: none;
+      }
+      :root[data-theme='dark'] .powered .dark,
+      :root:not([data-theme='light']) .powered .dark {
+        display: block;
+      }
+      @media (prefers-color-scheme: light) {
+        :root:not([data-theme='dark']) .powered .light {
+          display: block;
+        }
+        :root:not([data-theme='dark']) .powered .dark {
+          display: none;
+        }
+      }
+      @media (min-width: 760px) {
+        .hero {
+          grid-template-columns: 1.05fr 1fr;
+          align-items: center;
+        }
+        .row {
+          grid-template-columns: 240px 1fr;
+          gap: 32px;
+          align-items: baseline;
+        }
+        .top nav a {
+          margin-left: 32px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .cta {
+          transition: filter 0.12s;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="#top">
+          <img src="brand/bridgecast-mark.svg" alt="" width="24" height="24" />
+          Bridgecast
+        </a>
+        <nav aria-label="Page">
+          <a href="#what">What it does</a>
+          <a href="#status">Status</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <div class="wrap hero">
+        <div>
+          <h1>From slide to screen, live.</h1>
+          <p class="lede">
+            Bridgecast runs the slides of a live event from one operator window. The live slide, the
+            Program, goes fullscreen to a second display over HDMI, or out over the network.
+          </p>
+          <a class="cta" href="#download" data-todo="installer-url">Download for Windows</a>
+          <span class="note-link">Installer link to add before release.</span>
+        </div>
+        <div class="monitor" role="img" aria-label="Example of the Program output with a slide on air">
+          <span class="tag">LIVE</span>
+          <div class="slide">Opening slide</div>
+          <span class="num">01 / 12</span>
+        </div>
+      </div>
+
+      <section class="wrap rows" id="what" aria-labelledby="what-title">
+        <h2 id="what-title">What it does</h2>
+        <div class="row">
+          <h3>One Program, always on air</h3>
+          <p>
+            One output, one take at a time. Next, Freeze, Black and KV are states you can read at a
+            glance. The audience sees a slide, a held frame or the standby card, never the desktop.
+          </p>
+        </div>
+        <div class="row">
+          <h3>Keys and clicker first</h3>
+          <p>
+            Space or the arrow keys take the next slide, and a presentation clicker works the same
+            way. F freezes, B goes black, K shows the key visual, and N and D jump between sections
+            and decks.
+          </p>
+        </div>
+        <div class="row">
+          <h3>Your PowerPoint, as it plays</h3>
+          <p>
+            PowerPoint decks can play as a real slide show, with animations, video and sound
+            (Windows with PowerPoint). PDFs and images are drawn sharp and run offline.
+          </p>
+        </div>
+        <div class="row">
+          <h3>Web pages as decks</h3>
+          <p>
+            A Canva presentation, a video page or any https page can be a deck. It goes on air only
+            once it is ready, and if the page fails the output holds the last good frame.
+          </p>
+        </div>
+        <div class="row">
+          <h3>Network output</h3>
+          <p>
+            Send the Program over the LAN with OMT or NDI, for vMix, OBS and other receivers. The
+            frame rate and canvas size are set per machine, or per event.
+          </p>
+        </div>
+        <div class="row">
+          <h3>Events, not loose files</h3>
+          <p>
+            Each event keeps its decks, sections and key visual together. Home lists them, with the
+            event that is on air first.
+          </p>
+        </div>
+
+        <p class="status" id="status">
+          <strong>Status.</strong> Bridgecast is built for Windows 11. The parts that only run on
+          Windows, such as PowerPoint, window capture and network receivers, are still being
+          field-tested. Check the notes before you rely on them in a live show.
+        </p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <span>Bridgecast is free for event operators.</span>
+        <span class="powered">
+          <span>Powered by</span>
+          <img class="light" src="brand/digioh-logo.svg" alt="DigiOH" />
+          <img class="dark" src="brand/digioh-logo-white.png" alt="" />
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

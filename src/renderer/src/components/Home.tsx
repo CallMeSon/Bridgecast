@@ -7,8 +7,7 @@ import {
   ListIcon,
   MagnifyingGlassIcon,
   PlusIcon,
-  SquaresFourIcon,
-  UploadSimpleIcon
+  SquaresFourIcon
 } from '@phosphor-icons/react'
 import type { EventMeta, EventSummary } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
@@ -56,8 +55,6 @@ interface Props {
   /** Takes the on-air event off air (the output goes to STANDBY). */
   onOffAir(): void
   onNew(): void
-  onImport(): void
-  onAddWeb(): void
   /** Archive or unarchive; resolves when main has answered (errors are shown by the caller). */
   onArchive(id: string, archived: boolean): void
 }
@@ -77,7 +74,7 @@ const FILTER_ITEM: Record<HomeFilter, string> = {
 
 /**
  * Home: find, open or create an event. The console stays mounted behind it, so nothing on the
- * output changes. Console keys are paused here (App ignores them); N, I, W, / and Esc work.
+ * output changes. Console keys are paused here (App ignores them); N, / and Esc work.
  */
 export function Home(p: Props): React.JSX.Element {
   const [prefs, setPrefs] = useState<HomePrefs>(() => loadHomePrefs(localStorage))
@@ -151,7 +148,7 @@ export function Home(p: Props): React.JSX.Element {
     if (restore && id) moreBtns.current.get(id)?.focus()
   }
 
-  const { onBack, onNew, onImport, onAddWeb } = p
+  const { onBack, onNew } = p
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
@@ -196,17 +193,11 @@ export function Home(p: Props): React.JSX.Element {
       } else if (k === 'n') {
         e.preventDefault()
         onNew()
-      } else if (k === 'i' && hasEvents) {
-        e.preventDefault()
-        onImport()
-      } else if (k === 'w' && hasEvents) {
-        e.preventDefault()
-        onAddWeb()
       }
     }
     addEventListener('keydown', onKey)
     return () => removeEventListener('keydown', onKey)
-  }, [onBack, onNew, onImport, onAddWeb, hasEvents, menuOpen, moreFor])
+  }, [onBack, onNew, menuOpen, moreFor])
 
   const onTabKey = (e: React.KeyboardEvent, at: number): void => {
     const to =
@@ -242,22 +233,26 @@ export function Home(p: Props): React.JSX.Element {
     slideOnProgram: p.slideOnProgram
   })
   const mode = guideMode(steps, guideHidden, p.events.length)
-  const noEventReason = hasEvents ? undefined : 'Create an event first.'
   const q = query.trim()
 
   return (
     <section className="home" aria-label="Events home" data-testid="home">
       <div className="hwrap">
         {hasEvents && <h1 className="visually-hidden">Events</h1>}
-        {!hasEvents && (
-          <div className="hero">
-            <p className="hero-kicker">Welcome to</p>
+        <div className="hero" data-testid="home-hero">
+          <p className="hero-kicker">Welcome to</p>
+          {hasEvents ? (
+            <p className="hero-title">
+              <BrandMark size={56} />
+              <span>Bridgecast</span>
+            </p>
+          ) : (
             <h1 className="hero-title">
-              <BrandMark size={36} />
+              <BrandMark size={56} />
               <span>Bridgecast</span>
             </h1>
-          </div>
-        )}
+          )}
+        </div>
 
         {onAir && (
           <div className="onair" role="status" data-testid="home-onair">
@@ -293,28 +288,6 @@ export function Home(p: Props): React.JSX.Element {
             <PlusIcon size={16} aria-hidden="true" />
             New event
             <kbd>N</kbd>
-          </button>
-          <button
-            className="btn"
-            disabled={!hasEvents}
-            title={noEventReason}
-            onClick={p.onImport}
-            data-testid="home-import"
-          >
-            <UploadSimpleIcon size={16} aria-hidden="true" />
-            Import slides
-            <kbd>I</kbd>
-          </button>
-          <button
-            className="btn"
-            disabled={!hasEvents}
-            title={noEventReason}
-            onClick={p.onAddWeb}
-            data-testid="home-web"
-          >
-            <GlobeIcon size={16} aria-hidden="true" />
-            Add web page
-            <kbd>W</kbd>
           </button>
         </div>
 
@@ -416,6 +389,9 @@ export function Home(p: Props): React.JSX.Element {
         >
           {list.length === 0 ? (
             <div className="empty" data-testid="home-empty">
+              <span className="empty-tile" aria-hidden="true">
+                {q ? <MagnifyingGlassIcon size={20} /> : <SquaresFourIcon size={20} />}
+              </span>
               <p>
                 {!hasEvents
                   ? 'No events yet. Create one to add decks.'
@@ -549,8 +525,8 @@ export function Home(p: Props): React.JSX.Element {
         </div>
 
         <p className="keys">
-          Space, F, B and K are paused here and work again in the console. N, I, W and Esc work on
-          this page.
+          Space, F, B and K are paused here and work again in the console. N and Esc work on this
+          page.
         </p>
       </div>
     </section>

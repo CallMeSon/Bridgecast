@@ -1,7 +1,7 @@
 // Right panel state that survives a restart: the selected tab and which sections are open.
 // Pure: the store is passed in (localStorage in the app, a map in tests).
 
-export type PanelTab = 'info' | 'controls'
+export type PanelTab = 'controls' | 'output' | 'info'
 export type SectionId = 'transition' | 'deck-settings' | 'output' | 'network' | 'notes'
 
 export interface KeyValueStore {
@@ -15,7 +15,7 @@ const OPEN_KEY = 'panel-open'
 export const DEFAULT_OPEN: Readonly<Record<SectionId, boolean>> = {
   transition: true,
   'deck-settings': true,
-  output: true,
+  output: false,
   network: false,
   notes: true
 }
@@ -40,7 +40,7 @@ function write(store: KeyValueStore, key: string, value: string): void {
 
 export function loadPanelTab(store: KeyValueStore): PanelTab {
   const v = read(store, TAB_KEY)
-  return v === 'info' || v === 'controls' ? v : 'controls'
+  return v === 'info' || v === 'output' || v === 'controls' ? v : 'controls'
 }
 
 export function savePanelTab(store: KeyValueStore, tab: PanelTab): void {

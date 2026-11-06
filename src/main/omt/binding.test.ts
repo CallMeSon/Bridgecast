@@ -49,10 +49,9 @@ describe('FakeSenderBinding', () => {
     expect(b.destroyed).toBe(true)
   })
 
-  it('ndi has no address and zero stats; failCreate throws', () => {
+  it('ndi has no address; failCreate throws', () => {
     const b = new FakeSenderBinding('ndi')
     expect(b.address(b.create('x'))).toBe('')
-    expect(b.videoStats(1)).toEqual({ frames: 0, dropped: 0 })
     expect(() => new FakeSenderBinding('omt', { failCreate: true }).create('x')).toThrow()
   })
 })

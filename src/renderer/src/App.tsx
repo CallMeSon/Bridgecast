@@ -3,7 +3,7 @@ import type { DeckMeta, EventMeta, EventSummary, SectionMeta } from '../../share
 import { orderItems, splitOrder } from '../../shared/sections'
 import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '../../shared/program'
 import type { ImportRequest } from '../../shared/ipc'
-import type { DeckFit } from '../../shared/canvas'
+import { IMPORT_WIDTH, type DeckFit } from '../../shared/canvas'
 import type { Playback } from '../../shared/types'
 import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
@@ -11,12 +11,14 @@ import { Home } from './components/Home'
 import { closeTab, keepAirTab, loadOpenTabs, openTab, saveOpenTabs } from './open-tabs'
 import { SettingsDialog } from './components/SettingsDialog'
 import { NewEventDialog } from './components/NewEventDialog'
-import { Library, type ImportRow, type LibraryHandle } from './components/Library'
+import { Library, type ImportRow } from './components/Library'
 import { DropOverlay } from './components/DropOverlay'
 import { Program } from './components/Program'
 import { keysClaimed } from './use-web-interact'
 import { Controls } from './components/Controls'
 import { NextPanel } from './components/NextPanel'
+import { AppTour } from './components/AppTour'
+import { markTourDone, shouldOpenTour, tourDone } from './app-tour'
 import { DeckSettings } from './components/DeckSettings'
 import { OutputStatus } from './components/OutputStatus'
 import { useOutputSettings } from './components/useOutputSettings'
@@ -59,6 +61,7 @@ import {
   moveOrder,
   nativeNotice,
   nextView,
+  NO_EVENT_YET,
   stepLabel,
   outputSource,
   SAVED,
@@ -83,15 +86,23 @@ import {
   type Theme,
   type ThemePref
 } from './theme'
-const DEFAULT_CUSTOM = '#2160d4'
+import { DEFAULT_ACCENT_HEX } from './appearance'
 import { renderPdf } from './import/pdf'
 
-const IMPORT_WIDTH = 1920
 let importSeq = 0
 const newImportId = (): string => `imp-${Date.now()}-${importSeq++}`
 
-/** `skipHome` (PPT_SKIP_HOME=1, e2e only) opens the console instead of Home. */
-function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
+/**
+ * `skipHome` (PPT_SKIP_HOME=1, e2e only) opens the console instead of Home. `skipTour`
+ * (PPT_OUTPUT_DUMP, e2e only) keeps the first-run tour from opening over the tests.
+ */
+function App({
+  skipHome = false,
+  skipTour = false
+}: {
+  skipHome?: boolean
+  skipTour?: boolean
+}): React.JSX.Element {
   const api = window.api
   const [events, setEvents] = useState<EventMeta[]>([])
   const [eventId, setEventId] = useState<string | null>(null)
@@ -104,8 +115,6 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
     viewRef.current = view
   }, [view])
   const [summaries, setSummaries] = useState<EventSummary[]>([])
-  // Home opens the file picker or Add web page of the current event through this.
-  const library = useRef<LibraryHandle>(null)
   const [decks, setDecks] = useState<DeckMeta[]>([])
   // The event the loaded `decks` belong to. Sections follow this, not `eventId`, so
   // decks and sections never come from two different events while a switch loads.
@@ -114,9 +123,15 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
   const [imports, setImports] = useState<ImportRow[]>([])
   const [themePref, setThemePref] = useState<ThemePref>(loadThemePref)
   const [accent, setAccent] = useState(loadAccent)
-  const [customHex, setCustomHex] = useState(() => loadCustomAccent() ?? DEFAULT_CUSTOM)
+  const [customHex, setCustomHex] = useState(() => loadCustomAccent() ?? DEFAULT_ACCENT_HEX)
   const [reduceMotion, setReduceMotion] = useState(loadReduceMotion)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [tourOpen, setTourOpen] = useState(false)
+  // Read by the shortcut listener, which is set up once.
+  const tourRef = useRef(false)
+  useEffect(() => {
+    tourRef.current = tourOpen
+  }, [tourOpen])
   const [newEventOpen, setNewEventOpen] = useState(false)
   const newEventOpener = useRef<HTMLElement | null>(null)
   const output = useOutputSettings()
@@ -128,9 +143,9 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
   }
   const toggleSection = (id: SectionId, open: boolean): void =>
     setOpenSections((cur) => saveOpenSection(localStorage, cur, id, open))
-  // The header output status leads to the Output section: open it, read the settings again.
+  // The header output status leads to the Output tab: open its section, read the settings again.
   const showOutput = (): void => {
-    choosePanelTab('controls')
+    choosePanelTab('output')
     toggleSection('output', true)
     output.reload()
     requestAnimationFrame(() => {
@@ -248,6 +263,15 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
       const [session, evs] = await Promise.all([api.getSession(), api.listEvents()])
       eventRef.current = session.eventId
       setEvents(evs)
+      // An install that already has events is not surprised by the tour: it counts as seen.
+      if (evs.length > 0 && !tourDone(localStorage)) markTourDone(localStorage)
+      setTourOpen(
+        shouldOpenTour({
+          done: tourDone(localStorage),
+          eventCount: evs.length,
+          suppressed: skipTour
+        })
+      )
       setEventId(session.eventId)
       setOpenIds(
         loadOpenTabs(
@@ -264,7 +288,7 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
       offState()
       offProgress()
     }
-  }, [api, upsertImport, reloadDecks, reportError])
+  }, [api, upsertImport, reloadDecks, reportError, skipTour])
 
   const dispatch = useCallback(
     (a: Action) => {
@@ -293,11 +317,23 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
   }, [api, outputAudio, setOutputAudio])
   const goto = useCallback((index: number) => dispatch({ type: 'goto', index }), [dispatch])
 
+  const finishTour = useCallback(() => {
+    markTourDone(localStorage)
+    setTourOpen(false)
+  }, [])
+  // Settings > About: show the tour again (its state is kept, the Program is untouched).
+  const replayTour = useCallback(() => {
+    setSettingsOpen(false)
+    setTourOpen(true)
+  }, [])
+
   // Keyboard shortcuts (ignored while typing in an input).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       // Home pauses the console keys (a clicker does nothing while the operator browses).
       if (viewRef.current === 'home') return
+      // The first-run tour owns the keys while it is open (nothing reaches the Program).
+      if (tourRef.current) return
       // Interact on the monitor takes the keys for the live page: no shortcut fires meanwhile.
       if (keysClaimed()) return
       const a = keyToAction(e)
@@ -414,12 +450,6 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
       else void selectEvent(air)
     } else if (eventRef.current && openIds.includes(eventRef.current)) setView('console')
   }, [events, openIds, selectEvent])
-  const askLibrary = useCallback((kind: 'import' | 'web') => {
-    if (!eventRef.current) return
-    setView('console')
-    if (kind === 'import') library.current?.pickFiles()
-    else library.current?.addWeb()
-  }, [])
 
   // Throws when main refuses: the New event dialog shows the message under its field.
   const createEvent = useCallback(
@@ -505,10 +535,7 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
         })
       if (!target) {
         for (const f of [...folders, ...files]) {
-          reportError(
-            f.name,
-            new Error('No event yet. Create one from the Event menu, then import again.')
-          )
+          reportError(f.name, new Error(NO_EVENT_YET('import again')))
         }
         return
       }
@@ -910,9 +937,7 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
       generation: (id) => pages.generations[id] ?? 0,
       // Main counts these only while no output is active.
       onFrame: (id, source) =>
-        void (source === 'desktop' ? api.slideshowFrame(id) : api.webFrame(id)).catch(
-          () => undefined
-        ),
+        void (source === 'desktop' ? undefined : api.webFrame(id).catch(() => undefined)),
       onEnded: (id, source) => {
         if (source === 'tab') void api.webEnded(id).catch(() => undefined)
       },
@@ -1016,9 +1041,11 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
           onClose={closeNewEvent}
         />
       )}
+      {tourOpen && <AppTour onFinish={finishTour} />}
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onReplayTour={replayTour}
         theme={theme}
         themePref={themePref}
         onThemePref={chooseThemePref}
@@ -1051,8 +1078,6 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
           onBack={backToConsole}
           onOffAir={() => dispatch({ type: 'offAir' })}
           onNew={openNewEvent}
-          onImport={() => askLibrary('import')}
-          onAddWeb={() => askLibrary('web')}
           onArchive={archiveEvent}
         />
       )}
@@ -1065,7 +1090,6 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
           frozen={tally(program) === 'frozen' ? program.shown : null}
           airTag={(deckId) => deckRowTag(deckId, program.shown?.deckId ?? null, tally(program))}
           canImport={eventId !== null}
-          handle={library}
           kvUrl={program.kvUrl}
           kvOnAir={kvOnAir(program)}
           onSetKv={setKv}

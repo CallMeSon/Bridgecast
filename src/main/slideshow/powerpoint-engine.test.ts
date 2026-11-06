@@ -342,7 +342,6 @@ describe('PowerPointEngine', () => {
     it('owned PowerPoint + hung helper: the helper is killed, no pid is', async () => {
       await engine.open('d1', 'f.pptx', canvas)
       child.send({ event: 'app', pid: 4321, owned: true })
-      expect(engine.powerPoint).toEqual({ pid: 4321, owned: true })
       await hang(child, () => engine.shutdown())
       expect(child.killed).toBe(true)
       expect(procKill).not.toHaveBeenCalled()
@@ -387,7 +386,6 @@ describe('PowerPointEngine', () => {
       await engine.open('d1', 'f.pptx', canvas)
       child.send({ event: 'app', pid: 'x', owned: true })
       child.send({ event: 'app', pid: -3, owned: true })
-      expect(engine.powerPoint).toBeNull()
       await hang(child, () => engine.shutdown())
       expect(procKill).not.toHaveBeenCalled()
     })

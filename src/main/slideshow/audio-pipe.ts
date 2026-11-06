@@ -9,7 +9,7 @@ export const PCM_FRAMES = 480
 const BYTES_PER_FRAME = 8 // 2 channels x float32
 
 /** A planar block: `samples` left values, then `samples` right values. */
-export interface PcmBlock {
+interface PcmBlock {
   data: Float32Array
   samples: number
 }
@@ -63,10 +63,10 @@ export interface PipeSocket {
 }
 
 /** Windows only: connects to `\\.\pipe\pptshare-audio-<pid>` (a Node socket on a named pipe). */
-export const connectNamedPipe = (path: string): PipeSocket =>
+const connectNamedPipe = (path: string): PipeSocket =>
   nodeNet.connect(path) as unknown as PipeSocket
 
-export interface PcmPipeOptions {
+interface PcmPipeOptions {
   connect: (path: string) => PipeSocket
   onBlock: (b: PcmBlock) => void
   /** Wait before connecting again after the pipe fails or closes. */
@@ -234,14 +234,14 @@ export function fallbackVolume(s: ProgramState, audio: AudioSettings): number | 
 }
 
 /** What the engine reports about PowerPoint's sound route (see PowerPointEngine.onAudio). */
-export interface EngineAudio {
+interface EngineAudio {
   /** `monitor`: LibreOffice plays into a private sink the output window captures (no pipe here). */
   mode: 'pipe' | 'fallback' | 'device' | 'monitor' | 'none'
   pipe: string | null
   note: string | null
 }
 
-export interface SlideSoundOptions {
+interface SlideSoundOptions {
   /** Pipe connection; a Node named-pipe socket on Windows. */
   connect?: (path: string) => PipeSocket
   /** Sets PowerPoint's own session level (the engine's `setVolume`). */

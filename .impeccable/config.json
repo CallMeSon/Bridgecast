@@ -26,6 +26,33 @@
         ],
         "createdAt": "2026-10-31T16:33:02.854Z",
         "reason": "user confirmed: .seg 3px inset, .tabs and .sec 48px header buttons are deliberate; detector gives no per-value key"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "site/index.html"
+        ],
+        "createdAt": "2026-11-06T06:49:27.294Z",
+        "reason": "Confident false positive: detector reads static markup. Measured in headless Chromium: .monitor slide sits 31px from top and bottom, 56px from left; LIVE tag and frame number 16px from their edges. Nothing is flush."
+      },
+      {
+        "rule": "tight-leading",
+        "value": "*",
+        "files": [
+          "site/landing/index.html"
+        ],
+        "createdAt": "2026-11-06T07:14:37.431Z",
+        "reason": "display headings h1/h2 (44-80px, max two lines) and single-line buttons use leading 0.95-1.0 by design (taste-skill display type 0.85-1.05); body text is 1.5. Decided by assistant, not user-confirmed."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "site/landing/index.html"
+        ],
+        "createdAt": "2026-11-06T07:27:18.713Z",
+        "reason": "assistant-decided, not user-confirmed: all 6 hits checked in render are structural false positives (console window, c-top bar, .mon monitor with absolute-fill slide layers, .how-right panel holding a filled scene). Text inside has its own inset (>= 9px)."
       }
     ]
   }

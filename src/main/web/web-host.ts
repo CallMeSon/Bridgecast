@@ -31,7 +31,7 @@ import { InteractSwitches } from './interact'
 export type { WebStatus }
 
 /** The one browser profile of every web deck (sign-ins persist across restarts). */
-export const WEB_PARTITION = 'persist:web'
+const WEB_PARTITION = 'persist:web'
 /** A page that stays unresponsive this long while on air triggers HOLD. */
 const UNRESPONSIVE_HOLD_MS = 5000
 /** A crashed page is reloaded behind the scenes after this delay. */
@@ -42,8 +42,8 @@ const SNAPSHOT_RETRY_MS = 500
 /** Without a way to hear back from the outputs, HOLD before navigating waits this long. */
 const HOLD_SETTLE_MS = 300
 
-export const SIGN_OUT_LIVE = 'Take another deck first, then sign out.'
-export const INTERACT_NOT_LIVE =
+const SIGN_OUT_LIVE = 'Take another deck first, then sign out.'
+const INTERACT_NOT_LIVE =
   'Interact works only while the web page is on air. Take the deck first, then turn Interact on.'
 const NOT_OPEN = 'The web page is not open. Reload the deck, then try again.'
 

@@ -69,7 +69,6 @@ export const Invoke = {
   webCaptureFailed: 'web:captureFailed',
   webCaptureWarnings: 'web:captureWarnings',
   slideshowSourceId: 'slideshow:sourceId',
-  slideshowFrame: 'slideshow:frame',
   slideshowNote: 'slideshow:note',
   slideshowStatus: 'slideshow:status',
   deckEdit: 'deck:edit',
@@ -464,7 +463,6 @@ export interface Api {
   /** Capture id of a native deck's slide show window (see `slideshow:sourceId`). */
   slideshowSourceId(deckId: string): Promise<string>
   /** Ready gate: report the first frame of a slide show's capture. */
-  slideshowFrame(deckId: string): Promise<void>
   /**
    * HDMI or OMT output window: asks main for a MessagePort with PowerPoint's sound; the
    * preload forwards it as `window.postMessage('slideshow:audio-port', '*', ports)`.

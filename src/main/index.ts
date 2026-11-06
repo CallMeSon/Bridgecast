@@ -20,7 +20,7 @@ import * as os from 'os'
 import { randomUUID } from 'crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { Library } from './library'
+import { Library, PPTX_RE } from './library'
 import { AppState } from './state'
 import { FakeEngine } from './slideshow/fake-engine'
 import { SlideShowManager } from './slideshow/manager'
@@ -71,6 +71,7 @@ import {
 import {
   CANVAS_INVALID,
   contentRect,
+  IMPORT_WIDTH,
   sanitizeCanvas,
   type Canvas,
   type ContentRect
@@ -114,12 +115,11 @@ import {
   type AppWindowRole
 } from './web/host-rules'
 import { openPrepareWindow } from './web/prepare-window'
+import type { NetId } from './net/sender-binding'
 import { migrateUserData } from './migrate-user-data'
 
 /** Longest the app waits for the OMT worker to stop before it quits anyway. */
 const OMT_QUIT_CAP_MS = 3000
-const IMPORT_WIDTH = 1920
-const PPTX_RE = /\.pptx?$/i
 /** Upper bound for one import request (a drop of a whole folder's worth of files). */
 const MAX_FILES = 200
 
@@ -719,7 +719,7 @@ function registerIpc(
     omt: net.windowActive
   })
   registerWebIpc(lib, state, web, syncWeb, roleOf, outputsActive, operatorWindow)
-  registerSlideshowIpc(slideShow, roleOf, outputsActive)
+  registerSlideshowIpc(slideShow, roleOf)
 
   handle(Invoke.settingsGet, () => settings.get())
   handle(Invoke.appVersion, () => app.getVersion())
@@ -968,8 +968,7 @@ let slideNote: string | null = null
  */
 function registerSlideshowIpc(
   host: SlideShowHost,
-  roleOf: (wc: Electron.WebContents) => AppWindowRole,
-  outputsActive: () => { hdmi: boolean; omt: boolean }
+  roleOf: (wc: Electron.WebContents) => AppWindowRole
 ): void {
   appHandle(Invoke.slideshowSourceId, (e, deckId) => {
     assertString(deckId, 'Deck ID')
@@ -978,11 +977,6 @@ function registerSlideshowIpc(
     return slideshowSourceId(host.manager.windowId(deckId), (types) =>
       desktopCapturer.getSources({ types, thumbnailSize: { width: 0, height: 0 } })
     )
-  })
-  // Same rule as web:frame: only a window that puts the slide show on air counts.
-  appHandle(Invoke.slideshowFrame, (e, deckId) => {
-    assertString(deckId, 'Deck ID')
-    if (frameSenderAllowed(roleOf(e.sender), outputsActive())) host.manager.frameSeen(deckId)
   })
   appHandle(Invoke.slideshowNote, () => slideNote)
   appHandle(Invoke.slideshowStatus, () => host.status())
@@ -1264,7 +1258,7 @@ function createNetOutput(settings: SettingsStore, state: AppState, lib: Library)
   const net = new NetOutput(
     { omt: settings.get().omt, ndi: settings.get().ndi },
     () => state.state.canvas,
-    (id: 'omt' | 'ndi', s: NetStatus) => {
+    (id: NetId, s: NetStatus) => {
       broadcast(id === 'omt' ? Broadcast.omtStatus : Broadcast.ndiStatus, s)
       // After the microtask: the network window is created right after the status is set.
       queueMicrotask(() => outputsMaybeChanged())
@@ -1333,7 +1327,12 @@ function createWindow(onReady?: () => void): BrowserWindow {
 
   // PPT_SKIP_HOME=1 (e2e): the operator window opens on the console instead of Home. It reaches
   // the renderer as a hash query (`#/?skipHome=1`), read in main.tsx.
-  const hash = process.env['PPT_SKIP_HOME'] === '1' ? '/?skipHome=1' : ''
+  // PPT_OUTPUT_DUMP and PPT_SKIP_TOUR=1 (e2e) also skip the first-run tour (`skipTour=1`).
+  const hashParams = [
+    process.env['PPT_SKIP_HOME'] === '1' ? 'skipHome=1' : '',
+    process.env['PPT_OUTPUT_DUMP'] || process.env['PPT_SKIP_TOUR'] === '1' ? 'skipTour=1' : ''
+  ].filter(Boolean)
+  const hash = hashParams.length ? `/?${hashParams.join('&')}` : ''
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + (hash ? `#${hash}` : ''))
   } else {

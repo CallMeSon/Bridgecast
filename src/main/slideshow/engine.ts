@@ -29,9 +29,9 @@ export interface SlideShowEngine {
   on(ev: 'error', cb: (e: EngineError) => void): void
   on(ev: 'exited', cb: () => void): void
   /** Liveness check for the manager's heartbeat; never replies when the engine hangs. */
-  ping?(): Promise<void>
+  ping(): Promise<void>
   /** Opens the deck's working copy in a normal (editing) window of the presentation program. */
-  edit?(file: string): Promise<void>
+  edit(file: string): Promise<void>
   /** Close everything and stop the engine process; a later `open` starts it again. */
   shutdown(): Promise<void>
 }

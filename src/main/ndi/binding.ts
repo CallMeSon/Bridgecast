@@ -178,7 +178,6 @@ export function loadNdi(
     },
     connections: (h) => fns.connections(get(h), 0),
     address: (h) => `${hostname()} (${names.get(h) ?? ''})`,
-    videoStats: () => ({ frames: 0, dropped: 0 }),
     destroy(h) {
       const inst = instances.get(h)
       if (!inst) return

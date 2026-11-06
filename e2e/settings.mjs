@@ -19,6 +19,7 @@ const app = await electron.launch({
   env: {
     ...process.env,
     PPT_SHARE_USER_DATA: userData,
+    PPT_SKIP_TOUR: '1',
     PPT_SKIP_HOME: '1',
     ELECTRON_RENDERER_URL: ''
   }
@@ -27,8 +28,8 @@ try {
   const page = await app.firstWindow()
   await page.waitForSelector('header')
   const attr = (n) => page.evaluate((k) => document.documentElement.dataset[k], n)
-  // Controls > Output open behind the dialog, to watch it follow the Sound section.
-  const ctl = page.getByRole('tab', { name: 'Controls' })
+  // Output tab open behind the dialog, to watch it follow the Sound section.
+  const ctl = page.getByRole('tab', { name: 'Output' })
   if ((await ctl.getAttribute('aria-selected')) !== 'true') await ctl.click()
   const outPanel = page.getByTestId('output-panel')
   const outHead = outPanel.getByRole('button', { name: 'Output', exact: true })

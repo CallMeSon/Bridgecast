@@ -1,7 +1,7 @@
 import * as path from 'path'
 import { KV_FILE_RE, KV_MIME } from '../shared/types'
+import { isUuid } from './uuid'
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Slide files are `001.png`, ..., videos `001.mp4`, ... and the vector source `source.pdf` (see Library). Never source.pptx or original.*. */
 const FILE_RE = /^\/(\d{3,6}\.(?:png|mp4)|source\.pdf)$/
 /** The only query allowed: `?v=<n>`, which renderers add to reload a web deck's rewritten snapshot. */
@@ -22,7 +22,7 @@ export function parseSlideUrl(url: string): { deckId: string; file: string } | n
   }
   if (u.protocol !== 'slide:' || badSearch(u.search) || u.hash || u.username || u.port) return null
   const deckId = u.hostname
-  if (!UUID_RE.test(deckId)) return null
+  if (!isUuid(deckId)) return null
   const m = FILE_RE.exec(u.pathname)
   if (!m) return null
   return { deckId: deckId.toLowerCase(), file: m[1] }
@@ -45,7 +45,7 @@ export function parseKvUrl(url: string): { eventId: string; file: string } | nul
   const parts = u.pathname.split('/') // ['', eventId, file]
   if (parts.length !== 3 || parts[0] !== '') return null
   const [, eventId, file] = parts
-  if (!UUID_RE.test(eventId) || !KV_FILE_RE.test(file)) return null
+  if (!isUuid(eventId) || !KV_FILE_RE.test(file)) return null
   return { eventId: eventId.toLowerCase(), file }
 }
 
@@ -74,7 +74,7 @@ export function parseThumbUrl(url: string): { deckId: string; file: string } | n
   ) {
     return null
   }
-  if (!UUID_RE.test(u.hostname)) return null
+  if (!isUuid(u.hostname)) return null
   const m = THUMB_RE.exec(u.pathname)
   if (!m) return null
   return { deckId: u.hostname.toLowerCase(), file: `${m[1]}.png` }

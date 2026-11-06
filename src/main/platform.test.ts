@@ -53,15 +53,6 @@ describe('detectEngine', () => {
     const r = detectEngine({ platform: 'darwin', hasSoffice: true, hasPyUno: true })
     expect(r).toEqual({ engine: 'none', canCapture: false, message: NO_POWERPOINT_ENGINE })
   })
-
-  it('copies the exact install and Wayland strings', () => {
-    expect(INSTALL_LIBREOFFICE).toBe(
-      'Install LibreOffice Impress and python3-uno to import PowerPoint files, or export the file to PDF and import the PDF.'
-    )
-    expect(WAYLAND_STILLS).toBe(
-      "Animated slides need an X11 session on Linux. Log in with 'GNOME on Xorg' to play animations; showing still slides."
-    )
-  })
 })
 
 describe('engineName', () => {

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { fontWarning, missingFonts, parseFcList } from '../../shared/fonts'
 import type { PptImportFormat } from '../../shared/settings'
-import type { ImportedDeck } from './pptx'
+import { NO_SLIDES_MESSAGE, num, padded, type ImportedDeck } from './types'
 
 /** What the LibreOffice import is asked to do. */
 export interface LibreOfficeImportOptions {
@@ -15,7 +15,7 @@ export interface LibreOfficeImportOptions {
 }
 
 /** The reply of the bridge's `import` command, validated. */
-export interface BridgeImport {
+interface BridgeImport {
   name: string
   width: number
   height: number
@@ -43,21 +43,13 @@ export interface LibreOfficeDeps {
   installedFonts(): Promise<string[]>
 }
 
-const num = (x: unknown): number =>
-  typeof x === 'number' && Number.isFinite(x) && x > 0 ? Math.floor(x) : 0
-
-function padded<T>(v: unknown, n: number, fill: T, pick: (x: unknown) => T): T[] {
-  const arr = Array.isArray(v) ? v : []
-  return Array.from({ length: n }, (_, i) => (i < arr.length ? pick(arr[i]) : fill))
-}
-
 /** Validates the bridge reply; arrays are padded or cut to the number of slide images. */
 export function parseBridgeImport(raw: Record<string, unknown>): BridgeImport {
   const pngs = (Array.isArray(raw.pngs) ? raw.pngs : []).filter(
     (p): p is string => typeof p === 'string' && p.length > 0
   )
   if (pngs.length === 0) {
-    throw new Error('No slides were exported. Make sure the file contains slides, then try again.')
+    throw new Error(NO_SLIDES_MESSAGE)
   }
   const n = pngs.length
   const str = (x: unknown): string => (typeof x === 'string' ? x : '')

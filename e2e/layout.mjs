@@ -628,6 +628,7 @@ try {
   // ---- Popovers at 1024x640.
   await phase('popovers', async () => {
     await setSize(1024, 640)
+    // Controls holds Deck settings, whose "Change" opens the event canvas dialog under test.
     await win.getByRole('tab', { name: 'Controls' }).click({ timeout: SHORT_WAIT })
     let rect = null
     try {

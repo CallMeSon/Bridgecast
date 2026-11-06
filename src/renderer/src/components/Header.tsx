@@ -22,7 +22,7 @@ interface Props {
   onNewEvent(): void
   program: ProgramState
   output: OutputSettingsState
-  /** Shows the Output section of the Controls tab. */
+  /** Shows the Output section of the Output tab. */
   onOpenOutput(): void
   theme: Theme
   onSetTheme(theme: Theme): void

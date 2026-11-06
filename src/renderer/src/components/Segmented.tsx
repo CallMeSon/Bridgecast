@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
 interface Props<T extends string | number> {
   label: string
@@ -22,6 +22,22 @@ export function Segmented<T extends string | number>({
   onChange
 }: Props<T>): React.JSX.Element {
   const seg = useRef<HTMLDivElement>(null)
+  // The chosen segment's fill is a thumb that glides between segments (app.css: data-glide).
+  useLayoutEffect(() => {
+    const group = seg.current
+    if (!group) return
+    const place = (): void => {
+      const on = group.querySelector<HTMLElement>('[aria-checked=true]')
+      if (!on) return
+      group.dataset.glide = ''
+      group.style.setProperty('--seg-x', `${on.offsetLeft}px`)
+      group.style.setProperty('--seg-w', `${on.offsetWidth}px`)
+    }
+    place()
+    const ro = new ResizeObserver(place)
+    ro.observe(group)
+    return () => ro.disconnect()
+  }, [value, options.length])
   const onKey = (e: React.KeyboardEvent): void => {
     const dir =
       e.key === 'ArrowRight' || e.key === 'ArrowDown'

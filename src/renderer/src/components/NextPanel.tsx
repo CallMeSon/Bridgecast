@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import type { DeckMeta, SectionMeta } from '../../../shared/types'
 import type { Action, ProgramState } from '../../../shared/program'
 import { slideUrl } from '../../../shared/ipc'
@@ -13,8 +14,9 @@ import type { PanelTab, SectionId } from '../panel-sections'
 import { Segmented } from './Segmented'
 
 const TABS: readonly { id: PanelTab; label: string }[] = [
-  { id: 'info', label: 'Info' },
-  { id: 'controls', label: 'Controls' }
+  { id: 'controls', label: 'Controls' },
+  { id: 'output', label: 'Output' },
+  { id: 'info', label: 'Info' }
 ]
 const TRANSITIONS = [
   { value: 'cut', label: 'Cut' },
@@ -22,9 +24,10 @@ const TRANSITIONS = [
 ] as const
 
 /**
- * Right panel: underlined tabs Info (Notes) and Controls (Up next, which never collapses,
- * then the collapsible Transition, Deck settings, Output and Network sections). Both panes
- * stay mounted; the unselected one is hidden, so controls keep their state.
+ * Right panel: underlined tabs Controls, Output and Info. Up next stays above the tabs (it
+ * never collapses). Controls holds Transition and Deck settings, Output holds the Output and
+ * Network sections, Info holds Notes. All panes stay mounted; the unselected one is hidden,
+ * so controls keep their state.
  */
 export function NextPanel({
   decks,
@@ -159,6 +162,23 @@ export function NextPanel({
     cap = webText
   }
 
+  // The underline glides: its position and width come from the selected tab (see app.css).
+  const tabsRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const bar = tabsRef.current
+    if (!bar) return
+    const place = (): void => {
+      const on = bar.querySelector<HTMLElement>('[aria-selected=true]')
+      if (!on) return
+      bar.style.setProperty('--tab-x', `${on.offsetLeft}px`)
+      bar.style.setProperty('--tab-w', `${on.offsetWidth}px`)
+    }
+    place()
+    const ro = new ResizeObserver(place)
+    ro.observe(bar)
+    return () => ro.disconnect()
+  }, [tab])
+
   const onTabKey = (e: React.KeyboardEvent): void => {
     const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
     if (!dir) return
@@ -172,7 +192,13 @@ export function NextPanel({
 
   return (
     <aside className="right" aria-label="Info and controls" data-testid="right-panel">
-      <div className="tabs" role="tablist" aria-label="Right panel" onKeyDown={onTabKey}>
+      <div
+        ref={tabsRef}
+        className="tabs"
+        role="tablist"
+        aria-label="Right panel"
+        onKeyDown={onTabKey}
+      >
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -248,6 +274,7 @@ export function NextPanel({
             open={isOpen('transition')}
             onToggle={(o) => onToggle('transition', o)}
             testId="transition-section"
+            summary={state.transition === 'fade' ? 'Fade' : 'Cut'}
           >
             <Segmented<'cut' | 'fade'>
               label="Transition"
@@ -276,6 +303,14 @@ export function NextPanel({
           >
             {deckSettings}
           </PanelSection>
+        </div>
+        <div
+          className="pane"
+          id="ppane-output"
+          role="tabpanel"
+          aria-labelledby="ptab-output"
+          hidden={tab !== 'output'}
+        >
           {output}
         </div>
       </div>

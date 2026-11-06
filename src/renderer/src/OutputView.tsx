@@ -302,9 +302,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
         fps: streamFps(netFps, networkRunning(omtState, ndiState)),
         generation: (id) => pages.generations[id] ?? 0,
         onFrame: (id, source) =>
-          void (
-            source === 'desktop' ? window.api.slideshowFrame(id) : window.api.webFrame(id)
-          ).catch(() => undefined),
+          void (source === 'desktop' ? undefined : window.api.webFrame(id).catch(() => undefined)),
         // A slide show capture that ends shows the slide's PNG; only a web page goes on HOLD.
         onEnded: (id, source) => {
           if (source === 'tab') void window.api.webEnded(id).catch(() => undefined)

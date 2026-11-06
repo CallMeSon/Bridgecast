@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { NetId } from '../net/sender-binding'
 import type { ContentRect } from '../../shared/canvas'
 import {
   DEFAULT_NDI,
@@ -161,9 +162,7 @@ describe('NetController', () => {
     expect(startMsg(t.workers[0])).toEqual({
       type: 'start',
       targets: [{ id: 'omt', name: 'Show' }],
-      fps: 60,
-      width: 1920,
-      height: 1080
+      fps: 60
     })
     expect(t.windows[0].size).toEqual({ width: 1920, height: 1080 })
     expect(t.windows[0].fps).toBe(60)
@@ -291,7 +290,7 @@ describe('NetController', () => {
     expect(t.windows[0].sizes).toEqual([[3840, 1080]])
     t.fire(1000)
     const starts = t.workers[0].posted.map((p) => p.m).filter((m) => m.type === 'start')
-    expect(starts[1]).toMatchObject({ width: 3840, height: 1080 })
+    expect(starts[1]).toMatchObject({ type: 'start' })
   })
 
   it('two quick changes while waiting add the target only once, with the last name', () => {
@@ -511,7 +510,7 @@ describe('NetController with OMT and NDI', () => {
       .map((p) => p.m)
       .filter((m) => m.type === 'targets')
       .map((m) => m.targets)
-  const run = (t: Rig, id: 'omt' | 'ndi'): void =>
+  const run = (t: Rig, id: NetId): void =>
     t.workers[0].emit('message', {
       type: 'status',
       id,
@@ -649,7 +648,7 @@ describe('NetController with OMT and NDI', () => {
     t.fire(1000)
     const starts = t.workers[0].posted.map((p) => p.m).filter((m) => m.type === 'start')
     expect(starts).toHaveLength(2)
-    expect(starts[1]).toMatchObject({ width: 3840, height: 1080 })
+    expect(starts[1]).toMatchObject({ type: 'start' })
   })
 
   it('turning NDI on during an fps restart waits for that one start', () => {
@@ -787,7 +786,7 @@ describe('NetController sends the content rect', () => {
     expect(types(t.workers[0])).toContain('stop')
     expect(t.windows[0].sizes).toEqual([])
     t.fire(1000)
-    expect(starts(t.workers[0]).at(-1)).toMatchObject({ width: 1440, height: 1080 })
+    expect(starts(t.workers[0]).at(-1)).toMatchObject({ type: 'start' })
 
     const src = picture()
     t.windows[0].h.onPaint(1920, 1080, src)
@@ -871,7 +870,7 @@ describe('NetController sends the content rect', () => {
     t.out.canvasChanged()
     expect(t.windows[0].sizes).toEqual([[3840, 1080]])
     t.fire(1000)
-    expect(starts(t.workers[0]).at(-1)).toMatchObject({ width: 1440, height: 1080 })
+    expect(starts(t.workers[0]).at(-1)).toMatchObject({ type: 'start' })
   })
 
   it('a rect outside the Canvas falls back to the whole Canvas', () => {
@@ -897,7 +896,7 @@ describe('NetController sends the content rect', () => {
     t.setRect(null)
     t.out.contentChanged()
     t.fire(1000)
-    expect(starts(t.workers[0]).at(-1)).toMatchObject({ width: 1920, height: 1080 })
+    expect(starts(t.workers[0]).at(-1)).toMatchObject({ type: 'start' })
     const before = t.workers[0].posted.length
     const ab = picture()
     t.windows[0].h.onPaint(1920, 1080, ab)

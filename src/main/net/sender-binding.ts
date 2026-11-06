@@ -1,8 +1,11 @@
 /**
  * Protocol-neutral sender. OMT implements it through libomt; NDI will
- * implement the same interface later. `address` is '' and `videoStats` zeros
+ * implement the same interface later. `address` is ''
  * when a protocol has none.
  */
+/** The network protocols that send a Program picture. */
+export type NetId = 'omt' | 'ndi'
+
 export interface SenderBinding {
   create(name: string): number
   sendVideo(h: number, f: { width: number; height: number; fps: number; data: ArrayBuffer }): void
@@ -12,6 +15,5 @@ export interface SenderBinding {
   ): void
   connections(h: number): number
   address(h: number): string
-  videoStats(h: number): { frames: number; dropped: number }
   destroy(h: number): void
 }

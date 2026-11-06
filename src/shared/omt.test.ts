@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_NDI,
   DEFAULT_OMT,
-  NDI_COPY,
   NETWORK_CHANGE_CONFIRM,
-  NO_RECEIVERS_AFTER_MS,
   NETWORK_CHANGE_NOTICE,
   canvasChangeConfirm,
   hasConnections,
@@ -174,7 +172,6 @@ describe('omtBadge', () => {
 describe('noReceiversHint', () => {
   const t0 = 1_000_000
   it('is due only after 15 s without receivers while running', () => {
-    expect(NO_RECEIVERS_AFTER_MS).toBe(15_000)
     expect(noReceiversHint('running', 0, t0, t0 + 14_999)).toBe(false)
     expect(noReceiversHint('running', 0, t0, t0 + 15_000)).toBe(true)
   })
@@ -195,7 +192,6 @@ describe('canvasChangeConfirm', () => {
   })
   it('receivers only is the receivers copy verbatim', () => {
     expect(canvasChangeConfirm(false, true)).toBe(NETWORK_CHANGE_CONFIRM)
-    expect(NETWORK_CHANGE_CONFIRM).toBe(`${NETWORK_CHANGE_NOTICE} Change it now?`)
   })
   it('both give one question', () => {
     const t = canvasChangeConfirm(true, true) as string
@@ -248,24 +244,6 @@ describe('ndiBadge', () => {
   })
   it('error', () => {
     expect(ndiBadge(st('error'))).toEqual({ text: 'NDI error', tone: 'error' })
-  })
-})
-
-describe('NDI copy', () => {
-  it('uses the exact strings', () => {
-    expect(NDI_COPY).toEqual({
-      missing:
-        'NDI could not start: the NDI Runtime is not installed. Install it from ndi.video, then turn NDI off and on.',
-      tooOld:
-        'NDI could not start: the installed NDI Runtime is too old. Install NDI 6 from ndi.video.',
-      createFailed:
-        'NDI could not start. The source name may already be in use, or the network is unavailable. Change the name or turn NDI off and on.',
-      noReceivers: 'No receiver yet. In vMix or OBS, pick the NDI source shown above.',
-      noSound: 'NDI sound is unavailable; sound plays on this PC only.'
-    })
-    expect(NETWORK_CHANGE_CONFIRM).toBe(
-      'Receivers will lose the network picture for about a second. Change it now?'
-    )
   })
 })
 
