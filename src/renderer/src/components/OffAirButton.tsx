@@ -19,6 +19,7 @@ export function OffAirButton({ eventName, onConfirm, testId }: Props): React.JSX
   const cancel = useRef<HTMLButtonElement>(null)
   // Focus goes back to the button only when the question is dismissed, not when it is confirmed.
   const restore = useRef(false)
+  const region = useRef<HTMLDivElement>(null)
   const questionId = useId()
 
   useEffect(() => {
@@ -46,6 +47,18 @@ export function OffAirButton({ eventName, onConfirm, testId }: Props): React.JSX
     return () => removeEventListener('keydown', owns, true)
   }, [asking])
 
+  useEffect(() => {
+    if (!asking) return
+    // A click outside the question closes it without dispatching, so the console keys come back
+    // at once. Focus is not moved back to the button in that case.
+    const away = (e: PointerEvent): void => {
+      if (region.current?.contains(e.target as Node)) return
+      setAsking(false)
+    }
+    addEventListener('pointerdown', away, true)
+    return () => removeEventListener('pointerdown', away, true)
+  }, [asking])
+
   if (!asking) {
     return (
       <button
@@ -62,11 +75,18 @@ export function OffAirButton({ eventName, onConfirm, testId }: Props): React.JSX
 
   return (
     <div
+      ref={region}
       className="offair-confirm"
       role="alertdialog"
       aria-labelledby={questionId}
       data-no-shortcuts
       data-testid={`${testId}-confirm`}
+      // Focus moving out of the question (Tab past it, or a click on something unfocusable that
+      // drops focus) closes it, as a click outside does; focus is left where the operator put it.
+      onBlur={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+        setAsking(false)
+      }}
     >
       <p id={questionId}>
         {`Take ${eventName || 'this event'} off air? The output goes to STANDBY.`}
