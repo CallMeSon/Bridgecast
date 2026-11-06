@@ -1,4 +1,5 @@
 import type { Action } from '../../../shared/program'
+import { OffAirButton } from './OffAirButton'
 
 interface Props {
   /** The event has sections: the section buttons show. */
@@ -8,6 +9,10 @@ interface Props {
   /** D and Shift+D: another deck exists in that direction. */
   canPrevDeck: boolean
   canNextDeck: boolean
+  /** Something is on air: the Off air row shows. */
+  onAir: boolean
+  /** The on-air event's name, for the Off air question. */
+  airName: string
   onAction(a: Action): void
 }
 
@@ -21,6 +26,8 @@ export function Controls({
   canNextSection,
   canPrevDeck,
   canNextDeck,
+  onAir,
+  airName,
   onAction
 }: Props): React.JSX.Element {
   return (
@@ -49,7 +56,7 @@ export function Controls({
           disabled={!canPrevDeck}
           onClick={() => onAction({ type: 'prevDeck' })}
         >
-          Prev deck <kbd>Shift+D</kbd>
+          Prev deck <kbd>⇧D</kbd>
         </button>
         <button
           className="cbtn"
@@ -59,6 +66,13 @@ export function Controls({
           Next deck <kbd>D</kbd>
         </button>
       </div>
+      {onAir && (
+        <OffAirButton
+          eventName={airName}
+          onConfirm={() => onAction({ type: 'offAir' })}
+          testId="controls-offair"
+        />
+      )}
     </div>
   )
 }

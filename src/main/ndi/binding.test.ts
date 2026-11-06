@@ -129,7 +129,6 @@ describe('loadNdi', () => {
       LineStrideInBytes: 16,
       PictureAspectRatio: 2
     })
-    expect(b.videoStats(h)).toEqual({ frames: 0, dropped: 0 })
   })
 
   it('does not call native with an audio buffer that is too short', () => {

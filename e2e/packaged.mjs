@@ -20,7 +20,7 @@ function check(cond, msg) {
 check(fs.existsSync(exe), `packaged app exists: ${exe}`)
 const app = await electron.launch({
   executablePath: exe,
-  env: { ...process.env, PPT_SHARE_USER_DATA: userData, PPT_SKIP_HOME: '1' }
+  env: { ...process.env, PPT_SHARE_USER_DATA: userData, PPT_SKIP_HOME: '1', PPT_SKIP_TOUR: '1' }
 })
 let failed = false
 try {

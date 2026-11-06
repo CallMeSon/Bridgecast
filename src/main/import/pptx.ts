@@ -1,25 +1,10 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { PPTX_RE } from '../library'
+import { NO_SLIDES_MESSAGE, num, padded, type ImportedDeck } from './types'
 
-export type ImportedDeck = {
-  name: string
-  width: number
-  height: number
-  slides: { pngPath: string; notes: string; clicks: number; hidden: boolean }[]
-  /** PDF export of the whole deck, hidden slides included. */
-  pdfPath: string
-  /** No animation, transition or media anywhere in the deck. */
-  isStatic: boolean
-  /** The working file (kept as source.<ext>; also original.<ext> unless `originalPath` is set). */
-  sourcePath: string
-  /** The imported file when `sourcePath` is a conversion of it (Linux: .odp). */
-  originalPath?: string
-  /** `sourcePath` is a fresh conversion of the imported file (not an edit of it). */
-  converted?: boolean
-}
-
-export interface Manifest {
+interface Manifest {
   width: number
   height: number
   notes: string[]
@@ -27,11 +12,6 @@ export interface Manifest {
   hidden: boolean[]
   isStatic: boolean
   pdf: string
-}
-
-function padded<T>(v: unknown, n: number, fill: T, pick: (x: unknown) => T): T[] {
-  const arr = Array.isArray(v) ? v : []
-  return Array.from({ length: n }, (_, i) => (i < arr.length ? pick(arr[i]) : fill))
 }
 
 /** Reads the script's JSON line; arrays are padded or cut to `slideCount`, bad values become 0 / false. */
@@ -43,8 +23,6 @@ export function parseExportManifest(json: string, slideCount: number): Manifest 
     throw new Error('The PowerPoint import result could not be read. Try again.')
   }
   const o = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-  const num = (x: unknown): number =>
-    typeof x === 'number' && Number.isFinite(x) && x > 0 ? Math.floor(x) : 0
   return {
     width: num(o.width),
     height: num(o.height),
@@ -156,10 +134,7 @@ export async function importPptxPowerPoint(
       .filter(Boolean)
       .pop()
     const names = orderExportedFiles(fs.readdirSync(work))
-    if (names.length === 0)
-      throw new Error(
-        'No slides were exported. Make sure the file contains slides, then try again.'
-      )
+    if (names.length === 0) throw new Error(NO_SLIDES_MESSAGE)
     const parsed = parseExportManifest(line ?? '', names.length)
     const notes = parsed.notes
     const slides = names.map((n, i) => {
@@ -168,7 +143,7 @@ export async function importPptxPowerPoint(
       return { pngPath, notes: notes[i], clicks: parsed.clicks[i], hidden: parsed.hidden[i] }
     })
     return {
-      name: path.basename(filePath).replace(/\.pptx?$/i, ''),
+      name: path.basename(filePath).replace(PPTX_RE, ''),
       width: parsed.width,
       height: parsed.height,
       slides,

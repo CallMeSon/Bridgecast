@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   DotsThreeVerticalIcon,
   ArrowCounterClockwiseIcon,
@@ -6,9 +6,8 @@ import {
   ArrowUpIcon,
   ArrowsClockwiseIcon,
   BrowserIcon,
-  CheckCircleIcon,
   CheckIcon,
-  CircleDashedIcon,
+  CircleNotchIcon,
   FilePdfIcon,
   FilePptIcon,
   GlobeIcon,
@@ -23,6 +22,7 @@ import {
   SpeakerLowIcon,
   SpeakerSlashIcon,
   TrashIcon,
+  UploadSimpleIcon,
   WarningCircleIcon,
   WarningIcon
 } from '@phosphor-icons/react'
@@ -50,16 +50,16 @@ import {
   type WebChipKind,
   playbackChip,
   REVERT_CONFIRM,
-  LO_EDIT_CONFIRM
+  LO_EDIT_CONFIRM,
+  NO_EVENT_YET
 } from '../model'
 import { orderItems, type OrderItem } from '../../../shared/sections'
-import { onMenuKeyDown, useContextMenu } from './menuNav'
+import { fitMenuTop, onMenuKeyDown, useContextMenu } from './menuNav'
 import { DeckSound } from './DeckSound'
 import { FIT_NAMES } from './deck-fit'
-import { ImportFormat } from './ImportFormat'
-import type { PptImportFormat } from '../../../shared/settings'
 import { AddWebDialog } from './AddWebDialog'
 import { StatusTag } from './StatusTag'
+import { webRowParts, type DeckRowTag } from './deck-row'
 import { SectionMenu, SectionRenameRow, SectionRow, type SectionMenuAt } from './SectionRow'
 
 /** An import row: main's progress, plus an optional label for the error meta. */
@@ -67,12 +67,6 @@ export type ImportRow = ImportProgress & { meta?: string }
 
 /** Drag data of both row kinds: the item's index in the ordered list (decks and sections). */
 const DECK_TYPE = 'application/x-ppt-share-deck'
-
-/** What Home can ask of the Decks list. */
-export interface LibraryHandle {
-  pickFiles(): void
-  addWeb(): void
-}
 
 interface Props {
   decks: DeckMeta[]
@@ -82,9 +76,9 @@ interface Props {
   live: ShownSlide | null
   /** The slide still on the output while Program is FROZEN. */
   frozen: ShownSlide | null
+  /** The on-air tag of a deck row (LIVE, FROZEN, BLACK or KV), null for any other deck. */
+  airTag(deckId: string): DeckRowTag | null
   canImport: boolean
-  /** Lets Home open the file picker or the Add web page dialog. */
-  handle?: Ref<LibraryHandle>
   /** URL of the active event's KV image, or null. */
   kvUrl: string | null
   /** The KV image is on the output now; it cannot be removed meanwhile. */
@@ -97,8 +91,6 @@ interface Props {
   onFiles(files: File[]): void
   /** The program of this computer (PowerPoint on Windows, LibreOffice on Linux). */
   engineName?: 'PowerPoint' | 'LibreOffice'
-  /** Linux only (LibreOffice engine): what an imported PowerPoint file becomes; absent elsewhere. */
-  importFormat?: { value: PptImportFormat; onChange(v: PptImportFormat): void }
   /** Indices are into the ordered list of decks and sections (`orderItems`). */
   onMoveItem(from: number, to: number): void
   onRemoveDeck(deckId: string): void
@@ -227,6 +219,11 @@ function DeckMenu({
   const ref = useRef<HTMLDivElement>(null)
   // Escape hands focus back to the deck the menu was opened on.
   useContextMenu(ref, `.decks [data-deck-id="${CSS.escape(at.deckId)}"]`, onClose)
+  // Shift up when the menu would pass the bottom edge (before paint, so it never jumps).
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el) el.style.top = `${fitMenuTop(at.y, el.offsetHeight, innerHeight)}px`
+  }, [at.y])
   return (
     <div
       ref={ref}
@@ -372,7 +369,7 @@ function AddMenu({
   onSection(): void
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
-  useContextMenu(ref, '[data-testid="deck-add"]', onClose)
+  useContextMenu(ref, '[data-testid="deck-add"], [data-testid="add-one"]', onClose)
   return (
     <div
       ref={ref}
@@ -399,6 +396,9 @@ function AddMenu({
     </div>
   )
 }
+
+/** Height of the Add menu (3 items), so the narrow Add button can open it upward. */
+const ADD_MENU_H = 124
 
 /** The 64x36 tile of a row: the first slide when there is one, else the source icon. */
 function Tile({ children, pv }: { children: React.ReactNode; pv?: boolean }): React.JSX.Element {
@@ -434,15 +434,15 @@ function DeckIcon({ deck }: { deck: DeckMeta }): React.JSX.Element {
 }
 
 const CHIP_ICON: Record<WebChipKind, React.JSX.Element> = {
-  loading: <CircleDashedIcon size={14} />,
-  ready: <CheckCircleIcon size={14} weight="fill" />,
-  error: <WarningIcon size={14} weight="fill" />,
-  hold: <PauseIcon size={14} weight="fill" />
+  loading: <CircleNotchIcon size={12} />,
+  ready: <CheckIcon size={12} weight="bold" />,
+  error: <WarningIcon size={12} weight="fill" />,
+  hold: <PauseIcon size={12} weight="fill" />
 }
 
 /**
- * Load state of a web deck's page: words plus a shape (dashed ring, check, triangle,
- * pause bars), never colour alone. HOLD is the filled one: the live page is held.
+ * Load state of a web deck's page: words plus a shape (spinner, check, triangle, pause
+ * bars), never colour alone. Ready is the only accent chip; the others are outlined.
  */
 function WebChip({ kind }: { kind: WebChipKind }): React.JSX.Element {
   return (
@@ -451,6 +451,26 @@ function WebChip({ kind }: { kind: WebChipKind }): React.JSX.Element {
       {WEB_CHIP_TEXT[kind]}
     </span>
   )
+}
+
+/** The right side of a web deck row: state tag, chip, or both side by side. */
+function WebEnd({
+  tag,
+  chip
+}: {
+  tag: DeckRowTag | null
+  chip: WebChipKind | null
+}): React.JSX.Element | null {
+  if (tag && chip) {
+    return (
+      <span className="row-end">
+        <StatusTag kind={tag} size="sm" />
+        <WebChip kind={chip} />
+      </span>
+    )
+  }
+  if (tag) return <StatusTag kind={tag} size="sm" />
+  return chip ? <WebChip kind={chip} /> : null
 }
 
 /**
@@ -736,14 +756,20 @@ function KvBlock({
         </div>
         <div className="kv-actions">
           <button
-            className="btn sm"
+            className="btn sm icon"
             disabled={!canEdit || busy}
+            aria-label={kvUrl ? 'Replace image' : 'Choose image'}
+            title={kvUrl ? 'Replace image' : 'Choose image'}
             onClick={() => input.current?.click()}
           >
-            {kvUrl ? 'Replace image' : 'Choose image'}
+            <UploadSimpleIcon size={16} />
           </button>
           {kvUrl && (
-            <button className="btn sm" disabled={busy || onAir} onClick={() => void run(onClear)}>
+            <button
+              className="btn sm remove"
+              disabled={busy || onAir}
+              onClick={() => void run(onClear)}
+            >
               Remove
             </button>
           )}
@@ -820,10 +846,6 @@ export function Library(p: Props): React.JSX.Element {
   const [renaming, setRenaming] = useState<string | null>(null)
   // The Add web page dialog, or the Edit URL one of a web deck.
   const [webDialog, setWebDialog] = useState<'add' | { deckId: string } | null>(null)
-  useImperativeHandle(p.handle, () => ({
-    pickFiles: () => input.current?.click(),
-    addWeb: () => setWebDialog('add')
-  }))
   const addWebButton = useRef<HTMLButtonElement>(null)
   // Where focus goes once the dialog has unmounted (the app behind it is inert until then).
   const webFocus = useRef<'add' | { deckId: string } | null>(null)
@@ -982,9 +1004,7 @@ export function Library(p: Props): React.JSX.Element {
       <div className="decks" data-testid="decks">
         {items.length === 0 && p.imports.length === 0 && (
           <div className="empty-lib">
-            {p.canImport
-              ? 'No decks in this event yet.'
-              : 'No event yet. Create one from the Event menu above, then add files.'}
+            {p.canImport ? 'No decks in this event yet.' : NO_EVENT_YET('add files')}
           </div>
         )}
         {items.map((item, i) => {
@@ -1034,6 +1054,7 @@ export function Library(p: Props): React.JSX.Element {
           }
           const d = deckById.get(item.deck)
           if (!d) return null
+          const tag = p.airTag(d.id)
           return renaming === d.id ? (
             <RenameRow
               key={d.id}
@@ -1111,27 +1132,7 @@ export function Library(p: Props): React.JSX.Element {
                 <span className="name" title={d.name}>
                   {d.name}
                 </span>
-                {d.source === 'web' ? (
-                  <WebChip kind={webChip(p.webStatuses[d.id], p.holdDeckId === d.id)} />
-                ) : p.live?.deckId === d.id ? (
-                  <StatusTag kind="live" size="sm" />
-                ) : p.frozen?.deckId === d.id ? (
-                  <StatusTag kind="frozen" size="sm" />
-                ) : (
-                  <span className="meta" title={countOf(d.slides.length, 'slide')}>
-                    {d.slides.length}
-                    <span className="visually-hidden">
-                      {d.slides.length === 1 ? ' slide' : ' slides'}
-                    </span>
-                  </span>
-                )}
                 <span className="sub">
-                  {d.source === 'web' && p.live?.deckId === d.id && (
-                    <StatusTag kind="live" size="sm" />
-                  )}
-                  {d.source === 'web' && p.frozen?.deckId === d.id && (
-                    <StatusTag kind="frozen" size="sm" />
-                  )}
                   {d.source === 'web'
                     ? webDomain(d.web?.url ?? '')
                     : p.live?.deckId === d.id
@@ -1153,6 +1154,20 @@ export function Library(p: Props): React.JSX.Element {
                   )}
                   <DeckSoundMark audio={d.audio} />
                 </span>
+                {d.source === 'web' ? (
+                  <WebEnd
+                    {...webRowParts(tag, webChip(p.webStatuses[d.id], p.holdDeckId === d.id))}
+                  />
+                ) : tag ? (
+                  <StatusTag kind={tag} size="sm" />
+                ) : (
+                  <span className="meta" title={countOf(d.slides.length, 'slide')}>
+                    {d.slides.length}
+                    <span className="visually-hidden">
+                      {d.slides.length === 1 ? ' slide' : ' slides'}
+                    </span>
+                  </span>
+                )}
               </button>
               {/* Visible way to the deck menu (also: right-click, F2). */}
               <button
@@ -1192,7 +1207,11 @@ export function Library(p: Props): React.JSX.Element {
                 {x.name}
               </span>
               <span className="meta">{x.meta ?? 'Failed'}</span>
-              {x.message && <span className="msg">{x.message}</span>}
+              {x.message && (
+                <span className="msg" title={x.message}>
+                  {x.message}
+                </span>
+              )}
             </button>
           ) : (
             // Importing rows are not decks yet: no drag, no delete (v1 cannot cancel).
@@ -1397,6 +1416,7 @@ export function Library(p: Props): React.JSX.Element {
             className="btn sm"
             disabled={!p.canImport}
             onClick={() => input.current?.click()}
+            data-testid="add-files"
           >
             <PlusIcon size={16} />
             Add files
@@ -1416,11 +1436,27 @@ export function Library(p: Props): React.JSX.Element {
             <GlobeIcon size={16} />
             Web page
           </button>
+          <button
+            className="btn sm add-one"
+            disabled={!p.canImport}
+            aria-haspopup="menu"
+            aria-expanded={addMenu !== null}
+            data-testid="add-one"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setConfirm(null)
+              setMenu(null)
+              setSectionMenu(null)
+              setAddMenu(
+                addMenu ? null : { x: Math.max(8, r.left), y: Math.max(8, r.top - 4 - ADD_MENU_H) }
+              )
+            }}
+          >
+            <PlusIcon size={16} />
+            Add
+          </button>
         </div>
-        {!p.canImport && <p>Create an event in the Event menu to enable importing.</p>}
-        {p.importFormat && (
-          <ImportFormat value={p.importFormat.value} onChange={p.importFormat.onChange} />
-        )}
+        {!p.canImport && <p>Create an event with New in the header to enable importing.</p>}
       </div>
       <input
         ref={input}

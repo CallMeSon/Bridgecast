@@ -6,6 +6,8 @@ interface Props {
   open: boolean
   onToggle(open: boolean): void
   testId?: string
+  /** Current value in a few words, shown on the header while the section is closed. */
+  summary?: string
   children: React.ReactNode
 }
 
@@ -18,6 +20,7 @@ export function PanelSection({
   open,
   onToggle,
   testId,
+  summary,
   children
 }: Props): React.JSX.Element {
   const id = useId()
@@ -30,9 +33,15 @@ export function PanelSection({
           id={`${id}-h`}
           aria-expanded={open}
           aria-controls={`${id}-b`}
+          aria-describedby={!open && summary ? `${id}-s` : undefined}
           onClick={() => onToggle(!open)}
         >
           {title}
+          {!open && summary && (
+            <span className="sum" id={`${id}-s`} aria-hidden="true">
+              {summary}
+            </span>
+          )}
           <CaretDownIcon className="chev" size={16} aria-hidden="true" />
         </button>
       </h2>

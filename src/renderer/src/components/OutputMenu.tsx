@@ -1,9 +1,24 @@
 import { BroadcastIcon, MonitorIcon, WarningIcon } from '@phosphor-icons/react'
 import { canvasLabel } from '../../../shared/canvas'
 import type { ProgramState } from '../../../shared/program'
-import { ndiBadge, omtBadge } from '../../../shared/omt'
+import { ndiBadge, netShortText, omtBadge } from '../../../shared/omt'
 import { hdmiBadge } from '../model'
 import type { OutputSettingsState } from './useOutputSettings'
+
+/**
+ * The full status (`OMT · 2 receivers`) from 1600 px up; under it the short word (`OMT 2`, CSS
+ * `.ind-full` / `.ind-short`). The full text stays in the page, visually hidden, for readers.
+ */
+function NetText({ full, short }: { full: string; short: string }): React.JSX.Element {
+  return (
+    <>
+      <span className="ind-full">{full}</span>
+      <span className="ind-short" aria-hidden="true">
+        {short}
+      </span>
+    </>
+  )
+}
 
 /**
  * Header output status: HDMI (ok only while its window shows on the second display), OMT,
@@ -50,13 +65,25 @@ export function OutputMenu({
           <StatusIcon size={16} />
           <span>{badge.text}</span>
         </span>
-        <span className="ind" data-testid="omt-status" data-tone={omtTone.tone}>
+        <span
+          className="ind"
+          data-testid="omt-status"
+          data-tone={omtTone.tone}
+          title={omtTone.text}
+          aria-label={omtTone.text}
+        >
           {omtTone.tone === 'error' ? <WarningIcon size={16} /> : <BroadcastIcon size={16} />}
-          <span>{omtTone.text}</span>
+          <NetText full={omtTone.text} short={netShortText('OMT', out.omtStatus)} />
         </span>
-        <span className="ind" data-testid="ndi-status" data-tone={ndiTone.tone}>
+        <span
+          className="ind"
+          data-testid="ndi-status"
+          data-tone={ndiTone.tone}
+          title={ndiTone.text}
+          aria-label={ndiTone.text}
+        >
           {ndiTone.tone === 'error' ? <WarningIcon size={16} /> : <BroadcastIcon size={16} />}
-          <span>{ndiTone.text}</span>
+          <NetText full={ndiTone.text} short={netShortText('NDI', out.ndiStatus)} />
         </span>
         <span
           className="canvas-tag"

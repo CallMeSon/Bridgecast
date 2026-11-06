@@ -63,7 +63,7 @@ export function popupAllowed(live: boolean): boolean {
   return !live
 }
 
-export type PopupAction = 'deny' | 'window' | 'samePage'
+type PopupAction = 'deny' | 'window' | 'samePage'
 
 /**
  * What a page that asks for a new window gets. On air: nothing. Otherwise a link that wants a new
@@ -110,7 +110,7 @@ export function electronKeyName(domKey: string): string {
 }
 
 /** What `webContents.sendInputEvent` accepts, narrowed to the three kinds Prepare sends. */
-export type PrepareEvent =
+type PrepareEvent =
   Electron.MouseInputEvent | Electron.MouseWheelInputEvent | Electron.KeyboardInputEvent
 
 const MOUSE_TYPES = new Set(['mouseDown', 'mouseUp', 'mouseMove', 'mouseLeave'])

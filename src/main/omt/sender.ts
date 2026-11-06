@@ -1,11 +1,11 @@
 import { NDI_COPY, dropWarning, type OmtStatus } from '../../shared/omt'
-import type { SenderBinding } from '../net/sender-binding'
+import type { NetId, SenderBinding } from '../net/sender-binding'
 import { OmtLoadError } from './binding'
 import { NdiLoadError } from '../ndi/binding'
 import { FrameClock, type Frame } from './frame-clock'
 
 export interface SendTarget {
-  id: 'omt' | 'ndi'
+  id: NetId
   name: string
   binding: () => SenderBinding
   report: (s: Partial<OmtStatus>) => void
@@ -19,7 +19,7 @@ type Timers = {
 const LIBRARY_MISSING = 'OMT could not start: its library is missing. Reinstall Bridgecast.'
 const CREATE_FAILED =
   'OMT could not start. Close other apps that send OMT, then turn OMT off and on.'
-function loadMessage(id: SendTarget['id'], e: unknown): string {
+function loadMessage(id: NetId, e: unknown): string {
   if (id === 'ndi') {
     if (e instanceof NdiLoadError) return e.kind === 'old' ? NDI_COPY.tooOld : NDI_COPY.missing
     return NDI_COPY.createFailed
@@ -27,7 +27,7 @@ function loadMessage(id: SendTarget['id'], e: unknown): string {
   return e instanceof OmtLoadError ? LIBRARY_MISSING : CREATE_FAILED
 }
 
-const createMessage = (id: SendTarget['id']): string =>
+const createMessage = (id: NetId): string =>
   id === 'ndi' ? NDI_COPY.createFailed : CREATE_FAILED
 const POLL_MS = 1000
 const SAMPLE_KEEP_MS = 10_000
@@ -50,7 +50,7 @@ export class OmtSender {
   private poll: ReturnType<typeof setInterval> | null = null
   private live: Live[] = []
   /** Targets that could not start; left alone until they are unlisted. */
-  private failed = new Map<SendTarget['id'], SendTarget>()
+  private failed = new Map<NetId, SendTarget>()
   private fps: 30 | 60 = 30
 
   constructor(
@@ -61,7 +61,7 @@ export class OmtSender {
   ) {}
 
   /** Starts from scratch (a stop first) with a new frame rate and target list. */
-  start(o: { targets: SendTarget[]; fps: 30 | 60; width: number; height: number }): void {
+  start(o: { targets: SendTarget[]; fps: 30 | 60 }): void {
     this.stop()
     this.fps = o.fps
     this.setTargets(o.targets)

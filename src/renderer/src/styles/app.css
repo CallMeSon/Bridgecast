@@ -8,6 +8,10 @@ button {
   border: 0;
   border-radius: var(--r);
   cursor: pointer;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s,
+    color 0.12s;
 }
 h2 {
   font-size: 12px;
@@ -75,6 +79,7 @@ header > .grow {
 /* Open-event tabs: only the tab list gives way. A long name is cut with an ellipsis, so the
    live tag, New, HDMI, theme and settings controls never leave the window. */
 header > .evtabs {
+  position: relative;
   flex: 0 1 auto;
   min-width: 0;
   gap: 4px;
@@ -99,8 +104,8 @@ header > .evtabs {
   color: var(--text);
 }
 .homebtn[aria-pressed='true'] {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: var(--raised-hi);
+  color: var(--text);
 }
 /* Only this list gives way. Tabs keep a readable width and the list scrolls when there are
    more than fit (the selected tab is scrolled into view). */
@@ -110,6 +115,39 @@ header > .evtabs {
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  /* scroll-padding is set per selection in EventTabs: it clears the on-air tab on its side only. */
+}
+.tab-overflow {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  color: var(--text-2);
+}
+.tab-overflow:hover,
+.tab-overflow[aria-expanded='true'] {
+  background: var(--raised);
+  color: var(--text);
+}
+.tab-overflow:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* .menu.tab-menu: outranks the later .menu rule; above Home (z 5), which covers the header. */
+.menu.tab-menu {
+  left: auto;
+  right: 0;
+  z-index: 20;
+  max-width: 320px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+.tab-menu .tn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .otab {
   display: flex;
@@ -179,7 +217,7 @@ header > .evtabs {
 .otab .x:focus-visible,
 .homebtn:focus-visible,
 .newbtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 .newbtn {
@@ -214,7 +252,8 @@ header > .evtabs {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  min-height: 32px;
+  padding: 0 8px;
   text-align: left;
 }
 .menu button:hover {
@@ -258,6 +297,8 @@ header > .evtabs {
 }
 .menu.ctx-menu {
   position: fixed;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   min-width: 180px;
   z-index: 20;
 }
@@ -443,7 +484,7 @@ button.output-btn:hover,
 .level-range {
   flex: 1;
   min-width: 0;
-  height: 24px;
+  height: 20px;
   margin: 0;
   padding: 0;
   background: transparent;
@@ -451,7 +492,7 @@ button.output-btn:hover,
   cursor: pointer;
 }
 .level-range::-webkit-slider-runnable-track {
-  height: 6px;
+  height: 4px;
   border-radius: var(--r-round);
   background: linear-gradient(to right, var(--accent) var(--p, 0%), var(--raised-hi) var(--p, 0%));
 }
@@ -459,10 +500,10 @@ button.output-btn:hover,
   appearance: none;
   width: 16px;
   height: 16px;
-  margin-top: -5px;
-  border: 2px solid var(--accent);
+  margin-top: -6px;
+  border: 2px solid var(--panel);
   border-radius: var(--r-round);
-  background: var(--panel);
+  background: var(--accent);
 }
 /* In the right panel the volume is one row: label left, slider and number right (mock). */
 .sb .field.vol {
@@ -503,10 +544,35 @@ button.output-btn:hover,
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
-/* Under 1280px the open-event tabs get the room: the canvas size is also in the Program footer. */
-@media (max-width: 1279px) {
+/* Under 1600px the open-event tabs get the room: the canvas size is also in the Program footer. */
+@media (max-width: 1599px) {
   header .canvas-tag {
     display: none;
+  }
+  /* The full status stays for readers; the short word (OMT 2) is what shows. */
+  header .ind-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+@media (min-width: 1600px) {
+  header .ind-short {
+    display: none;
+  }
+}
+/* Icons only for Light / Dark when the header is tight. */
+@media (max-width: 1439px) {
+  .theme .theme-word {
+    display: none;
+  }
+  header .theme button {
+    padding: 0;
+    width: var(--h-sm);
+    justify-content: center;
   }
 }
 .canvas-tag {
@@ -674,10 +740,6 @@ button.output-btn:hover,
   gap: 8px;
   margin-top: 4px;
 }
-.popover.canvas-dialog {
-  right: auto;
-  left: 0;
-}
 .canvas-dialog .pop-title {
   font-size: 12px;
 }
@@ -759,6 +821,7 @@ main {
 .right {
   background: var(--panel);
   border-left: 1px solid var(--line);
+  container: right / inline-size;
 }
 .stage-col {
   background: var(--bg);
@@ -815,17 +878,24 @@ main {
   gap: 8px;
   height: var(--h-md);
   padding: 0 16px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--line-hi);
   background: var(--raised);
   font-weight: 500;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
 }
-.btn:hover:not(:disabled) {
+.btn:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--raised-hi);
+  border-color: var(--edge);
 }
-/* Disabled reads as inactive by shape too: no fill, dashed hairline, dim text. */
+.btn:active:not(:disabled):not([aria-disabled='true']) {
+  background: var(--line-hi);
+}
+/* Disabled: no fill, a solid hairline, dim text. The text colour is the second cue. */
 .btn:disabled {
   background: transparent;
-  border: 1px dashed var(--line-hi);
+  border: 1px solid var(--line);
   color: var(--text-3);
   cursor: not-allowed;
 }
@@ -833,15 +903,16 @@ main {
   height: var(--h-sm);
   padding: 0 12px;
   font-size: 14px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
 }
 .btn.danger {
   background: var(--text);
   border-color: var(--text);
   color: var(--bg);
 }
-.btn.danger:hover:not(:disabled) {
+.btn.danger:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--text-2);
+  border-color: var(--text);
 }
 
 /* library: soft rows, a 64x36 tile (first slide or source icon), name and sub line */
@@ -873,6 +944,9 @@ main {
 }
 .deck:hover {
   background: var(--raised);
+}
+.deck:active {
+  background: var(--raised-hi);
 }
 /* The list scrolls and clips: its focus ring sits inside the row. */
 .deck:focus-visible {
@@ -912,7 +986,7 @@ main {
   display: block;
 }
 .deck .name {
-  grid-column: 2;
+  grid-column: 2 / -1;
   grid-row: 1;
   min-width: 0;
   font-weight: 500;
@@ -949,17 +1023,20 @@ main {
   opacity: 0;
 }
 .deck-row:hover .deck-more,
-.deck-row:has(:focus-visible) .deck-more,
+.deck-more:focus-visible,
 .deck-more[aria-expanded='true'] {
   opacity: 1;
   background: var(--raised-hi);
 }
+.deck-row:hover > .deck > .row-end,
 .deck-row:hover > .deck > .stag,
 .deck-row:hover > .deck > .chip,
 .deck-row:hover > .deck > .meta,
+.deck-row:has(.deck-more:focus-visible) > .deck > .row-end,
 .deck-row:has(.deck-more:focus-visible) > .deck > .stag,
 .deck-row:has(.deck-more:focus-visible) > .deck > .chip,
 .deck-row:has(.deck-more:focus-visible) > .deck > .meta,
+.deck-row:has(.deck-more[aria-expanded='true']) > .deck > .row-end,
 .deck-row:has(.deck-more[aria-expanded='true']) > .deck > .stag,
 .deck-row:has(.deck-more[aria-expanded='true']) > .deck > .chip,
 .deck-row:has(.deck-more[aria-expanded='true']) > .deck > .meta {
@@ -968,19 +1045,29 @@ main {
 .deck-more:focus-visible {
   outline-offset: -2px;
 }
+/* The options button is as tall as the row: while it shows, the name stops before it. */
+.deck-row:hover > .deck > .name,
+.deck-row:has(.deck-more:focus-visible) > .deck > .name,
+.deck-row:has(.deck-more[aria-expanded='true']) > .deck > .name {
+  padding-right: 40px;
+}
+/* Row 2: the sub line on the left (ellipsis), the tag, chip or count on the right. */
 .deck .sub {
   grid-column: 2;
   grid-row: 2;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   line-height: 1.3;
   color: var(--text-3);
 }
 /* Sound mark on a deck row: icon beside its words, in mono because it is a level. */
+.deck .sub > * {
+  margin-left: 8px;
+  vertical-align: middle;
+}
 .deck .snd {
   display: inline-flex;
   align-items: center;
@@ -991,20 +1078,20 @@ main {
 .deck .meta,
 .deck .n {
   grid-column: 3;
-  grid-row: 1 / 3;
+  grid-row: 2;
   min-width: 0;
   text-align: right;
   font: 400 12px var(--font-mono);
   color: var(--text-3);
 }
-/* The current deck: accent wash. The live deck keeps the wash and shows its tag. */
+/* The current deck: neutral Raised High wash. The live deck keeps the wash and shows its tag. */
 .deck[aria-current='true'],
 .deck.live,
 .deck.frozen {
-  background: var(--accent-soft);
+  background: var(--raised-hi);
 }
 .deck[aria-current='true'] .tile {
-  color: var(--accent-ink);
+  color: var(--text);
 }
 .deck.live .sub,
 .deck.frozen .sub {
@@ -1017,6 +1104,7 @@ main {
   background: none;
 }
 .deck.busy .name {
+  grid-column: 2;
   color: var(--text-2);
 }
 .deck.busy .meta,
@@ -1067,6 +1155,12 @@ main {
 .deck .msg {
   grid-column: 2 / 4;
   grid-row: 3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-2);
@@ -1121,8 +1215,8 @@ main {
   gap: 8px;
   margin-top: 4px;
 }
-/* A section divider in the deck list: thinner than a deck row, no thumbnail. The word
-   SECTION carries the meaning; the rules above and below only separate. */
+/* A section divider in the deck list: thinner than a deck row, no thumbnail. An uppercase
+   12px label, the name at 500, one hairline under it. */
 .section {
   display: flex;
   align-items: center;
@@ -1130,10 +1224,9 @@ main {
   width: 100%;
   min-height: 32px;
   padding: 5px 16px;
-  border-top: 1px solid var(--line-hi);
-  border-bottom: 1px solid var(--line-hi);
+  border-bottom: 1px solid var(--line);
   border-radius: 0;
-  background: var(--bg);
+  background: transparent;
   text-align: left;
 }
 .section-row > .section {
@@ -1147,13 +1240,14 @@ main {
 }
 .section .tag {
   flex: none;
-  font: 600 12px/1 var(--font-sans);
+  font: 500 12px/1 var(--font-sans);
   letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-3);
 }
 .section .name {
   min-width: 0;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
@@ -1193,9 +1287,18 @@ main {
 }
 .kv-body {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px 16px;
+  gap: 8px;
+}
+.kv-text {
+  min-width: 0;
+}
+.kv-head,
+.kv-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .kv-thumb {
   position: relative;
@@ -1229,15 +1332,25 @@ main {
   font-size: 12px;
   text-align: center;
 }
-/* Button labels never wrap: when thumb and buttons do not fit in one row, the buttons
-   drop below the thumb. */
+/* One row: thumb, title, action. With a KV set there are two actions, so they drop below. */
 .kv-actions {
-  grid-column: 1 / 3;
-  display: flex;
-  gap: 8px;
+  display: contents;
 }
 .kv-actions .btn {
   white-space: nowrap;
+}
+.kv-actions .btn.icon {
+  width: var(--h-sm);
+  padding: 0;
+  border-color: var(--edge);
+}
+.kv-actions .btn.icon:disabled,
+.kv-actions .btn.icon[aria-disabled='true'] {
+  border-color: var(--line);
+}
+.kv-actions .btn.remove {
+  grid-column: 1 / 4;
+  justify-self: start;
 }
 .kv-hint {
   margin-top: 8px;
@@ -1254,18 +1367,34 @@ main {
 .add {
   flex: none;
   padding: 12px var(--pad) var(--pad);
+  container: add / inline-size;
 }
 .add-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+.add-row .add-one {
+  display: none;
+}
+/* Too narrow for two buttons side by side: one Add button opens the Add menu. */
+@container add (max-width: 239px) {
+  .add-row {
+    grid-template-columns: 1fr;
+  }
+  .add-row .btn:not(.add-one) {
+    display: none;
+  }
+  .add-row .add-one {
+    display: inline-flex;
+  }
 }
 .add .btn:not(.sm) {
   width: 100%;
 }
 .add-row .btn {
-  flex: 0 0 auto;
   min-width: 0;
+  justify-content: center;
   white-space: nowrap;
 }
 .add p {
@@ -1382,13 +1511,22 @@ main {
 .stag[data-icon-only][data-size='sm'] {
   width: 20px;
 }
-.stag[data-kind='live'],
-.stag[data-kind='black'],
-.stag[data-kind='kv'] {
+.stag[data-kind='live'] {
   background: var(--accent-fill);
   color: var(--on-accent);
 }
-.stag[data-kind='frozen'],
+.stag[data-kind='black'] {
+  background: var(--text);
+  color: var(--panel);
+}
+.stag[data-kind='kv'] {
+  background: var(--tag-kv);
+  color: var(--on-tag-kv);
+}
+.stag[data-kind='frozen'] {
+  box-shadow: inset 0 0 0 1.5px var(--tag-frozen);
+  color: var(--tag-frozen);
+}
 .stag[data-kind='next'] {
   box-shadow: inset 0 0 0 1.5px var(--accent);
   color: var(--accent-ink);
@@ -1396,6 +1534,19 @@ main {
 .stag[data-kind='standby'] {
   box-shadow: inset 0 0 0 1px var(--line-hi);
   color: var(--text-2);
+}
+/* Bare icon tags (Program head, on-air event tab): the icon takes its state's own colour. */
+.ptitle .stag[data-icon-only][data-kind='frozen'],
+.otab .stag[data-icon-only][data-kind='frozen'] {
+  color: var(--tag-frozen);
+}
+.ptitle .stag[data-icon-only][data-kind='black'],
+.otab .stag[data-icon-only][data-kind='black'] {
+  color: var(--text);
+}
+.ptitle .stag[data-icon-only][data-kind='kv'],
+.otab .stag[data-icon-only][data-kind='kv'] {
+  color: var(--tag-kv);
 }
 /* Program head: the state icon stands alone, no box (STANDBY keeps its box). */
 .ptitle .stag[data-icon-only] {
@@ -1421,33 +1572,26 @@ main {
 }
 .ptitle .where {
   min-width: 0;
+  display: flex;
   font: 400 16px/1.5 var(--font-sans);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .ptitle .where .nm {
-  font-weight: 600;
-  color: var(--text);
-}
-.ptitle .where .sub {
-  color: var(--text-3);
-}
-/* The air event's name (shown while another event is open) gives way before the deck name. */
-.ptitle .where:has(.air) {
-  display: flex;
-}
-.ptitle .where:has(.air) .nm {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--text);
 }
-.ptitle .where:has(.air) .sub {
+.ptitle .where .sub {
   flex: none;
   white-space: pre;
+  color: var(--text-3);
 }
-.ptitle .where:has(.air) .sub.air {
+/* The air event's name (shown while another event is open) gives way before the deck name. */
+.ptitle .where .sub.air {
   flex: 0 100 auto;
   min-width: 0;
   overflow: hidden;
@@ -1665,17 +1809,17 @@ main {
   border: 1px solid transparent;
 }
 .tbtn.sound[aria-pressed='true'] {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--raised-hi);
+  border-color: var(--text);
+  color: var(--text);
 }
 .tbtn.sound[aria-pressed='true']:hover:not(:disabled) {
-  background: var(--accent-soft-hi);
+  background: var(--line-hi);
 }
-/* Disabled is a different shape, not a dimmer one: no fill, a dashed hairline. */
+/* Disabled: no fill, a solid hairline, dim text. */
 .tbtn.hold:disabled {
   background: transparent;
-  border: 1px dashed var(--line-hi);
+  border: 1px solid var(--line);
   color: var(--text-3);
 }
 .tbtn.hold:disabled svg,
@@ -1710,8 +1854,8 @@ main {
 .transport kbd {
   background: transparent;
 }
-/* Key caps only where they fit: a Program column under 560px drops them. */
-@container stage (max-width: 559px) {
+/* Key caps only where they fit: a Program column under 640px drops them. */
+@container stage (max-width: 639px) {
   .transport kbd {
     display: none;
   }
@@ -1719,8 +1863,8 @@ main {
     margin: 0 8px;
   }
 }
-/* Tightest Program column (about 420px): smaller gaps and hold padding so the row fits. */
-@container stage (max-width: 459px) {
+/* Narrow Program column (under 520px): smaller gaps and hold padding so the row fits. */
+@container stage (max-width: 519px) {
   .transport {
     gap: 2px;
   }
@@ -1743,25 +1887,27 @@ main {
   z-index: 15;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 8px 8px 16px;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 8px 0 12px;
   background: var(--panel);
   border: 1px solid var(--line-hi);
-  border-radius: var(--r-lg);
+  border-radius: var(--r);
   box-shadow: var(--pop-shadow);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
 }
 .toast button {
-  height: var(--h-sm);
+  height: 28px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--line-hi);
   border-radius: var(--r);
   background: var(--raised);
+  font-size: 12px;
   font-weight: 600;
 }
 .toast button:hover {
@@ -1774,11 +1920,40 @@ main {
   flex-direction: column;
   gap: 8px;
 }
-.controls-extra > div {
-  display: flex;
-  flex-wrap: wrap;
+.controls-extra > div,
+.decks-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: 8px;
+}
+.controls-extra .cbtn {
+  min-width: 0;
+  width: 100%;
+  justify-content: center;
+}
+@container right (max-width: 319px) {
+  .controls-extra kbd {
+    display: none;
+  }
+  .right .seg button {
+    padding: 0 4px;
+  }
+  /* .right: outranks the later .seg.fill button rule */
+  .right .seg.fill button {
+    flex: 1 1 auto;
+  }
+  /* .right: outranks the base .deck-canvas rules further down */
+  .right .deck-canvas {
+    flex-wrap: wrap;
+  }
+  .right .deck-canvas .k {
+    flex: 1 0 100%;
+  }
+  .right .deck-canvas .v {
+    margin-left: 0;
+    flex: 1;
+  }
 }
 kbd {
   display: inline-flex;
@@ -1786,7 +1961,7 @@ kbd {
   justify-content: center;
   height: 20px;
   min-width: 20px;
-  padding: 0 4px;
+  padding: 0 6px;
   font: 500 12px/1 var(--font-mono);
   color: var(--text-3);
   border: 1px solid var(--line-hi);
@@ -1811,7 +1986,7 @@ kbd {
 }
 .cbtn:disabled {
   background: transparent;
-  border: 1px dashed var(--line-hi);
+  border: 1px solid var(--line);
   color: var(--text-3);
   cursor: not-allowed;
 }
@@ -1914,6 +2089,9 @@ kbd {
   border-bottom: 1px solid var(--line);
 }
 .sec-h {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   margin: 0;
   font: inherit;
 }
@@ -1922,9 +2100,9 @@ kbd {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: var(--h-md);
+  height: 48px;
   padding: 0 var(--pad);
-  background: transparent;
+  background: var(--panel);
   border: 0;
   border-radius: 0;
   font-size: 16px;
@@ -1934,6 +2112,25 @@ kbd {
 }
 .sec .sh:hover {
   background: var(--raised);
+}
+/* The header stays pinned at the top of the scroll area, so you always see which section
+   you are in; the hairline marks the edge the body slides under. */
+.sec[data-open='true'] .sh {
+  box-shadow: 0 1px 0 var(--line);
+}
+.sec .sum {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.sec .sum + .chev {
+  margin-left: 0;
 }
 .sec .sh:focus-visible {
   outline-offset: -3px;
@@ -1947,7 +2144,7 @@ kbd {
   transform: rotate(-90deg);
 }
 .sb {
-  padding: 0 var(--pad) var(--pad);
+  padding: 12px var(--pad) var(--pad);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
@@ -1992,9 +2189,7 @@ kbd {
   font-size: 12px;
   line-height: 1.5;
 }
-/* The Canvas dialog of the event opens under its row, across the panel. */
 .deck-canvas {
-  position: relative;
   flex-wrap: nowrap;
   gap: 12px;
 }
@@ -2003,17 +2198,18 @@ kbd {
   min-width: 0;
   font-size: 12px;
 }
-.deck-canvas .popover.canvas-dialog {
-  left: 0;
-  right: 0;
-  width: auto;
+.canvas-modal {
+  width: min(440px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 /* Output sections reused from the old popover: flat inside a panel section. */
 .sb .pop-title {
   font-size: 14px;
 }
 .sb .pop-section + .pop-section {
-  padding-top: 16px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
 }
 
 /* next */
@@ -2368,7 +2564,9 @@ footer .empty {
    (.pgm-layer here, .output-layer in output.css) and must keep running. */
 @media (prefers-reduced-motion: reduce) {
   .switch .knob,
-  .deck .bar i {
+  .deck .bar i,
+  button,
+  .btn {
     transition: none;
   }
 }
@@ -2442,8 +2640,13 @@ footer .empty {
 /* .btn.sm sets 12px side padding; the single-class rule lost to it and left an 8 px icon box. */
 .btn.sm.prepare-icon {
   width: var(--h-sm);
+  border-color: var(--edge);
   padding: 0;
   flex: none;
+}
+.btn.sm.prepare-icon:disabled,
+.btn.sm.prepare-icon[aria-disabled='true'] {
+  border-color: var(--line);
 }
 .prepare-icon svg {
   flex: none;
@@ -2551,7 +2754,7 @@ footer .empty {
   gap: 12px;
   min-height: 40px;
   padding: 8px 16px;
-  font: 600 13px/1.3 var(--font-sans);
+  font: 600 14px/1.3 var(--font-sans);
   border-bottom: 1px solid var(--line);
   color: var(--text-2);
   background: var(--panel);
@@ -2600,7 +2803,9 @@ footer .empty {
   box-shadow: 0 0 0 2px var(--tally);
 }
 .prepare-stage[data-tally='frozen'] {
-  box-shadow: 0 0 0 2px var(--tally), 0 0 0 4px var(--accent-soft);
+  box-shadow:
+    0 0 0 2px var(--tally),
+    0 0 0 4px var(--accent-soft);
 }
 /* The drawn page: sized and placed from layout(); pointer input is normalized against it. */
 .prepare-page {
@@ -2623,7 +2828,7 @@ footer .empty {
   height: var(--h-sm);
   min-width: 56px;
   padding: 0 12px;
-  font: 600 13px var(--font-sans);
+  font: 600 14px var(--font-sans);
   color: var(--text-2);
   background: var(--panel);
   border: 0;
@@ -2652,12 +2857,16 @@ footer .empty {
   gap: 6px;
   height: var(--h-sm);
   padding: 0 12px;
-  font: 600 13px var(--font-sans);
+  font: 600 14px var(--font-sans);
   color: var(--text-2);
   background: var(--panel);
   border: 1px solid var(--edge);
   border-radius: var(--r);
   cursor: pointer;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s,
+    color 0.12s;
 }
 .prepare-togglebtn svg {
   flex: none;
@@ -2682,7 +2891,7 @@ footer .empty {
   align-items: center;
   gap: 6px;
   height: var(--h-sm);
-  font: 600 13px var(--font-sans);
+  font: 600 14px var(--font-sans);
   color: var(--text);
 }
 .prepare-zoomlabel svg {
@@ -2695,7 +2904,7 @@ footer .empty {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 12px;
 }
 .prepare-released {
   margin-left: 12px;
@@ -2733,39 +2942,37 @@ footer .empty {
   color: var(--text);
 }
 
-/* Web decks: status chip on the deck row. Text plus a shape (dashed ring, check, triangle,
-   pause bars); never red, which stays the on-air tally. HOLD is the filled one. */
+/* Web decks: status chip on the deck row (.pen Chip components: 24 high, 3px radius, icon 12).
+   Text plus a shape (spinner, check, triangle, pause bars); never red. Ready is the only
+   accent chip; Loading is a Line High outline, Error and HOLD a Text outline. */
 .deck .chip {
   grid-column: 3;
-  grid-row: 1 / 3;
+  grid-row: 2;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 22px;
+  height: 24px;
   padding: 0 8px;
-  border: 1px solid var(--edge);
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
-  font: 500 12px/1 var(--font-mono);
+  font: 600 12px/1 var(--font-sans);
   color: var(--text-2);
   white-space: nowrap;
 }
 .deck .chip[data-kind='loading'] {
-  border-style: dashed;
+  border-color: var(--line-hi);
 }
 .deck .chip[data-kind='ready'] {
-  border-color: var(--line-hi);
-  color: var(--text);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
 }
 .deck .chip[data-kind='error'] {
-  border-width: 2px;
+  border-color: var(--text);
   color: var(--text);
-  font-weight: 700;
 }
 .deck .chip[data-kind='hold'] {
-  background: var(--text);
   border-color: var(--text);
-  color: var(--bg);
-  font-weight: 700;
+  color: var(--text);
 }
 
 /* Add web page / Edit URL: a modal over the app. */
@@ -2776,7 +2983,7 @@ footer .empty {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  background: var(--scrim);
 }
 .popover.modal {
   position: static;
@@ -2786,14 +2993,6 @@ footer .empty {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-.btn.inverse:not(:disabled) {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--bg);
-}
-.btn.inverse:hover:not(:disabled) {
-  background: var(--text-2);
 }
 .add-web .pop-error,
 .add-web .pop-status {
@@ -2813,7 +3012,7 @@ footer .empty {
 }
 .btn[aria-disabled='true'] {
   background: transparent;
-  border: 1px dashed var(--line-hi);
+  border: 1px solid var(--line);
   color: var(--text-3);
   cursor: not-allowed;
 }
@@ -2883,7 +3082,6 @@ footer .empty {
 
 /* Linux: what an imported PowerPoint file becomes */
 .import-format {
-  margin-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2892,14 +3090,17 @@ footer .empty {
   color: var(--text-2);
   font-size: 12px;
 }
-.add .import-format p {
-  margin-top: 0;
+.import-format p {
+  color: var(--text-3);
+  font-size: 12px;
 }
 
 /* Settings dialog */
 .settings-dialog {
   width: min(560px, 100%);
-  max-height: 100%;
+  /* The scrim is a centring grid, so 100% has no definite height to resolve against:
+     cap on the viewport (minus the scrim's 16px padding) and let .set-body scroll. */
+  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -2909,6 +3110,7 @@ footer .empty {
   color: var(--text);
 }
 .set-head {
+  background: var(--panel);
   flex: none;
   display: flex;
   align-items: center;
@@ -2922,6 +3124,8 @@ footer .empty {
   font-weight: 600;
 }
 .set-body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: 0 var(--pad);
 }
@@ -2970,7 +3174,6 @@ footer .empty {
 }
 .swatch[aria-checked='true'] {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
   font-weight: 600;
 }
 .swatch .chip {
@@ -3001,8 +3204,11 @@ footer .empty {
 }
 .about-brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  padding-top: 8px;
+  text-align: center;
 }
 .about-brand .brand-mark {
   color: var(--text);
@@ -3024,13 +3230,23 @@ footer .empty {
   transition: none;
 }
 
-/* A state tag or web chip sits in the right column beside the name and its sub line (mock),
-   so every row stays two lines tall. The name gives way with an ellipsis. */
+/* A state tag or web chip sits at the right of row 2, opposite the sub line, so the name has
+   row 1 to itself and every row stays two lines tall. */
+.deck > .row-end,
 .deck > .stag,
 .deck > .chip {
   grid-column: 3;
-  grid-row: 1 / 3;
+  grid-row: 2;
   justify-self: end;
+  align-self: center;
+  /* Taller than the sub line: the negative margin keeps row 2, and the row, as high as before. */
+  margin-block: -4px;
+}
+/* A web deck on air: state tag and chip side by side; the sub line gives way first. */
+.deck > .row-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 /* Playback format on a deck row: plain words in the sub line. Only the native engine state
    (opening, ready, fallback) stays a chip. */
@@ -3072,7 +3288,7 @@ footer .empty {
   background: var(--bg);
 }
 .hwrap {
-  max-width: 1120px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 24px 0 0;
   display: grid;
@@ -3083,8 +3299,9 @@ footer .empty {
   color: var(--on-accent);
   border-color: var(--accent-fill);
 }
-.btn.primary:hover:not(:disabled) {
+.btn.primary:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--accent-fill);
+  border-color: var(--accent-fill);
   filter: brightness(1.08);
 }
 .btn.sm kbd,
@@ -3223,29 +3440,33 @@ footer .empty {
   box-shadow: inset 0 0 0 1.5px var(--edge);
 }
 .menu [aria-checked='true'] .rd {
-  box-shadow: inset 0 0 0 4px var(--accent-fill);
+  box-shadow: inset 0 0 0 4px var(--text);
 }
 #home-filter[aria-pressed='true'] {
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  border-color: var(--text);
+  color: var(--text);
 }
 .seg.vt {
   height: var(--h-sm);
+  padding: 1px;
+  gap: 0;
 }
 .seg.vt button {
-  width: var(--h-sm);
+  width: 28px;
+  height: 28px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .seg.vt button[aria-pressed='true'] {
-  background: var(--accent-soft);
+  background: var(--panel);
+  box-shadow: var(--shadow-0);
   color: var(--accent-ink);
 }
 .evgrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
 .evgrid.list {
@@ -3272,7 +3493,7 @@ footer .empty {
 .ev[data-open='true'] {
   box-shadow:
     var(--shadow-1),
-    0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
+    0 0 0 1px var(--line-hi);
 }
 .ev[data-live='true'] {
   box-shadow: 0 0 0 1px var(--accent);
@@ -3423,6 +3644,19 @@ footer .empty {
 }
 .home .empty p {
   max-width: 40ch;
+  color: var(--text);
+  font: 600 16px/1.4 var(--font-sans);
+  letter-spacing: -0.015em;
+}
+.home .empty-tile {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: var(--text-2);
+  background: var(--raised);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-0);
 }
 .home .empty .row2 {
   display: flex;
@@ -3433,28 +3667,37 @@ footer .empty {
   font-size: 12px;
   text-align: center;
 }
-/* Welcome: small kicker over the brand heading, flat on the Ground. */
+/* Welcome (top of Home, as in the .pen): centred lockup over the Ground.
+   The only display-size type in the app; kicker is mono caps like a label. */
 .hero {
+  /* .pen Welcome hero: a 224px block with its content centred, and no gap before the next
+     block (the grid gap of .hwrap is taken back). */
   display: grid;
-  gap: 4px;
-  padding-top: 8px;
+  justify-items: center;
+  align-content: center;
+  gap: 10px;
+  min-height: 224px;
+  padding: 32px 0;
+  margin-bottom: -24px;
 }
 .hero-kicker {
   margin: 0;
-  color: var(--text-2);
-  font-size: 14px;
-  font-weight: 500;
+  color: var(--text-3);
+  font: 600 12px/1 var(--font-mono);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
 }
 .hero-title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 16px;
   margin: 0;
   color: var(--text);
-  font: 600 24px/1.2 var(--font-sans);
-  letter-spacing: -0.015em;
+  font: 600 64px/1.05 var(--font-sans);
+  letter-spacing: -0.025em;
 }
-/* Getting started: a resting card (1px ring), 13px/600 panel title, one open hint. */
+/* Getting started: a resting card (1px ring), 14px/600 panel title, one open hint. */
 .guide {
   padding: 16px var(--pad);
   background: var(--panel);
@@ -3470,7 +3713,7 @@ footer .empty {
 .guide-head h2 {
   margin: 0;
   color: var(--text);
-  font: 600 13px/1.3 var(--font-sans);
+  font: 600 14px/1.3 var(--font-sans);
 }
 .guide-count {
   margin-right: auto;
@@ -3488,6 +3731,7 @@ footer .empty {
 }
 .guide-step {
   position: relative;
+  transition: color 0.12s;
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   gap: 8px;
@@ -3518,13 +3762,40 @@ footer .empty {
   font-size: 12px;
   line-height: 1.5;
 }
-.guide-off {
-  display: flex;
+/* Compact guide: one 52 px row with a 1px ring; the steps open below it for this view only. */
+.guide.compact {
+  padding: 0 var(--pad);
+  border-radius: var(--r-lg);
+  box-shadow: 0 0 0 1px var(--line);
 }
-@media (max-width: 1100px) {
-  .evgrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.guide.compact .guide-head {
+  min-height: 52px;
+}
+.guide.compact .guide-count {
+  margin-right: 0;
+}
+.guide-next {
+  margin-right: auto;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guide.compact .guide-steps {
+  margin-top: 0;
+  padding: 12px 0 16px;
+}
+.btn.sm.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-2);
+}
+.btn.sm.quiet:hover:not(:disabled):not([aria-disabled='true']) {
+  border-color: transparent;
+  background: var(--raised);
+  color: var(--text);
 }
 
 /* Interact on the operator monitor (Program.tsx). The toggle follows the Prepare switch; the
@@ -3536,7 +3807,7 @@ footer .empty {
   gap: 6px;
   height: var(--h-sm);
   padding: 0 12px;
-  font: 600 13px var(--font-sans);
+  font: 600 14px var(--font-sans);
   color: var(--text-2);
   background: var(--panel);
   border: 1px solid var(--edge);
@@ -3580,16 +3851,16 @@ footer .empty {
   margin: 0 var(--pad) 8px;
   padding: 6px 12px;
   border-radius: var(--r-sm);
-  font: 600 13px/1.3 var(--font-sans);
+  font: 600 14px/1.3 var(--font-sans);
   color: var(--text);
 }
 .pgm-interacting {
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--raised-hi);
+  box-shadow: inset 0 0 0 1px var(--text);
 }
 .pgm-interacting svg {
   flex: none;
-  color: var(--accent-ink);
+  color: var(--text);
 }
 .pgm-interact-note {
   box-shadow: inset 0 0 0 1px var(--edge);
@@ -3604,4 +3875,352 @@ footer .empty {
   padding: 8px 16px;
   border-top: 1px solid var(--line);
   background: var(--panel);
+}
+
+/* Thin themed scrollbars on the long scrolling surfaces. */
+.props,
+.thumbs,
+.home,
+.decks {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-hi) transparent;
+}
+
+/* After a pointer press the ring stays off buttons; Tab brings it back (main.tsx, operator only).
+   Text fields keep theirs. */
+:root[data-input='mouse'] :focus-visible:not(input, textarea, select) {
+  outline: none;
+}
+
+/* An icon never shrinks inside a flex button: a squashed glyph reads as a bug. */
+button > svg,
+.ind > svg {
+  flex: none;
+}
+
+/* Off air (OffAirButton.tsx): the question replaces the button. Inline and flat, the same tone as
+   the canvas question. In the on-air banner it sits in the row; under the deck buttons in Controls
+   it is a column, full width. */
+.offair-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--raised-hi);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+}
+.offair-confirm p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.offair-confirm .actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.controls-extra > .offair-confirm {
+  display: flex;
+  flex-direction: column;
+}
+.onair .offair-confirm {
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 8px 12px;
+}
+.onair .offair-confirm p {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Motion: small, short, one easing. Menus, dialogs, toasts and tags ease in; the strip ring and
+   section bodies follow state. Opacity and transform only. Never on the Program output: the slide
+   change contract (Cut 50ms, Fade 250ms) is separate. Off under prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /* The app's Reduce motion setting (data-reduce-motion) turns these off as well. */
+  :root:not([data-reduce-motion]) .menu,
+  :root:not([data-reduce-motion]) .ctx-menu {
+    animation: pop-in 0.15s var(--ease-out) both;
+  }
+  :root:not([data-reduce-motion]) .modal-scrim {
+    animation: scrim-in 0.18s linear both;
+  }
+  :root:not([data-reduce-motion]) .modal-scrim > [role='dialog'] {
+    animation: dialog-in 0.18s var(--ease-out) both;
+  }
+  :root:not([data-reduce-motion]) .toast {
+    animation: toast-in 0.18s var(--ease-out) both;
+  }
+  :root:not([data-reduce-motion]) .stag {
+    animation: tag-in 0.18s var(--ease-out) both;
+  }
+  :root:not([data-reduce-motion]) .sec .sb:not([hidden]) {
+    animation: sec-in 0.18s var(--ease-out) both;
+  }
+  :root:not([data-reduce-motion]) .th .im::after {
+    transition: box-shadow 0.15s var(--ease-out);
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+  @keyframes scrim-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(12px);
+    }
+  }
+  @keyframes tag-in {
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+  }
+  @keyframes sec-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+}
+
+/* Motion, continued: the tab bar underline fades in; the Program ring eases to the tally colour.
+   Both are overlays or chrome: the slide itself and the take (Cut / Fade) are untouched. */
+@media (prefers-reduced-motion: no-preference) {
+  .tabs [role='tab'] {
+    box-shadow: inset 0 -2px 0 transparent;
+    transition:
+      box-shadow 0.18s var(--ease-out),
+      color 0.12s;
+  }
+  .screen::after {
+    transition: border-color 0.18s var(--ease-out);
+  }
+}
+
+/* Feedback motion, round 2 (plan 2026-11-06, section 2). Colour and state changes run for
+   everyone; travel and scale only when the app's Reduce motion is off and the OS allows motion.
+   Focus rings are never transitioned, so keyboard users see them at once. Never on the Program. */
+
+/* Tab underline: one indicator per tablist, moved by JS (--tab-x, --tab-w), instead of a
+   per-tab bar. The right panel's three tabs are equal width, so only the position moves. */
+.right .tabs {
+  position: relative;
+}
+.right .tabs [role='tab'][aria-selected='true'] {
+  box-shadow: none;
+}
+.right .tabs::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: var(--tab-w, 0px);
+  background: var(--accent);
+  transform: translateX(var(--tab-x, 0px));
+  pointer-events: none;
+}
+
+/* Segmented thumb: the chosen segment's Panel fill and ring is one element that glides between
+   segments (Segmented.tsx sets --seg-x, --seg-w and data-glide). Without data-glide the chosen
+   segment keeps its own fill, as before. */
+.seg.fill {
+  position: relative;
+}
+.seg.fill[data-glide] button {
+  position: relative;
+}
+.seg.fill[data-glide]::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: var(--seg-w, 0px);
+  transform: translateX(var(--seg-x, 0px));
+  background: var(--panel);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-0);
+  pointer-events: none;
+}
+.seg.fill[data-glide] button[aria-checked='true'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Colour and state: hold buttons change fill in 120ms; deck rows change background in 120ms. */
+.tbtn {
+  transition:
+    background-color 0.12s,
+    color 0.12s;
+}
+.deck {
+  transition: background-color 0.12s;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduce-motion]) .btn,
+  :root:not([data-reduce-motion]) .tbtn {
+    transition:
+      background-color 0.12s,
+      border-color 0.12s,
+      color 0.12s,
+      transform 0.08s var(--ease-out);
+  }
+  /* Press: 0.98 over 80ms. */
+  :root:not([data-reduce-motion]) .btn:active:not(:disabled):not([aria-disabled='true']),
+  :root:not([data-reduce-motion]) .tbtn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  :root:not([data-reduce-motion]) .right .tabs::after {
+    transition: transform 0.18s var(--ease-out);
+  }
+  :root:not([data-reduce-motion]) .seg.fill[data-glide]::before {
+    transition: transform 0.15s var(--ease-out);
+  }
+}
+
+/* First-run tour (plan 2026-11-06-app-tour). Three cards over a scrim, then three spotlights on
+   the real controls. The ring is Text ink, never the accent (the accent is for on-air and next).
+   Dialog spec for the cards: Panel, 1px Line High, 6px radius, the pop shadow. */
+.tour-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+.tour-card {
+  width: min(560px, 100%);
+  padding: 24px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r-lg);
+  box-shadow: var(--pop-shadow);
+}
+.tour-title {
+  margin: 0 0 8px;
+  font: 600 16px/1.3 var(--font-sans);
+  letter-spacing: -0.015em;
+}
+.tour-body,
+.tour-tip-body {
+  margin: 0 0 16px;
+  font: 400 14px/1.5 var(--font-sans);
+  color: var(--text-2);
+}
+.tour-spot {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+}
+.tour-ring {
+  position: fixed;
+  border: 2px solid var(--text);
+  border-radius: var(--r);
+  box-shadow: 0 0 0 9999px color-mix(in srgb, var(--bg) 70%, transparent);
+  pointer-events: none;
+}
+.tour-ring-plain {
+  box-shadow: none;
+}
+.tour-tip {
+  position: fixed;
+  width: 320px;
+  padding: 16px 20px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r-lg);
+  box-shadow: var(--pop-shadow);
+  pointer-events: auto;
+}
+.tour-count {
+  margin: 0 0 6px;
+  font: 500 12px/1 var(--font-mono);
+  color: var(--text-3);
+}
+.tour-tip-title {
+  margin: 0 0 6px;
+  font: 600 16px/1.3 var(--font-sans);
+  letter-spacing: -0.015em;
+}
+.tour-tip-body {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tour-spacer {
+  flex: 1;
+}
+.about-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduce-motion]) .tour-card,
+  :root:not([data-reduce-motion]) .tour-tip {
+    animation: tour-in 0.18s var(--ease-out) both;
+  }
+}
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Powered by DigiOH (About): the colour logo on light, the white one on dark. */
+.about-powered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  font: 500 12px/1 var(--font-sans);
+  color: var(--text-3);
+}
+.about-digioh {
+  display: block;
+  width: auto;
+}
+.about-digioh-dark {
+  display: none;
+}
+:root[data-theme='dark'] .about-digioh-light {
+  display: none;
+}
+:root[data-theme='dark'] .about-digioh-dark {
+  display: block;
 }

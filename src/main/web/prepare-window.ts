@@ -13,7 +13,7 @@ interface Rect {
   height: number
 }
 
-export const PREPARE_MIN = { width: 800, height: 560 }
+const PREPARE_MIN = { width: 800, height: 560 }
 /** Part of a saved window that must be on a display for the saved spot to count as reachable. */
 const MIN_VISIBLE = { width: 160, height: 80 }
 

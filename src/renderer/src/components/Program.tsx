@@ -9,6 +9,7 @@ import { EndCard } from './Slide'
 import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
 import { TransportBar } from './TransportBar'
+import { audienceNote, standbyCard } from './program-copy'
 
 /**
  * The Program column: title row with the state tag, the monitor, one meta line and the
@@ -133,7 +134,7 @@ export function Program({
                 })}
               />
             ) : (
-              <EndCard title="No slides yet" sub={emptyHint} />
+              <EndCard {...standbyCard(deck, state.index, emptyHint)} />
             )}
             <div className="shade" />
             {/* Interact: the live page's input comes from here, mapped onto the picture. */}
@@ -180,7 +181,7 @@ export function Program({
           </span>
         )}
         {nextLabel && <span data-testid="next-label">{nextLabel}</span>}
-        <span className="note">{audienceNote(state, t)}</span>
+        <span className="note">{audienceNote(state, t, deck?.source === 'web')}</span>
       </div>
       <TransportBar
         state={state}
@@ -292,21 +293,4 @@ function useMonitorInteract(
     input.onKey(e)
   }
   return { on, note, start, stop, input, onCaptureKey }
-}
-
-/** One sentence: what the audience sees right now. */
-function audienceNote(state: ProgramState, t: ReturnType<typeof tally>): string {
-  const n = (state.shown?.index ?? 0) + 1
-  switch (t) {
-    case 'live':
-      return `Audience sees slide ${n}`
-    case 'frozen':
-      return `Audience sees slide ${n}, held`
-    case 'black':
-      return 'Audience sees black'
-    case 'kv':
-      return 'Audience sees the key visual'
-    default:
-      return 'Audience sees the standby card'
-  }
 }

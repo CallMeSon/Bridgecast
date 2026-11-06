@@ -1,9 +1,10 @@
 import type { EngineInfo } from '../platform'
 import type { PptImportFormat } from '../../shared/settings'
 import type { LibreOfficeImportOptions } from './libreoffice'
-import type { importPptxPowerPoint, ImportedDeck } from './pptx'
+import type { importPptxPowerPoint } from './pptx'
+import type { ImportedDeck } from './types'
 
-export type { ImportedDeck } from './pptx'
+export type { ImportedDeck } from './types'
 
 /** What the import needs to know about this computer (set once at start, injectable in tests). */
 export interface ImportEnv {
@@ -27,7 +28,7 @@ export function configureImport(e: ImportEnv): void {
   env = e
 }
 
-export interface ImportOptions {
+interface ImportOptions {
   /** Test seam: the environment to use instead of the configured one. */
   env?: ImportEnv
   /**

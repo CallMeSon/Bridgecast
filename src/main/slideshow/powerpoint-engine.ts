@@ -18,7 +18,7 @@ export interface BridgeChild {
   on(ev: 'error', cb: (err: Error) => void): unknown
   kill(): unknown
 }
-export type SpawnFn = (exe: string) => BridgeChild
+type SpawnFn = (exe: string) => BridgeChild
 
 /** Shown when the sound of PowerPoint cannot be routed or its level changed by the app. */
 export const DEFAULT_DEVICE_SOUND = "PowerPoint sound plays on this PC's default device only."
@@ -47,14 +47,12 @@ export function bridgeExePath(opts: {
     : path.join(opts.appPath, 'native', 'ppt-bridge', 'bin', 'Release', 'net48', 'ppt-bridge.exe')
 }
 
-export interface PowerPointEngineOptions {
+interface PowerPointEngineOptions {
   exe: string
   spawn?: SpawnFn
   exists?: (file: string) => boolean
   /** Screen DPI (96 = 100 %) used to turn Canvas pixels into points. */
   dpi?: () => number
-  /** Slide show window position in pixels; by default it sits behind the other windows. */
-  place?: { x: number; y: number; behind: boolean }
   /** Called when the helper cannot start. */
   onStartFailure?: (message: string) => void
   /** Runs the one-shot `--restore-audio` of the helper (at engine start, after an abnormal exit). */
@@ -82,10 +80,6 @@ interface Live {
   exited: boolean
   /** The helper has written something: a later `error` is a broken pipe, not a failed start. */
   heard: boolean
-  /** The PowerPoint process the helper reported (informational only: the app never kills it). */
-  app: { pid: number; owned: boolean } | null
-  /** An `edit` window was opened: the document belongs to the operator. */
-  edited: boolean
 }
 
 /**
@@ -125,11 +119,6 @@ export class PowerPointEngine implements SlideShowEngine {
     return !!this.live && !this.live.exited
   }
 
-  /** PowerPoint process the helper reported, for the debug dump only; never used to kill it. */
-  get powerPoint(): { pid: number; owned: boolean } | null {
-    return this.live?.app ?? null
-  }
-
   /** Last start failure message for the operator UI; null when the helper started. */
   get helperError(): string | null {
     return this.startError
@@ -157,9 +146,7 @@ export class PowerPointEngine implements SlideShowEngine {
       client,
       stopping: false,
       exited: false,
-      heard: false,
-      app: null,
-      edited: false
+      heard: false
     }
     const out = new StringDecoder('utf8')
     child.stdout.on('data', (c) => {
@@ -228,13 +215,6 @@ export class PowerPointEngine implements SlideShowEngine {
       this.gone(live, false)
       return
     }
-    if (e.event === 'app') {
-      const { pid, owned } = e as Record<string, unknown>
-      if (Number.isInteger(pid) && (pid as number) > 0 && typeof owned === 'boolean') {
-        live.app = { pid: pid as number, owned }
-      }
-      return
-    }
     if (e.event === 'position') {
       const { deckId, index, step, clicks } = e as Record<string, unknown>
       if (
@@ -264,7 +244,6 @@ export class PowerPointEngine implements SlideShowEngine {
 
   async open(deckId: string, file: string, canvas: Canvas): Promise<EngineSession> {
     const live = this.start()
-    const place = this.opts.place ?? { x: 0, y: 0, behind: true }
     const res = await live.client.request(
       'open',
       {
@@ -273,9 +252,9 @@ export class PowerPointEngine implements SlideShowEngine {
         width: canvas.width,
         height: canvas.height,
         dpi: this.opts.dpi?.() ?? 96,
-        x: place.x,
-        y: place.y,
-        behind: place.behind
+        x: 0,
+        y: 0,
+        behind: true
       },
       OPEN_MS
     )
@@ -338,7 +317,6 @@ export class PowerPointEngine implements SlideShowEngine {
   /** Opens the deck's working copy (`edit.pptx`) in a normal PowerPoint window. */
   async edit(file: string): Promise<void> {
     const live = this.start()
-    live.edited = true
     await live.client.request('edit', { file }, EDIT_MS)
   }
 

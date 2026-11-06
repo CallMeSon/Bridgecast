@@ -4,10 +4,17 @@ export type ThemePref = 'system' | 'light' | 'dark'
 export type Theme = 'light' | 'dark'
 export type AccentId = 'orange' | 'violet' | 'blue' | 'rose' | 'sand' | 'custom'
 
-export const ACCENT_IDS: readonly AccentId[] = ['orange', 'violet', 'blue', 'rose', 'sand', 'custom']
+export const ACCENT_IDS: readonly AccentId[] = [
+  'orange',
+  'violet',
+  'blue',
+  'rose',
+  'sand',
+  'custom'
+]
 
 /** Panel surface per theme; equals `--panel` in tokens.css. */
-export const PANEL: Record<Theme, string> = { light: '#ffffff', dark: '#17181d' }
+export const PANEL: Record<Theme, string> = { light: '#ffffff', dark: '#1c1d27' }
 
 export interface AccentTokens {
   /** Rings and tints. */
@@ -41,8 +48,10 @@ const same = (accent: string, ink: string, on: string): AccentTokens => ({
   on
 })
 
+export const DEFAULT_ACCENT_HEX = '#2160d4'
+
 const BLUE: Record<Theme, AccentTokens> = {
-  light: same('#2160d4', '#1c55bd', '#ffffff'),
+  light: same(DEFAULT_ACCENT_HEX, '#1c55bd', '#ffffff'),
   dark: same('#82b2ff', '#98c0ff', '#08193a')
 }
 
@@ -99,8 +108,7 @@ export function parseHex(v: unknown): string | null {
 function mix(a: string, b: string, t: number): string {
   const x = parseInt(a.slice(1), 16)
   const y = parseInt(b.slice(1), 16)
-  const ch = (s: number): number =>
-    Math.round(((x >> s) & 255) * (1 - t) + ((y >> s) & 255) * t)
+  const ch = (s: number): number => Math.round(((x >> s) & 255) * (1 - t) + ((y >> s) & 255) * t)
   return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)
 }
 

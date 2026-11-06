@@ -202,7 +202,7 @@ export function AddWebDialog({ edit, onSubmit, onClose }: Props): React.JSX.Elem
             <button type="button" className="btn" onClick={() => close(true)}>
               Cancel
             </button>
-            <button type="submit" className="btn inverse" disabled={busy}>
+            <button type="submit" className="btn primary" disabled={busy}>
               {edit ? 'Save' : 'Add web page'}
             </button>
           </div>

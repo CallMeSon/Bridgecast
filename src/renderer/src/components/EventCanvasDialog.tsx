@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { XIcon } from '@phosphor-icons/react'
 import type { Canvas } from '../../../shared/canvas'
 import type { EventMeta } from '../../../shared/types'
@@ -17,10 +18,12 @@ interface Props {
   onClose(restoreFocus: boolean): void
 }
 
+const FOCUSABLE = 'input, select, button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
+
 /**
  * "Canvas for this event": the event's own output size, or Use default to
- * follow the machine canvas of the output settings. Opens from the event menu,
- * under it; Escape, Close or a click outside closes it.
+ * follow the machine canvas of the output settings. A centred modal like AddWebDialog,
+ * in a portal so a short window cannot clip it; Escape, Close or a click outside closes it.
  */
 export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): React.JSX.Element {
   const api = window.api
@@ -55,51 +58,105 @@ export function EventCanvasDialog({ event, program, onSaved, onClose }: Props): 
     to?.focus()
     // pointerdown, not click: the click that opened this dialog is already over.
     const onPointer = (e: PointerEvent): void => {
-      if (!box.current?.parentElement?.contains(e.target as Node)) onClose(false)
+      if (!box.current?.contains(e.target as Node)) onClose(false)
     }
+    // Bubble phase, as before: the confirmation's own Escape handler stops its key first,
+    // so that Escape only dismisses the question. Focus may be on the body after that.
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
       e.preventDefault()
       onClose(true)
     }
-    addEventListener('pointerdown', onPointer)
     addEventListener('keydown', onKey)
+    // Capture: the scrim stops pointerdown from reaching the right panel through the React tree.
+    addEventListener('pointerdown', onPointer, true)
     return () => {
-      removeEventListener('pointerdown', onPointer)
+      removeEventListener('pointerdown', onPointer, true)
       removeEventListener('keydown', onKey)
     }
   }, [onClose])
 
-  return (
+  // The rest of the app is inert while the dialog is open (as in AddWebDialog): no Tab and no
+  // key reaches the console behind it; the cleanup also runs when the dialog unmounts abruptly.
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (!root) return
+    root.inert = true
+    return () => {
+      root.inert = false
+    }
+  }, [])
+
+  // Focus trap: Tab and Shift+Tab wrap inside the dialog; from the dialog itself (a click on
+  // its text) they enter at the matching end.
+  const trap = (e: React.KeyboardEvent): void => {
+    if (e.key !== 'Tab' || !box.current) return
+    const items = [...box.current.querySelectorAll<HTMLElement>(FOCUSABLE)]
+    if (items.length === 0) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    const at = document.activeElement
+    if (!box.current.contains(at) || at === box.current) {
+      e.preventDefault()
+      ;(e.shiftKey ? last : first).focus()
+    } else if (e.shiftKey && at === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && at === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
+  // Portal events still bubble to the React parent (the Canvas row of the right panel).
+  const contain = (e: React.SyntheticEvent): void => e.stopPropagation()
+  return createPortal(
     <div
-      ref={box}
-      className="popover canvas-dialog"
-      role="dialog"
-      aria-labelledby="event-canvas-title"
-      data-no-shortcuts
-      data-testid="event-canvas-dialog"
+      className="modal-scrim"
+      onClick={contain}
+      onKeyDown={(e) => {
+        // Escape goes on to the window listener above; other keys stay out of the right panel.
+        trap(e)
+        if (e.key !== 'Escape') e.stopPropagation()
+      }}
+      onKeyUp={contain}
+      onPointerDown={contain}
     >
-      <section className="pop-section">
-        <div className="pop-head">
-          <h2 className="pop-title" id="event-canvas-title">
-            Canvas for this event
-          </h2>
-          <button className="btn sm" onClick={() => onClose(true)}>
-            <XIcon size={14} />
-            Close
-          </button>
-        </div>
-        <p className="hint">{event.name}. Use default follows the canvas in the output settings.</p>
-        <CanvasSetting
-          value={event.canvas ?? null}
-          allowDefault
-          hdmiDisplay={hdmiDisplay}
-          defaultCanvas={machine}
-          confirm={needsCanvasConfirm(program, event.id)}
-          networkReceivers={hasConnections(omt, ndi)}
-          apply={async (c) => onSaved(await api.setEventCanvas(event.id, c))}
-        />
-      </section>
-    </div>
+      <div
+        ref={box}
+        className="popover modal canvas-modal canvas-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="event-canvas-title"
+        tabIndex={-1}
+        data-no-shortcuts
+        data-testid="event-canvas-dialog"
+      >
+        <section className="pop-section">
+          <div className="pop-head">
+            <h2 className="pop-title" id="event-canvas-title">
+              Canvas for this event
+            </h2>
+            <button className="btn sm" onClick={() => onClose(true)}>
+              <XIcon size={14} />
+              Close
+            </button>
+          </div>
+          <p className="hint">
+            {event.name}. Use default follows the canvas in the output settings.
+          </p>
+          <CanvasSetting
+            value={event.canvas ?? null}
+            allowDefault
+            hdmiDisplay={hdmiDisplay}
+            defaultCanvas={machine}
+            confirm={needsCanvasConfirm(program, event.id)}
+            networkReceivers={hasConnections(omt, ndi)}
+            apply={async (c) => onSaved(await api.setEventCanvas(event.id, c))}
+          />
+        </section>
+      </div>
+    </div>,
+    document.body
   )
 }

@@ -18,8 +18,9 @@ import { canNative, isPlayback } from '../shared/playback'
 import { sanitizeDeckAudio } from '../shared/audio-levels'
 import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections'
 import { isPageZoom, sanitizeWebUrl } from '../shared/web'
-import type { ImportedDeck } from './import/pptx'
+import type { ImportedDeck } from './import/types'
 import { thumbFileName } from './slide-protocol'
+import { isUuid } from './uuid'
 import { writeThumbnail } from './thumbnail'
 
 type DeckInput = {
@@ -67,8 +68,6 @@ function cleanWebUrl(url: unknown): string {
   return res.url
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 const slideName = (i: number, ext = 'png'): string => `${String(i + 1).padStart(3, '0')}.${ext}`
 
 function writeJsonAtomic(file: string, data: unknown): void {
@@ -83,6 +82,9 @@ function writeJsonAtomic(file: string, data: unknown): void {
 }
 
 /** Files a deck's slide show can be made from (`.odp`: a PowerPoint file converted for LibreOffice). */
+/** A PPTX or PPT file name (not `.odp`). */
+export const PPTX_RE = /\.pptx?$/i
+
 const POWERPOINT_EXTS = ['.pptx', '.ppt', '.odp']
 
 const PRISTINE = 'source.pristine'
@@ -149,7 +151,7 @@ export class Library {
   }
 
   private deckDir(deckId: string): string {
-    if (!UUID_RE.test(deckId)) {
+    if (!isUuid(deckId)) {
       throw new Error('The deck ID is not valid. Reload the deck list, then choose a deck from it.')
     }
     return path.join(this.root, 'decks', deckId)
@@ -662,7 +664,7 @@ export class Library {
 
   private kvDir(eventId: string): string {
     // Event ids are uuids we generated; refuse anything else before using it as a folder name.
-    if (!UUID_RE.test(eventId)) {
+    if (!isUuid(eventId)) {
       throw new Error(
         'The event ID is not valid. Reload the app, then choose an event from the menu.'
       )

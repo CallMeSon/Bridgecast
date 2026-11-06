@@ -150,14 +150,6 @@ export function needsCanvasConfirm(s: ProgramState, eventId?: string): boolean {
   return t !== 'idle' && t !== 'black'
 }
 
-export const TALLY_TEXT: Record<Tally, string> = {
-  live: 'LIVE',
-  frozen: 'FROZEN',
-  black: 'BLACK',
-  kv: 'KV',
-  idle: 'STANDBY'
-}
-
 interface KeyLike {
   key: string
   ctrlKey?: boolean
@@ -191,9 +183,11 @@ export function keyToAction(e: KeyLike): Action | null {
   switch (e.key) {
     case ' ':
     case 'ArrowRight':
+    case 'ArrowDown': // some clickers send Down/Up instead of PageDown/PageUp
     case 'PageDown': // presentation clickers
       return { type: 'next' }
     case 'ArrowLeft':
+    case 'ArrowUp':
     case 'PageUp':
       return { type: 'prev' }
     case 'f':
@@ -717,7 +711,6 @@ export function playbackChip(d: DeckMeta, engine: EngineState | null): string {
 export const NATIVE_NOT_READY = 'The slide show is not ready; showing still slides.'
 export const nativeNotResponding = (app: 'PowerPoint' | 'LibreOffice'): string =>
   `${app} is not responding. Showing still slides. Save your other ${app} files, then press Resume ${app}.`
-export const NATIVE_NOT_RESPONDING = nativeNotResponding('PowerPoint')
 export const NATIVE_HELPER_FAILED =
   'The slide show helper could not start. Reinstall Bridgecast. Showing still slides.'
 export const NATIVE_PENDING = 'Changes apply when this deck leaves air.'
@@ -771,3 +764,7 @@ export function editingAfter(
   if (event === 'applied') return editing
   return editing.filter((x) => x !== deckId)
 }
+
+/** Shown when there is no event to import into. `action` finishes the sentence, e.g. 'add files'. */
+export const NO_EVENT_YET = (action: string): string =>
+  `No event yet. Create one with New in the header, then ${action}.`

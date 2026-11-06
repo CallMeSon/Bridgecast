@@ -5,7 +5,7 @@ export const SINK_NAME = 'pptshare_lo'
 export const SOURCE_NAME = 'pptshare_lo_input'
 
 /** Runs `pactl` (a fake in tests). Rejects with the `ENOENT` error when pactl is missing. */
-export type PactlExec = (args: string[]) => Promise<string>
+type PactlExec = (args: string[]) => Promise<string>
 
 const defaultExec: PactlExec = (args) =>
   new Promise((resolve, reject) => {

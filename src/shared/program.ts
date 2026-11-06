@@ -88,6 +88,8 @@ export type Action =
   | { type: 'toggleFreeze' }
   | { type: 'toggleBlack' }
   | { type: 'toggleKv' }
+  /** The output goes to STANDBY on purpose (Off air); the operator position stays. */
+  | { type: 'offAir' }
   | { type: 'setTransition'; transition: 'cut' | 'fade' }
   | { type: 'setAutoAdvance'; on: boolean }
   | { type: 'nextSection' }
@@ -483,6 +485,12 @@ export function reduce(
       }
       if (state.kvUrl === null) return state.kv ? { ...state, kv: false, webHold: false } : state
       return { ...state, kv: true, black: false, webHold: false }
+    case 'offAir':
+      // STANDBY, never Black: the operator position and the air event stay.
+      if (state.shown === null && !state.black && !state.kv && !state.frozen && !state.webHold) {
+        return state
+      }
+      return { ...state, shown: null, frozen: false, black: false, kv: false, webHold: false }
     case 'setTransition':
       return { ...state, transition: action.transition }
     case 'setAutoAdvance':

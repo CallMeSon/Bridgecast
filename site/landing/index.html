@@ -1,0 +1,1206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Bridgecast</title>
+    <meta
+      name="description"
+      content="Bridgecast runs the slides of a live event from one operator window and sends the live slide fullscreen to a second display, over HDMI, NDI or OMT."
+    />
+    <link rel="icon" href="brand/bridgecast-mark.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #13141b;
+        --panel: #1c1d27;
+        --raised: #272936;
+        --raised-hi: #323546;
+        --text: #e4e6ee;
+        --text-2: #adb2c2;
+        --text-3: #8a8fa6;
+        --accent-fill: #f26f1c;
+        --on-accent: #1a0a00;
+        --r: 4px;
+        --r-lg: 6px;
+        --pad: clamp(16px, 2.8vw, 40px);
+        --font: 'Geist', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        --t-hero: clamp(44px, 5.6vw, 80px);
+        --t-head: clamp(30px, 4.4vw, 64px);
+        --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f5f6f9;
+          --panel: #ffffff;
+          --raised: #f3f4f8;
+          --raised-hi: #e8eaf1;
+          --text: #1a1c24;
+          --text-2: #4a4e5c;
+          --text-3: #626776;
+          --accent-fill: #c84f0c;
+          --on-accent: #ffffff;
+        }
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 16px;
+        line-height: 1.5;
+        font-feature-settings: 'tnum';
+      }
+      img {
+        display: block;
+        max-width: 100%;
+        height: auto;
+      }
+      a {
+        color: inherit;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1,
+      h2 {
+        font-weight: 500;
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+      h1 {
+        font-size: var(--t-hero);
+      }
+      h2 {
+        font-size: var(--t-head);
+      }
+      h1 span,
+      h2 span {
+        display: block;
+      }
+      .wrap {
+        padding-inline: var(--pad);
+      }
+      :focus-visible {
+        outline: 2px solid var(--text);
+        outline-offset: 2px;
+      }
+      .skip {
+        position: absolute;
+        left: var(--pad);
+        top: -60px;
+        background: var(--text);
+        color: var(--bg);
+        padding: 10px 16px;
+        border-radius: var(--r);
+        z-index: 10;
+      }
+      .skip:focus {
+        top: 12px;
+      }
+
+      /* buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 52px;
+        padding: 0 24px;
+        border-radius: var(--r);
+        font: 500 16px/1 var(--font);
+        text-decoration: none;
+        background: var(--raised-hi);
+        color: var(--text);
+        transition:
+          transform 160ms var(--ease),
+          filter 160ms var(--ease);
+      }
+      .btn:hover {
+        filter: brightness(1.08);
+      }
+      .btn:active {
+        transform: translateY(1px) scale(0.99);
+      }
+      .btn.primary {
+        background: var(--accent-fill);
+        color: var(--on-accent);
+      }
+      .btn.small {
+        min-height: 40px;
+        padding: 0 16px;
+      }
+      .note {
+        color: var(--text-2);
+        max-width: 46ch;
+      }
+
+      /* nav */
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding-block: 28px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 4.4px; /* = dot diameter (10/64 of the 28px mark) */
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 20px;
+        letter-spacing: -0.035em;
+      }
+      .brand img {
+        width: 28px; /* 1.4 x wordmark size */
+        height: 28px;
+      }
+      .brand .mark-light {
+        display: none;
+      }
+      @media (prefers-color-scheme: light) {
+        .brand .mark-dark {
+          display: none;
+        }
+        .brand .mark-light {
+          display: block;
+        }
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 32px;
+      }
+      .nav-links a:not(.btn) {
+        color: var(--text-2);
+        text-decoration: none;
+      }
+      .nav-links a:not(.btn):hover {
+        color: var(--text);
+      }
+
+      /* hero */
+      .hero-copy {
+        padding-top: clamp(40px, 7vw, 100px);
+      }
+      .hero-copy .sub {
+        margin-top: 32px;
+        font-size: 20px;
+        color: var(--text-2);
+        max-width: 28em;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 32px;
+      }
+      .hero-copy .note {
+        margin-top: 20px;
+      }
+      .stage-wrap {
+        margin: clamp(40px, 5vw, 64px) calc(var(--pad) * -1) 0 auto;
+        width: min(960px, 100%);
+      }
+      .stage {
+        height: clamp(300px, 42vw, 510px);
+        background: var(--raised);
+        clip-path: polygon(120px 0, 100% 0, 100% 100%, 0 100%, 0 120px);
+        padding: 64px 0 0 56px;
+        overflow: hidden;
+      }
+      .stage img {
+        width: 880px;
+        max-width: none;
+      }
+      .hero-main {
+        overflow: hidden;
+      }
+      @media (min-width: 1000px) {
+        .hero-copy .sub,
+        .hero-copy .note {
+          max-width: 400px;
+        }
+        .stage-wrap {
+          margin-top: -290px;
+        }
+      }
+      @media (max-width: 720px) {
+        .stage-wrap {
+          width: auto;
+          margin-left: calc(var(--pad) * -1);
+        }
+        .stage {
+          height: 400px;
+          clip-path: polygon(72px 0, 100% 0, 100% 100%, 0 100%, 0 72px);
+          padding: 40px 0 0 16px;
+        }
+        .stage img {
+          width: auto;
+          max-width: none;
+        }
+        picture img {
+          width: auto;
+          height: auto;
+          max-width: 100%;
+        }
+        .nav-links a:not(.btn) {
+          display: none;
+        }
+      }
+
+      /* problem */
+      .problem {
+        padding-block: clamp(80px, 12vw, 160px) clamp(60px, 8vw, 100px);
+      }
+      .problem-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        gap: 48px;
+        margin-top: clamp(40px, 6vw, 80px);
+        align-items: start;
+      }
+      .problem-grid p {
+        font-size: 20px;
+        color: var(--text-2);
+        max-width: 24em;
+      }
+      .problem-shots {
+        display: flex;
+        gap: 48px;
+        justify-content: flex-end;
+        align-items: flex-start;
+      }
+      .problem-shots img {
+        border-radius: var(--r-lg);
+      }
+      .problem-shots .a {
+        margin-top: 60px;
+      }
+
+      @media (max-width: 900px) {
+        .problem-grid {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+        .problem-shots {
+          flex-wrap: wrap;
+          justify-content: flex-start;
+          gap: 24px;
+        }
+        .problem-shots .a {
+          margin-top: 0;
+        }
+      }
+
+      /* how */
+      .how {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        min-height: 800px;
+        padding-bottom: 130px;
+      }
+      .how-left {
+        padding: 72px var(--pad) 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 32px;
+      }
+      .how-left p {
+        font-size: 20px;
+        color: var(--text-2);
+        max-width: 22em;
+      }
+      .how-right {
+        background: var(--panel);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 56px max(var(--pad), 24px);
+      }
+      .how-right img {
+        border-radius: var(--r-lg);
+      }
+      .how-track {
+        position: absolute;
+        left: 28px;
+        right: 28px;
+        bottom: 28px;
+      }
+      .track {
+        position: relative;
+        height: 8px;
+        background: var(--raised-hi);
+      }
+      .track i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 66.6%;
+        background: var(--text);
+      }
+      .track b {
+        position: absolute;
+        left: 66.6%;
+        top: -12px;
+        width: 32px;
+        height: 32px;
+        margin-left: -16px;
+        background: var(--text);
+      }
+      .stages {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        margin: 28px 0 0;
+        padding: 0;
+        list-style: none;
+        color: var(--text-3);
+      }
+      .stages li:nth-child(2) {
+        text-align: center;
+      }
+      .stages li:nth-child(3) {
+        text-align: center;
+        color: var(--text);
+        font-weight: 600;
+      }
+      .stages li:nth-child(4) {
+        text-align: right;
+      }
+      @media (max-width: 900px) {
+        .how {
+          grid-template-columns: 1fr;
+          min-height: 0;
+          padding-bottom: 130px;
+        }
+        .how-right {
+          order: -1;
+          padding-block: 40px;
+        }
+        .how-left {
+          padding-block: 40px 0;
+        }
+        .how-right img {
+          width: 100%;
+          max-width: 560px;
+        }
+      }
+
+      /* features */
+      .features {
+        padding-block: clamp(80px, 12vw, 160px) clamp(80px, 10vw, 140px);
+      }
+      .rows {
+        display: grid;
+        gap: 8px;
+        margin-top: clamp(40px, 5vw, 56px);
+      }
+      .row {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: var(--cols);
+      }
+      .cell {
+        position: relative;
+        display: flex;
+        min-height: 400px;
+        background: var(--panel);
+        border-radius: var(--r-lg);
+        overflow: hidden;
+      }
+      .cell .t {
+        padding: 24px;
+      }
+      .cell h3 {
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 1.3;
+      }
+      .cell p {
+        margin-top: 10px;
+        color: var(--text-2);
+      }
+      .cell p.status {
+        color: var(--text);
+        margin-top: 28px;
+      }
+      .cell.wide {
+        flex-direction: row;
+      }
+      .cell.wide .t {
+        flex: 0 0 300px;
+      }
+      .cell.wide.edit .t {
+        flex-basis: auto;
+      }
+      .cell.wide picture {
+        margin-left: auto;
+        align-self: stretch;
+      }
+      .cell.narrow {
+        flex-direction: column;
+      }
+      .cell.narrow picture {
+        margin-top: auto;
+      }
+      .cell.col-end picture {
+        align-self: flex-end;
+      }
+      @media (max-width: 1000px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+        .cell,
+        .cell.wide {
+          flex-direction: column;
+          min-height: 0;
+        }
+        .cell.wide .t {
+          flex-basis: auto;
+        }
+        .cell.wide picture,
+        .cell.narrow picture {
+          margin-top: 24px;
+          margin-left: 0;
+        }
+        .cell:nth-child(even) picture {
+          align-self: flex-end;
+        }
+      }
+
+      /* themes */
+      .themes {
+        padding-block: 0 clamp(80px, 10vw, 140px);
+      }
+      .themes-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 48px;
+      }
+      .themes-head p {
+        font-size: 20px;
+        color: var(--text-2);
+        max-width: 20em;
+        margin-top: 12px;
+      }
+      .themes-shots {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: clamp(40px, 5vw, 64px);
+      }
+      .themes-shots img {
+        width: 100%;
+        border-radius: var(--r-lg);
+      }
+      @media (max-width: 800px) {
+        .themes-head {
+          flex-direction: column;
+          gap: 24px;
+        }
+        .themes-shots {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* faq */
+      .faq {
+        display: grid;
+        grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+        gap: 48px;
+        padding-block: 0 clamp(80px, 10vw, 140px);
+      }
+      .faq h2 {
+        position: sticky;
+        top: 96px;
+        align-self: start;
+      }
+      .tiles {
+        display: grid;
+        gap: 8px;
+      }
+      details {
+        background: var(--panel);
+        border-radius: var(--r-lg);
+        transition: background 200ms var(--ease);
+      }
+      details[open] {
+        background: var(--raised-hi);
+      }
+      summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 72px;
+        padding: 20px 24px;
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 1.3;
+        cursor: pointer;
+        list-style: none;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      summary {
+        position: relative;
+        padding-right: 64px;
+      }
+      summary::before,
+      summary::after {
+        content: '';
+        position: absolute;
+        right: 24px;
+        top: 50%;
+        background: var(--text);
+      }
+      summary::after {
+        width: 16px;
+        height: 3px;
+        margin-top: -1.5px;
+      }
+      summary::before {
+        right: 30.5px;
+        width: 3px;
+        height: 16px;
+        margin-top: -8px;
+        transition: transform 200ms var(--ease);
+      }
+      details[open] summary::before {
+        transform: scaleY(0);
+      }
+      details p {
+        padding: 0 24px 24px;
+        max-width: 52ch;
+        color: var(--text-2);
+      }
+      @media (max-width: 800px) {
+        .faq {
+          grid-template-columns: 1fr;
+          gap: 32px;
+        }
+        .faq h2 {
+          position: static;
+        }
+        summary {
+          padding: 16px 52px 16px 20px;
+          min-height: 64px;
+        }
+        summary::after {
+          right: 20px;
+        }
+        summary::before {
+          right: 26.5px;
+        }
+        details p {
+          padding: 0 20px 20px;
+        }
+      }
+
+      /* cta */
+      .cta {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 48px;
+        align-items: center;
+        min-height: min(90vh, 820px);
+        padding-block: 64px;
+        background: var(--raised);
+      }
+      .cta-copy {
+        align-self: end;
+      }
+      .cta-copy h2 {
+        font-size: clamp(52px, 5.6vw, 80px);
+        line-height: 0.95;
+      }
+      .cta-copy > p {
+        margin-top: 24px;
+        font-size: 20px;
+        max-width: 22em;
+      }
+      .cta .actions .btn:not(.primary) {
+        background: var(--panel);
+      }
+      .cta-shot img {
+        margin-inline: auto;
+        border-radius: var(--r-lg);
+      }
+      .cta .note {
+        margin-top: 16px;
+      }
+      @media (max-width: 900px) {
+        .cta {
+          grid-template-columns: 1fr;
+          gap: 40px;
+        }
+      }
+
+      /* footer */
+      footer {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 24px;
+        padding: 30vh var(--pad) 30px;
+      }
+      footer .l,
+      footer .r {
+        color: var(--text-2);
+      }
+      footer nav {
+        display: flex;
+        gap: 24px;
+      }
+      footer nav a {
+        text-decoration: none;
+      }
+      footer nav a:hover {
+        text-decoration: underline;
+      }
+      .powered {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        justify-self: end;
+        color: var(--text-2);
+      }
+      .powered img {
+        height: 32px;
+        width: auto;
+      }
+      @media (max-width: 720px) {
+        footer {
+          grid-template-columns: 1fr;
+          gap: 8px;
+          padding-top: 20vh;
+          padding-bottom: 24px;
+          font-size: 16px;
+        }
+        .powered {
+          justify-self: start;
+          margin-top: 8px;
+        }
+      }
+
+      /* motion */
+      .js [data-reveal] {
+        opacity: 0;
+        transform: translateY(24px);
+        transition:
+          opacity 700ms var(--ease),
+          transform 700ms var(--ease);
+        transition-delay: calc(var(--i, 0) * 80ms);
+      }
+      .js [data-reveal].in {
+        opacity: 1;
+        transform: none;
+      }
+      .js .stage img {
+        transform: scale(1.12);
+        transform-origin: 0 0;
+        transition: transform 1100ms var(--ease);
+      }
+      .js .stage {
+        clip-path: polygon(120px 0, 100% 0, 100% 0, 0 0, 0 0);
+        transition: clip-path 1100ms var(--ease);
+      }
+      .js .stage-wrap.in .stage {
+        clip-path: polygon(120px 0, 100% 0, 100% 100%, 0 100%, 0 120px);
+      }
+      .js .stage-wrap.in .stage img {
+        transform: none;
+      }
+      @media (max-width: 720px) {
+        .js .stage {
+          clip-path: polygon(72px 0, 100% 0, 100% 0, 0 0, 0 0);
+        }
+        .js .stage-wrap.in .stage {
+          clip-path: polygon(72px 0, 100% 0, 100% 100%, 0 100%, 0 72px);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .js [data-reveal],
+        .js .stage,
+        .js .stage img {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+        .js .stage {
+          clip-path: polygon(120px 0, 100% 0, 100% 100%, 0 100%, 0 120px);
+        }
+      }
+    </style>
+    <link rel="stylesheet" href="live.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="wrap hero-main" id="top">
+      <div class="nav">
+        <a class="brand" href="#top" aria-label="Bridgecast home">
+          <img class="mark-dark" src="brand/bridgecast-mark-reverse.svg" alt="" />
+          <img class="mark-light" src="brand/bridgecast-mark.svg" alt="" />
+          Bridgecast
+        </a>
+        <nav class="nav-links" aria-label="Main">
+          <a href="#how">How it works</a>
+          <a href="#features">Features</a>
+          <a href="#faq">FAQ</a>
+          <!-- TODO(owner): set href to the installer URL. -->
+          <a class="btn primary small" href="#download" data-download="windows">Download</a>
+        </nav>
+      </div>
+
+      <div class="hero-copy">
+        <h1 data-reveal><span>From slide to</span><span>screen, live.</span></h1>
+        <p class="sub" data-reveal style="--i: 1">
+          One operator window controls the Program output on your projector or LED screen, over
+          HDMI, NDI or OMT.
+        </p>
+        <div class="actions" data-reveal style="--i: 2">
+          <!-- TODO(owner): set both hrefs to the installer URLs. -->
+          <a class="btn primary" href="#download" data-download="windows">Download for Windows</a>
+          <a class="btn" href="#download" data-download="linux">Download for Linux</a>
+        </div>
+        <p class="note" data-reveal style="--i: 3">Installer links are coming soon.</p>
+      </div>
+
+      <div class="stage-wrap" data-stage>
+        <div class="stage">
+        <div class="ui console" id="console" role="group" tabindex="0" data-ui aria-label="Interactive demo of the Bridgecast console. Click it, then press Space, F, B or K.">
+            <div class="c-top">
+              <span class="c-brand"><img class="m-d" src="brand/bridgecast-mark-reverse.svg" alt="" /><img class="m-l" src="brand/bridgecast-mark.svg" alt="" />Bridgecast</span>
+              <span class="c-event">Annual Leadership Summit</span>
+              <span class="tag" data-s="live" id="c-tally">LIVE</span>
+            </div>
+            <div class="c-body">
+              <aside class="c-decks" aria-label="Decks">
+                <div class="c-dh"><b>Decks</b><span id="c-count">3 decks</span><button type="button" class="ub" id="c-add" data-a="add">Add deck</button></div>
+                <ul id="c-list"></ul>
+              </aside>
+              <section class="c-main" aria-label="Program">
+                <div class="c-row"><b id="c-now">Opening Keynote</b><span class="dim">Program</span></div>
+                <div class="mon" id="c-mon" data-s="live"><div class="s"></div><div class="kv"><strong>Annual Leadership Summit</strong><span>2026</span></div><div class="bk"></div><span class="tag fz" data-s="frozen">FROZEN</span></div>
+                <div class="c-ctl">
+                  <button type="button" class="ub" data-a="prev">Prev</button>
+                  <button type="button" class="ub" data-a="next">Next <kbd>Space</kbd></button>
+                  <button type="button" class="ub" data-a="freeze" aria-pressed="false">Freeze <kbd>F</kbd></button><button type="button" class="ub" data-a="kv" aria-pressed="false">KV <kbd>K</kbd></button><button type="button" class="ub" data-a="black" aria-pressed="false">Black <kbd>B</kbd></button>
+                  <span class="seg" role="group" aria-label="Transition"><button type="button" data-t="cut" aria-pressed="false">Cut</button><button type="button" data-t="fade" aria-pressed="true">Fade</button></span>
+                </div>
+                <p class="c-hint" id="c-hint" aria-live="polite"></p>
+              </section>
+            </div>
+          </div>
+          <noscript><img src="img/hero-dark.png" width="880" height="550" alt="The Bridgecast operator console." /></noscript>
+      </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="problem wrap" aria-labelledby="problem-h">
+        <h2 id="problem-h" data-reveal>
+          <span>Stop switching between</span><span>PowerPoint windows.</span>
+        </h2>
+        <div class="problem-grid">
+          <p data-reveal style="--i: 1">
+            Add every deck for the event once. One is marked LIVE, the next is marked NEXT, and
+            Space or the right arrow takes the next slide to air. Change speakers without opening a
+            single PowerPoint window.
+          </p>
+          <div class="problem-shots">
+            <picture data-reveal style="--i: 2" class="a">
+<source media="(max-width: 720px) and (prefers-color-scheme: light)" srcset="img/m-decks-light.png 2x" />
+<source media="(max-width: 720px)" srcset="img/m-decks-dark.png 2x" />
+
+              <source media="(prefers-color-scheme: light)" srcset="img/decks-light.png" />
+              <img
+                src="img/decks-dark.png"
+                width="286"
+                height="440"
+                alt="The deck list of an event. Opening Keynote is marked LIVE."
+               
+              />
+            </picture>
+            <picture data-reveal style="--i: 3">
+<source media="(max-width: 720px) and (prefers-color-scheme: light)" srcset="img/m-upnext-light.png 2x" />
+<source media="(max-width: 720px)" srcset="img/m-upnext-dark.png 2x" />
+
+              <source media="(prefers-color-scheme: light)" srcset="img/upnext-light.png" />
+              <img
+                src="img/upnext-dark.png"
+                width="352"
+                height="350"
+                alt="The Up next panel: slide 2 of 3, marked NEXT, with Prev deck and Next deck buttons."
+               
+              />
+            </picture>
+          </div>
+        </div>
+      </section>
+
+      <section class="how" id="how" aria-labelledby="how-h">
+       <div class="how-pin">
+        <span class="how-ghost" id="how-ghost" aria-hidden="true">Take</span>
+        <div class="how-left">
+          <h2 id="how-h" data-reveal><span>Take the next</span><span>slide to air.</span></h2>
+          <p id="how-p" data-reveal style="--i: 1">
+            Space or the right arrow takes the next slide to air, as a cut or a fade. If something
+            fails, the output never goes black and never shows the desktop.
+          </p>
+        </div>
+        <div class="how-right">
+          <div class="ui how-scene" data-ui id="how-scene">
+              <div class="st" data-i="0">
+                <div class="drop">Drop .pptx, .ppt or .pdf files here, or add a web page</div>
+                <ul class="files">
+                  <li class="f" style="--i:0"><span class="thumb c1"></span><span class="dn"><b>Opening Keynote.pptx</b><i class="pend">Converting to PNG…</i><i class="done">12 slides ready</i></span></li>
+                  <li class="f" style="--i:1"><span class="thumb c2"></span><span class="dn"><b>Regional Trade Panel.pdf</b><i class="pend">Converting to PNG…</i><i class="done">24 slides ready</i></span></li>
+                  <li class="f" style="--i:2"><span class="thumb c3"></span><span class="dn"><b>Sponsor Reel</b><i class="pend">Reading folder…</i><i class="done">5 clips ready</i></span></li>
+                </ul>
+              </div>
+              <div class="st" data-i="1">
+                <ul class="rows3">
+                  <li><span class="thumb c1"></span><span class="dn"><b>Opening Keynote</b><i>Slide 1 of 3</i></span><span class="tag" data-s="live">LIVE</span></li>
+                  <li><span class="thumb c2"></span><span class="dn"><b>Regional Trade Panel</b><i>Panel one</i></span><span class="tag pulse" data-s="next">NEXT</span></li>
+                  <li><span class="thumb c3"></span><span class="dn"><b>Sponsor Reel</b><i>Our partners</i></span><span></span></li>
+                </ul>
+                <p class="dim" style="margin:0">Up next: Agenda</p>
+              </div>
+              <div class="st" data-i="2">
+                <div class="c-row"><b>Opening Keynote</b><span class="dim">Program</span><span class="tag" data-s="live">LIVE</span></div>
+                <div class="mon" id="how-mon" data-s="live"><div class="s"></div><div class="kv"></div><div class="bk"></div></div>
+                <span class="seg" role="group" aria-label="Transition" style="margin-left:0;align-self:flex-start"><button type="button" aria-pressed="true" tabindex="-1">Cut</button><button type="button" aria-pressed="false" tabindex="-1">Fade</button></span>
+              </div>
+              <div class="st" data-i="3">
+                <div class="mon" data-s="live"><div class="s"><div class="sl c1"><strong>Agenda</strong><span>Opening Keynote</span></div></div><div class="kv"></div><div class="bk"></div></div>
+                <div class="hold"><span class="chip pulse" data-c="hold">HOLD</span><span>PowerPoint is not responding. The output holds the last good frame.</span></div>
+              </div>
+            </div>
+        </div>
+        <div class="how-track">
+          <div class="rng">
+            <div class="tr"><i></i></div>
+            <input id="how-rng" type="range" min="0" max="3" step="1" value="2" aria-label="Walk through the show: import, line up, take, recover" />
+          </div>
+          <ol class="stages">
+            <li><button type="button">Import</button></li>
+            <li><button type="button">Line up</button></li>
+            <li><button type="button">Take</button></li>
+            <li><button type="button">Recover</button></li>
+          </ol>
+        </div>
+      </div>
+      </section>
+
+      <section class="features wrap" id="features" aria-labelledby="features-h">
+        <h2 id="features-h" data-reveal>Built for live events</h2>
+        <div class="rows">
+          <div class="row" style="--cols: 872fr 480fr">
+            <article class="cell wide" data-reveal>
+              <div class="t">
+                <h3>Freeze, Black and KV</h3>
+                <p>
+                  Freeze holds the output while you preview other slides. Black and KV take the
+                  screen to black or to your key visual.
+                </p>
+              </div>
+              <div class="w ui w-freeze" data-ui>
+                <div>
+                  <div class="mon" id="wf-mon" data-s="live"><div class="s"></div><div class="kv"><strong>Annual Leadership Summit</strong></div><div class="bk"></div><span class="tag fz" data-s="frozen">FROZEN</span></div>
+                  <p class="wf-l">Preview: slide <b id="wf-p">1</b> · Output: slide <b id="wf-o">1</b></p>
+                </div>
+                <div class="wf-keys">
+                  <button type="button" class="key" data-k="freeze" aria-pressed="false"><kbd>F</kbd><span class="tag" data-s="frozen">FROZEN</span><span>Hold the picture while you preview</span></button>
+                  <button type="button" class="key" data-k="black" aria-pressed="false"><kbd>B</kbd><span class="tag" data-s="black">BLACK</span><span>Take the screen to black</span></button>
+                  <button type="button" class="key" data-k="kv" aria-pressed="false"><kbd>K</kbd><span class="tag" data-s="kv">KV</span><span>Show your key visual</span></button>
+                </div>
+                <div class="toast" id="wf-toast" hidden><span>Black on air</span><button type="button" class="ub" id="wf-undo">Undo</button></div>
+              </div>
+            </article>
+            <article class="cell narrow" data-reveal style="--i: 1">
+              <div class="t">
+                <h3>Never black, never desktop</h3>
+                <p>
+                  If PowerPoint or a web page fails, the output keeps the last good frame or shows
+                  the PNG of the same slide.
+                </p>
+              </div>
+              <div class="w ui w-never" data-ui>
+                <div class="mon" id="wn-mon" data-s="live"><div class="s"></div><div class="kv"></div><div class="bk"></div></div>
+                <div class="wn-r">
+                  <span class="chip" data-c="hold" id="wn-chip" hidden>HOLD</span>
+                  <p id="wn-msg" aria-live="polite">PowerPoint is back. The slide show returns to native.</p>
+                  <button type="button" class="ub" id="wn-btn" aria-pressed="false">Simulate a failure</button>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div class="row" style="--cols: 480fr 872fr">
+            <article class="cell narrow" data-reveal>
+              <div class="t">
+                <h3>Native PowerPoint</h3>
+                <p>
+                  Slides play in the real slide show, so animations, video and sound inside slides
+                  keep working.
+                </p>
+                <p class="status">Not yet field-tested on Windows.</p>
+              </div>
+              <picture>
+<source media="(max-width: 720px) and (prefers-color-scheme: light)" srcset="img/m-native-light.png 2x" />
+<source media="(max-width: 720px)" srcset="img/m-native-dark.png 2x" />
+
+                <source media="(prefers-color-scheme: light)" srcset="img/native-light.png" />
+                <img
+                  src="img/native-dark.png"
+                  width="480"
+                  height="204"
+                 
+                  alt="The deck Opening Keynote with three Native status chips: Opening, Ready and Fallback."
+                />
+              </picture>
+            </article>
+            <article class="cell wide" data-reveal style="--i: 1">
+              <div class="t">
+                <h3>Web decks</h3>
+                <p>
+                  Add a Canva presentation, a YouTube video or any https page. Its picture and
+                  sound go to every output.
+                </p>
+                <p class="status">Not yet field-tested on Windows or with real Canva.</p>
+              </div>
+              <div class="w ui w-web" data-ui>
+                <b>Add web page</b>
+                <div class="addr"><span>https://</span><button type="button" class="ub" id="ww-add">Add page</button></div>
+                <ul id="ww-list"></ul>
+                <p class="dim">A page goes on air only when it is Ready.</p>
+              </div>
+            </article>
+          </div>
+          <div class="row" style="--cols: 680fr 672fr">
+            <article class="cell wide" data-reveal>
+              <div class="t">
+                <h3>HDMI, NDI and OMT</h3>
+                <p>
+                  Send the Program to a second display over HDMI, and over the LAN as an NDI or OMT
+                  source.
+                </p>
+                <p class="status">Network output is not yet field-tested on Windows.</p>
+              </div>
+              <div class="w ui w-net" data-ui>
+                <button type="button" class="sw-row" role="switch" aria-checked="true"><span><b>HDMI</b><i>Second display</i></span><span class="sw"></span></button>
+                <button type="button" class="sw-row" role="switch" aria-checked="true"><span><b>OMT</b><i>vMix 29+, OBS 31+</i></span><span class="sw"></span></button>
+                <button type="button" class="sw-row" role="switch" aria-checked="false"><span><b>NDI</b><i>vMix, OBS, NDI Monitor</i></span><span class="sw"></span></button>
+                <p id="wnet-sum" aria-live="polite"></p>
+              </div>
+            </article>
+            <article class="cell narrow" data-reveal style="--i: 1">
+              <div class="t">
+                <h3>Edit without risk</h3>
+                <p>
+                  Edit in PowerPoint opens a working copy. The imported file is never modified, and
+                  edits to a live deck wait until it leaves air.
+                </p>
+              </div>
+              <div class="w ui w-edit" data-ui>
+                <b>Opening Keynote</b>
+                <p id="we-msg" aria-live="polite">Edits pending. Changes apply when this deck leaves air.</p>
+                <div><button type="button" class="ub" id="we-apply">Apply now</button><button type="button" class="ub" id="we-revert">Revert</button></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="themes wrap" aria-labelledby="themes-h">
+        <div class="themes-head">
+          <h2 id="themes-h" data-reveal>
+            <span>Made for dark rooms</span><span>and bright ones.</span>
+          </h2>
+          <p data-reveal style="--i: 1">
+            Light for the booth, dark for the venue. Pick an accent colour and the whole console
+            follows.
+          </p>
+        </div>
+        <div class="themes-shots">
+          <picture>
+<source media="(max-width: 720px)" srcset="img/m-theme-light.png 2x" />
+<img src="img/theme-light.png"
+            width="676"
+            height="440"
+           
+            alt="The Program monitor in the light theme."
+            data-reveal
+          />
+</picture>
+          <picture>
+<source media="(max-width: 720px)" srcset="img/m-theme-dark.png 2x" />
+<img src="img/theme-dark.png"
+            width="676"
+            height="440"
+           
+            alt="The Program monitor in the dark theme."
+            data-reveal
+            style="--i: 1"
+          />
+</picture>
+        </div>
+      </section>
+
+      <section class="faq wrap" id="faq" aria-labelledby="faq-h">
+        <h2 id="faq-h" data-reveal><span>Questions,</span><span>answered.</span></h2>
+        <div class="tiles">
+          <details name="faq" open>
+            <summary>What do I need to run it?</summary>
+            <p>
+              A Windows 11 PC with a second display. PowerPoint is needed to import .ppt and .pptx
+              files and for Native playback. The NDI Runtime is never bundled; it is loaded from
+              your own installation.
+            </p>
+          </details>
+          <details name="faq">
+            <summary>Does it run on Linux?</summary>
+            <p>
+              Linux (X11) plays slide shows through LibreOffice Impress. On Wayland, decks play as
+              Vector or Still images. Linux is not yet verified end to end.
+            </p>
+          </details>
+          <details name="faq">
+            <summary>Does it work offline?</summary>
+            <p>Yes. Only web decks need the network, while the page loads and plays.</p>
+          </details>
+          <details name="faq">
+            <summary>Does it change my original files?</summary>
+            <p>No. The imported file is never modified. Edit in PowerPoint works on a copy.</p>
+          </details>
+          <details name="faq">
+            <summary>What if PowerPoint or a web page fails?</summary>
+            <p>
+              The output keeps the last good frame or shows the PNG of the same slide. It never
+              goes black and never shows the desktop.
+            </p>
+          </details>
+          <details name="faq">
+            <summary>Can speakers use a clicker?</summary>
+            <p>Yes. A clicker's arrow keys move Next and Previous.</p>
+          </details>
+          <details name="faq">
+            <summary>Which files can I import?</summary>
+            <p>
+              pptx, ppt and pdf files, plus web pages. Every deck is also converted to PNG slides
+              as a fallback.
+            </p>
+          </details>
+          <details name="faq">
+            <summary>Is it tested at real events?</summary>
+            <p>
+              Not yet. The Windows features (PowerPoint playback, window capture and network
+              output) are built but have not been field-tested on a real event PC.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="cta wrap" id="download" aria-labelledby="cta-h">
+        <div class="cta-copy">
+          <h2 id="cta-h" data-reveal><span>Take your first</span><span>slide live.</span></h2>
+          <p data-reveal style="--i: 1">
+            Download the installer, create an event and add your first deck.
+          </p>
+          <div class="actions" data-reveal style="--i: 2">
+            <!-- TODO(owner): set both hrefs to the installer URLs. -->
+            <a class="btn primary" href="#download" data-download="windows">Download for Windows</a>
+            <a class="btn" href="#download" data-download="linux">Download for Linux</a>
+          </div>
+          <p class="note" data-reveal style="--i: 3">
+            Installer links are coming soon. Windows 11 is the main platform. Linux (X11) uses
+            LibreOffice for slide shows and is not yet verified end to end.
+          </p>
+        </div>
+        <div class="cta-shot">
+          <picture data-reveal style="--i: 1">
+<source media="(max-width: 720px) and (prefers-color-scheme: light)" srcset="img/m-cta-light.png 2x" />
+<source media="(max-width: 720px)" srcset="img/m-cta-dark.png 2x" />
+
+            <source media="(prefers-color-scheme: light)" srcset="img/cta-light.png" />
+            <img
+              src="img/cta-dark.png"
+              width="560"
+              height="520"
+             
+              alt="The first screen of Bridgecast: Welcome to Bridgecast, a search field, and the note: No events yet. Create one to add decks."
+            />
+          </picture>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span class="l">Operator console for live events</span>
+      <nav aria-label="Footer">
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#faq">FAQ</a>
+        <a href="#download">Download</a>
+      </nav>
+      <span class="powered r">
+        Powered by
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="brand/digioh-logo.svg" />
+          <img src="brand/digioh-logo-white.png" width="115" height="32" alt="DigiOH" />
+        </picture>
+      </span>
+    </footer>
+
+    <script src="app.js" defer></script>
+    <script>
+      document.documentElement.classList.add('js')
+      var io = null
+      if ('IntersectionObserver' in window) {
+        io = new IntersectionObserver(
+          function (es) {
+            es.forEach(function (e) {
+              if (e.isIntersecting) {
+                e.target.classList.add('in')
+                io.unobserve(e.target)
+              }
+            })
+          },
+          { threshold: 0.12 }
+        )
+        document.querySelectorAll('[data-reveal],[data-stage]').forEach(function (el) {
+          io.observe(el)
+        })
+      } else {
+        document.querySelectorAll('[data-reveal],[data-stage]').forEach(function (el) {
+          el.classList.add('in')
+        })
+      }
+    </script>
+  </body>
+</html>

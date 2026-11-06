@@ -13,7 +13,7 @@ export const LO_START_FAILED =
 /** Shown when LibreOffice's sound cannot be routed by the app (no pactl, sink not created). */
 export const LO_DEFAULT_DEVICE_SOUND = "LibreOffice sound plays on this PC's default device only."
 
-export type LoSpawnFn = (python: string, args: string[]) => BridgeChild
+type LoSpawnFn = (python: string, args: string[]) => BridgeChild
 
 const defaultSpawn: LoSpawnFn = (python, args) =>
   nodeSpawn(python, args, { stdio: ['pipe', 'pipe', 'pipe'] }) as BridgeChild
@@ -29,11 +29,10 @@ export function loBridgePath(opts: {
     : path.join(opts.appPath, 'native', 'lo-bridge', 'bridge.py')
 }
 
-export interface LibreOfficeEngineOptions {
+interface LibreOfficeEngineOptions {
   script: string
   /** The app's own LibreOffice profile (`<userData>/lo-profile`). */
   profile: string
-  python?: string
   spawn?: LoSpawnFn
   exists?: (file: string) => boolean
   /** Creates the private sound sink; true when LibreOffice's sound can be captured. */
@@ -107,7 +106,7 @@ export class LibreOfficeEngine implements SlideShowEngine {
     if (sink) args.push('--pulse-sink', SINK_NAME)
     let child: BridgeChild
     try {
-      child = (this.opts.spawn ?? defaultSpawn)(this.opts.python ?? 'python3', args)
+      child = (this.opts.spawn ?? defaultSpawn)('python3', args)
     } catch (e) {
       return this.failStart(e instanceof Error ? e.message : String(e))
     }

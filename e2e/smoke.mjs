@@ -7,6 +7,7 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { PDFDocument } from 'pdf-lib'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const shot = path.join(root, '.superpowers/sdd/2026-10-06-ppt-share/task-6-smoke.png')
@@ -22,7 +23,7 @@ const W = 1920
 const H = 1080
 
 const launchOptions = {
-  args: [root],
+  args: [...linuxArgs, root],
   cwd: root,
   env: {
     ...process.env,
@@ -119,7 +120,8 @@ function layerRecorder(sel, ms) {
         .filter((l) => Number(getComputedStyle(l).opacity) > 0)
         .pop()
       const img = top?.querySelector('img')
-      frames.push(img && img.complete && img.naturalWidth > 0 ? 1 : 0)
+      const cv = top?.querySelector('canvas')
+      frames.push((img && img.complete && img.naturalWidth > 0) || (cv && cv.width > 0) ? 1 : 0)
       if (performance.now() < end) requestAnimationFrame(tick)
       else resolve(frames)
     }
@@ -556,8 +558,8 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     await sample.waitFor({ state: 'detached' })
     check(
       (await win.locator('.screen img').count()) === 0 &&
-        (await win.locator('.screen').textContent()).includes('No slides yet'),
-      'Program shows the empty card, no image'
+        (await win.locator('.screen .end-body .t').textContent()) === 'Standby',
+      'Program shows the standby card, no image'
     )
     await waitFrame(GRID, (px) => px.every(isBlack), 'deleting the live deck blacks out the output')
     check(true, `deleting the live deck makes the output black (${GRID.length} sample points)`)
@@ -687,9 +689,9 @@ const savedHdmi = () =>
 const savedAudio = () =>
   JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).audio
 
-/** The Output and Network sections of the Controls tab (they replaced the header popover). */
+/** The Output and Network sections of the Output tab (they replaced the header popover). */
 async function openOutputPopover(win) {
-  const tab = win.getByRole('tab', { name: 'Controls' })
+  const tab = win.getByRole('tab', { name: 'Output' })
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
   const pop = win.getByTestId('output-panel')
   for (const name of ['Output', 'Network']) {
@@ -735,7 +737,8 @@ async function behaviourChecks(win, tally, pos) {
   check(cur >= 1 && cur < total, `behaviour checks start mid-deck (${p0})`)
 
   // 1. The event tabs own the keyboard: arrows never move the on-air slide.
-  const selTab = win.locator('[role=tab][aria-selected=true]')
+  const eventTabs = win.getByRole('tablist', { name: 'Open events' }).locator('[role=tab]')
+  const selTab = eventTabs.and(win.locator('[aria-selected=true]'))
   await selTab.focus()
   await win.keyboard.press('ArrowRight')
   await win.keyboard.press('ArrowLeft')
@@ -750,14 +753,13 @@ async function behaviourChecks(win, tally, pos) {
 
   // Creating an event: Escape in the dialog cancels.
   const eventLabel = await selTab.textContent()
-  const tabCount = await win.locator('[role=tab]').count()
+  const tabCount = await eventTabs.count()
   await win.click('.newbtn')
   await win.fill('[data-testid=new-event-name]', 'Not created')
   await win.keyboard.press('Escape')
   await win.locator('[data-testid=new-event-dialog]').waitFor({ state: 'detached' })
   check(
-    (await selTab.textContent()) === eventLabel &&
-      (await win.locator('[role=tab]').count()) === tabCount,
+    (await selTab.textContent()) === eventLabel && (await eventTabs.count()) === tabCount,
     'Escape cancels the new event (no event created, selection kept)'
   )
 
@@ -790,12 +792,28 @@ async function behaviourChecks(win, tally, pos) {
   const idsBefore = await deckIds()
   check(idsBefore.length >= 2, `at least two decks to reorder (${idsBefore.length})`)
   const tallyBefore = await tally.textContent()
-  await win.locator(`[data-deck-id="${idsBefore[0]}"]`).focus()
-  await win.keyboard.press('Alt+ArrowDown')
-  await win.waitForFunction((id) => {
-    const first = document.querySelector('[data-testid=decks] .deck[data-deck-id]')
-    return first?.dataset.deckId !== id
-  }, idsBefore[0])
+  // The library re-renders after earlier checks (reloadAll), and a key pressed while that happens
+  // is lost (seen in about 1 of 3 runs). Focus the deck, press, and retry the press up to 3 times.
+  let moved = false
+  for (let attempt = 0; attempt < 3 && !moved; attempt++) {
+    await win.locator(`[data-deck-id="${idsBefore[0]}"]`).focus()
+    await win.waitForFunction((id) => document.activeElement?.dataset?.deckId === id, idsBefore[0])
+    await sleep(400)
+    await win.keyboard.press('Alt+ArrowDown')
+    moved = await win
+      .waitForFunction(
+        (id) =>
+          document.querySelector('[data-testid=decks] .deck[data-deck-id]')?.dataset.deckId !== id,
+        idsBefore[0],
+        { timeout: 4000 }
+      )
+      .then(
+        () => true,
+        () => false
+      )
+    if (!moved) console.log(`  (Alt+ArrowDown not applied, attempt ${attempt + 1})`)
+  }
+  check(moved, 'Alt+ArrowDown reorders the focused deck')
   const idsAfter = await deckIds()
   check(
     idsAfter[0] === idsBefore[1] && idsAfter[1] === idsBefore[0],
@@ -1660,7 +1678,7 @@ async function videoChecks(win, tally) {
   await devSel
     .locator('option')
     .nth(1)
-    .waitFor({ timeout: 3000 })
+    .waitFor({ state: 'attached', timeout: 3000 })
     .catch(() => {})
   const devOpts = await devSel.locator('option').allTextContents()
   check(
@@ -1785,16 +1803,27 @@ async function videoChecks(win, tally) {
   }
   await fakeDisplays(wired.filter((d) => d.id !== PROBE_ID))
   await hdmiVisible(false)
-  const silent = await waitOutputTop(
-    (t) => t.kind === 'video' && t.muted === true,
-    'a hidden output window mutes its video'
-  )
+  // A hidden window is silenced by the sound plan (OutputAudio disconnects the gain node from the
+  // speakers; the root exposes it as data-local), not by the video element's own `muted`, which
+  // only follows the saved Mute setting.
+  const soundLocal = async (want, what) => {
+    const end = Date.now() + 10_000
+    let last = null
+    while (Date.now() < end) {
+      last = await hdmiJs(`document.querySelector('.output')?.getAttribute('data-local')`)
+      if (last === String(want)) return
+      await sleep(100)
+    }
+    throw new Error(`ASSERT: ${what} (data-local ${last})`)
+  }
+  await soundLocal(false, 'a hidden output window plays no sound')
   check(
-    silent.muted && savedAudio().muted === false,
-    `unplugged: the hidden output's video is muted though the saved Mute is off (${JSON.stringify(savedAudio())})`
+    savedAudio().muted === false,
+    `unplugged: the hidden output plays no sound though the saved Mute is off (${JSON.stringify(savedAudio())})`
   )
   await fakeDisplays(wired)
   await hdmiVisible(true)
+  await soundLocal(true, 'the output plays sound again when shown with Mute off')
   await waitOutputTop(
     (t) => t.kind === 'video' && t.muted === false,
     'the output is unmuted again when shown with Mute off'
@@ -1804,6 +1833,7 @@ async function videoChecks(win, tally) {
   await waitOutputTop((t) => t.kind === 'video' && t.muted === true, 'Mute on before unplugging')
   await fakeDisplays(wired.filter((d) => d.id !== PROBE_ID))
   await hdmiVisible(false)
+  await soundLocal(false, 'a hidden output window plays no sound with Mute on')
   await fakeDisplays(wired)
   await hdmiVisible(true)
   await sleep(500) // time for a wrong unmute to show up
@@ -2022,6 +2052,8 @@ async function videoChecks(win, tally) {
     (t) => t.kind === 'video' && t.src.endsWith('/003.mp4') && t.ended,
     'slide 3 plays to its end'
   )
+  // Transition lives in the Controls tab; openOutputPopover leaves Output selected.
+  await win.getByRole('tab', { name: 'Controls' }).click()
   await win.getByRole('radio', { name: 'Fade' }).click()
   await blur()
   const fadeRec = hdmiJs(videoRecorderSrc(900, '/none'))
@@ -2139,7 +2171,7 @@ async function canvasAndLevelsChecks(win, tally) {
     win.evaluate(() => document.querySelector('.deck.live')?.getAttribute('data-deck-id') ?? null)
   const { eventId } = await session()
   const pickEvent = async (name) => {
-    await win.locator('[role=tab]', { hasText: name }).click()
+    await win.locator('[role=tab]', { hasText: name }).click({ timeout: 4000 })
     await win.locator('[role=tab][aria-selected=true]', { hasText: name }).waitFor()
   }
 
@@ -2150,16 +2182,17 @@ async function canvasAndLevelsChecks(win, tally) {
   await win.evaluate((id) => window.api.setEventCanvas(id, { width: 3840, height: 1080 }), eventId)
   await waitOut(OUT_CANVAS, '3840x1080', 'an event canvas of 3840x1080 reaches the output')
   check(true, 'event canvas 3840x1080: the output stage switches to data-canvas="3840x1080"')
+  // The canvas belongs to the event on air, not to the event being looked at (c114e0f): viewing
+  // another event never changes the output.
   await pickEvent('Event Kedua')
-  await waitOut(
-    OUT_CANVAS,
-    '1920x1080',
-    'another event without an override uses the default canvas'
+  await sleep(600) // time for a wrong switch to reach the output
+  check(
+    (await hdmiJs(OUT_CANVAS)) === '3840x1080',
+    'viewing another event keeps the on-air event canvas (3840x1080)'
   )
-  check(true, 'selecting another event: the output goes back to 1920x1080')
   await pickEvent('Smoke Event')
-  await waitOut(OUT_CANVAS, '3840x1080', 'the first event brings its 3840x1080 canvas back')
-  check(true, 'selecting the first event again: the output is 3840x1080 again')
+  await waitOut(OUT_CANVAS, '3840x1080', 'the on-air event keeps its 3840x1080 canvas')
+  check(true, 'viewing the first event again: the output is still 3840x1080')
   const badDefault = await win.evaluate(() =>
     window.api.setDefaultCanvas({ width: 10, height: 10 }).then(
       () => 'ok',
@@ -2454,6 +2487,17 @@ try {
   )
   check((await pos.textContent()) === '01 / 03', 'first Space takes slide 1 LIVE')
   check((await cap.textContent()).includes('slide 2'), 'Next panel then shows slide 2')
+  // A PDF plays as vector: its layer is a canvas, not an image. Then the deck goes to still
+  // images so the image checks below stay meaningful.
+  await win.locator('.screen canvas').first().waitFor({ state: 'visible', timeout: 10_000 })
+  check(true, 'a vector PDF is on air: .screen canvas is visible')
+  {
+    const { eventId: pdfEvent } = await win.evaluate(() => window.api.getSession())
+    const pdfDecks = await win.evaluate((e) => window.api.listDecks(e), pdfEvent)
+    for (const d of pdfDecks.filter((x) => x.playback === 'vector')) {
+      await win.evaluate(([e, i]) => window.api.setDeckPlayback(e, i, 'images'), [pdfEvent, d.id])
+    }
+  }
 
   // Output: slide 1 (white 16:9 page) fills the 16:9 HDMI window.
   const f1 = await waitFrame(
@@ -2511,7 +2555,10 @@ try {
   const fz = await dumpFrame([[10, 10]])
   check(blue(fz.px[0]), `F then Space keeps the old frame (corner ${JSON.stringify(fz.px[0])})`)
   // Frozen, the right panel previews the position slide (Unfreeze does not take it live).
-  check((await cap.textContent()).includes('slide 3'), 'frozen: Next panel previews the position slide')
+  check(
+    (await cap.textContent()).includes('slide 3'),
+    'frozen: Next panel previews the position slide'
+  )
   check(
     /^0?3 \/ 0?3$/.test(await win.getByTestId('next-pos').textContent()),
     'frozen: Next panel shows the position'
@@ -2614,6 +2661,12 @@ try {
   await kvRemove().click()
   await tallyIs('LIVE')
   await waitFrame([[10, 10]], (px) => blue(px[0]), 'removing the KV on air returns to slide 2')
+  // isDisabled() does not retry; the button follows the KV removal a moment later.
+  await win.waitForFunction(
+    () =>
+      [...document.querySelectorAll('.transport button')].find((b) => b.textContent?.includes('KV'))
+        ?.disabled === true
+  )
   check(await kvBtn.isDisabled(), 'KV removed on air: KV button disabled, slide back on the output')
 
   // Layout at 1280×720: controls fully visible above the strip.
@@ -2697,9 +2750,13 @@ try {
   const deck43 = win.locator('.deck', { has: win.locator('.name', { hasText: 'sample-4x3' }) })
   await deck43.locator('.meta', { hasText: '2 slides' }).waitFor({ timeout: 60_000 })
   check(true, '4:3 PDF imported')
+  // Transition lives in the Controls tab; openOutputPopover leaves Output selected.
+  await win.getByRole('tab', { name: 'Controls' }).click()
   await win.getByRole('radio', { name: 'Fade' }).click()
   await win.waitForFunction(
-    () => document.querySelector('[role=radio][aria-checked=true]')?.textContent === 'Fade'
+    () =>
+      document.querySelector('[data-testid=right-panel] [role=radio][aria-checked=true]')
+        ?.textContent === 'Fade'
   )
   // Sample where the left bar will be while the fade runs: blue slide 2 → black.
   const t0 = Date.now()
@@ -2850,7 +2907,11 @@ try {
   await noisePdf(noise, 4)
   await win.setInputFiles('[data-testid=file-input]', noise)
   const noiseDeck = win.locator('.deck', { has: win.locator('.name', { hasText: /^noise$/ }) })
-  await noiseDeck.locator('.meta', { hasText: '4 slides' }).waitFor({ timeout: 120_000 })
+  // The row's .meta turns visibility:hidden while the pointer is over the row (the More button
+  // takes its place), so wait for it to exist, not to be visible.
+  await noiseDeck
+    .locator('.meta', { hasText: '4 slides' })
+    .waitFor({ state: 'attached', timeout: 120_000 })
   await noiseDeck.click()
   // From STANDBY the first Next takes slide 1 live.
   if ((await tally.textContent()) !== 'LIVE') await win.keyboard.press('Space')
@@ -2859,6 +2920,8 @@ try {
   )
   await sleep(800)
   await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Cut')
+  // Transition lives in the Controls tab; openOutputPopover leaves Output selected.
+  await win.getByRole('tab', { name: 'Controls' }).click()
   await win.getByRole('radio', { name: 'Fade' }).click()
   await noBlackGap(win, () => win.keyboard.press('Space'), 'heavy slides, Next with Fade')
   await win.getByRole('radio', { name: 'Cut' }).click()
@@ -3049,7 +3112,7 @@ try {
   await mdev
     .locator('option')
     .nth(1)
-    .waitFor({ timeout: 3000 })
+    .waitFor({ state: 'attached', timeout: 3000 })
     .catch(() => {})
   const realOpts = (
     await mdev
@@ -3114,9 +3177,14 @@ try {
 {
   const firstData = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-home-'))
   const firstApp = await electron.launch({
-    args: [root],
+    args: [...linuxArgs, root],
     cwd: root,
-    env: { ...process.env, PPT_SHARE_USER_DATA: firstData, ELECTRON_RENDERER_URL: '' }
+    env: {
+      ...process.env,
+      PPT_SHARE_USER_DATA: firstData,
+      PPT_SKIP_TOUR: '1',
+      ELECTRON_RENDERER_URL: ''
+    }
   })
   try {
     const win = await firstApp.firstWindow()
@@ -3154,6 +3222,99 @@ try {
   } finally {
     await firstApp.close().catch(() => {})
     fs.rmSync(firstData, { recursive: true, force: true })
+  }
+}
+// --- Live tab and Off air: the on-air event's tab has no ×, Delete ignores it, and Off air (Home
+// banner, after a confirm) returns the output to STANDBY, never Black ---
+{
+  const offData = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-offair-'))
+  const offApp = await electron.launch({
+    args: [...linuxArgs, root],
+    cwd: root,
+    env: {
+      ...process.env,
+      PPT_SHARE_USER_DATA: offData,
+      PPT_SKIP_TOUR: '1',
+      ELECTRON_RENDERER_URL: ''
+    }
+  })
+  try {
+    const win = await offApp.firstWindow()
+    await win.waitForSelector('.app')
+    await win.getByTestId('home').waitFor()
+    await win.getByTestId('home-new').click()
+    await win.fill('[data-testid=new-event-name]', 'Off Air Event')
+    await win.press('[data-testid=new-event-name]', 'Enter')
+    await win.getByTestId('home').waitFor({ state: 'detached' })
+    await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
+    await win.locator('.deck .meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })
+    await win.keyboard.press('Space')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
+    )
+    const session = () => win.evaluate(() => window.api.getSession())
+    const live = win.locator('.otab[data-live]')
+    check((await session()).state.shown !== null, 'a slide is on air')
+    check((await live.count()) === 1, 'the on-air event has a live tab')
+    check((await live.locator('.x').count()) === 0, 'the live tab has no × button')
+
+    // Delete on the focused live tab does nothing.
+    await live.locator('[role=tab]').focus()
+    await win.keyboard.press('Delete')
+    await sleep(300)
+    check(
+      (await live.count()) === 1 && (await session()).state.shown !== null,
+      'Delete on the live tab leaves the tab and the output alone'
+    )
+
+    // Home shows the on-air banner. Cancel on the confirm keeps the output live.
+    await win.getByTestId('home-btn').click()
+    await win.getByTestId('home').waitFor()
+    check(await win.getByTestId('home-onair').isVisible(), 'Home shows the on-air banner')
+    await win.getByTestId('home-offair').click()
+    const confirm = win.getByTestId('home-offair-confirm')
+    await confirm.waitFor()
+    check(
+      (await confirm.textContent()).includes(
+        'Take Off Air Event off air? The output goes to STANDBY.'
+      ),
+      'the confirm names the event and says the output goes to STANDBY'
+    )
+    await confirm.getByRole('button', { name: 'Cancel' }).click()
+    await confirm.waitFor({ state: 'detached' })
+    check(
+      (await win.getByTestId('home-onair').isVisible()) && (await session()).state.shown !== null,
+      'Cancel closes the confirm and leaves the output live'
+    )
+
+    // Off air: the banner goes, the output is STANDBY (not Black), and the tab is no longer live.
+    await win.getByTestId('home-offair').click()
+    await win.getByTestId('home-offair-yes').click()
+    await win.getByTestId('home-onair').waitFor({ state: 'detached' })
+    const off = (await session()).state
+    check(
+      off.shown === null && !off.black && (await live.count()) === 0,
+      'Off air returns the output to STANDBY, not Black, and no tab is live'
+    )
+
+    // Back on the console the event is STANDBY, its tab has an × again and closing it works.
+    await win.locator('.evtabs [role=tab]').first().click()
+    await win.getByTestId('home').waitFor({ state: 'detached' })
+    check(
+      (await win.getByTestId('tally').textContent()) === 'STANDBY',
+      'the console shows STANDBY after Off air'
+    )
+    const close = win.locator('.evtabs .otab .x')
+    check((await close.count()) === 1, 'the tab after Off air has an × button')
+    await close.click()
+    await win.locator('.evtabs [role=tab]').first().waitFor({ state: 'detached' })
+    check(true, 'closing the tab after Off air removes it')
+  } catch (e) {
+    failed = true
+    console.error(e)
+  } finally {
+    await offApp.close().catch(() => {})
+    fs.rmSync(offData, { recursive: true, force: true })
   }
 }
 console.log(failed ? 'SMOKE FAILED' : 'SMOKE PASSED')

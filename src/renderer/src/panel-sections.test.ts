@@ -26,10 +26,12 @@ describe('panel tab', () => {
     expect(loadPanelTab(memory())).toBe('controls')
     expect(loadPanelTab(memory({ 'panel-tab': 'nope' }))).toBe('controls')
   })
-  it('round-trips', () => {
-    const s = memory()
-    savePanelTab(s, 'info')
-    expect(loadPanelTab(s)).toBe('info')
+  it('round-trips every tab', () => {
+    for (const tab of ['controls', 'output', 'info'] as const) {
+      const s = memory()
+      savePanelTab(s, tab)
+      expect(loadPanelTab(s)).toBe(tab)
+    }
   })
   it('survives a storage that throws', () => {
     const bad: KeyValueStore = {
@@ -47,11 +49,11 @@ describe('panel tab', () => {
 })
 
 describe('open sections', () => {
-  it('defaults: network collapsed, the rest open', () => {
+  it('defaults: output and network collapsed, the rest open', () => {
     expect(loadOpenSections(memory())).toEqual({
       transition: true,
       'deck-settings': true,
-      output: true,
+      output: false,
       network: false,
       notes: true
     })
@@ -67,9 +69,9 @@ describe('open sections', () => {
     const s = memory()
     const next = saveOpenSection(s, DEFAULT_OPEN, 'network', true)
     expect(next.network).toBe(true)
-    expect(next.output).toBe(true)
+    expect(next.transition).toBe(true)
     expect(loadOpenSections(s)).toEqual(next)
-    expect(saveOpenSection(s, next, 'output', false).output).toBe(false)
-    expect(loadOpenSections(s).output).toBe(false)
+    expect(saveOpenSection(s, next, 'transition', false).transition).toBe(false)
+    expect(loadOpenSections(s).transition).toBe(false)
   })
 })

@@ -21,7 +21,7 @@ interface Props {
 
 /**
  * The "Output" (HDMI, audio, machine canvas) and "Network" (frame rate, OMT, NDI) sections
- * of the Controls tab. The controls are the ones the header popover used to hold; every
+ * of the Output tab. The controls are the ones the header popover used to hold; every
  * change still applies at once and the frame-rate and sender restart warnings are kept.
  */
 export function OutputStatus({ out, program, isOpen, onToggle }: Props): React.JSX.Element {
@@ -47,6 +47,7 @@ export function OutputStatus({ out, program, isOpen, onToggle }: Props): React.J
         open={isOpen('output')}
         onToggle={(o) => onToggle('output', o)}
         testId="output-section"
+        summary={`${hdmi.enabled ? 'HDMI on' : 'HDMI off'}${canvas ? ` · ${canvas.width}×${canvas.height}` : ''}`}
       >
         <HdmiSection
           hdmi={hdmi}
@@ -71,8 +72,7 @@ export function OutputStatus({ out, program, isOpen, onToggle }: Props): React.J
               </h3>
             </div>
             <span className="hint">
-              Output size for every event without its own canvas. Choose one for an event with
-              Change under Deck settings.
+              Default size for events without their own. Set one for this event under Deck settings.
             </span>
             <CanvasSetting
               value={canvas}
@@ -93,6 +93,9 @@ export function OutputStatus({ out, program, isOpen, onToggle }: Props): React.J
         open={isOpen('network')}
         onToggle={(o) => onToggle('network', o)}
         testId="network-panel"
+        summary={`${omt.fps} fps · ${
+          [omt.enabled && 'OMT', ndi.enabled && 'NDI'].filter(Boolean).join(' + ') || 'off'
+        }`}
       >
         <NetworkSection
           fps={omt.fps}

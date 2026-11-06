@@ -14,6 +14,7 @@ import * as http from 'node:http'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const tmpDirs = []
@@ -56,13 +57,8 @@ const base = `http://127.0.0.1:${server.address().port}`
 async function launch() {
   const userData = mkTmp('ppt-share-web-')
   const app = await electron.launch({
-    // Linux: the hidden page window paints on X11 only (see needsX11Relaunch); the app relaunches itself
-    // with this flag, which would drop Playwright's connection, so it is given here.
-    args: [
-      '--use-fake-device-for-media-stream',
-      ...(process.platform === 'linux' ? ['--ozone-platform=x11'] : []),
-      root
-    ],
+    // Linux: the hidden page window paints on X11 only (see launch-args.mjs).
+    args: ['--use-fake-device-for-media-stream', ...linuxArgs, root],
     cwd: root,
     env: {
       ...process.env,
@@ -506,13 +502,17 @@ async function main() {
     // ---- Home and closing a tab never touch the output (the dump holds the air state)
     const airBefore = (await session(win)).state
     await win.getByTestId('home-btn').click()
-    await win.getByRole('button', { name: 'Close Web Event' }).click()
+    // The on-air tab has no × and Delete does not close it.
+    check((await win.locator('.otab[data-live] .x').count()) === 0, 'the on-air tab has no ×')
+    await win.locator('.otab[data-live] [role=tab]').focus()
+    await win.keyboard.press('Delete')
     await sleep(800)
+    check((await win.locator('.otab[data-live]').count()) === 1, 'Delete keeps the on-air tab')
     const airAfter = (await session(win)).state
     check(
       JSON.stringify([airBefore.shown, airBefore.canvas, airBefore.take]) ===
         JSON.stringify([airAfter.shown, airAfter.canvas, airAfter.take]),
-      'Home and closing the air event tab leave shown, canvas and take unchanged'
+      'Home and Delete on the air event tab leave shown, canvas and take unchanged'
     )
     const pdf = await win.evaluate((e) => window.api.listDecks(e), other)
     st = await dispatch(win, { type: 'selectDeck', deckId: pdf[0].id })

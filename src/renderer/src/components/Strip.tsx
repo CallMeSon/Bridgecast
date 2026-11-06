@@ -202,7 +202,9 @@ export function Strip({ decks, state, onGoto, onMoveSlide, versions }: Props): R
           {deck.name}
         </span>
         <span className="count">
-          {deck.slides.length} {deck.slides.length === 1 ? 'slide' : 'slides'}
+          {deck.source === 'web'
+            ? 'Web page'
+            : `${deck.slides.length} ${deck.slides.length === 1 ? 'slide' : 'slides'}`}
         </span>
         {/* What each ring in the strip means. */}
         <span className="legend" aria-hidden="true">

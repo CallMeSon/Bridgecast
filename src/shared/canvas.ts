@@ -133,3 +133,6 @@ export function contentRect(
   const y = Math.max(0, Math.min(canvas.height - height, evenDown((canvas.height - height) / 2)))
   return { x, y, width, height }
 }
+
+/** Pixel width a PowerPoint file is exported at when imported. */
+export const IMPORT_WIDTH = 1920

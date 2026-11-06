@@ -82,3 +82,17 @@ export function needsX11Relaunch(
   const wayland = env['XDG_SESSION_TYPE'] === 'wayland' || !!env['WAYLAND_DISPLAY']
   return wayland && !!env['DISPLAY']
 }
+
+/**
+ * Options for `app.relaunch` that restart on X11. An AppImage runs from a temporary mount that
+ * is gone once this process exits, so the default `process.execPath` would start nothing: it
+ * restarts through the `.AppImage` file itself (`APPIMAGE`, set by the AppImage runtime).
+ */
+export function x11RelaunchOptions(
+  env: Record<string, string | undefined>,
+  argv: readonly string[]
+): { execPath?: string; args: string[] } {
+  const args = [...argv.slice(1), '--ozone-platform=x11']
+  const appImage = env['APPIMAGE']
+  return appImage ? { execPath: appImage, args } : { args }
+}

@@ -5,6 +5,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-e2e-'))
@@ -13,11 +14,12 @@ const check = (c, m) => {
   console.log(`ok - ${m}`)
 }
 const app = await electron.launch({
-  args: [root],
+  args: [...linuxArgs, root],
   cwd: root,
   env: {
     ...process.env,
     PPT_SHARE_USER_DATA: userData,
+    PPT_SKIP_TOUR: '1',
     PPT_SKIP_HOME: '1',
     ELECTRON_RENDERER_URL: ''
   }
@@ -26,8 +28,8 @@ try {
   const page = await app.firstWindow()
   await page.waitForSelector('header')
   const attr = (n) => page.evaluate((k) => document.documentElement.dataset[k], n)
-  // Controls > Output open behind the dialog, to watch it follow the Sound section.
-  const ctl = page.getByRole('tab', { name: 'Controls' })
+  // Output tab open behind the dialog, to watch it follow the Sound section.
+  const ctl = page.getByRole('tab', { name: 'Output' })
   if ((await ctl.getAttribute('aria-selected')) !== 'true') await ctl.click()
   const outPanel = page.getByTestId('output-panel')
   const outHead = outPanel.getByRole('button', { name: 'Output', exact: true })
@@ -107,6 +109,26 @@ try {
       )
   }
   console.log('ok - Tab stays inside')
+  // A short window: the dialog stays inside it and its body scrolls (it used to run off the bottom).
+  const win = await app.browserWindow(page)
+  const size = await win.evaluate((w) => w.getSize())
+  await win.evaluate((w) => w.setSize(1180, 640))
+  await page.waitForFunction(() => window.innerHeight <= 640)
+  const fit = await page.evaluate(() => {
+    const d = document.querySelector('[data-testid=settings-dialog]').getBoundingClientRect()
+    const body = document.querySelector('.settings-dialog .set-body')
+    body.scrollTop = body.scrollHeight
+    return {
+      top: d.top,
+      bottom: d.bottom,
+      vh: window.innerHeight,
+      scrolls: body.scrollHeight > body.clientHeight,
+      moved: body.scrollTop > 0
+    }
+  })
+  check(fit.top >= 0 && fit.bottom <= fit.vh, `dialog fits a short window (${JSON.stringify(fit)})`)
+  check(fit.scrolls && fit.moved, 'settings body scrolls in a short window')
+  await win.evaluate((w, [wd, ht]) => w.setSize(wd, ht), size)
   await page.keyboard.press('Escape')
   check((await page.locator('[data-testid=settings-dialog]').count()) === 0, 'Escape closes')
   check(
@@ -136,6 +158,12 @@ try {
   await page.keyboard.press('Escape')
   check((await page.locator('[data-testid=new-event-dialog]').count()) === 0, 'Escape closes')
   check((await tabs.count()) === before, 'Escape creates nothing')
+  // Focus returns in a timer after the dialog unmounts: poll, do not read it once.
+  await page
+    .waitForFunction(() => document.activeElement?.classList.contains('newbtn'), null, {
+      timeout: 3000
+    })
+    .catch(() => {})
   check(
     await page.evaluate(() => document.activeElement?.classList.contains('newbtn')),
     'focus back on New'

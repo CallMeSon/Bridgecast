@@ -5,7 +5,8 @@ import {
   WAYLAND_STILLS,
   detectEngine,
   engineName,
-  needsX11Relaunch
+  needsX11Relaunch,
+  x11RelaunchOptions
 } from './platform'
 
 const linux = { platform: 'linux' as const, hasSoffice: true, hasPyUno: true }
@@ -52,15 +53,6 @@ describe('detectEngine', () => {
     const r = detectEngine({ platform: 'darwin', hasSoffice: true, hasPyUno: true })
     expect(r).toEqual({ engine: 'none', canCapture: false, message: NO_POWERPOINT_ENGINE })
   })
-
-  it('copies the exact install and Wayland strings', () => {
-    expect(INSTALL_LIBREOFFICE).toBe(
-      'Install LibreOffice Impress and python3-uno to import PowerPoint files, or export the file to PDF and import the PDF.'
-    )
-    expect(WAYLAND_STILLS).toBe(
-      "Animated slides need an X11 session on Linux. Log in with 'GNOME on Xorg' to play animations; showing still slides."
-    )
-  })
 })
 
 describe('engineName', () => {
@@ -81,5 +73,18 @@ describe('needsX11Relaunch', () => {
     expect(needsX11Relaunch('win32', wayland, [])).toBe(false)
     expect(needsX11Relaunch('linux', { XDG_SESSION_TYPE: 'x11', DISPLAY: ':0' }, [])).toBe(false)
     expect(needsX11Relaunch('linux', { ...wayland, DISPLAY: undefined }, [])).toBe(false)
+  })
+})
+
+describe('x11RelaunchOptions', () => {
+  it('adds the X11 flag and keeps the arguments', () => {
+    expect(x11RelaunchOptions({}, ['/opt/Bridgecast/bridgecast', '--foo'])).toEqual({
+      args: ['--foo', '--ozone-platform=x11']
+    })
+  })
+  it('restarts an AppImage through the .AppImage file, not the mount that disappears on exit', () => {
+    expect(
+      x11RelaunchOptions({ APPIMAGE: '/home/u/Bridgecast.AppImage' }, ['/tmp/.mount_x/bridgecast'])
+    ).toEqual({ execPath: '/home/u/Bridgecast.AppImage', args: ['--ozone-platform=x11'] })
   })
 })

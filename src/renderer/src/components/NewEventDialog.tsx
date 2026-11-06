@@ -156,7 +156,7 @@ export function NewEventDialog({ existing, onSubmit, onClose }: Props): React.JS
             <button type="button" className="btn" onClick={() => close(true)}>
               Cancel
             </button>
-            <button type="submit" className="btn inverse" disabled={busy}>
+            <button type="submit" className="btn primary" disabled={busy}>
               Create event
             </button>
           </div>

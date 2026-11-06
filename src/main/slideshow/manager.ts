@@ -5,13 +5,13 @@ import type { DeckMeta } from '../../shared/types'
 import type { AppState } from '../state'
 import type { EngineSession, SlideShowEngine } from './engine'
 
-export const HEARTBEAT_MS = 1000
-export const HANG_MS = 3000
+const HEARTBEAT_MS = 1000
+const HANG_MS = 3000
 const RETRY_MS = 3000
 /** Live deck + the next native deck. */
 const MAX_SESSIONS = 2
 
-export interface ManagerTimers {
+interface ManagerTimers {
   setInterval: (fn: () => void, ms: number) => unknown
   clearInterval: (h: unknown) => void
   setTimeout: (fn: () => void, ms: number) => unknown
@@ -53,8 +53,6 @@ export class SlideShowManager {
   /** nativeFallback was dispatched for these decks and not yet resumed. */
   private fallen = new Set<string>()
   private down = false
-  /** Decks whose slide show window an output has captured (cleared when the session ends). */
-  private framed = new Set<string>()
   /** Decks whose open failed or errored; not reopened until the retry timer fires. */
   private blocked = new Set<string>()
   private lastOk: number
@@ -132,26 +130,8 @@ export class SlideShowManager {
     return e?.session && !e.closing ? e.session.windowId : null
   }
 
-  /**
-   * An output window captured the first frame of the deck's slide show window.
-   * TELEMETRY ONLY: nothing reads it yet. The spec's first-frame ready gate (a native
-   * take waits for a captured frame) is deferred to the Windows precapture work; until
-   * then `ready()` means "session open" and an output without a frame shows the slide's PNG.
-   */
-  frameSeen(deckId: string): void {
-    if (this.entries.has(deckId)) this.framed.add(deckId)
-  }
-
-  /** The deck's slide show window has been captured at least once since it opened. */
-  hasFrame(deckId: string): boolean {
-    return this.framed.has(deckId)
-  }
-
   /** Opens the deck's working copy for editing in a normal window. */
   async edit(file: string): Promise<void> {
-    if (!this.engine.edit) {
-      throw new Error('Editing in PowerPoint is not available on this computer.')
-    }
     await this.engine.edit(file)
   }
 
@@ -240,7 +220,14 @@ export class SlideShowManager {
   }
 
   private openEntry(deckId: string, canvas: Canvas): void {
-    const e: Entry = { deckId, canvas: { ...canvas }, session: null, closing: false, pos: null, settling: true }
+    const e: Entry = {
+      deckId,
+      canvas: { ...canvas },
+      session: null,
+      closing: false,
+      pos: null,
+      settling: true
+    }
     this.entries.set(deckId, e)
     this.engine.open(deckId, this.fileOf(deckId), canvas).then(
       (session) => {
@@ -288,7 +275,6 @@ export class SlideShowManager {
     const done = (): void => {
       if (this.entries.get(e.deckId) === e) {
         this.entries.delete(e.deckId)
-        this.framed.delete(e.deckId)
         this.notifyGone(e.deckId)
       }
       this.sync()
@@ -313,7 +299,6 @@ export class SlideShowManager {
   private failDeck(deckId: string): void {
     const e = this.entries.get(deckId)
     this.blocked.add(deckId)
-    this.framed.delete(deckId)
     if (e) {
       this.entries.delete(deckId)
       this.notifyGone(deckId)
@@ -335,7 +320,6 @@ export class SlideShowManager {
     const live = this.liveNative(this.state.state, this.decks())
     const gone = [...this.entries.keys()]
     this.entries.clear()
-    this.framed.clear()
     for (const id of gone) this.notifyGone(id)
     if (live) this.fallBack(live)
     this.notifyStatus()
@@ -376,7 +360,6 @@ export class SlideShowManager {
       this.lastOk = now
       return
     }
-    if (!this.engine.ping) return
     if (!this.pingInFlight) {
       this.pingInFlight = true
       const gen = this.gen

@@ -1,4 +1,5 @@
-import type { FakeDebug } from './worker'
+import type { FakeDebug, WorkerOut } from './worker'
+import type { NetId } from '../net/sender-binding'
 import type { ContentRect } from '../../shared/canvas'
 import { cropBgra } from './crop'
 import {
@@ -17,7 +18,7 @@ export const STOP_WAIT_MS = 1500
 const CREATE_FAILED =
   'OMT could not start. Close other apps that send OMT, then turn OMT off and on.'
 
-export type NetId = 'omt' | 'ndi'
+export type { NetId }
 export interface NetSettings {
   omt: OmtSettings
   ndi: NdiSettings
@@ -98,11 +99,6 @@ function inside(r: ContentRect, c: Size): boolean {
     r.y + r.height <= c.height
   )
 }
-
-type WorkerMsg =
-  | { type: 'status'; id: string; status: Partial<NetStatus> }
-  | { type: 'stopped' }
-  | { type: 'debug'; count: number; sizes: string[]; extra?: FakeDebug }
 
 const OFF: NetStatus = { state: 'off', connections: 0, address: null }
 const STARTING: NetStatus = { state: 'starting', connections: 0, address: null }
@@ -354,7 +350,7 @@ export class NetController {
     }
     this.worker = w
     this.workerStarts++
-    w.on('message', (m) => this.onWorkerMessage(w, m as WorkerMsg))
+    w.on('message', (m) => this.onWorkerMessage(w, m as WorkerOut))
     w.on('error', (e) => {
       console.error('[net] worker error:', e)
       this.onWorkerDown(w)
@@ -480,11 +476,10 @@ export class NetController {
   private beginSender(): void {
     const w = this.worker
     if (!w) return
-    const { width, height } = this.rect
     const targets = this.wanted()
     this.cancelAllWaits()
     this.cur = new Map(targets.map((t) => [t.id, t.name]))
-    w.postMessage({ type: 'start', targets, fps: this.cfg.omt.fps, width, height })
+    w.postMessage({ type: 'start', targets, fps: this.cfg.omt.fps })
     this.sending = true
     this.kick()
   }
@@ -578,7 +573,7 @@ export class NetController {
     }, this.deps.restartDelayMs)
   }
 
-  private onWorkerMessage(w: WorkerLike, m: WorkerMsg): void {
+  private onWorkerMessage(w: WorkerLike, m: WorkerOut): void {
     if (m.type === 'stopped') {
       this.stopWaiters.get(w)?.()
       return

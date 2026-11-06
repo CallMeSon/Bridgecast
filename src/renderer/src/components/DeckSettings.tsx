@@ -83,7 +83,8 @@ export function DeckSettings({
             onSaved={onEventUpdated}
             onClose={(restoreFocus) => {
               setCanvasOpen(false)
-              if (restoreFocus) change.current?.focus()
+              // The app behind the dialog is inert until it unmounts: focus after that.
+              if (restoreFocus) requestAnimationFrame(() => change.current?.focus())
             }}
           />
         )}

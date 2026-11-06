@@ -938,3 +938,45 @@ describe('native steps, hidden slides and fallback', () => {
     expect(r.shown?.step).toBe(2)
   })
 })
+
+describe('offAir', () => {
+  it('offAir from live goes to STANDBY and keeps the position', () => {
+    const st = at('A', 2, { take: 5 })
+    const r = reduce(st, { type: 'offAir' }, decks)
+    expect(r).toMatchObject({
+      shown: null,
+      frozen: false,
+      black: false,
+      kv: false,
+      webHold: false,
+      deckId: 'A',
+      index: 2,
+      take: 5
+    })
+  })
+
+  it('offAir clears freeze, black and a pressed KV', () => {
+    const KV_URL = 'slide://x/kv.png'
+    const inputs: Partial<ProgramState>[] = [
+      { frozen: true },
+      { black: true },
+      { kv: true, kvUrl: KV_URL }
+    ]
+    for (const extra of inputs) {
+      const r = reduce(at('A', 1, extra), { type: 'offAir' }, decks)
+      expect(r.shown === null && !r.black && !r.kv && !r.frozen).toBe(true)
+    }
+  })
+
+  it('offAir at STANDBY returns the same object', () => {
+    expect(reduce(initialState, { type: 'offAir' }, [])).toBe(initialState)
+  })
+
+  it('offAir clears webHold', () => {
+    const st = at('W', 0, {
+      webHold: true,
+      shown: { ...sh('W', 0), web: { deckId: 'W' } }
+    })
+    expect(reduce(st, { type: 'offAir' }, decks)).toMatchObject({ shown: null, webHold: false })
+  })
+})

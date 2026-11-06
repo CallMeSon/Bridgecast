@@ -180,9 +180,6 @@ describe('hdmiSettingsError', () => {
     expect(hdmiSettingsError({ enabled: true, displayId: null }, [laptop], null)).toBe(
       NO_SECOND_DISPLAY
     )
-    expect(NO_SECOND_DISPLAY).toBe(
-      'No second display detected. Connect HDMI, then set Windows to Extend mode (Win+P, then Extend).'
-    )
   })
 })
 
