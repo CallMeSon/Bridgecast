@@ -1049,6 +1049,7 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
           slideOnProgram={program.shown !== null}
           onOpen={selectEvent}
           onBack={backToConsole}
+          onOffAir={() => dispatch({ type: 'offAir' })}
           onNew={openNewEvent}
           onImport={() => askLibrary('import')}
           onAddWeb={() => askLibrary('web')}
@@ -1179,6 +1180,8 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
               canNextSection={canNextSection(decks, program, sections)}
               canPrevDeck={reduce(program, { type: 'prevDeck' }, decks, sections) !== program}
               canNextDeck={reduce(program, { type: 'nextDeck' }, decks, sections) !== program}
+              onAir={airTally !== 'idle'}
+              airName={events.find((e) => e.id === program.airEvent)?.name ?? ''}
               onAction={dispatch}
             />
           }

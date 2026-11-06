@@ -3783,3 +3783,43 @@ button > svg,
 .ind > svg {
   flex: none;
 }
+
+/* Off air (OffAirButton.tsx): the question replaces the button. Inline and flat, the same tone as
+   the canvas question. In the on-air banner it sits in the row; under the deck buttons in Controls
+   it is a column, full width. */
+.offair-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--raised-hi);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+}
+.offair-confirm p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.offair-confirm .actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.controls-extra > .offair-confirm {
+  display: flex;
+  flex-direction: column;
+}
+.onair .offair-confirm {
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 8px 12px;
+}
+.onair .offair-confirm p {
+  flex: 1 1 auto;
+  min-width: 0;
+}

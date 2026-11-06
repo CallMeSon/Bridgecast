@@ -26,6 +26,7 @@ import {
 } from '../home'
 import { StatusTag } from './StatusTag'
 import { BrandMark } from './BrandMark'
+import { OffAirButton } from './OffAirButton'
 import { GettingStarted } from './GettingStarted'
 import {
   currentStep,
@@ -52,6 +53,8 @@ interface Props {
   slideOnProgram: boolean
   onOpen(id: string): void
   onBack(): void
+  /** Takes the on-air event off air (the output goes to STANDBY). */
+  onOffAir(): void
   onNew(): void
   onImport(): void
   onAddWeb(): void
@@ -267,6 +270,7 @@ export function Home(p: Props): React.JSX.Element {
               Back to console
               <kbd>Esc</kbd>
             </button>
+            <OffAirButton eventName={airName} onConfirm={p.onOffAir} testId="home-offair" />
           </div>
         )}
 
