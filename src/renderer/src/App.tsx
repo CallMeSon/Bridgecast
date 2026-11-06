@@ -8,7 +8,7 @@ import type { Playback } from '../../shared/types'
 import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
 import { Home } from './components/Home'
-import { closeTab, loadOpenTabs, openTab, saveOpenTabs } from './open-tabs'
+import { closeTab, keepAirTab, loadOpenTabs, openTab, saveOpenTabs } from './open-tabs'
 import { SettingsDialog } from './components/SettingsDialog'
 import { NewEventDialog } from './components/NewEventDialog'
 import { Library, type ImportRow, type LibraryHandle } from './components/Library'
@@ -160,6 +160,14 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
   useEffect(() => {
     if (tabsLoaded.current) saveOpenTabs(localStorage, openIds)
   }, [openIds])
+  // The event on air always has a tab (it cannot be closed while on air): it is opened again
+  // when missing.
+  const airTally = tally(program)
+  useEffect(() => {
+    if (!tabsLoaded.current) return
+    const onAir = airTally !== 'idle' && events.some((e) => e.id === program.airEvent)
+    setOpenIds((ids) => keepAirTab(ids, program.airEvent, onAir))
+  }, [program.airEvent, airTally, events])
   const appRef = useRef<HTMLDivElement>(null)
   // A failed Program action (shown next to the tally) and a short "saved" note.
   const [actionError, setActionError] = useState<string | null>(null)
@@ -327,14 +335,18 @@ function App({ skipHome = false }: { skipHome?: boolean }): React.JSX.Element {
   // selects its left neighbour; closing the last one shows Home.
   const closeEventTab = useCallback(
     (id: string) => {
-      const r = closeTab(openIds, id, eventId)
+      // The on-air event's tab stays open until the output is taken off air.
+      const locked = tally(program) !== 'idle' ? program.airEvent : null
+      const r = closeTab(openIds, id, eventId, locked)
+      // Nothing closed (the on-air tab, or an unknown id): nothing else changes either.
+      if (r.ids === openIds) return
       setOpenIds(r.ids)
       if (id === eventId) {
         if (r.next) void selectEvent(r.next)
         else setView('home')
       }
     },
-    [openIds, eventId, selectEvent]
+    [openIds, eventId, selectEvent, program]
   )
 
   // Archive keeps the tab open and the output as it is; only the event's flag and its lists change.

@@ -145,7 +145,8 @@ export function EventTabs({
     else if (e.key === 'Delete') {
       e.preventDefault()
       const id = tabs[at]?.id
-      if (id) onClose(id)
+      // The on-air tab cannot be closed: Delete does nothing on it, as there is no ×.
+      if (id && !(id === airEvent && airState !== 'idle')) onClose(id)
       return
     }
     if (to < 0) return
@@ -192,7 +193,7 @@ export function EventTabs({
                 className="otab-main"
                 aria-selected={isSel}
                 aria-label={live ? `${ev.name}, on air` : ev.name}
-                title={live ? `${ev.name}, on air` : ev.name}
+                title={live ? `${ev.name}, on air. Take it off air first.` : ev.name}
                 tabIndex={isStop ? 0 : -1}
                 onClick={() => onSelect(ev.id)}
               >
@@ -201,15 +202,17 @@ export function EventTabs({
                   <StatusTag kind={airState as Exclude<Tally, 'idle'>} variant="icon" size="sm" />
                 )}
               </button>
-              <button
-                className="x"
-                aria-label={`Close ${ev.name}`}
-                title="Close tab"
-                tabIndex={isStop ? 0 : -1}
-                onClick={() => onClose(ev.id)}
-              >
-                <XIcon size={12} />
-              </button>
+              {!live && (
+                <button
+                  className="x"
+                  aria-label={`Close ${ev.name}`}
+                  title="Close tab"
+                  tabIndex={isStop ? 0 : -1}
+                  onClick={() => onClose(ev.id)}
+                >
+                  <XIcon size={12} />
+                </button>
+              )}
             </div>
           )
         })}
