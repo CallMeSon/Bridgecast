@@ -198,6 +198,7 @@ Otomatis di Linux hanya untuk tab, Home dan Settings (`e2e/web.mjs`, `e2e/settin
 - [ ] Event yang sedang on air tetap hidup saat tabnya ditutup: tampilkan slide, tutup tab event itu dan buka Home; HDMI dan receiver network tidak berubah (slide, canvas, KV). Tombol Back to console kembali ke event itu.
 - [ ] Pindah tab dan buka Home saat slide, deck PowerPoint native dan halaman web sedang on air: tidak ada yang berubah di HDMI maupun di receiver network (vMix, OBS).
 - [ ] Delapan tab terbuka di jendela 1180px: menu overflow tab memuat semua event, tab live tetap terlihat di tepi, nama panjang terpotong dengan elipsis dan tombol New, HDMI, tema dan gerigi tidak keluar jendela.
+- [ ] **Off air saat live**, dua kali: sekali dengan deck PowerPoint native on air, sekali dengan deck web (Canva atau YouTube) on air. Tab event yang live tidak punya ×, dan Delete tidak menutupnya. Dari Home, Off air lalu Cancel: output tetap live. Lalu Off air lalu **Off air** di konfirmasi: status kembali STANDBY (bukan BLACK; KV tampil bila ada), tidak ada slide PowerPoint atau frame halaman web yang tertinggal di HDMI, OMT, atau NDI, tidak ada desktop atau bingkai jendela, dan PowerPoint tetap terbuka. Tab itu lalu punya × dan bisa ditutup.
 
 ## Selesai
 

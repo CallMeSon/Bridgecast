@@ -3213,5 +3213,93 @@ try {
     fs.rmSync(firstData, { recursive: true, force: true })
   }
 }
+// --- Live tab and Off air: the on-air event's tab has no ×, Delete ignores it, and Off air (Home
+// banner, after a confirm) returns the output to STANDBY, never Black ---
+{
+  const offData = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-offair-'))
+  const offApp = await electron.launch({
+    args: [...linuxArgs, root],
+    cwd: root,
+    env: { ...process.env, PPT_SHARE_USER_DATA: offData, ELECTRON_RENDERER_URL: '' }
+  })
+  try {
+    const win = await offApp.firstWindow()
+    await win.waitForSelector('.app')
+    await win.getByTestId('home').waitFor()
+    await win.getByTestId('home-new').click()
+    await win.fill('[data-testid=new-event-name]', 'Off Air Event')
+    await win.press('[data-testid=new-event-name]', 'Enter')
+    await win.getByTestId('home').waitFor({ state: 'detached' })
+    await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
+    await win.locator('.deck .meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })
+    await win.keyboard.press('Space')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
+    )
+    const session = () => win.evaluate(() => window.api.getSession())
+    const live = win.locator('.otab[data-live]')
+    check((await session()).state.shown !== null, 'a slide is on air')
+    check((await live.count()) === 1, 'the on-air event has a live tab')
+    check((await live.locator('.x').count()) === 0, 'the live tab has no × button')
+
+    // Delete on the focused live tab does nothing.
+    await live.locator('[role=tab]').focus()
+    await win.keyboard.press('Delete')
+    await sleep(300)
+    check(
+      (await live.count()) === 1 && (await session()).state.shown !== null,
+      'Delete on the live tab leaves the tab and the output alone'
+    )
+
+    // Home shows the on-air banner. Cancel on the confirm keeps the output live.
+    await win.getByTestId('home-btn').click()
+    await win.getByTestId('home').waitFor()
+    check(await win.getByTestId('home-onair').isVisible(), 'Home shows the on-air banner')
+    await win.getByTestId('home-offair').click()
+    const confirm = win.getByTestId('home-offair-confirm')
+    await confirm.waitFor()
+    check(
+      (await confirm.textContent()).includes(
+        'Take Off Air Event off air? The output goes to STANDBY.'
+      ),
+      'the confirm names the event and says the output goes to STANDBY'
+    )
+    await confirm.getByRole('button', { name: 'Cancel' }).click()
+    await confirm.waitFor({ state: 'detached' })
+    check(
+      (await win.getByTestId('home-onair').isVisible()) && (await session()).state.shown !== null,
+      'Cancel closes the confirm and leaves the output live'
+    )
+
+    // Off air: the banner goes, the output is STANDBY (not Black), and the tab is no longer live.
+    await win.getByTestId('home-offair').click()
+    await win.getByTestId('home-offair-yes').click()
+    await win.getByTestId('home-onair').waitFor({ state: 'detached' })
+    const off = (await session()).state
+    check(
+      off.shown === null && !off.black && (await live.count()) === 0,
+      'Off air returns the output to STANDBY, not Black, and no tab is live'
+    )
+
+    // Back on the console the event is STANDBY, its tab has an × again and closing it works.
+    await win.locator('.evtabs [role=tab]').first().click()
+    await win.getByTestId('home').waitFor({ state: 'detached' })
+    check(
+      (await win.getByTestId('tally').textContent()) === 'STANDBY',
+      'the console shows STANDBY after Off air'
+    )
+    const close = win.locator('.evtabs .otab .x')
+    check((await close.count()) === 1, 'the tab after Off air has an × button')
+    await close.click()
+    await win.locator('.evtabs [role=tab]').first().waitFor({ state: 'detached' })
+    check(true, 'closing the tab after Off air removes it')
+  } catch (e) {
+    failed = true
+    console.error(e)
+  } finally {
+    await offApp.close().catch(() => {})
+    fs.rmSync(offData, { recursive: true, force: true })
+  }
+}
 console.log(failed ? 'SMOKE FAILED' : 'SMOKE PASSED')
 process.exit(failed ? 1 : 0)
