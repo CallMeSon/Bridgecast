@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type Ref
-} from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   DotsThreeVerticalIcon,
   ArrowCounterClockwiseIcon,
@@ -14,9 +6,8 @@ import {
   ArrowUpIcon,
   ArrowsClockwiseIcon,
   BrowserIcon,
-  CheckCircleIcon,
   CheckIcon,
-  CircleDashedIcon,
+  CircleNotchIcon,
   FilePdfIcon,
   FilePptIcon,
   GlobeIcon,
@@ -59,7 +50,8 @@ import {
   type WebChipKind,
   playbackChip,
   REVERT_CONFIRM,
-  LO_EDIT_CONFIRM
+  LO_EDIT_CONFIRM,
+  NO_EVENT_YET
 } from '../model'
 import { orderItems, type OrderItem } from '../../../shared/sections'
 import { fitMenuTop, onMenuKeyDown, useContextMenu } from './menuNav'
@@ -76,12 +68,6 @@ export type ImportRow = ImportProgress & { meta?: string }
 /** Drag data of both row kinds: the item's index in the ordered list (decks and sections). */
 const DECK_TYPE = 'application/x-ppt-share-deck'
 
-/** What Home can ask of the Decks list. */
-export interface LibraryHandle {
-  pickFiles(): void
-  addWeb(): void
-}
-
 interface Props {
   decks: DeckMeta[]
   imports: ImportRow[]
@@ -93,8 +79,6 @@ interface Props {
   /** The on-air tag of a deck row (LIVE, FROZEN, BLACK or KV), null for any other deck. */
   airTag(deckId: string): DeckRowTag | null
   canImport: boolean
-  /** Lets Home open the file picker or the Add web page dialog. */
-  handle?: Ref<LibraryHandle>
   /** URL of the active event's KV image, or null. */
   kvUrl: string | null
   /** The KV image is on the output now; it cannot be removed meanwhile. */
@@ -107,7 +91,6 @@ interface Props {
   onFiles(files: File[]): void
   /** The program of this computer (PowerPoint on Windows, LibreOffice on Linux). */
   engineName?: 'PowerPoint' | 'LibreOffice'
-  /** Linux only (LibreOffice engine): what an imported PowerPoint file becomes; absent elsewhere. */
   /** Indices are into the ordered list of decks and sections (`orderItems`). */
   onMoveItem(from: number, to: number): void
   onRemoveDeck(deckId: string): void
@@ -386,7 +369,7 @@ function AddMenu({
   onSection(): void
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
-  useContextMenu(ref, '[data-testid="deck-add"]', onClose)
+  useContextMenu(ref, '[data-testid="deck-add"], [data-testid="add-one"]', onClose)
   return (
     <div
       ref={ref}
@@ -413,6 +396,9 @@ function AddMenu({
     </div>
   )
 }
+
+/** Height of the Add menu (3 items), so the narrow Add button can open it upward. */
+const ADD_MENU_H = 124
 
 /** The 64x36 tile of a row: the first slide when there is one, else the source icon. */
 function Tile({ children, pv }: { children: React.ReactNode; pv?: boolean }): React.JSX.Element {
@@ -448,15 +434,15 @@ function DeckIcon({ deck }: { deck: DeckMeta }): React.JSX.Element {
 }
 
 const CHIP_ICON: Record<WebChipKind, React.JSX.Element> = {
-  loading: <CircleDashedIcon size={14} />,
-  ready: <CheckCircleIcon size={14} weight="fill" />,
-  error: <WarningIcon size={14} weight="fill" />,
-  hold: <PauseIcon size={14} weight="fill" />
+  loading: <CircleNotchIcon size={12} />,
+  ready: <CheckIcon size={12} weight="bold" />,
+  error: <WarningIcon size={12} weight="fill" />,
+  hold: <PauseIcon size={12} weight="fill" />
 }
 
 /**
- * Load state of a web deck's page: words plus a shape (dashed ring, check, triangle,
- * pause bars), never colour alone. HOLD is the filled one: the live page is held.
+ * Load state of a web deck's page: words plus a shape (spinner, check, triangle, pause
+ * bars), never colour alone. Ready is the only accent chip; the others are outlined.
  */
 function WebChip({ kind }: { kind: WebChipKind }): React.JSX.Element {
   return (
@@ -860,10 +846,6 @@ export function Library(p: Props): React.JSX.Element {
   const [renaming, setRenaming] = useState<string | null>(null)
   // The Add web page dialog, or the Edit URL one of a web deck.
   const [webDialog, setWebDialog] = useState<'add' | { deckId: string } | null>(null)
-  useImperativeHandle(p.handle, () => ({
-    pickFiles: () => input.current?.click(),
-    addWeb: () => setWebDialog('add')
-  }))
   const addWebButton = useRef<HTMLButtonElement>(null)
   // Where focus goes once the dialog has unmounted (the app behind it is inert until then).
   const webFocus = useRef<'add' | { deckId: string } | null>(null)
@@ -1022,9 +1004,7 @@ export function Library(p: Props): React.JSX.Element {
       <div className="decks" data-testid="decks">
         {items.length === 0 && p.imports.length === 0 && (
           <div className="empty-lib">
-            {p.canImport
-              ? 'No decks in this event yet.'
-              : 'No event yet. Create one from the Event menu above, then add files.'}
+            {p.canImport ? 'No decks in this event yet.' : NO_EVENT_YET('add files')}
           </div>
         )}
         {items.map((item, i) => {
@@ -1432,7 +1412,12 @@ export function Library(p: Props): React.JSX.Element {
       />
       <div className="add">
         <div className="add-row">
-          <button className="btn sm" disabled={!p.canImport} onClick={() => input.current?.click()}>
+          <button
+            className="btn sm"
+            disabled={!p.canImport}
+            onClick={() => input.current?.click()}
+            data-testid="add-files"
+          >
             <PlusIcon size={16} />
             Add files
           </button>
@@ -1451,8 +1436,27 @@ export function Library(p: Props): React.JSX.Element {
             <GlobeIcon size={16} />
             Web page
           </button>
+          <button
+            className="btn sm add-one"
+            disabled={!p.canImport}
+            aria-haspopup="menu"
+            aria-expanded={addMenu !== null}
+            data-testid="add-one"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setConfirm(null)
+              setMenu(null)
+              setSectionMenu(null)
+              setAddMenu(
+                addMenu ? null : { x: Math.max(8, r.left), y: Math.max(8, r.top - 4 - ADD_MENU_H) }
+              )
+            }}
+          >
+            <PlusIcon size={16} />
+            Add
+          </button>
         </div>
-        {!p.canImport && <p>Create an event in the Event menu to enable importing.</p>}
+        {!p.canImport && <p>Create an event with New in the header to enable importing.</p>}
       </div>
       <input
         ref={input}

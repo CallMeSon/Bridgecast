@@ -34,6 +34,8 @@
   --h-lg: 52px;
   --pad: 20px;
   --letterbox: #000000;
+  /* Scrim behind the Settings and other dialogs: dark in both themes (.pen variable `scrim`). */
+  --scrim: rgba(14, 15, 18, 0.45);
   /* Chips on slide thumbnails (number, hidden, clicks): dark in both themes, white text. */
   --chip: color-mix(in srgb, var(--letterbox) 62%, transparent);
   --chip-ink: #ffffff;
@@ -53,12 +55,15 @@
   --raised-hi: #e8eaf1;
   --line: #e6e8ee;
   --line-hi: #d3d6df;
-  /* Boundary of controls and inputs (WCAG 1.4.11): >= 3:1 on bg, panel, raised and raised-hi. */
-  --edge: #7b8091;
+  /* Boundary of controls and inputs: >= 4:1 on bg, panel, raised and raised-hi (WCAG 1.4.11 asks 3:1). */
+  --edge: #6b7084;
   --text: #1a1c24;
   --text-2: #4a4e5c;
   --text-3: #626776;
   --focus: #1a1c24;
+  --tag-frozen: #1c55bd;
+  --tag-kv: #5342c9;
+  --on-tag-kv: #ffffff;
   --placeholder: #f3f4f8;
   --placeholder-ink: #4a4e5c;
   --shadow-1: 0 0 0 1px var(--line);
@@ -68,17 +73,20 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #16171c;
-  --panel: #1d1e25;
-  --raised: #26272f;
-  --raised-hi: #30323b;
-  --line: #2e3039;
-  --line-hi: #3f4250;
-  --edge: #8b90a1;
-  --text: #dfe1e8;
-  --text-2: #a9adb9;
-  --text-3: #83879a;
-  --focus: #dfe1e8;
+  --bg: #13141b;
+  --panel: #1c1d27;
+  --raised: #272936;
+  --raised-hi: #323546;
+  --line: #2c2e3d;
+  --line-hi: #404459;
+  --edge: #8e94ab;
+  --text: #e4e6ee;
+  --text-2: #adb2c2;
+  --text-3: #8a8fa6;
+  --focus: #e4e6ee;
+  --tag-frozen: #98c0ff;
+  --tag-kv: #a99cff;
+  --on-tag-kv: #16112f;
   --placeholder: #0d0d0d;
   --placeholder-ink: #9a9a98;
   --shadow-1: 0 0 0 1px var(--line);
