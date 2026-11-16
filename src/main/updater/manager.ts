@@ -1,4 +1,4 @@
-import { isNewerVersion, type UpdateStatus } from '../../shared/update'
+import { isNewerVersion, isPrerelease, type UpdateStatus } from '../../shared/update'
 
 export interface UpdateEngine {
   check(): Promise<{ version: string; notes: string } | null>
@@ -16,11 +16,6 @@ export interface UpdateManagerDeps {
 }
 
 const DOWNLOAD_FAILED_MESSAGE = 'Download failed. Check your connection and try again.'
-
-function isPrerelease(version: string): boolean {
-  const match = /^v?\d+\.\d+\.\d+-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)/.exec(version.trim())
-  return match !== null
-}
 
 export class UpdateManager {
   private readonly deps: UpdateManagerDeps

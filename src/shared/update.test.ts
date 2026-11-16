@@ -3,6 +3,7 @@ import { initialState } from './program'
 import {
   canInstallNow,
   isNewerVersion,
+  isPrerelease,
   isUpdateSupported,
   releaseNotesLines,
   sanitizeUpdates
@@ -18,6 +19,15 @@ describe('isNewerVersion', () => {
     expect(isNewerVersion('1.2.0', '1.2.0-beta.1')).toBe(true)
     expect(isNewerVersion('v1.2.0', '1.1.0')).toBe(true)
     expect(isNewerVersion('nope', '1.1.0')).toBe(false)
+  })
+})
+
+describe('isPrerelease', () => {
+  it('recognises a valid pre-release suffix and rejects stable or invalid versions', () => {
+    expect(isPrerelease('1.2.0-beta.1')).toBe(true)
+    expect(isPrerelease('v2.0.0-rc.1+build.5')).toBe(true)
+    expect(isPrerelease('1.2.0')).toBe(false)
+    expect(isPrerelease('nope')).toBe(false)
   })
 })
 

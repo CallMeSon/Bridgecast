@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react'
 import type { ReleaseNotesLine } from '../../../shared/update'
 import type { UpdateView } from '../update-ui'
+import { ReleaseNotes } from './ReleaseNotes'
 
 /**
  * One banner per update version, shown under the header. It never takes focus:
@@ -56,15 +57,7 @@ export function UpdateBanner({
               <CaretDownIcon size={12} aria-hidden="true" />
               What&apos;s new
             </button>
-            {showNotes && (
-              <div className="update-notes">
-                {notes.map((line, i) => (
-                  <span key={i} className="update-notes-line" data-kind={line.kind}>
-                    {line.text}
-                  </span>
-                ))}
-              </div>
-            )}
+            {showNotes && <ReleaseNotes lines={notes} />}
           </div>
         )}
       </div>

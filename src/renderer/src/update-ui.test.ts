@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import type { UpdateStatus } from '../../shared/update'
-import { isUpdateKeyTarget, updateView } from './update-ui'
+import { announcedVersion, isUpdateKeyTarget, updateView } from './update-ui'
 
 const available: UpdateStatus = {
   kind: 'available',
   version: '1.2.0',
   notes: '### Added\n- **Fast** start'
 }
+
+describe('announcedVersion', () => {
+  it('returns the version for every announced status and null otherwise', () => {
+    expect(announcedVersion({ kind: 'idle' })).toBeNull()
+    expect(announcedVersion({ kind: 'checking' })).toBeNull()
+    expect(announcedVersion({ kind: 'unsupported' })).toBeNull()
+    expect(announcedVersion(available)).toBe('1.2.0')
+    expect(announcedVersion({ kind: 'ready', version: '1.2.0' })).toBe('1.2.0')
+    expect(announcedVersion({ kind: 'error', version: '1.2.0', message: 'oops' })).toBe('1.2.0')
+  })
+})
 
 describe('updateView', () => {
   it('shows nothing while idle or checking', () => {

@@ -6,6 +6,7 @@ import digiohLogoWhite from '../assets/digioh/digioh-logo-white.png'
 import { AppearanceSection } from './AppearanceSection'
 import { SoundSection } from './SoundSection'
 import { ImportFormat } from './ImportFormat'
+import { ReleaseNotes } from './ReleaseNotes'
 import type { AudioSettings, PptImportFormat } from '../../../shared/settings'
 import { isUpdateSupported, type ReleaseNotesLine, type UpdateStatus } from '../../../shared/update'
 import type { AccentId, Theme, ThemePref } from '../appearance'
@@ -127,13 +128,7 @@ function AboutSection({
           {update.kind === 'available' && updateNotes.length > 0 && (
             <div className="about-update-notes">
               <strong>What&apos;s new</strong>
-              <div className="update-notes">
-                {updateNotes.map((line, i) => (
-                  <span key={i} className="update-notes-line" data-kind={line.kind}>
-                    {line.text}
-                  </span>
-                ))}
-              </div>
+              <ReleaseNotes lines={updateNotes} />
             </div>
           )}
         </div>

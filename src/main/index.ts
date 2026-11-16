@@ -100,7 +100,7 @@ import {
 } from '../shared/ipc'
 import { isOrderItem } from '../shared/sections'
 import { kvOnAir, type Action, type ProgramState } from '../shared/program'
-import { canInstallNow, type UpdateSettings, type UpdateStatus } from '../shared/update'
+import { canInstallNow, UNSUPPORTED_UPDATE_STATUS, type UpdateSettings } from '../shared/update'
 import { UpdateManager } from './updater/manager'
 import { createElectronEngine } from './updater/electron-engine'
 import { createFakeEngine } from './updater/fake-engine'
@@ -743,7 +743,7 @@ function registerIpc(
     if (roleOf(e.sender) !== 'operator') throw new Error(NOT_APP_WINDOW)
   }
   // No manager on this build (dev, .deb, macOS): the renderer hides every update control.
-  const noopStatus: UpdateStatus = { kind: 'unsupported' }
+  const noopStatus = UNSUPPORTED_UPDATE_STATUS
   appHandle(Invoke.updateStatus, (e) => {
     operatorOnly(e)
     return updateManager?.status ?? noopStatus

@@ -15,7 +15,8 @@ export interface UpdateView {
 
 const ON_AIR_REASON = 'Something is on air. Take it off air or wait until the show ends.'
 
-function versionOf(status: UpdateStatus): string | null {
+/** The version being announced, if any. Shared with App so the two cannot drift. */
+export function announcedVersion(status: UpdateStatus): string | null {
   return status.kind === 'idle' || status.kind === 'checking' || status.kind === 'unsupported'
     ? null
     : status.version
@@ -31,7 +32,7 @@ export function updateView(
   onAir: boolean,
   bannerDismissedFor: string | null
 ): UpdateView {
-  const version = versionOf(status)
+  const version = announcedVersion(status)
   const chip = version ? { label: `Update ${version}` } : null
   if (!version || version === bannerDismissedFor) return { chip, banner: null, progress: null }
 

@@ -10,6 +10,9 @@ export type UpdateStatus =
   /** This build cannot self-update (dev build, .deb, macOS): no update UI is shown. */
   | { kind: 'unsupported' }
 
+/** Shared status for builds without an update engine, so callers cannot drift. */
+export const UNSUPPORTED_UPDATE_STATUS: UpdateStatus = Object.freeze({ kind: 'unsupported' })
+
 export function isUpdateSupported(status: UpdateStatus): boolean {
   return status.kind !== 'unsupported'
 }
@@ -61,6 +64,12 @@ export function isNewerVersion(candidate: string, current: string): boolean {
     if (next.numbers[i] !== installed.numbers[i]) return next.numbers[i] > installed.numbers[i]
   }
   return comparePrerelease(next.prerelease, installed.prerelease) > 0
+}
+
+/** True for a valid version carrying a pre-release suffix; invalid input is not pre-release. */
+export function isPrerelease(version: string): boolean {
+  const parsed = parseVersion(version)
+  return parsed !== null && parsed.prerelease !== null
 }
 
 export type ReleaseNotesLine = { kind: 'heading' | 'bullet' | 'paragraph'; text: string }
