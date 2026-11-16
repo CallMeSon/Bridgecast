@@ -16,6 +16,19 @@ describe('updateView', () => {
     expect(updateView(checking, false, null)).toEqual({ chip: null, banner: null, progress: null })
   })
 
+  it('shows nothing when updates are unsupported on this build', () => {
+    expect(updateView({ kind: 'unsupported' }, false, null)).toEqual({
+      chip: null,
+      banner: null,
+      progress: null
+    })
+    expect(updateView({ kind: 'unsupported' }, true, null)).toEqual({
+      chip: null,
+      banner: null,
+      progress: null
+    })
+  })
+
   it('announces an available version once, keeping the chip after Later', () => {
     const v = updateView(available, false, null)
     expect(v.chip).toEqual({ label: 'Update 1.2.0' })

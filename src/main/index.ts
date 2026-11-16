@@ -742,7 +742,8 @@ function registerIpc(
   const operatorOnly = (e: IpcMainInvokeEvent): void => {
     if (roleOf(e.sender) !== 'operator') throw new Error(NOT_APP_WINDOW)
   }
-  const noopStatus: UpdateStatus = { kind: 'idle' }
+  // No manager on this build (dev, .deb, macOS): the renderer hides every update control.
+  const noopStatus: UpdateStatus = { kind: 'unsupported' }
   appHandle(Invoke.updateStatus, (e) => {
     operatorOnly(e)
     return updateManager?.status ?? noopStatus

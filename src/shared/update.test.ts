@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { initialState } from './program'
-import { canInstallNow, isNewerVersion, releaseNotesLines, sanitizeUpdates } from './update'
+import {
+  canInstallNow,
+  isNewerVersion,
+  isUpdateSupported,
+  releaseNotesLines,
+  sanitizeUpdates
+} from './update'
 
 describe('isNewerVersion', () => {
   it('compares semantic versions and rejects invalid candidates', () => {
@@ -26,6 +32,15 @@ describe('releaseNotesLines', () => {
 
   it('returns no lines for empty notes', () => {
     expect(releaseNotesLines('')).toEqual([])
+  })
+})
+
+describe('isUpdateSupported', () => {
+  it('is false only for platforms without an update engine', () => {
+    expect(isUpdateSupported({ kind: 'unsupported' })).toBe(false)
+    expect(isUpdateSupported({ kind: 'idle' })).toBe(true)
+    expect(isUpdateSupported({ kind: 'checking' })).toBe(true)
+    expect(isUpdateSupported({ kind: 'available', version: '1.2.0', notes: '' })).toBe(true)
   })
 })
 

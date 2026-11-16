@@ -7,6 +7,12 @@ export type UpdateStatus =
   | { kind: 'downloading'; version: string; percent: number }
   | { kind: 'ready'; version: string }
   | { kind: 'error'; version: string; message: string }
+  /** This build cannot self-update (dev build, .deb, macOS): no update UI is shown. */
+  | { kind: 'unsupported' }
+
+export function isUpdateSupported(status: UpdateStatus): boolean {
+  return status.kind !== 'unsupported'
+}
 
 export interface UpdateSettings {
   skippedVersion: string | null

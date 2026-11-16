@@ -837,6 +837,7 @@ main {
   container: right / inline-size;
 }
 .stage-col {
+  position: relative;
   background: var(--bg);
   overflow: auto;
   container: stage / inline-size;
@@ -2618,15 +2619,17 @@ footer .empty {
   flex: none;
 }
 
-/* Update banner: the on-air banner's panel fill and accent ring, as a strip at the top of
-   the Program column. Ink and weight say "update"; no new hue, no shadow. */
+/* Update banner: the on-air banner's panel fill and accent ring, overlaid at the top of the
+   Program column. Absolute so it never pushes the preview down; above the stage, below modals. */
 .update-banner {
-  position: relative;
-  flex: none;
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  right: 16px;
+  z-index: 10;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin: 8px 16px 0;
   padding: 12px 16px 14px;
   background: var(--panel);
   border: 1px solid var(--accent);
@@ -2654,6 +2657,7 @@ footer .empty {
 .update-reason {
   font-size: 12px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .update-detail {
   color: var(--text-2);
@@ -2725,6 +2729,19 @@ footer .empty {
 :root[data-reduce-motion] .update-notes-toggle svg,
 :root[data-reduce-motion] .update-progress > span {
   transition: none;
+}
+/* Narrow centre column: keep the icon and text on the first line and drop the buttons
+   underneath, indented to line up with the text. Buttons may wrap again if it is tighter. */
+@container stage (max-width: 899px) {
+  .update-banner {
+    flex-wrap: wrap;
+  }
+  .update-actions {
+    flex: none;
+    width: calc(100% - 32px);
+    flex-wrap: wrap;
+    margin-left: 32px;
+  }
 }
 .save-note {
   position: fixed;
@@ -4320,10 +4337,17 @@ button > svg,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+.about-update-row .btn {
+  flex: none;
 }
 .about-update-status {
+  flex: 1 1 200px;
+  min-width: 0;
   font-size: 12px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
   color: var(--text-2);
 }
 .about-update-notes {

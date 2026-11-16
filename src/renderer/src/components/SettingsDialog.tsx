@@ -7,7 +7,7 @@ import { AppearanceSection } from './AppearanceSection'
 import { SoundSection } from './SoundSection'
 import { ImportFormat } from './ImportFormat'
 import type { AudioSettings, PptImportFormat } from '../../../shared/settings'
-import type { ReleaseNotesLine, UpdateStatus } from '../../../shared/update'
+import { isUpdateSupported, type ReleaseNotesLine, type UpdateStatus } from '../../../shared/update'
 import type { AccentId, Theme, ThemePref } from '../appearance'
 
 interface Props {
@@ -57,6 +57,8 @@ function updateStatusLine(status: UpdateStatus, checkedIdle: boolean): string {
       return `Bridgecast ${status.version} is ready to install.`
     case 'error':
       return status.message
+    case 'unsupported':
+      return ''
   }
 }
 
@@ -106,34 +108,36 @@ function AboutSection({
         />
         <img className="about-digioh about-digioh-dark" src={digiohLogoWhite} alt="" height={18} />
       </p>
-      <div className="about-update" data-update-ui>
-        <div className="about-update-row">
-          <span className="about-update-status" role="status" aria-live="polite">
-            {updateStatusLine(update, checkedIdle)}
-          </span>
-          <button
-            type="button"
-            className="btn sm"
-            data-testid="update-check"
-            disabled={update.kind === 'checking' || update.kind === 'downloading'}
-            onClick={check}
-          >
-            Check for updates
-          </button>
-        </div>
-        {update.kind === 'available' && updateNotes.length > 0 && (
-          <div className="about-update-notes">
-            <strong>What&apos;s new</strong>
-            <div className="update-notes">
-              {updateNotes.map((line, i) => (
-                <span key={i} className="update-notes-line" data-kind={line.kind}>
-                  {line.text}
-                </span>
-              ))}
-            </div>
+      {isUpdateSupported(update) && (
+        <div className="about-update" data-update-ui>
+          <div className="about-update-row">
+            <span className="about-update-status" role="status" aria-live="polite">
+              {updateStatusLine(update, checkedIdle)}
+            </span>
+            <button
+              type="button"
+              className="btn sm"
+              data-testid="update-check"
+              disabled={update.kind === 'checking' || update.kind === 'downloading'}
+              onClick={check}
+            >
+              Check for updates
+            </button>
           </div>
-        )}
-      </div>
+          {update.kind === 'available' && updateNotes.length > 0 && (
+            <div className="about-update-notes">
+              <strong>What&apos;s new</strong>
+              <div className="update-notes">
+                {updateNotes.map((line, i) => (
+                  <span key={i} className="update-notes-line" data-kind={line.kind}>
+                    {line.text}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <div className="about-actions">
         <button type="button" className="btn sm" onClick={onReplayTour} data-testid="show-tour">
           Show the tour again

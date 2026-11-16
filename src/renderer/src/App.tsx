@@ -131,7 +131,7 @@ function App({
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Update state is owned here and passed to the chip, banner and About. The banner is
   // hidden in memory for one version by Later; the chip stays for that version.
-  const [update, setUpdate] = useState<UpdateStatus>({ kind: 'idle' })
+  const [update, setUpdate] = useState<UpdateStatus>({ kind: 'unsupported' })
   const [bannerDismissedFor, setBannerDismissedFor] = useState<string | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   // Read by the shortcut listener, which is set up once.
@@ -1038,7 +1038,10 @@ function App({
   )
 
   // Updates: one subscription in App; the chip, banner and About all read this view.
-  const updateVersion = update.kind === 'idle' || update.kind === 'checking' ? null : update.version
+  const updateVersion =
+    update.kind === 'idle' || update.kind === 'checking' || update.kind === 'unsupported'
+      ? null
+      : update.version
   const updateNotes = useMemo(
     () => (update.kind === 'available' ? releaseNotesLines(update.notes) : []),
     [update]

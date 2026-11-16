@@ -500,7 +500,7 @@ export interface Api {
   /** "Changes apply when this deck leaves air." while `pending` is true. */
   onDeckPending(cb: (e: DeckPendingEvent) => void): () => void
   onDeckEditError(cb: (e: DeckEditErrorEvent) => void): () => void
-  /** Current update state; resolves `{ kind: 'idle' }` when updates are switched off. */
+  /** Current update state; resolves `{ kind: 'unsupported' }` when this build cannot self-update. */
   getUpdateStatus(): Promise<UpdateStatus>
   /** Checks for an update now and returns the resulting state. */
   checkForUpdate(): Promise<UpdateStatus>

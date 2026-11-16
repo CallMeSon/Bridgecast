@@ -16,7 +16,9 @@ export interface UpdateView {
 const ON_AIR_REASON = 'Something is on air. Take it off air or wait until the show ends.'
 
 function versionOf(status: UpdateStatus): string | null {
-  return status.kind === 'idle' || status.kind === 'checking' ? null : status.version
+  return status.kind === 'idle' || status.kind === 'checking' || status.kind === 'unsupported'
+    ? null
+    : status.version
 }
 
 /**
@@ -38,6 +40,7 @@ export function updateView(
   switch (status.kind) {
     case 'idle':
     case 'checking':
+    case 'unsupported':
       break
     case 'available':
       banner = {
