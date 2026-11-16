@@ -30,6 +30,8 @@ interface Props {
   onOpenSettings?(): void
   /** The update chip, shown beside Settings only when a newer version was announced. */
   updateChip?: { label: string } | null
+  /** The update popover, rendered under the header; never in the stage's flow. */
+  children?: React.ReactNode
 }
 
 /** The brand: mark plus word. The word hides under 900px; the mark stays. */
@@ -109,6 +111,7 @@ export function Header(p: Props): React.JSX.Element {
       >
         <GearSixIcon size={18} />
       </button>
+      {p.children}
     </header>
   )
 }

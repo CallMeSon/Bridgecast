@@ -43,6 +43,7 @@ h2 {
 
 /* top bar: 52px, flat, one rule below */
 header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -837,7 +838,6 @@ main {
   container: right / inline-size;
 }
 .stage-col {
-  position: relative;
   background: var(--bg);
   overflow: auto;
   container: stage / inline-size;
@@ -2619,21 +2619,23 @@ footer .empty {
   flex: none;
 }
 
-/* Update banner: the on-air banner's panel fill and accent ring, overlaid at the top of the
-   Program column. Absolute so it never pushes the preview down; above the stage, below modals. */
+/* Update popover: anchored under the header over the top of the right panel, never over the
+   tally or the stage. Compact, at most 420px and never wider than the right panel. */
 .update-banner {
   position: absolute;
-  top: 8px;
-  left: 16px;
-  right: 16px;
-  z-index: 10;
+  top: calc(100% + 8px);
+  right: 8px;
+  z-index: 20;
+  width: min(420px, calc(var(--right-w, 352px) - 16px));
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px 16px 14px;
+  gap: 8px 12px;
+  padding: 12px 12px 14px;
   background: var(--panel);
   border: 1px solid var(--accent);
   border-radius: var(--r-lg);
+  box-shadow: var(--pop-shadow);
   color: var(--text);
 }
 .update-banner > .ph {
@@ -2720,28 +2722,18 @@ footer .empty {
   background: var(--accent);
   transition: width 0.15s var(--ease-out);
 }
+/* The three controls stay on one row at normal widths; they only wrap when the popover
+   itself becomes too narrow (a narrow right panel or a small window). */
 .update-actions {
-  flex: none;
+  flex: 1 1 100%;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 :root[data-reduce-motion] .update-notes-toggle svg,
 :root[data-reduce-motion] .update-progress > span {
   transition: none;
-}
-/* Narrow centre column: keep the icon and text on the first line and drop the buttons
-   underneath, indented to line up with the text. Buttons may wrap again if it is tighter. */
-@container stage (max-width: 899px) {
-  .update-banner {
-    flex-wrap: wrap;
-  }
-  .update-actions {
-    flex: none;
-    width: calc(100% - 32px);
-    flex-wrap: wrap;
-    margin-left: 32px;
-  }
 }
 .save-note {
   position: fixed;

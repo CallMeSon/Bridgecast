@@ -1094,7 +1094,15 @@ function App({
         onSetTheme={chooseTheme}
         onOpenSettings={() => setSettingsOpen(true)}
         updateChip={updateUi.chip}
-      />
+      >
+        <UpdateBanner
+          view={updateUi}
+          notes={updateNotes}
+          onAction={runUpdatePrimary}
+          onLater={laterUpdate}
+          onSkip={skipUpdate}
+        />
+      </Header>
       {newEventOpen && (
         <NewEventDialog
           existing={events.map((e) => e.name)}
@@ -1186,13 +1194,6 @@ function App({
           onSetPlayback={setDeckPlayback}
         />
         <section className="stage-col" aria-label="Program">
-          <UpdateBanner
-            view={updateUi}
-            notes={updateNotes}
-            onAction={runUpdatePrimary}
-            onLater={laterUpdate}
-            onSkip={skipUpdate}
-          />
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />
           {program.webHold && (
             <HoldWarning
