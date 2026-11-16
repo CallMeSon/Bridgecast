@@ -1,5 +1,6 @@
 import { sanitizeVolume } from './audio-levels'
 import { DEFAULT_CANVAS, sanitizeCanvas, type Canvas } from './canvas'
+import { sanitizeUpdates, type UpdateSettings } from './update'
 import {
   sanitizeNdi,
   sanitizeOmt,
@@ -68,6 +69,7 @@ export interface Settings {
   sendContentOnly: boolean
   /** Linux: convert imported PowerPoint files to .odp (default) or keep them as imported. */
   pptImportFormat: PptImportFormat
+  updates: UpdateSettings
 }
 
 export const DEFAULT_HDMI: Readonly<HdmiSettings> = Object.freeze({
@@ -149,6 +151,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     omt: sanitizeOmt(r.omt),
     ndi: sanitizeNdi(r.ndi),
     sendContentOnly: sanitizeSendContentOnly(r.sendContentOnly),
-    pptImportFormat: sanitizePptImportFormat(r.pptImportFormat)
+    pptImportFormat: sanitizePptImportFormat(r.pptImportFormat),
+    updates: sanitizeUpdates(r.updates)
   }
 }

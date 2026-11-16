@@ -3,6 +3,7 @@ import { dirname } from 'path'
 import { randomUUID } from 'crypto'
 import { DEFAULT_CANVAS } from '../shared/canvas'
 import { DEFAULT_NDI, DEFAULT_OMT } from '../shared/omt'
+import { DEFAULT_UPDATES } from '../shared/update'
 import {
   DEFAULT_AUDIO,
   DEFAULT_HDMI,
@@ -23,7 +24,8 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   omt: DEFAULT_OMT,
   ndi: DEFAULT_NDI,
   sendContentOnly: DEFAULT_SEND_CONTENT_ONLY,
-  pptImportFormat: DEFAULT_PPT_IMPORT_FORMAT
+  pptImportFormat: DEFAULT_PPT_IMPORT_FORMAT,
+  updates: DEFAULT_UPDATES
 })
 
 /**

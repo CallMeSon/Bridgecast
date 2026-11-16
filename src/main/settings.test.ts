@@ -16,6 +16,10 @@ beforeEach(() => {
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
 
 describe('loadSettings / saveSettings', () => {
+  it('defaults update settings for older settings objects', () => {
+    expect(sanitizeSettings({}).updates).toEqual({ skippedVersion: null })
+  })
+
   it('returns the defaults when the file does not exist', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
@@ -25,7 +29,8 @@ describe('loadSettings / saveSettings', () => {
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: false, name: 'Bridgecast' },
       sendContentOnly: true,
-      pptImportFormat: 'odp'
+      pptImportFormat: 'odp',
+      updates: { skippedVersion: null }
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
   })
@@ -39,7 +44,8 @@ describe('loadSettings / saveSettings', () => {
       omt: { enabled: true, name: 'Aula', fps: 60 as const },
       ndi: { enabled: true, name: 'Sala NDI' },
       sendContentOnly: false,
-      pptImportFormat: 'original' as const
+      pptImportFormat: 'original' as const,
+      updates: { skippedVersion: null }
     }
     saveSettings(file, s)
     expect(loadSettings(file)).toEqual(s)
@@ -85,7 +91,8 @@ describe('hdmi settings', () => {
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: false, name: 'Aula' },
       sendContentOnly: true,
-      pptImportFormat: 'odp'
+      pptImportFormat: 'odp',
+      updates: { skippedVersion: null }
     })
   })
 
@@ -100,7 +107,8 @@ describe('hdmi settings', () => {
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: true, name: 'Bridgecast' },
       sendContentOnly: true,
-      pptImportFormat: 'odp'
+      pptImportFormat: 'odp',
+      updates: { skippedVersion: null }
     })
   })
 
