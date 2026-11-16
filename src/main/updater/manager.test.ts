@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { UpdateStatus } from '../../shared/update'
 import { UpdateManager, type UpdateEngine, type UpdateManagerDeps } from './manager'
 
@@ -152,6 +152,38 @@ describe('UpdateManager.check', () => {
     release!()
     await downloadPromise
     expect(downloading.manager.status.kind).toBe('ready')
+  })
+
+  it('is ignored while available (no engine call, status stays available)', async () => {
+    const { manager, engine, statuses } = makeManager()
+    engine.checkResult = available
+    await manager.check()
+    expect(manager.status).toEqual({ kind: 'available', version: '1.2.0', notes: 'Notes' })
+    const callsBefore = engine.checkCalls
+    const statusesBefore = statuses.length
+    await manager.check()
+    expect(engine.checkCalls).toBe(callsBefore)
+    expect(statuses.length).toBe(statusesBefore)
+    expect(manager.status).toEqual({ kind: 'available', version: '1.2.0', notes: 'Notes' })
+    // skip() still works after the periodic check
+    manager.skip()
+    expect(manager.status).toEqual({ kind: 'idle' })
+  })
+
+  it('logs nothing through console.warn or console.error when a check fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { manager, engine } = makeManager()
+      engine.checkError = new Error('offline: secret internals')
+      await manager.check()
+      expect(manager.status).toEqual({ kind: 'idle' })
+      expect(warn).not.toHaveBeenCalled()
+      expect(error).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+      error.mockRestore()
+    }
   })
 })
 

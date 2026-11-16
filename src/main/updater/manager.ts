@@ -41,13 +41,19 @@ export class UpdateManager {
   }
 
   async check(): Promise<void> {
-    if (this.current.kind === 'downloading' || this.current.kind === 'ready') return
+    if (
+      this.current.kind === 'available' ||
+      this.current.kind === 'downloading' ||
+      this.current.kind === 'ready'
+    ) {
+      return
+    }
     this.set({ kind: 'checking' })
     let result: { version: string; notes: string } | null
     try {
       result = await this.deps.engine.check()
     } catch (error) {
-      console.warn('[update] check failed:', error)
+      console.info('[update] check failed:', error)
       this.set({ kind: 'idle' })
       return
     }
