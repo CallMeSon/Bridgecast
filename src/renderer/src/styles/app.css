@@ -800,6 +800,19 @@ header > .theme {
   color: var(--text-3);
   cursor: default;
 }
+/* Update chip: 24px, soft accent fill and accent ink, beside the settings gear. */
+.update-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: 600 12px/1 var(--font-sans);
+  white-space: nowrap;
+}
 
 /* columns */
 main {
@@ -2604,6 +2617,115 @@ footer .empty {
 .action-error .btn {
   flex: none;
 }
+
+/* Update banner: the on-air banner's panel fill and accent ring, as a strip at the top of
+   the Program column. Ink and weight say "update"; no new hue, no shadow. */
+.update-banner {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 8px 16px 0;
+  padding: 12px 16px 14px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-lg);
+  color: var(--text);
+}
+.update-banner > .ph {
+  margin-top: 2px;
+  color: var(--accent-ink);
+}
+.update-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.update-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.update-detail,
+.update-reason {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.update-detail {
+  color: var(--text-2);
+}
+.update-reason {
+  font-weight: 600;
+}
+.update-more {
+  margin-top: 4px;
+}
+.update-notes-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+.update-notes-toggle:hover {
+  text-decoration: underline;
+}
+.update-notes-toggle svg {
+  transition: transform 0.15s var(--ease-out);
+}
+.update-notes-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.update-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+.update-notes-line[data-kind='heading'] {
+  font-weight: 600;
+  color: var(--text);
+}
+.update-notes-line[data-kind='bullet']::before {
+  content: '•';
+  margin-right: 6px;
+  color: var(--text-3);
+}
+.update-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: var(--raised-hi);
+}
+.update-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s var(--ease-out);
+}
+.update-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+:root[data-reduce-motion] .update-notes-toggle svg,
+:root[data-reduce-motion] .update-progress > span {
+  transition: none;
+}
 .save-note {
   position: fixed;
   right: 16px;
@@ -4182,6 +4304,37 @@ button > svg,
 }
 .tour-spacer {
   flex: 1;
+}
+/* About: the update block sits between the powered-by line and the tour action. */
+.about-update {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+.about-update-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.about-update-status {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+.about-update-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.about-update-notes > strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
 }
 .about-actions {
   display: flex;

@@ -39,6 +39,9 @@ import { EditErrorBanner, NativeFallbackWarning, PendingBanner } from './compone
 import { useSlideshow } from './slideshow'
 import { engineName } from '../../shared/playback'
 import type { PptImportFormat } from '../../shared/settings'
+import { releaseNotesLines, type UpdateStatus } from '../../shared/update'
+import { UpdateBanner } from './components/UpdateBanner'
+import { isUpdateKeyTarget, updateView } from './update-ui'
 import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import type { StreamOptions } from './components/SlideLayers'
@@ -126,6 +129,10 @@ function App({
   const [customHex, setCustomHex] = useState(() => loadCustomAccent() ?? DEFAULT_ACCENT_HEX)
   const [reduceMotion, setReduceMotion] = useState(loadReduceMotion)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Update state is owned here and passed to the chip, banner and About. The banner is
+  // hidden in memory for one version by Later; the chip stays for that version.
+  const [update, setUpdate] = useState<UpdateStatus>({ kind: 'idle' })
+  const [bannerDismissedFor, setBannerDismissedFor] = useState<string | null>(null)
   const [tourOpen, setTourOpen] = useState(false)
   // Read by the shortcut listener, which is set up once.
   const tourRef = useRef(false)
@@ -250,6 +257,11 @@ function App({
   // Initial load and main-process subscriptions.
   useEffect(() => {
     const offState = api.onProgramState(setProgram)
+    const offUpdate = api.onUpdateStatus(setUpdate)
+    api
+      .getUpdateStatus()
+      .then(setUpdate)
+      .catch(() => undefined)
     const offProgress = api.onImportProgress((p) => {
       // A finished import with a message is a warning (missing fonts): keep its row until dismissed.
       upsertImport(
@@ -286,6 +298,7 @@ function App({
     })().catch((e) => reportError('Decks', e))
     return () => {
       offState()
+      offUpdate()
       offProgress()
     }
   }, [api, upsertImport, reloadDecks, reportError, skipTour])
@@ -336,6 +349,16 @@ function App({
       if (tourRef.current) return
       // Interact on the monitor takes the keys for the live page: no shortcut fires meanwhile.
       if (keysClaimed()) return
+      // A focused update button must not fire on a clicker press: Space stays Program's
+      // Next, and Enter stays with the button for keyboard users. The banner never focuses.
+      if (isUpdateKeyTarget(document.activeElement)) {
+        if (e.key === 'Enter') return
+        if (e.key === ' ') {
+          e.preventDefault()
+          dispatch({ type: 'next' })
+          return
+        }
+      }
       const a = keyToAction(e)
       if (!a) return
       e.preventDefault()
@@ -1014,6 +1037,40 @@ function App({
     (d) => slideshow.pending.includes(d.id) && program.shown?.deckId === d.id
   )
 
+  // Updates: one subscription in App; the chip, banner and About all read this view.
+  const updateVersion = update.kind === 'idle' || update.kind === 'checking' ? null : update.version
+  const updateNotes = useMemo(
+    () => (update.kind === 'available' ? releaseNotesLines(update.notes) : []),
+    [update]
+  )
+  const updateUi = useMemo(
+    () => updateView(update, program.shown !== null, bannerDismissedFor),
+    [update, program.shown, bannerDismissedFor]
+  )
+  const runUpdatePrimary = (): void => {
+    const action = updateUi.banner?.primary?.action
+    if (action === 'download' || action === 'retry') {
+      api
+        .downloadUpdate()
+        .then(setUpdate)
+        .catch(() => undefined)
+    } else if (action === 'install') {
+      void api.installUpdate()
+    }
+  }
+  const laterUpdate = (): void => {
+    if (updateVersion) setBannerDismissedFor(updateVersion)
+  }
+  const skipUpdate = (): void => {
+    api.skipUpdate().then(
+      (s) => {
+        setUpdate(s)
+        setBannerDismissedFor(null)
+      },
+      () => undefined
+    )
+  }
+
   return (
     <div className="app" ref={appRef} data-view={view}>
       <Header
@@ -1033,6 +1090,7 @@ function App({
         theme={theme}
         onSetTheme={chooseTheme}
         onOpenSettings={() => setSettingsOpen(true)}
+        updateChip={updateUi.chip}
       />
       {newEventOpen && (
         <NewEventDialog
@@ -1062,6 +1120,8 @@ function App({
             ? { value: importFormat, onChange: changeImportFormat }
             : undefined
         }
+        update={update}
+        updateNotes={updateNotes}
       />
       {view === 'home' && (
         <Home
@@ -1123,6 +1183,13 @@ function App({
           onSetPlayback={setDeckPlayback}
         />
         <section className="stage-col" aria-label="Program">
+          <UpdateBanner
+            view={updateUi}
+            notes={updateNotes}
+            onAction={runUpdatePrimary}
+            onLater={laterUpdate}
+            onSkip={skipUpdate}
+          />
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />
           {program.webHold && (
             <HoldWarning

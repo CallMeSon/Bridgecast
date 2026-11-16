@@ -1,4 +1,4 @@
-import { GearSixIcon, MoonIcon, SunIcon } from '@phosphor-icons/react'
+import { BellRingingIcon, GearSixIcon, MoonIcon, SunIcon } from '@phosphor-icons/react'
 import type { EventMeta } from '../../../shared/types'
 import type { ProgramState } from '../../../shared/program'
 import type { Theme } from '../theme'
@@ -28,6 +28,8 @@ interface Props {
   onSetTheme(theme: Theme): void
   /** Opens the Settings dialog (Task 4). No handler yet: the gear stays out of the way. */
   onOpenSettings?(): void
+  /** The update chip, shown beside Settings only when a newer version was announced. */
+  updateChip?: { label: string } | null
 }
 
 /** The brand: mark plus word. The word hides under 900px; the mark stays. */
@@ -91,6 +93,12 @@ export function Header(p: Props): React.JSX.Element {
       <span className="grow" />
       <OutputMenu program={p.program} out={p.output} onOpen={p.onOpenOutput} />
       <ThemeSwitch theme={p.theme} onSet={p.onSetTheme} />
+      {p.updateChip && (
+        <span className="update-chip" data-testid="update-chip" data-update-ui>
+          <BellRingingIcon size={12} aria-hidden="true" />
+          {p.updateChip.label}
+        </span>
+      )}
       <button
         className="gear"
         aria-label="Settings"

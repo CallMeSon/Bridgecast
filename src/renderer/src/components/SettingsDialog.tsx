@@ -7,6 +7,7 @@ import { AppearanceSection } from './AppearanceSection'
 import { SoundSection } from './SoundSection'
 import { ImportFormat } from './ImportFormat'
 import type { AudioSettings, PptImportFormat } from '../../../shared/settings'
+import type { ReleaseNotesLine, UpdateStatus } from '../../../shared/update'
 import type { AccentId, Theme, ThemePref } from '../appearance'
 
 interface Props {
@@ -27,6 +28,10 @@ interface Props {
   onReplayTour(): void
   /** Only given on Linux (LibreOffice engine). */
   importFormat?: { value: PptImportFormat; onChange(v: PptImportFormat): void }
+  /** Live update state, owned by App and passed down. */
+  update: UpdateStatus
+  /** Plain release-note lines of the announced version. */
+  updateNotes: ReleaseNotesLine[]
 }
 
 // Roving-tabindex radios (tabindex -1) are not tab stops, so they are not trap ends.
@@ -38,15 +43,48 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])'
 ].join(', ')
 
-/** About: mark, name, version and tagline. */
-function AboutSection({ onReplayTour }: { onReplayTour(): void }): React.JSX.Element {
+function updateStatusLine(status: UpdateStatus, checkedIdle: boolean): string {
+  switch (status.kind) {
+    case 'idle':
+      return checkedIdle ? "You're up to date." : 'No update information available.'
+    case 'checking':
+      return 'Checking for updates…'
+    case 'available':
+      return `Bridgecast ${status.version} is available.`
+    case 'downloading':
+      return `Downloading Bridgecast ${status.version}… ${Math.round(status.percent)}%`
+    case 'ready':
+      return `Bridgecast ${status.version} is ready to install.`
+    case 'error':
+      return status.message
+  }
+}
+
+/** About: mark, name, version, tagline and the update block. */
+function AboutSection({
+  onReplayTour,
+  update,
+  updateNotes
+}: {
+  onReplayTour(): void
+  update: UpdateStatus
+  updateNotes: ReleaseNotesLine[]
+}): React.JSX.Element {
   const [version, setVersion] = useState('')
+  const [checkedIdle, setCheckedIdle] = useState(false)
   useEffect(() => {
     window.api
       .getAppVersion()
       .then(setVersion)
       .catch(() => setVersion(''))
   }, [])
+  const check = (): void => {
+    setCheckedIdle(false)
+    window.api.checkForUpdate().then(
+      (s) => setCheckedIdle(s.kind === 'idle'),
+      () => undefined
+    )
+  }
   return (
     <section className="set-section about" aria-labelledby="set-about">
       <h3 id="set-about">About</h3>
@@ -68,6 +106,34 @@ function AboutSection({ onReplayTour }: { onReplayTour(): void }): React.JSX.Ele
         />
         <img className="about-digioh about-digioh-dark" src={digiohLogoWhite} alt="" height={18} />
       </p>
+      <div className="about-update" data-update-ui>
+        <div className="about-update-row">
+          <span className="about-update-status" role="status" aria-live="polite">
+            {updateStatusLine(update, checkedIdle)}
+          </span>
+          <button
+            type="button"
+            className="btn sm"
+            data-testid="update-check"
+            disabled={update.kind === 'checking' || update.kind === 'downloading'}
+            onClick={check}
+          >
+            Check for updates
+          </button>
+        </div>
+        {update.kind === 'available' && updateNotes.length > 0 && (
+          <div className="about-update-notes">
+            <strong>What&apos;s new</strong>
+            <div className="update-notes">
+              {updateNotes.map((line, i) => (
+                <span key={i} className="update-notes-line" data-kind={line.kind}>
+                  {line.text}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
       <div className="about-actions">
         <button type="button" className="btn sm" onClick={onReplayTour} data-testid="show-tour">
           Show the tour again
@@ -152,7 +218,11 @@ export function SettingsDialog(p: Props): React.JSX.Element | null {
             </section>
           )}
           <SoundSection audio={p.audio} onSaved={p.onAudioSaved} />
-          <AboutSection onReplayTour={p.onReplayTour} />
+          <AboutSection
+            onReplayTour={p.onReplayTour}
+            update={p.update}
+            updateNotes={p.updateNotes}
+          />
         </div>
       </div>
     </div>
