@@ -58,24 +58,29 @@ if (!notesBody) fail(`The '${heading}' section is empty.`)
 const notesFile = join(mkdtempSync(join(tmpdir(), 'bridgecast-notes-')), 'notes.md')
 writeFileSync(notesFile, `${notesBody}\n`)
 
-// (b) Clean tracked tree on the named release branch. Untracked scratch files are ignored.
+// (b) Clean tree on the named release branch: no tracked changes and no untracked files.
 const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
 const currentBranch = git(['rev-parse', '--abbrev-ref', 'HEAD'])
 if (currentBranch !== branch) {
   fail(`Expected branch '${branch}', found '${currentBranch}'. Pass --branch <name>.`)
 }
-const dirty = git(['status', '--porcelain', '--untracked-files=no'])
-if (dirty) fail(`The working tree has uncommitted tracked changes:\n${dirty}`)
+const dirty = git(['status', '--porcelain'])
+if (dirty) fail(`The working tree is not clean (uncommitted changes or untracked files):\n${dirty}`)
 
 // (c) Build commands: the bridge is only needed by the Windows installer.
+// electron-builder's artifactName templates use ${name}, which expands to the lowercase
+// "name" field in package.json — not productName. So the emitted files are bridgecast-*,
+// and the NSIS blockmap is a standalone <installer>.blockmap; AppImage embeds its blockmap
+// inside the .AppImage and never emits a separate one.
+const installer = (platform) =>
+  platform === 'win'
+    ? `dist/${pkg.name}-${version}-setup.exe`
+    : `dist/${pkg.name}-${version}.AppImage`
 const required = (platform) =>
   platform === 'win'
-    ? [`dist/Bridgecast-${version}-setup.exe`, 'dist/latest.yml']
-    : [`dist/Bridgecast-${version}.AppImage`, 'dist/latest-linux.yml']
-const blockmap = (platform) =>
-  platform === 'win'
-    ? `dist/Bridgecast-${version}-setup.exe.blockmap`
-    : `dist/Bridgecast-${version}.AppImage.blockmap`
+    ? [installer(platform), 'dist/latest.yml']
+    : [installer(platform), 'dist/latest-linux.yml']
+const blockmaps = (platform) => (platform === 'win' ? [`${installer(platform)}.blockmap`] : [])
 const buildCommands = []
 if (
   platforms.includes('win') &&
@@ -103,7 +108,7 @@ const releaseArgs = (mode, artifacts) =>
         notesFile
       ]
 const show = (cmd, args) => console.log(`+ ${cmd} ${args.join(' ')}`)
-const planArtifacts = platforms.flatMap((p) => [...required(p), blockmap(p)])
+const planArtifacts = platforms.flatMap((p) => [...required(p), ...blockmaps(p)])
 function modeOfRelease() {
   try {
     execFileSync('gh', ['release', 'view', `v${version}`], { cwd: root, stdio: 'ignore' })
@@ -119,9 +124,7 @@ if (dryRun) {
   )
   for (const [cmd, args] of buildCommands) show(cmd, args)
   for (const platform of platforms) {
-    console.log(
-      `Verify: ${[...required(platform), blockmap(platform)].join(', ')} (blockmap when present)`
-    )
+    console.log(`Verify: ${[...required(platform), ...blockmaps(platform)].join(', ')}`)
   }
   show('gh', releaseArgs('create', planArtifacts))
   console.log('If the release exists, gh release upload <tag> ... --clobber is used instead.')
@@ -135,13 +138,14 @@ for (const [cmd, args] of buildCommands) {
   execFileSync(cmd, args, { cwd: root, stdio: 'inherit' })
 }
 
-// (d) Fail before publishing if a platform's installer or update metadata is missing.
+// (d) Fail before publishing if a platform's installer, update metadata or (Windows)
+// blockmap is missing. The verified set is exactly what gets uploaded to the release.
 const artifacts = platforms.flatMap((platform) => {
-  for (const file of required(platform)) {
+  const expected = [...required(platform), ...blockmaps(platform)]
+  for (const file of expected) {
     if (!existsSync(join(root, file))) fail(`Missing ${file} after the build.`)
   }
-  const bm = blockmap(platform)
-  return existsSync(join(root, bm)) ? [...required(platform), bm] : required(platform)
+  return expected
 })
 console.log(`Verified artifacts: ${artifacts.join(', ')}`)
 
