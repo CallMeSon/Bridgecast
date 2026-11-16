@@ -116,3 +116,23 @@ off and on, 60 fps, a 3840×1080 canvas and the missing-runtime case.
 PNG, Edit in PowerPoint while live, vector PDF decks and a broken PDF. The PowerPoint bridge, the
 window capture and the sound pipe only run on Windows and are not covered; see the "Putar PPT asli"
 section of `docs/test-checklist.md`.
+
+## Releases
+
+Windows and Linux AppImage builds are published to the **same** GitHub release. Each installer is
+built on its own OS; macOS and `.deb` builds cannot self-update and are not published.
+
+1. Bump `"version"` in `package.json` and add a `## [X.Y.Z] - YYYY-MM-DD` section to
+   `CHANGELOG.md`. Its newest version section becomes the release notes operators see under
+   Settings > About as "What's new".
+2. Commit on the release branch with a clean tracked tree, then run `npm run release:win` on
+   Windows and `npm run release:linux` on Linux. Each builds with publishing disabled, checks
+   that the installer, update metadata (`.yml`) and blockmap exist in `dist/`, and attaches them
+   to release `vX.Y.Z` (creating it the first time, uploading with `--clobber` afterwards).
+3. `npm run release` alone is a dry run: it prints the commands without building or publishing.
+   Use `npm run release -- --branch <name>` when the release branch is not `master`, and
+   `--win` / `--linux` to pick one platform. `--publish` is required to run anything.
+
+The repository must be public and `gh` must be signed in with permission to create releases before
+the first publish. Windows needs the PowerPoint bridge (`npm run build:bridge`) and the OMT
+binaries; Linux needs the OMT libraries (see above). A failed GitHub check is silent in the app.

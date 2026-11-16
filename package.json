@@ -1,6 +1,6 @@
 {
   "name": "bridgecast",
-  "version": "1.1.0",
+  "version": "0.1.0",
   "description": "Bridgecast: slide deck output to a second display (HDMI)",
   "main": "./out/main/index.js",
   "author": "Bridgecast",
@@ -31,7 +31,10 @@
     "test:e2e:all": "electron-vite build && node e2e/smoke.mjs && node e2e/network.mjs && node e2e/web.mjs && node e2e/native.mjs && node e2e/settings.mjs && node e2e/layout.mjs && node e2e/tour.mjs",
     "test:e2e:native:win": "electron-vite build && node e2e/native-real.mjs",
     "test:packaged": "node e2e/packaged.mjs",
-    "test:e2e:tour": "electron-vite build && node e2e/tour.mjs"
+    "test:e2e:tour": "electron-vite build && node e2e/tour.mjs",
+    "release": "node scripts/release.mjs",
+    "release:win": "node scripts/release.mjs --win --publish",
+    "release:linux": "node scripts/release.mjs --linux --publish"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",

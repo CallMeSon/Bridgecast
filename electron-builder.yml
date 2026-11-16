@@ -1,5 +1,9 @@
 appId: com.bridgecast.app
 productName: Bridgecast
+publish:
+  provider: github
+  owner: CallMeSon
+  repo: ppt-share
 directories:
   buildResources: build
 # Allowlist: only the built app (out/) and package.json; production
