@@ -228,12 +228,13 @@ silently.
 
 1. On Windows: bump `"version"` in `package.json` to `0.1.1`, add `## [0.1.1] - YYYY-MM-DD` to
    `CHANGELOG.md`, commit, then run `npm run release -- --win --publish` (shortcut:
-   `npm run release:win`). Expect `dist/Bridgecast-0.1.1-setup.exe`, `latest.yml` and the
+   `npm run release:win`). Expect `dist/bridgecast-0.1.1-setup.exe`, `latest.yml` and the
    blockmap, then release `v0.1.1` created or updated on GitHub.
 2. On Linux (X11, with OMT libraries in `resources/omt/linux`): use the **same** `0.1.1` version
    and run `npm run release -- --linux --publish` (shortcut: `npm run release:linux`). Expect
-   `dist/Bridgecast-0.1.1.AppImage`, `latest-linux.yml` and the blockmap attached to that **same**
-   `v0.1.1` release. Do not create a separate `v0.1.1-linux` tag.
+   `dist/bridgecast-0.1.1.AppImage` and `latest-linux.yml` attached to that **same** `v0.1.1`
+   release. The AppImage embeds its blockmap, so there is no separate blockmap file to upload.
+   Do not create a separate `v0.1.1-linux` tag.
 3. `npm run release` without `--publish` is a dry run: it prints the commands and changes nothing.
    A failed GitHub check (offline, rate limit, missing yml) is silent by design.
 
