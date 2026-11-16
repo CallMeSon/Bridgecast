@@ -1534,10 +1534,14 @@ Location: ${root}`
         onStatus: (s) => broadcastToOperator(Broadcast.updateStatus, s)
       })
     : null
-  // Check 15 s after the operator window is shown, then every 6 hours.
+  // Check 15 s after the operator window first shows, then every 6 hours. The delay starts at
+  // ready-to-show, not at app start, so a slow window cannot consume the operator's grace period.
   let updateCheckTimer: ReturnType<typeof setInterval> | null = null
   let updateCheckFirstTimer: ReturnType<typeof setTimeout> | null = null
-  if (updateManager) {
+  let updateCheckScheduled = false
+  const scheduleUpdateCheck = (): void => {
+    if (!updateManager || updateCheckScheduled) return
+    updateCheckScheduled = true
     const check = (): void => {
       updateManager.check().catch((err) => console.warn('[update] check failed:', err))
     }
@@ -1591,13 +1595,17 @@ Location: ${root}`
     net.start()
     syncWeb()
   }
-  operator = createWindow(startOutputs)
+  const onOperatorShown = (): void => {
+    startOutputs()
+    scheduleUpdateCheck()
+  }
+  operator = createWindow(onOperatorShown)
   operatorWindowRef = () => operator
   hdmi.watchOperator(operator)
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) {
-      operator = createWindow(startOutputs)
+      operator = createWindow(onOperatorShown)
       operatorWindowRef = () => operator
       hdmi.watchOperator(operator)
     }
