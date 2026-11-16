@@ -201,6 +201,82 @@ Otomatis di Linux hanya untuk tab, Home dan Settings (`e2e/web.mjs`, `e2e/settin
 - [ ] Delapan tab terbuka di jendela 1180px: menu overflow tab memuat semua event, tab live tetap terlihat di tepi, nama panjang terpotong dengan elipsis dan tombol New, HDMI, tema dan gerigi tidak keluar jendela.
 - [ ] **Off air saat live**, dua kali: sekali dengan deck PowerPoint native on air, sekali dengan deck web (Canva atau YouTube) on air. Tab event yang live tidak punya ×, dan Delete tidak menutupnya. Dari Home, Off air lalu Cancel: output tetap live. Lalu Off air lalu **Off air** di konfirmasi: status kembali STANDBY (bukan BLACK; KV tampil bila ada), tidak ada slide PowerPoint atau frame halaman web yang tertinggal di HDMI, OMT, atau NDI, tidak ada desktop atau bingkai jendela, dan PowerPoint tetap terbuka. Tab itu lalu punya × dan bisa ditutup.
 
+## Auto-update (Windows and Linux AppImage)
+
+**NOT YET VERIFIED ON WINDOWS.** The only automated evidence is the Linux/xvfb e2e with the fake
+engine (`npm run test:e2e:update`, `PPT_UPDATE_FAKE=1`): it checks the chip, the popover, the
+keyboard guard, the on-air install gate and skip-across-restart. No real GitHub check, download,
+sha512 verification, NSIS/AppImage install or relaunch has been run on a user machine. Everything
+below is a field-check script for another agent on the user's Windows PC (plus a Linux PC for the
+AppImage half). Record **OK** or the exact observation for each item.
+
+**Before the first real release:** the repository `CallMeSon/ppt-share` must be **public**, because
+electron-updater reads `latest.yml` from the public release. The coordinator runs
+`gh repo edit CallMeSon/ppt-share --visibility public`; a worker must not run it. The same agent
+must be signed in with `gh auth login` and have permission to create releases.
+
+**Where to look:** Bridgecast writes no log file. Launch the installed app from a terminal with
+`Bridgecast.exe --enable-logging=stderr` (or run the e2e command in a terminal) and keep the console:
+updater messages are prefixed `[update]`. The NDI download/install messages appear in the Windows
+installer's **Show details** tab. Persisted state is in the app's userData folder
+(`%APPDATA%\Bridgecast` on Windows): `settings.json` holds `updates.skippedVersion`, and
+`events.json` plus `decks/` hold the library. The published metadata is `latest.yml` (Windows
+setup) and `latest-linux.yml` (AppImage) on release `v0.1.1`; a missing yml makes the check fail
+silently.
+
+**Publishing the 0.1.1 test release (keep the 0.1.0 installer to test the upgrade):**
+
+1. On Windows: bump `"version"` in `package.json` to `0.1.1`, add `## [0.1.1] - YYYY-MM-DD` to
+   `CHANGELOG.md`, commit, then run `npm run release -- --win --publish` (shortcut:
+   `npm run release:win`). Expect `dist/Bridgecast-0.1.1-setup.exe`, `latest.yml` and the
+   blockmap, then release `v0.1.1` created or updated on GitHub.
+2. On Linux (X11, with OMT libraries in `resources/omt/linux`): use the **same** `0.1.1` version
+   and run `npm run release -- --linux --publish` (shortcut: `npm run release:linux`). Expect
+   `dist/Bridgecast-0.1.1.AppImage`, `latest-linux.yml` and the blockmap attached to that **same**
+   `v0.1.1` release. Do not create a separate `v0.1.1-linux` tag.
+3. `npm run release` without `--publish` is a dry run: it prints the commands and changes nothing.
+   A failed GitHub check (offline, rate limit, missing yml) is silent by design.
+
+- [ ] **Chip and popover:** install 0.1.0 on Windows, open Bridgecast with internet, wait about
+      15 s. The header chip reads `Update 0.1.1` beside the Settings gear, and a compact popover
+      opens under it over the top of the right panel. The STANDBY/LIVE tally, the "Program" title
+      and the whole monitor must stay visible (the popover must never cover the centre column).
+      Click "What's new": the newest CHANGELOG section appears as plain lines.
+- [ ] **Download progress:** click "Download". The popover shows "Downloading Bridgecast 0.1.1"
+      with a progress bar and no action button. Nothing is installed yet; the running 0.1.0 keeps
+      working and the output is untouched.
+- [ ] **Install refused while a slide is live:** import a deck, press Space so the tally is LIVE,
+      then download (or leave a ready update open). "Restart and install" is disabled and shows
+      "Something is on air. Take it off air or wait until the show ends." Clicking it does nothing;
+      the output still shows the same slide. Pressing Space while that button has focus still moves
+      the Program to the next slide and never starts an install.
+- [ ] **Install while idle:** take everything off air (STANDBY), click "Restart and install".
+      Bridgecast and the OMT sender stop cleanly, then the NSIS installer runs and the app relaunches
+      on 0.1.1. Confirm the OMT worker shut down before termination in the console (no forced-kill
+      warning). Note precisely whether the installer starts _after_ the `before-quit` OMT shutdown
+      in `src/main/index.ts`: `quitAndInstall()` is called while that handler may still be waiting.
+      This ordering is the main open risk of the feature.
+- [ ] **Events and settings survive:** after the 0.1.0 → 0.1.1 upgrade, events, decks, slide order,
+      sections, theme, accent, canvas, HDMI/OMT/NDI settings and the first-run-tour flag are all
+      still present; no library folder was moved or renamed.
+- [ ] **Linux AppImage:** on the Linux PC, run the 0.1.0 AppImage with internet, see the same chip
+      and popover, download, install while idle and relaunch on 0.1.1 with the library intact.
+      Install the 0.1.0 `.deb` too: it must show the version in Settings > About but **no** chip,
+      popover or "Check for updates" button (updates are unsupported there).
+- [ ] **Offline start:** disconnect the network and start 0.1.0 (or 0.1.1). Nothing appears — no
+      chip, no popover, no error toast, no log above info. Startup is not delayed; the next check is
+      in 6 h. Reconnect and confirm the next scheduled check still works.
+- [ ] **Skip a version:** with `Update 0.1.1` showing, click "Skip this version". Chip and popover
+      disappear; `updates.skippedVersion` in `settings.json` becomes `0.1.1`. Close and reopen the
+      app, wait past the 15 s check: 0.1.1 is still hidden (the fake-engine e2e covers this case).
+      Publish 0.1.2 and confirm 0.1.2 _is_ announced, so only the skipped version is suppressed.
+- [ ] **NDI Runtime is not redownloaded:** with the NDI Runtime already installed, note the
+      installer's Show details output during the 0.1.1 update. It must print
+      "NDI Runtime already installed." and exit 0 at once, with no download and no UAC prompt.
+      `build/install-ndi-runtime.ps1` already short-circuits on this case; verify it on Windows.
+- [ ] **Env switch:** start the installed 0.1.0 with `BRIDGECAST_NO_UPDATE_CHECK=1` and internet.
+      No chip, popover or check should appear; Settings > About shows only the version.
+
 ## Selesai
 
 - [ ] Uninstall lewat Settings → Apps berjalan bersih.
