@@ -100,6 +100,10 @@ import {
 } from '../shared/ipc'
 import { isOrderItem } from '../shared/sections'
 import { kvOnAir, type Action, type ProgramState } from '../shared/program'
+import { canInstallNow, type UpdateSettings, type UpdateStatus } from '../shared/update'
+import { UpdateManager } from './updater/manager'
+import { createElectronEngine } from './updater/electron-engine'
+import { createFakeEngine } from './updater/fake-engine'
 import { defaultPlayback, engineStates, playbackOf, type SlideshowStatus } from '../shared/playback'
 import { pdfSourceFields } from './import/pdf-source'
 import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
@@ -168,6 +172,19 @@ function broadcast<C extends keyof BroadcastMap>(channel: C, payload: BroadcastM
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed() && !isWebPage(w.webContents)) w.webContents.send(channel, payload)
   }
+}
+
+/** Set once the operator window exists: broadcast only to it. */
+let operatorWindowRef: () => BrowserWindow | null = () => null
+
+function broadcastToOperator<C extends keyof BroadcastMap>(
+  channel: C,
+  payload: BroadcastMap[C]
+): void {
+  const w = operatorWindowRef()
+  if (!w || w.isDestroyed()) return
+  if (isWebPage(w.webContents)) return
+  w.webContents.send(channel, payload)
 }
 
 function handle<C extends InvokeChannel>(
@@ -322,7 +339,8 @@ function registerIpc(
   web: WebHost,
   slideShow: SlideShowHost,
   syncWeb: () => void,
-  operatorWindow: () => BrowserWindow | null
+  operatorWindow: () => BrowserWindow | null,
+  updateManager: UpdateManager | null
 ): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
@@ -721,6 +739,34 @@ function registerIpc(
   registerWebIpc(lib, state, web, syncWeb, roleOf, outputsActive, operatorWindow)
   registerSlideshowIpc(slideShow, roleOf)
 
+  const operatorOnly = (e: IpcMainInvokeEvent): void => {
+    if (roleOf(e.sender) !== 'operator') throw new Error(NOT_APP_WINDOW)
+  }
+  const noopStatus: UpdateStatus = { kind: 'idle' }
+  appHandle(Invoke.updateStatus, (e) => {
+    operatorOnly(e)
+    return updateManager?.status ?? noopStatus
+  })
+  appHandle(Invoke.updateCheck, async (e) => {
+    operatorOnly(e)
+    await updateManager?.check()
+    return updateManager?.status ?? noopStatus
+  })
+  appHandle(Invoke.updateDownload, async (e) => {
+    operatorOnly(e)
+    await updateManager?.download()
+    return updateManager?.status ?? noopStatus
+  })
+  appHandle(Invoke.updateInstall, (e) => {
+    operatorOnly(e)
+    return updateManager?.install() ?? false
+  })
+  appHandle(Invoke.updateSkip, (e) => {
+    operatorOnly(e)
+    updateManager?.skip()
+    return updateManager?.status ?? noopStatus
+  })
+
   handle(Invoke.settingsGet, () => settings.get())
   handle(Invoke.appVersion, () => app.getVersion())
 
@@ -1045,6 +1091,10 @@ class SettingsStore {
 
   saveAutoAdvance(autoAdvance: boolean): Settings {
     return this.save({ ...this.settings, autoAdvance })
+  }
+
+  saveUpdates(updates: UpdateSettings): Settings {
+    return this.save({ ...this.settings, updates })
   }
 
   private save(input: Settings): Settings {
@@ -1464,10 +1514,46 @@ Location: ${root}`
   if (process.env['PPT_OUTPUT_DUMP']) {
     Object.defineProperty(globalThis, '__pptWeb', { configurable: true, get: () => host.debug() })
   }
+  // Auto-update: only packaged Win/Linux-AppImage builds (or the fake test engine) ever check or
+  // download; a failed check is silent and nothing installs without an operator action.
+  const updatesEnabled =
+    process.env['PPT_UPDATE_FAKE'] === '1' ||
+    (app.isPackaged &&
+      (process.platform === 'win32' ||
+        (process.platform === 'linux' && process.env['APPIMAGE'] !== undefined)) &&
+      process.env['BRIDGECAST_NO_UPDATE_CHECK'] !== '1')
+  const updateManager = updatesEnabled
+    ? new UpdateManager({
+        engine:
+          process.env['PPT_UPDATE_FAKE'] === '1' ? createFakeEngine() : createElectronEngine(),
+        currentVersion: app.getVersion(),
+        getSkipped: () => settings.get().updates.skippedVersion,
+        setSkipped: (version) => settings.saveUpdates({ skippedVersion: version }),
+        isOnAir: () => !canInstallNow(state.state),
+        onStatus: (s) => broadcastToOperator(Broadcast.updateStatus, s)
+      })
+    : null
+  // Check 15 s after the operator window is shown, then every 6 hours.
+  let updateCheckTimer: ReturnType<typeof setInterval> | null = null
+  let updateCheckFirstTimer: ReturnType<typeof setTimeout> | null = null
+  if (updateManager) {
+    const check = (): void => {
+      updateManager.check().catch((err) => console.warn('[update] check failed:', err))
+    }
+    updateCheckFirstTimer = setTimeout(() => {
+      updateCheckFirstTimer = null
+      check()
+      updateCheckTimer = setInterval(check, 6 * 60 * 60 * 1000)
+    }, 15_000)
+  }
   // Quit waits (briefly) for the OMT worker to stop its sender before it is terminated.
   let omtDone = false
   let omtStopping = false
   app.on('before-quit', (e) => {
+    if (updateCheckTimer) clearInterval(updateCheckTimer)
+    if (updateCheckFirstTimer) clearTimeout(updateCheckFirstTimer)
+    updateCheckTimer = null
+    updateCheckFirstTimer = null
     hdmi.shutdown()
     host.shutdown()
     slideShow.manager.dispose()
@@ -1486,7 +1572,18 @@ Location: ${root}`
     }
   })
   registerSlideProtocol(root, lib)
-  registerIpc(lib, state, settings, hdmi, net, host, slideShow, syncWeb, () => operator)
+  registerIpc(
+    lib,
+    state,
+    settings,
+    hdmi,
+    net,
+    host,
+    slideShow,
+    syncWeb,
+    () => operator,
+    updateManager
+  )
 
   const startOutputs = (): void => {
     hdmi.start()
@@ -1494,11 +1591,13 @@ Location: ${root}`
     syncWeb()
   }
   operator = createWindow(startOutputs)
+  operatorWindowRef = () => operator
   hdmi.watchOperator(operator)
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) {
       operator = createWindow(startOutputs)
+      operatorWindowRef = () => operator
       hdmi.watchOperator(operator)
     }
   })

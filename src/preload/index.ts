@@ -138,6 +138,12 @@ const api: Api = {
     invoke(Invoke.deckSetPlayback, eventId, deckId, playback),
   onDeckPending: (cb) => subscribe(Broadcast.deckPending, cb),
   onDeckEditError: (cb) => subscribe(Broadcast.deckEditError, cb),
+  getUpdateStatus: () => invoke(Invoke.updateStatus),
+  checkForUpdate: () => invoke(Invoke.updateCheck),
+  downloadUpdate: () => invoke(Invoke.updateDownload),
+  installUpdate: () => invoke(Invoke.updateInstall),
+  skipUpdate: () => invoke(Invoke.updateSkip),
+  onUpdateStatus: (cb) => subscribe(Broadcast.updateStatus, cb),
   // File.path no longer exists in Electron; this is the supported replacement.
   pathForFile: (file) => webUtils.getPathForFile(file)
 }

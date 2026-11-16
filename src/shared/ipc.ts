@@ -7,6 +7,7 @@ import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
 import type { DeckAudio } from './audio-levels'
 import type { SlideshowStatus } from './playback'
+import type { UpdateStatus } from './update'
 import type { PrepareInput, WebCaptureWarning, WebNavState, WebOutputs, WebStatus } from './web'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
@@ -76,7 +77,12 @@ export const Invoke = {
   deckApplyNow: 'deck:applyNow',
   deckRevert: 'deck:revert',
   deckIsEdited: 'deck:isEdited',
-  deckSetPlayback: 'deck:setPlayback'
+  deckSetPlayback: 'deck:setPlayback',
+  updateStatus: 'update:status',
+  updateCheck: 'update:check',
+  updateDownload: 'update:download',
+  updateInstall: 'update:install',
+  updateSkip: 'update:skip'
 } as const
 
 /**
@@ -114,7 +120,8 @@ export const Broadcast = {
   slideshowNote: 'slideshow:note',
   slideshowStatus: 'slideshow:status',
   deckPending: 'deck:pending',
-  deckEditError: 'deck:editError'
+  deckEditError: 'deck:editError',
+  updateStatus: 'update:status'
 } as const
 
 /** Main → OMT output window: carries the MessagePort the window sends program sound on. */
@@ -316,6 +323,12 @@ export interface InvokeMap {
     args: [eventId: string, deckId: string, playback: Playback]
     result: DeckMeta
   }
+  'update:status': { args: []; result: UpdateStatus }
+  'update:check': { args: []; result: UpdateStatus }
+  'update:download': { args: []; result: UpdateStatus }
+  /** False while anything is on air, or before the update is downloaded. */
+  'update:install': { args: []; result: boolean }
+  'update:skip': { args: []; result: UpdateStatus }
 }
 
 export interface BroadcastMap {
@@ -334,6 +347,7 @@ export interface BroadcastMap {
   'slideshow:status': SlideshowStatus
   'deck:pending': DeckPendingEvent
   'deck:editError': DeckEditErrorEvent
+  'update:status': UpdateStatus
 }
 
 export type InvokeChannel = keyof InvokeMap
@@ -486,5 +500,16 @@ export interface Api {
   /** "Changes apply when this deck leaves air." while `pending` is true. */
   onDeckPending(cb: (e: DeckPendingEvent) => void): () => void
   onDeckEditError(cb: (e: DeckEditErrorEvent) => void): () => void
+  /** Current update state; resolves `{ kind: 'idle' }` when updates are switched off. */
+  getUpdateStatus(): Promise<UpdateStatus>
+  /** Checks for an update now and returns the resulting state. */
+  checkForUpdate(): Promise<UpdateStatus>
+  /** Downloads the update; the result is the state after the download finished (or failed). */
+  downloadUpdate(): Promise<UpdateStatus>
+  /** False while anything is on air; quits and installs otherwise. */
+  installUpdate(): Promise<boolean>
+  /** Hides this version from future announcements. */
+  skipUpdate(): Promise<UpdateStatus>
+  onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
   pathForFile(file: File): string
 }
