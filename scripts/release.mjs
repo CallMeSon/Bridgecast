@@ -82,6 +82,9 @@ const required = (platform) =>
     : [installer(platform), 'dist/latest-linux.yml']
 const blockmaps = (platform) => (platform === 'win' ? [`${installer(platform)}.blockmap`] : [])
 const buildCommands = []
+// electron-builder only packages out/: build the current source first, otherwise a stale out/
+// (or a machine that never ran a build) silently ships old code under the new version.
+buildCommands.push(['npm', ['run', 'build']])
 if (
   platforms.includes('win') &&
   !existsSync(join(root, 'native/ppt-bridge/bin/Release/net48/ppt-bridge.exe'))
@@ -102,6 +105,10 @@ const releaseArgs = (mode, artifacts) =>
         'create',
         `v${version}`,
         ...artifacts,
+        // Without --target, gh creates a new tag on the repo's default branch, which may not be
+        // the release branch (this repo's default is feat/ppt-share).
+        '--target',
+        branch,
         '--title',
         `Bridgecast ${version}`,
         '--notes-file',
