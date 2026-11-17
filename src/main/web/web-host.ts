@@ -122,7 +122,8 @@ export class WebHost {
           url: p.nav?.url || this.deckUrl(p.deckId),
           canvas: this.canvas(),
           zoom: this.storedZoom(p.deckId),
-          profile: p.profile
+          profile: p.profile,
+          live: this.live(p.deckId)
         })
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
@@ -168,6 +169,8 @@ export class WebHost {
     }
     if (snap && !plan.close.includes(snap)) void this.snapshot(snap)
     for (const { deckId, url } of plan.open) this.open(deckId, url)
+    // The helper refuses new windows for the deck on air; keep it told after every change.
+    for (const p of this.pages.values()) this.backend.setLive?.(p.deckId, this.live(p.deckId))
   }
 
   /** The next load of this deck's page renames the deck after the page title. */
@@ -543,7 +546,8 @@ export class WebHost {
         url,
         canvas: this.canvas(),
         zoom: this.storedZoom(deckId),
-        profile: p.profile
+        profile: p.profile,
+        live: this.live(deckId)
       })
       .catch((e: unknown) => {
         if (this.closed || this.pages.get(deckId) !== p) return
