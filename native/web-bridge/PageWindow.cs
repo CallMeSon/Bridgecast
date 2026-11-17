@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -47,7 +48,10 @@ namespace WebBridge
             this.live = live;
             Text = WINDOW_TITLE;
             FormBorderStyle = FormBorderStyle.None;
-            ShowInTaskbar = false;
+            // NOT ShowInTaskbar=false: WinForms gives the form a hidden owner then, and
+            // Chromium's desktopCapturer skips owned windows (the page would never be
+            // captured). The taskbar button is removed with ITaskbarList.DeleteTab instead.
+            ShowInTaskbar = true;
             StartPosition = FormStartPosition.Manual;
             MinimizeBox = false;
             MaximizeBox = false;
@@ -73,8 +77,11 @@ namespace WebBridge
             get
             {
                 var cp = base.CreateParams;
-                cp.ExStyle |= Native.WS_EX_NOACTIVATE | Native.WS_EX_TOOLWINDOW;
-                cp.ExStyle &= ~Native.WS_EX_APPWINDOW;
+                // No WS_EX_TOOLWINDOW: Chromium's desktopCapturer does not list tool windows,
+                // and this window must be capturable. ShowInTaskbar=false keeps it out of the
+                // taskbar; WS_EX_NOACTIVATE keeps the focus where the operator put it.
+                cp.ExStyle |= Native.WS_EX_NOACTIVATE;
+                cp.ExStyle &= ~(Native.WS_EX_APPWINDOW | Native.WS_EX_TOOLWINDOW);
                 return cp;
             }
         }
@@ -93,6 +100,11 @@ namespace WebBridge
             w.Location = new Point(x, y);
             w.Show(); // ShowWithoutActivation: no focus
             w.MoveBehind(x, y, width, height);
+            w.RemoveTaskbarButton();
+            Io.Log("window " + ((long)w.Handle) + " exstyle=0x" +
+                Native.GetWindowLong(w.Handle, Native.GWL_EXSTYLE).ToString("X") +
+                " owner=" + ((long)GetWindow(w.Handle, GW_OWNER)) +
+                " visible=" + Native.IsWindowVisible(w.Handle));
             w.controller = await env.CreateCoreWebView2ControllerAsync(w.Handle);
             if (w.closed)
             {
@@ -110,6 +122,36 @@ namespace WebBridge
         {
             Native.SetWindowPos(Handle, Native.HWND_BOTTOM, x, y, width, height, Native.SWP_NOACTIVATE);
         }
+
+        /// <summary>The taskbar button goes without an owner or WS_EX_TOOLWINDOW (both hide it from desktopCapturer).</summary>
+        private void RemoveTaskbarButton()
+        {
+            try
+            {
+                var list = (ITaskbarList)new TaskbarListCom();
+                list.HrInit();
+                list.DeleteTab(Handle);
+            }
+            catch (Exception e) { Io.Log("taskbar button: " + e.Message); }
+        }
+
+        [ComImport, Guid("56FDF344-FD6D-11d0-958A-006097C9A090")]
+        private class TaskbarListCom { }
+
+        [ComImport, Guid("56FDF342-FD6D-11d0-958A-006097C9A090"),
+         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface ITaskbarList
+        {
+            void HrInit();
+            void AddTab(IntPtr hwnd);
+            void DeleteTab(IntPtr hwnd);
+            void ActivateTab(IntPtr hwnd);
+            void SetActiveAlt(IntPtr hwnd);
+        }
+
+        private const uint GW_OWNER = 4;
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr GetWindow(IntPtr hwnd, uint cmd);
 
         private void Setup()
         {
@@ -192,7 +234,7 @@ namespace WebBridge
         /// </summary>
         private void OnLiveness()
         {
-            if (closed || core == null) return;
+            if (closed || core == null || !loaded) return;
             if (probe == null || probe.IsCompleted)
             {
                 probe = core.ExecuteScriptAsync("1");

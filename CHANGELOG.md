@@ -4,6 +4,14 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-17
+
+### Fixed
+
+- A web deck could stay on "Loading" forever and never show anything: the WebView2 page window was owned by a hidden owner window (WinForms `ShowInTaskbar = false`), and Chromium's window capture does not list owned windows, so no frame ever reached the output. The page window is now a normal top-level window (no owner, no tool-window style) with its taskbar button removed, and capture delivers the page at the Canvas size.
+- Web decks now write a diagnostic log to `<userData>/web.log` (`[web]` lines: open, navigation, helper status, capture, HOLD). It also names the reasons that used to be silent: a page that stays loading, a loaded page whose window cannot be captured, and Google's "unusual traffic" verification page (the deck shows an error with that explanation instead of an endless Loading chip).
+- The helper's page-hang probe no longer reports a slow navigation as a hung page.
+
 ## [0.1.7] - 2026-11-17
 
 ### Fixed

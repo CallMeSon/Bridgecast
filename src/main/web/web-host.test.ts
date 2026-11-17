@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { WebHost } from './web-host'
 import type { PageBackend, PageBackendEvents } from './page-backend'
 import type { WebNavState } from '../../shared/web'
@@ -159,5 +159,49 @@ describe('WebHost navigation', () => {
     state.shown = { deckId: 'd1', web: { deckId: 'd1' } }
     host.syncEvent([deck] as never, 'd1')
     expect(live.get('d1')).toBe(true)
+  })
+})
+
+describe('WebHost diagnostics', () => {
+  it('names the reason when the address is Google\'s verification wall', () => {
+    const { host, events } = make()
+    host.syncEvent([deck] as never, null)
+    events.nav(navState(false, 'https://www.google.com/sorry/index?continue=x'))
+    expect(host.statuses()[0].status).toBe('error')
+    expect(host.statuses()[0].message).toContain('verify it is not a robot')
+    // A normal page clears it again.
+    events.nav(navState(true, 'https://www.google.com/search?q=x'))
+    expect(host.statuses()[0].status).toBe('loading')
+    events.nav(navState(false, 'https://www.google.com/search?q=x'))
+    expect(host.statuses()[0].status).toBe('loading')
+  })
+
+  it('warns when a page has been loading for a long time (blocked or unreachable)', () => {
+    vi.useFakeTimers()
+    try {
+      const { host } = make()
+      host.syncEvent([deck] as never, null)
+      vi.advanceTimersByTime(8000)
+      expect(host.statuses()[0].warning).toContain('still loading')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('warns when a loaded page never delivers a capture frame, and clears it on a frame', () => {
+    vi.useFakeTimers()
+    try {
+      const { host, events } = make()
+      host.syncEvent([deck] as never, null)
+      events.loaded('d1', { title: 'T', url: 'https://a.b/d1' })
+      expect(host.statuses()[0].warning).toBeUndefined()
+      vi.advanceTimersByTime(8000)
+      expect(host.statuses()[0].warning).toContain('cannot be captured')
+      host.frameSeen('d1')
+      expect(host.statuses()[0].warning).toBeUndefined()
+      expect(host.statuses()[0].status).toBe('ready')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

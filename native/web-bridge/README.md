@@ -60,10 +60,16 @@ finds the matching `desktopCapturer` window source `window:<handle>:<n>`.
 
 ## Window behavior
 
-The page window is a borderless top-level window with `WS_EX_NOACTIVATE` and no taskbar
-button. It is shown behind the operator window (never on the HDMI display) and never takes
-focus. Its client area is exactly `width x height` at the screen's DPI (the process is
-PerMonitorV2 DPI aware), so the capture is the canvas, not a stretched or letterboxed copy.
+The page window is a borderless top-level window with `WS_EX_NOACTIVATE`. It is shown
+behind the operator window (never on the HDMI display) and never takes focus. Its client
+area is exactly `width x height` at the screen's DPI (the process is PerMonitorV2 DPI
+aware), so the capture is the canvas, not a stretched or letterboxed copy.
+
+It must **not** carry `WS_EX_TOOLWINDOW`, and it must not be an owned window (WinForms
+`ShowInTaskbar = false` creates a hidden owner): Chromium's `desktopCapturer` lists neither,
+and without a listed window the app can never capture the page (`web.log` says
+`not capturable`). The taskbar button is removed with `ITaskbarList.DeleteTab` instead. The
+window can therefore appear in Alt+Tab; it never takes focus.
 
 ## Sound
 

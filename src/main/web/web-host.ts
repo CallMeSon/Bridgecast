@@ -9,9 +9,18 @@ import type { Canvas } from '../../shared/canvas'
 import type { DeckMeta } from '../../shared/types'
 import { ZOOM_LIVE_REFUSED, type WebNavState, type WebStatus } from '../../shared/web'
 import { validatePrepareInput, zoomAllowed } from './policy'
-import { holdBeforeNavigate, NavCoalescer, syncPlan, webDeckName } from './host-rules'
+import {
+  holdBeforeNavigate,
+  NavCoalescer,
+  syncPlan,
+  verificationWall,
+  webDeckName,
+  WEB_SLOW_WARNING,
+  WEB_STALL_WARNING
+} from './host-rules'
 import { InteractSwitches } from './interact'
 import type { CaptureSource, PageBackend } from './page-backend'
+import { webLog } from './web-log'
 
 export type { WebStatus }
 
@@ -20,6 +29,8 @@ const SNAPSHOT_TRIES = 4
 const SNAPSHOT_RETRY_MS = 500
 /** Without a way to hear back from the outputs, HOLD before navigating waits this long. */
 const HOLD_SETTLE_MS = 300
+/** A loaded page with no capture frame for this long is reported to the operator. */
+const STALL_MS = 8000
 
 const SIGN_OUT_LIVE = 'Take another deck first, then sign out.'
 const INTERACT_NOT_LIVE =
@@ -63,6 +74,8 @@ export class WebHost {
   private closed = false
   /** Decks whose HOLD before navigating still waits for the outputs to pause. */
   private holding = new Map<string, Promise<void>>()
+  /** Per deck: the timer that reports a loaded page with no capture frame. */
+  private stalls = new Map<string, ReturnType<typeof setTimeout>>()
   /**
    * HOLD before navigating a live page waits for this: the outputs report that their
    * stream is paused (`web:held`), or a timeout. Set by main.
@@ -94,7 +107,10 @@ export class WebHost {
       loaded: (deckId, info) => this.onLoaded(deckId, info),
       loadFailed: (deckId, message) => this.onLoadFailed(deckId, message),
       crashed: (deckId, message) => this.onCrashed(deckId, message),
-      hung: (deckId) => this.hold(deckId),
+      hung: (deckId) => {
+        webLog(`${deckId} page hung; HOLD`)
+        this.hold(deckId)
+      },
       warning: (deckId, warning) => this.onWarning(deckId, warning),
       closed: (deckId) => this.onPageClosed(deckId)
     })
@@ -169,6 +185,7 @@ export class WebHost {
     }
     if (snap && !plan.close.includes(snap)) void this.snapshot(snap)
     for (const { deckId, url } of plan.open) this.open(deckId, url)
+    for (const id of plan.close) webLog(`${id} closing (not in the open event)`)
     // The helper refuses new windows for the deck on air; keep it told after every change.
     for (const p of this.pages.values()) this.backend.setLive?.(p.deckId, this.live(p.deckId))
   }
@@ -356,7 +373,13 @@ export class WebHost {
   async sourceIdFor(deckId: string, requester: WebContents): Promise<CaptureSource> {
     const p = this.pages.get(deckId)
     if (!p) throw new Error(NOT_OPEN)
-    return this.backend.captureSource(deckId, requester)
+    try {
+      return await this.backend.captureSource(deckId, requester)
+    } catch (e) {
+      // The renderer retries; the log says why no frame is coming.
+      webLog(`${deckId} capture source failed: ${e instanceof Error ? e.message : String(e)}`)
+      throw e
+    }
   }
 
   /** An app window received a captured frame of the page (ready gate). */
@@ -364,6 +387,12 @@ export class WebHost {
     const p = this.pages.get(deckId)
     if (!p || p.frameSeen) return
     p.frameSeen = true
+    this.clearStall(deckId)
+    // The capture works: the stall warning (if any) no longer applies.
+    if (p.warning === WEB_STALL_WARNING || p.warning === WEB_SLOW_WARNING) {
+      p.warning = undefined
+      webLog(`${deckId} capture frame received; warning cleared`)
+    }
     this.updateStatus(p)
   }
 
@@ -454,7 +483,9 @@ export class WebHost {
   private onBackendNav(s: WebNavState): void {
     const p = this.pages.get(s.deckId)
     if (!p) return
+    const previous = p.nav?.url
     p.nav = s
+    if (s.url !== previous) webLog(`${s.deckId} nav ${s.url} (loading=${s.loading})`)
     // A new main-frame document started (Reload, a new URL, history, or the backend's own
     // reload after a crash): the previous load and failure no longer describe the page.
     if (s.loading && s.url !== '') {
@@ -463,7 +494,44 @@ export class WebHost {
       p.failed = null
       if (changed) this.updateStatus(p)
     }
+    // Google's "unusual traffic" wall is a real page with a real frame: say why the search
+    // result is not there instead of leaving the operator with a bare Loading chip (the
+    // wall page often never reports the load as finished).
+    const wall = verificationWall(s.url)
+    if (wall && p.failed !== wall) {
+      p.failed = wall
+      this.updateStatus(p)
+      this.hold(s.deckId)
+    }
     this.coalescer.push(s)
+  }
+
+  /** Report a page that loaded but never gives a capture frame (the output shows a snapshot). */
+  private armStall(deckId: string): void {
+    if (this.stalls.has(deckId)) return
+    const timer = setTimeout(() => {
+      this.stalls.delete(deckId)
+      const p = this.pages.get(deckId)
+      if (this.closed || !p || p.frameSeen) return
+      const warning = p.loaded ? WEB_STALL_WARNING : WEB_SLOW_WARNING
+      webLog(
+        `${deckId} ${p.loaded ? 'stall' : 'slow'}: ${warning} (${p.nav?.url ?? ''})`
+      )
+      if (p.warning !== warning) {
+        p.warning = warning
+        this.onStatus(p.deckId, p.status, p.failed ?? undefined, p.warning)
+      }
+      // Keep watching: the warning clears when the page loads and a frame arrives.
+      this.armStall(deckId)
+    }, STALL_MS)
+    timer.unref?.()
+    this.stalls.set(deckId, timer)
+  }
+
+  private clearStall(deckId: string): void {
+    const timer = this.stalls.get(deckId)
+    if (timer) clearTimeout(timer)
+    this.stalls.delete(deckId)
   }
 
   private onLoaded(deckId: string, info: { title: string; url: string }): void {
@@ -472,8 +540,10 @@ export class WebHost {
     p.loaded = true
     // A failed load can still finish (the error page): it keeps the error and the old snapshot.
     if (p.failed) return
+    webLog(`${deckId} loaded ${info.url} "${info.title}"`)
     if (p.autoName) this.renameFromTitle(p, info.title, info.url)
     this.updateStatus(p)
+    this.armStall(deckId)
     void this.snapshot(deckId)
   }
 
@@ -482,6 +552,7 @@ export class WebHost {
     if (!p) return
     p.loaded = false
     p.failed = message
+    webLog(`${deckId} load failed: ${message}`)
     this.updateStatus(p)
     this.hold(deckId)
   }
@@ -492,6 +563,7 @@ export class WebHost {
     p.loaded = false
     p.frameSeen = false
     p.failed = message
+    webLog(`${deckId} page stopped: ${message}`)
     this.updateStatus(p)
     this.hold(deckId)
   }
@@ -506,9 +578,11 @@ export class WebHost {
   private onPageClosed(deckId: string): void {
     const p = this.pages.get(deckId)
     if (!p) return
+    this.clearStall(deckId)
     this.pages.delete(deckId)
     this.interact.clear(deckId)
     this.coalescer.drop(deckId)
+    webLog(`${deckId} page closed by the backend`)
   }
 
   // ---- page lifecycle ----
@@ -540,7 +614,9 @@ export class WebHost {
       profile: this.profileOf(deckId)
     }
     this.pages.set(deckId, p)
+    webLog(`${deckId} opening ${url} (profile ${p.profile}, canvas ${this.canvas().width}x${this.canvas().height})`)
     this.onStatus(deckId, p.status, undefined, p.warning)
+    this.armStall(deckId)
     void this.backend
       .open(deckId, {
         url,
@@ -626,6 +702,7 @@ export class WebHost {
   private close(deckId: string): void {
     const p = this.pages.get(deckId)
     if (!p) return
+    this.clearStall(deckId)
     this.pages.delete(deckId)
     this.interact.clear(deckId)
     this.coalescer.drop(deckId)

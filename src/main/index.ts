@@ -119,6 +119,7 @@ import { WebBridgeEngine, webBridgeExePath, type WebPageEngine } from './web/web
 import { FakeWebEngine } from './web/fake-web-engine'
 import { WebEngineSupervisor } from './web/web-engine-supervisor'
 import { WEBVIEW2_MISSING, webView2RuntimeFound } from './web/webview2-runtime'
+import { setWebLogFile } from './web/web-log'
 import type { PageBackend } from './web/page-backend'
 import {
   frameSenderAllowed,
@@ -1639,6 +1640,8 @@ Location: ${root}`
     return
   }
   const settings = new SettingsStore(join(root, 'settings.json'))
+  // Web deck diagnostics: `<userData>/web.log` (helper lifecycle, loads, capture, HOLD).
+  setWebLogFile(join(app.getPath('userData'), 'web.log'))
   // The web host needs the state and the state needs the host (ready gate, arrow keys).
   let web: WebHost | null = null
   // Likewise the slide show manager: a native take asks it whether the deck's slide show is ready.

@@ -130,6 +130,35 @@ export function updateCaptureWarnings(
   return next.filter((w) => outputsActive[w.output])
 }
 
+/** Operator warning when a page loaded but its window never delivers a frame (capture). */
+export const WEB_STALL_WARNING =
+  'The page is loaded but its window cannot be captured. The output shows the last snapshot.'
+
+/** Operator warning when a page has been loading for a long time (blocked, captive portal). */
+export const WEB_SLOW_WARNING =
+  'The page is still loading. It may be blocked or unreachable; open Prepare, then Reload.'
+
+/** Google's "unusual traffic" check: the page is a verification wall, not the deck. */
+const GOOGLE_VERIFY =
+  'Google asks this PC to verify it is not a robot (unusual traffic). Open Prepare and finish the check, or use another web address.'
+
+/**
+ * The operator copy when the address turns out to be Google's verification wall
+ * (`google.<tld>/sorry/...`), else null. It is a real page with a real frame, so only the
+ * message tells the operator why their search result is not there.
+ */
+export function verificationWall(url: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  const host = parsed.hostname.toLowerCase()
+  const google = host === 'google.com' || host.endsWith('.google.com')
+  return google && parsed.pathname.startsWith('/sorry') ? GOOGLE_VERIFY : null
+}
+
 /**
  * Reload, Back, Forward or a new URL for a web page: hold the output first (HOLD,
  * so no frame of the page's next document reaches the audience before the ready

@@ -150,6 +150,11 @@ sungguhan, login Google, capture jendela helper, dan loopback audio browser.
 - [ ] `PPT_WEB_BACKEND=electron`: deck web tetap jalan lewat jendela Electron (tab capture).
 - [ ] PC tanpa WebView2 Runtime (atau tanpa `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`): aplikasi memakai backend Electron dan menampilkan satu baris peringatan "WebView2 is not installed on this PC. Web pages use the built-in browser."
 - [ ] Sign out of all websites dari Prepare: login hilang dan halaman dimuat ulang.
+- [ ] **Diagnosa**: kalau sebuah deck tetap `Loading` atau tidak tampil, buka
+      `%APPDATA%\bridgecast\web.log` (build dev: `bridgecast-dev`; di mesin ini
+      `<userData>/web.log`). Baris `[web]` mencatat open/nav/status/capture/HOLD. Untuk
+      mereproduksi dengan helper asli: `npm run test:e2e:web-bridge:real` (mencetak status deck,
+      daftar jendela `desktopCapturer`, dan apakah capture memberi frame).
 
 ## Putar PPT asli (native slideshow)
 

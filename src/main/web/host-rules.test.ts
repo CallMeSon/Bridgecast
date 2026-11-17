@@ -13,6 +13,7 @@ import {
   NavCoalescer,
   prepareInputAllowed,
   syncPlan,
+  verificationWall,
   webDeckName
 } from './host-rules'
 
@@ -25,6 +26,24 @@ const web = (
   web: { url: string }
 } => ({ id, source: 'web', web: { url } })
 const pdf = (id: string): { id: string; source: 'pdf' } => ({ id, source: 'pdf' })
+
+describe('verificationWall', () => {
+  it('recognises Google\'s "unusual traffic" wall on every google.com host', () => {
+    for (const url of [
+      'https://www.google.com/sorry/index?continue=x',
+      'https://google.com/sorry/index',
+      'https://consent.google.com/sorry/'
+    ]) {
+      expect(verificationWall(url)).toContain('verify it is not a robot')
+    }
+  })
+  it('is null for a normal page, another site and a broken URL', () => {
+    expect(verificationWall('https://www.google.com/search?q=x')).toBeNull()
+    expect(verificationWall('https://example.com/sorry/index')).toBeNull()
+    expect(verificationWall('not a url')).toBeNull()
+    expect(verificationWall('https://google.com.evil.test/sorry/index')).toBeNull()
+  })
+})
 
 describe('prepareInputAllowed', () => {
   it('a Prepare window may only drive the page it was opened for', () => {

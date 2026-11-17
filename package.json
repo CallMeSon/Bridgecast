@@ -1,6 +1,6 @@
 {
   "name": "bridgecast",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Bridgecast: slide deck output to a second display (HDMI)",
   "main": "./out/main/index.js",
   "author": "Bridgecast",
@@ -30,6 +30,7 @@
     "test:e2e:web": "electron-vite build && node e2e/web.mjs",
     "test:e2e:native": "electron-vite build && node e2e/native.mjs",
     "test:e2e:web-bridge": "electron-vite build && node e2e/web-bridge.mjs",
+    "test:e2e:web-bridge:real": "electron-vite build && node e2e/web-bridge-real.mjs",
     "test:e2e:settings": "electron-vite build && node e2e/settings.mjs",
     "test:e2e:layout": "electron-vite build && node e2e/layout.mjs",
     "test:e2e:all": "electron-vite build && node e2e/smoke.mjs && node e2e/network.mjs && node e2e/web.mjs && node e2e/web-bridge.mjs && node e2e/native.mjs && node e2e/settings.mjs && node e2e/layout.mjs && node e2e/tour.mjs && node e2e/update.mjs && node e2e/new-event.mjs",

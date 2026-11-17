@@ -4,6 +4,11 @@ import type { WebPageEngine } from './web-engine'
 import type { WebNavState } from '../../shared/web'
 import { webDomain } from '../../shared/web'
 import { slideshowSourceId } from '../slideshow/capture'
+import { webLog } from './web-log'
+
+/** Operator copy when the helper window cannot be captured (never a screen fallback). */
+export const WEB_WINDOW_NOT_CAPTURABLE =
+  'The web page window cannot be captured. Showing the last snapshot.'
 
 /** `sendInputEvent` key names back to the DOM names the helper's key table uses. */
 const DOM_KEYS: Readonly<Record<string, string>> = {
@@ -59,6 +64,7 @@ export class WebView2PageBackend implements PageBackend {
     engine.on('status', (s) => {
       const p = this.pages.get(s.deckId)
       if (!p) return
+      webLog(`${s.deckId} helper status ${s.status}${s.message ? `: ${s.message}` : ''}`)
       if (s.status === 'ready') {
         // The helper reloads a crashed page by itself and reports it ready again: HOLD
         // stays until the operator resumes, so recovery needs this event.
@@ -77,13 +83,16 @@ export class WebView2PageBackend implements PageBackend {
     engine.on('crashed', (deckId) => {
       const p = this.pages.get(deckId)
       if (!p) return
+      webLog(`${deckId} helper reported a crash`)
       this.events?.crashed(deckId, loadFailedText(webDomain(p.lastNav?.url ?? '')))
     })
     engine.on('hung', (deckId) => {
       if (!this.pages.has(deckId)) return
+      webLog(`${deckId} helper reported a hung page`)
       this.events?.hung(deckId)
     })
     engine.on('exited', () => {
+      webLog('helper exited')
       for (const deckId of [...this.pages.keys()]) {
         const p = this.pages.get(deckId)
         this.events?.crashed(deckId, loadFailedText(webDomain(p?.lastNav?.url ?? '')))
@@ -100,11 +109,25 @@ export class WebView2PageBackend implements PageBackend {
     o: { url: string; canvas: PageSize; zoom: number; profile: string; live?: boolean }
   ): Promise<void> {
     const r = await this.engine.open(deckId, { ...o, live: o.live ?? false })
+    webLog(
+      `${deckId} helper window ${r.windowId}${r.audioPipe ? ` pipe ${r.audioPipe}` : ' (no audio pipe)'}`
+    )
     this.pages.set(deckId, {
       windowId: r.windowId,
       audioPipe: r.audioPipe,
       canvas: o.canvas
     })
+  }
+
+  /** The page may still be opening when the first capture id is asked for (operator preview). */
+  private async pageOrWait(deckId: string, ms = 3000): Promise<PageState | null> {
+    const until = Date.now() + ms
+    while (Date.now() < until) {
+      const p = this.pages.get(deckId)
+      if (p) return p
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    return this.pages.get(deckId) ?? null
   }
 
   async load(deckId: string, url: string): Promise<void> {
@@ -204,10 +227,18 @@ export class WebView2PageBackend implements PageBackend {
 
   async captureSource(deckId: string, requester: unknown): Promise<CaptureSource> {
     void requester // the helper window is captured with a fresh source id, not per requester
-    const p = this.pages.get(deckId)
+    const p = await this.pageOrWait(deckId)
     if (!p) throw new Error('The web page is not open. Reload the deck, then try again.')
-    const id = await slideshowSourceId(p.windowId, (types) => this.opts.getSources(types))
-    return { id, kind: 'desktop' }
+    try {
+      const id = await slideshowSourceId(p.windowId, (types) => this.opts.getSources(types))
+      return { id, kind: 'desktop' }
+    } catch (e) {
+      // Never fall back to a screen: the output shows the deck's snapshot instead.
+      webLog(
+        `${deckId} helper window ${p.windowId} not capturable: ${e instanceof Error ? e.message : String(e)}`
+      )
+      throw new Error(WEB_WINDOW_NOT_CAPTURABLE)
+    }
   }
 
   /** A picture of the helper window (never a screen), for the snapshot fallback. */
