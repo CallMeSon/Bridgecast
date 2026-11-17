@@ -52,13 +52,37 @@ export class FakeWebEngine implements WebPageEngine {
     this.guard()
     this.opened.set(deckId, o)
     this.sizes.set(deckId, o.canvas)
+    // A real helper reports navigation starting, then the load, like WebView2.
+    setTimeout(() => {
+      this.emitNav(this.navOf(deckId, o.url, true, o.zoom))
+      this.emitStatus(deckId, 'ready')
+      this.emitNav(this.navOf(deckId, o.url, false, o.zoom))
+    }, 0)
     return { windowId: `fake-${deckId}`, audioPipe: null }
+  }
+
+  private navOf(deckId: string, url: string, loading: boolean, zoom = 1): WebNavState {
+    return {
+      deckId,
+      url,
+      title: 'Bridge Page',
+      canGoBack: false,
+      canGoForward: false,
+      loading,
+      zoom,
+      cursor: 'default'
+    }
   }
 
   async navigate(deckId: string, url: string): Promise<void> {
     this.guard()
     const o = this.opened.get(deckId)
     if (o) this.opened.set(deckId, { ...o, url })
+    setTimeout(() => {
+      this.emitNav(this.navOf(deckId, url, true, o?.zoom))
+      this.emitStatus(deckId, 'ready')
+      this.emitNav(this.navOf(deckId, url, false, o?.zoom))
+    }, 0)
   }
 
   async reload(): Promise<void> {

@@ -127,6 +127,28 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] **Clicker saat Prepare terbuka dan deck live**: tekan maju dengan clicker: halaman tetap menerima satu panah per tekan; klik dan ketik di Prepare tetap ditolak.
 - [ ] **Resolusi preview**: (dulu 320x180 bila Prepare dibuka selama halaman loading; diperbaiki, lihat spec web-source bagian Prepare.) Buka Prepare segera setelah menambah web deck: `videoWidth` video di jendela Prepare harus sama dengan lebar Canvas dan pada 100% teks halaman tajam. Lalu Take deck itu: monitor operator juga tajam. Catat bila buram.
 
+## Deck web di WebView2 (Windows, helper `web-bridge`)
+
+**BELUM DIJALANKAN di Windows.** Jalankan `npm run build:web-bridge:win` sebelum build installer
+(atau `npm run build:web-bridge` di shell bash). Otomatis di mesin dev: `npm run test:e2e:web-bridge`
+(FakeWebEngine: take, helper dimatikan, HOLD, restart, halaman dibuka lagi di URL terakhir) dan
+`npm test` (engine, backend, supervisor, pipe suara). Yang TIDAK terjangkau otomatis: WebView2
+sungguhan, login Google, capture jendela helper, dan loopback audio browser.
+
+- [ ] `resources/web-bridge/web-bridge.exe` + `Microsoft.Web.WebView2.Core.dll` + `WebView2Loader.dll` ada di installer.
+- [ ] Deck web Canva: **Sign in with Google** berhasil di jendela helper; tutup dan buka aplikasi, login masih ada (profil `<userData>/web-profile/default`).
+- [ ] Halaman helper tidak pernah mengambil fokus: clicker dan F/B/D tetap bekerja tanpa klik ulang ke jendela operator.
+- [ ] Canvas 2520x1080 (dan 3840x1080): gambar di HDMI/OMT tidak melar atau berbingkai; ukuran jendela = canvas.
+- [ ] Jendela helper ditutup aplikasi lain: capture tetap mengalir (atau HOLD), tidak hitam dan bukan desktop.
+- [ ] Jendela helper di layar kedua / layar dimatikan: capture tetap mengalir atau HOLD.
+- [ ] YouTube dengan suara: Local, OMT, Both. Volume deck dan master berlaku; hanya satu jendela bersuara di PC ini (deck lain yang tidak on air dibisukan).
+- [ ] Black atau KV saat deck web live: suara ikut senyap dan kembali setelah dibuka.
+- [ ] Matikan helper lewat Task Manager saat live: HOLD (frame terakhir, bukan hitam), helper hidup lagi sendiri, halaman dibuka lagi di alamat terakhir, lalu **Resume web**.
+- [ ] Tiga kali helper gagal: aplikasi pindah ke backend Electron untuk sesi itu (halaman tetap tampil, bukan hitam); catat pesannya di konsol.
+- [ ] `PPT_WEB_BACKEND=electron`: deck web tetap jalan lewat jendela Electron (tab capture).
+- [ ] PC tanpa WebView2 Runtime: aplikasi memakai backend Electron; catat bahwa tidak ada banner (hanya log konsol).
+- [ ] Sign out of all websites dari Prepare: login hilang dan halaman dimuat ulang.
+
 ## Putar PPT asli (native slideshow)
 
 **BELUM DIJALANKAN oleh pengguna, dan belum pernah dijalankan di Windows.** Yang diuji otomatis (`npm run test:e2e:native`, di Linux/xvfb dengan `PPT_ENGINE_FAKE=1`, yaitu FakeEngine, bukan PowerPoint): deck native dengan 3 langkah klik (Up next "Next: step N of 3 on this slide", label step N/3, take tidak naik di dalam slide), engine crash lalu output memakai PNG slide yang sama dan peringatan "PowerPoint is not responding", slide show kembali native setelah engine hidup lagi, Edit in PowerPoint saat live menunggu ("Changes apply when this deck leaves air.") lalu diterapkan setelah deck turun dari air dan `original.pptx` tidak berubah, deck PDF (vector) menggambar `<canvas>`, `source.pdf` rusak jatuh ke PNG slide yang sama. Yang TIDAK terjangkau dan hanya bisa diuji di Windows: jembatan COM PowerPoint (`native/ppt-bridge`), capture jendela slide show (`desktopCapturer`) ke HDMI, OMT dan NDI, jalur suara PowerPoint lewat named pipe, akurasi klik per langkah. Catatan spike: `docs/superpowers/notes/native-ppt-spike.md`.

@@ -449,6 +449,13 @@ export class WebHost {
     const p = this.pages.get(s.deckId)
     if (!p) return
     p.nav = s
+    // A new main-frame document started (Reload, a new URL, or the backend's own reload
+    // after a crash): the previous failure no longer describes the page.
+    if (s.loading && s.url !== '' && p.failed) {
+      p.failed = null
+      p.loaded = false
+      this.updateStatus(p)
+    }
     this.coalescer.push(s)
   }
 

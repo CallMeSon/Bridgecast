@@ -23,8 +23,6 @@ interface PageState {
   audioPipe: string | null
   canvas: PageSize
   lastNav?: WebNavState
-  /** A crash was reported; the helper reloads behind the scenes. */
-  crashed: boolean
 }
 
 /**
@@ -49,7 +47,8 @@ export class WebView2PageBackend implements PageBackend {
       const p = this.pages.get(s.deckId)
       if (!p) return
       if (s.status === 'ready') {
-        if (p.crashed) return
+        // The helper reloads a crashed page by itself and reports it ready again: HOLD
+        // stays until the operator resumes, so recovery needs this event.
         this.events?.loaded(s.deckId, {
           title: p.lastNav?.title ?? '',
           url: p.lastNav?.url ?? ''
@@ -65,7 +64,6 @@ export class WebView2PageBackend implements PageBackend {
     engine.on('crashed', (deckId) => {
       const p = this.pages.get(deckId)
       if (!p) return
-      p.crashed = true
       this.events?.crashed(deckId, loadFailedText(webDomain(p.lastNav?.url ?? '')))
     })
     engine.on('exited', () => {
@@ -88,20 +86,15 @@ export class WebView2PageBackend implements PageBackend {
     this.pages.set(deckId, {
       windowId: r.windowId,
       audioPipe: r.audioPipe,
-      canvas: o.canvas,
-      crashed: false
+      canvas: o.canvas
     })
   }
 
   async load(deckId: string, url: string): Promise<void> {
-    const p = this.pages.get(deckId)
-    if (p) p.crashed = false
     await this.engine.navigate(deckId, url)
   }
 
   async reload(deckId: string): Promise<void> {
-    const p = this.pages.get(deckId)
-    if (p) p.crashed = false
     await this.engine.reload(deckId)
   }
 

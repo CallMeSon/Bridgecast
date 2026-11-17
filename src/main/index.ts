@@ -118,6 +118,7 @@ import { WebView2PageBackend } from './web/webview2-backend'
 import { WebBridgeEngine, webBridgeExePath, type WebPageEngine } from './web/web-engine'
 import { FakeWebEngine } from './web/fake-web-engine'
 import { WebEngineSupervisor } from './web/web-engine-supervisor'
+import { WEBVIEW2_MISSING, webView2RuntimeFound } from './web/webview2-runtime'
 import type { PageBackend } from './web/page-backend'
 import {
   frameSenderAllowed,
@@ -951,6 +952,8 @@ function createWebPageBackend(o: {
   onHold: (deckId: string) => void
   /** The helper gave up: main switches this session to the Electron backend. */
   onFallback: (message: string) => void
+  /** A one-line operator notice (e.g. WebView2 missing) shown while it lasts. */
+  onNote: (message: string) => void
   devUrl?: string
 }): PageBackend {
   const electron = (): PageBackend =>
@@ -964,9 +967,19 @@ function createWebPageBackend(o: {
     resourcesPath: o.resourcesPath,
     appPath: o.appPath
   })
-  const useHelper =
-    o.platform === 'win32' && o.env['PPT_WEB_BACKEND'] !== 'electron' && fs.existsSync(exe)
-  if (!useHelper) return electron()
+  const helperExists = o.platform === 'win32' && fs.existsSync(exe)
+  const runtime = webView2RuntimeFound({
+    env: o.env,
+    exists: fs.existsSync,
+    ...(o.env['ProgramFiles(x86)'] ? { programFilesX86: o.env['ProgramFiles(x86)'] } : {}),
+    ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {})
+  })
+  const useHelper = helperExists && runtime && o.env['PPT_WEB_BACKEND'] !== 'electron'
+  if (!useHelper) {
+    // The helper is shipped but this PC has no WebView2: the built-in browser takes over.
+    if (helperExists && !runtime) o.onNote(WEBVIEW2_MISSING)
+    return electron()
+  }
   const fake = o.env['PPT_ENGINE_FAKE'] === '1'
   const createEngine = (): WebPageEngine =>
     fake ? new FakeWebEngine() : new WebBridgeEngine({ exe, userData: join(o.userData, 'web-profile') })
@@ -1661,6 +1674,8 @@ Location: ${root}`
       ...(webDevUrl ? { devUrl: webDevUrl } : {})
     })
   let webHost: WebHost | null = null
+  /** One-line operator notice while it lasts (a PC without WebView2). */
+  let webNote: string | null = null
   const host = new WebHost(
     lib,
     state,
@@ -1670,7 +1685,7 @@ Location: ${root}`
         deckId,
         status,
         ...(message ? { message } : {}),
-        ...(warning ? { warning } : {})
+        ...(warning ?? webNote ? { warning: warning ?? webNote! } : {})
       }),
     createWebPageBackend({
       packaged: app.isPackaged,
@@ -1687,6 +1702,10 @@ Location: ${root}`
       onFallback: (message) => {
         console.warn('[web]', message)
         void webHost?.switchBackend(electronWebBackend())
+      },
+      onNote: (message) => {
+        webNote = message
+        console.warn('[web]', message)
       },
       ...(webDevUrl ? { devUrl: webDevUrl } : {})
     }),
@@ -1731,6 +1750,11 @@ Location: ${root}`
   })
   if (process.env['PPT_OUTPUT_DUMP']) {
     Object.defineProperty(globalThis, '__pptWeb', { configurable: true, get: () => host.debug() })
+    // e2e with FakeWebEngine: no real capture exists, so the test reports the first frame.
+    Object.defineProperty(globalThis, '__pptWebFrame', {
+      configurable: true,
+      value: (deckId: string) => host.frameSeen(deckId)
+    })
   }
   // Auto-update: only packaged Windows, Linux AppImage and Linux .deb builds (or the fake test
   // engine) ever check or

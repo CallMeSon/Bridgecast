@@ -29,6 +29,16 @@ win:
       filter:
         - ppt-bridge.exe
         - ppt-bridge.exe.config
+    # WebView2 page helper; build it first: npm run build:web-bridge (or build:web-bridge:win)
+    # (the WebView2 managed and native loader DLLs must travel with the exe)
+    - from: native/web-bridge/bin/Release/net48
+      to: web-bridge
+      filter:
+        - web-bridge.exe
+        - web-bridge.exe.config
+        - Microsoft.Web.WebView2.Core.dll
+        - WebView2Loader.dll
+        - runtimes/**
   target:
     - nsis
 nsis:

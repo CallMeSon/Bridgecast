@@ -37,6 +37,20 @@ $ npm run build:mac
 $ npm run build:linux
 ```
 
+### Windows: web pages (WebView2 helper)
+
+Web decks use a C# helper that hosts a real WebView2 (Microsoft Edge) page per deck, so
+"Sign in with Google" and sites that reject embedded browsers work. Build it before
+packaging (the installer ships it from `native/web-bridge/bin/Release/net48`):
+
+```bash
+$ npm run build:web-bridge        # bash; or build:web-bridge:win in PowerShell/cmd
+```
+
+Without the helper (or with `PPT_WEB_BACKEND=electron`) web decks fall back to Electron's
+hidden page window. WebView2 Evergreen is part of Windows 10/11 with Edge; a machine
+without it also falls back. The helper is never installed on macOS or Linux.
+
 ### Linux: PowerPoint files (LibreOffice)
 
 On Linux, `.pptx` / `.ppt` import and the native slide show use LibreOffice Impress instead of
