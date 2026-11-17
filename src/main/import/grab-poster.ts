@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { pathToFileURL } from 'node:url'
-import type { GrabPoster } from './video-file'
+import type { GrabPoster, PosterGrab } from './video-file'
 
 /** How long a single poster grab may take before it is refused. */
 const TIMEOUT_MS = 10_000
@@ -33,16 +33,22 @@ export const grabPoster: GrabPoster = async (file) => {
     }
   })
   try {
-    const raw = await withTimeout(win.webContents.executeJavaScript(grabSource(file)))
-    const grab = raw as { dataUrl?: string; width?: number; height?: number } | null
-    if (!grab?.dataUrl || !grab.width || !grab.height) {
-      throw new Error('This video cannot be played by Bridgecast.')
-    }
-    const png = Buffer.from(grab.dataUrl.slice(grab.dataUrl.indexOf(',') + 1), 'base64')
-    return { png, width: grab.width, height: grab.height }
+    return await withTimeout(grab(win, file))
   } finally {
     if (!win.isDestroyed()) win.destroy()
   }
+}
+
+async function grab(win: BrowserWindow, file: string): Promise<PosterGrab> {
+  // A window has no document until it loads one; executeJavaScript would never settle.
+  await win.loadURL('about:blank')
+  const raw = await win.webContents.executeJavaScript(grabSource(file))
+  const grab = raw as { dataUrl?: string; width?: number; height?: number } | null
+  if (!grab?.dataUrl || !grab.width || !grab.height) {
+    throw new Error('This video cannot be played by Bridgecast.')
+  }
+  const png = Buffer.from(grab.dataUrl.slice(grab.dataUrl.indexOf(',') + 1), 'base64')
+  return { png, width: grab.width, height: grab.height }
 }
 
 function withTimeout<T>(work: Promise<T>): Promise<T> {

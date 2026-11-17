@@ -350,7 +350,7 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     await errRow.waitFor({ timeout: 2000 })
     check(
       (await errRow.locator('.meta').textContent()) === 'Unsupported' &&
-        /PPTX, PPT, or PDF/.test(await errRow.locator('.msg').textContent()),
+        /PPTX, PPT, PDF, MP4, M4V, or WebM/.test(await errRow.locator('.msg').textContent()),
       `unsupported file shows an error row: "${await errRow.textContent()}"`
     )
     const dropped = win.locator('.deck', { has: win.locator('.name', { hasText: /^dropped$/ }) })
@@ -2243,7 +2243,8 @@ async function videoFileChecks(win, tally) {
     'no deck was left behind for a refused video file'
   )
 
-  // Remove the two decks so the following checks keep their deck list.
+  // Remove the two decks so the following checks keep their deck list. The live one goes off
+  // air with its deck, so put the deck that was live before this section back on air.
   for (const id of added) {
     const row = win.locator(`.deck[data-deck-id="${id}"]`)
     await row.click({ button: 'right' })
@@ -2251,8 +2252,25 @@ async function videoFileChecks(win, tally) {
     await win.getByTestId('confirm-remove').getByRole('button', { name: 'Remove' }).click()
     await row.waitFor({ state: 'detached' })
   }
+  const back = win.locator('.deck', {
+    has: win.locator('.name', { hasText: /^Session 1: Introduction$/ })
+  })
+  await back.click()
+  await win.evaluate(() => document.activeElement?.blur())
+  await win.waitForFunction(() => document.querySelector('[data-testid=pos]')?.textContent === '01 / 04')
+  await win.keyboard.press('Space')
+  await win.waitForFunction(() => document.querySelector('[data-testid=pos]')?.textContent === '02 / 04')
+  await win.keyboard.press('Space')
+  await win.waitForFunction(() => document.querySelector('[data-testid=pos]')?.textContent === '03 / 04')
+  check(
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE',
+      undefined,
+      { timeout: 5000 }
+    ),
+    'video file checks done, the previous deck is live again'
+  )
   fs.rmSync(dir, { recursive: true, force: true })
-  check((await tally.textContent()) === 'LIVE', 'video file checks done')
 }
 
 // --- Canvas, Fit and audio levels (2026-10-27) ---
