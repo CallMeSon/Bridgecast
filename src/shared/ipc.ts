@@ -24,6 +24,8 @@ export const Invoke = {
   decksReorder: 'decks:reorder',
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
+  decksOrphans: 'decks:orphans',
+  decksRestore: 'decks:restore',
   decksRename: 'decks:rename',
   decksSetFit: 'decks:setFit',
   decksSetAudio: 'decks:setAudio',
@@ -193,6 +195,13 @@ export interface ImportRequest {
   path: string
 }
 
+/** A deck on disk that no event lists, with the event that owns it (null when that is gone). */
+export interface OrphanDeck {
+  deckId: string
+  name: string
+  eventId: string | null
+}
+
 export interface Session {
   eventId: string | null
   state: ProgramState
@@ -213,6 +222,10 @@ export interface InvokeMap {
   'decks:reorder': { args: [eventId: string, items: OrderItem[]]; result: void }
   'slides:reorder': { args: [deckId: string, order: number[]]; result: void }
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
+  /** Decks on disk that no event lists (a lost event list). `eventId` is null when its event is gone. */
+  'decks:orphans': { args: []; result: OrphanDeck[] }
+  /** Puts an orphaned deck back at the end of its event; false when the event no longer exists. */
+  'decks:restore': { args: [deckId: string, eventId: string]; result: boolean }
   'decks:rename': { args: [eventId: string, deckId: string, name: string]; result: DeckMeta }
   /** How the deck's slides fill the canvas; takes effect on the output without replaying a live video. */
   'decks:setFit': { args: [eventId: string, deckId: string, fit: DeckFit]; result: DeckMeta }
@@ -398,6 +411,10 @@ export interface Api {
   removeSection(eventId: string, sectionId: string): Promise<EventMeta>
   reorderSlides(deckId: string, order: number[]): Promise<void>
   removeDeck(eventId: string, deckId: string): Promise<void>
+  /** Deck folders that no event lists; offered to the operator so they are not lost. */
+  orphanDecks(): Promise<OrphanDeck[]>
+  /** Puts an orphaned deck back at the end of its event; false when that event is gone. */
+  restoreDeck(deckId: string, eventId: string): Promise<boolean>
   /** Display name only; validated in main (not empty, at most 120 characters). */
   renameDeck(eventId: string, deckId: string, name: string): Promise<DeckMeta>
   /** Fit, Fill or Stretch for the deck's slides on the output. */

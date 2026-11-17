@@ -794,6 +794,18 @@ function registerIpc(
     syncWeb()
   })
 
+  // Decks whose folder survived but whose id is in no event (two copies of the app used to
+  // overwrite events.json). Offered to the operator instead of being invisible forever.
+  handle(Invoke.decksOrphans, () => lib.orphanDecks())
+
+  handle(Invoke.decksRestore, (deckId, eventId) => {
+    assertString(deckId, 'Deck ID')
+    assertString(eventId, 'Event ID')
+    const restored = lib.restoreDeck(deckId, eventId)
+    if (restored) state.refresh()
+    return restored
+  })
+
   const roleOf = (wc: Electron.WebContents): AppWindowRole => {
     if (hdmi.ownsWebContents(wc)) return 'hdmi'
     if (net.ownsWebContents(wc.id)) return 'omt'
@@ -1479,6 +1491,23 @@ if (process.env['PPT_SHARE_USER_DATA']) {
   // Renamed from PPT Share: carry the old library over once.
   migrateUserData(app.getPath('userData'), app.getPath('appData'))
 }
+
+/**
+ * One instance per data folder, taken once userData is known. Two copies of the app each keep the
+ * event list in memory and write `events.json` whole, so the last writer silently dropped the deck
+ * ids the other one had just added: the deck folders stayed on disk but disappeared from the
+ * library. A second start hands over to the running window instead of opening its own. e2e runs get
+ * their own PPT_SHARE_USER_DATA, so they never collide with an installed app.
+ */
+if (!app.requestSingleInstanceLock()) app.exit(0)
+
+app.on('second-instance', () => {
+  const win = operatorWindowRef()
+  if (!win || win.isDestroyed()) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+})
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.bridgecast.app')

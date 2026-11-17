@@ -37,6 +37,12 @@ export interface DeckMeta {
    * `vector` to `native` without touching a mode the operator chose.
    */
   importStatic?: boolean
+  /**
+   * The event that owns this deck, written when the deck is stored. Only used to put a deck back
+   * when its id is missing from every event (two copies of the app used to overwrite the event
+   * list); absent on decks imported before this was recorded.
+   */
+  eventId?: string
   /** The page of a web deck (source 'web'). */
   web?: { url: string; zoom?: number }
 }

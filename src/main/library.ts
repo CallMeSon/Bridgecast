@@ -281,6 +281,48 @@ export class Library {
     return this.events.map(copyEvent)
   }
 
+  /**
+   * Deck folders whose id is in no event's `deckIds`: the deck is on disk but invisible in the UI.
+   * Two copies of the app used to overwrite `events.json` with their own in-memory list, which
+   * dropped deck ids the other copy had added. Each returned item says where it belongs.
+   */
+  orphanDecks(): { deckId: string; name: string; eventId: string | null }[] {
+    const known = new Set(this.events.flatMap((e) => e.deckIds))
+    const dir = path.join(this.root, 'decks')
+    const orphans: { deckId: string; name: string; eventId: string | null }[] = []
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !isUuid(entry.name) || known.has(entry.name)) continue
+      try {
+        const deck = this.readDeck(entry.name)
+        // The owner event must still exist, otherwise the deck stays orphaned (its event was
+        // removed and the files are only kept, never resurrected into another event).
+        const owner = deck.eventId && this.events.some((e) => e.id === deck.eventId)
+        orphans.push({
+          deckId: entry.name,
+          name: deck.name,
+          eventId: owner ? deck.eventId! : null
+        })
+      } catch {
+        // A folder with no readable deck.json is not a deck the app can offer back.
+      }
+    }
+    return orphans.sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  /**
+   * Puts an orphaned deck back in its event, at the end. Returns false when the event no longer
+   * exists; a deck the event already lists is left alone and counts as restored.
+   */
+  restoreDeck(deckId: string, eventId: string): boolean {
+    const ev = this.events.find((e) => e.id === eventId)
+    if (!ev) return false
+    if (ev.deckIds.includes(deckId)) return true
+    this.readDeck(deckId) // throws when the folder is not a deck
+    ev.deckIds.push(deckId)
+    this.saveEvents()
+    return true
+  }
+
   touchEvent(eventId: string, now = Date.now()): EventMeta {
     const ev = this.findEvent(eventId)
     ev.lastOpened = now
@@ -435,7 +477,8 @@ export class Library {
         source: d.source,
         width: d.width,
         height: d.height,
-        slides
+        slides,
+        eventId
       }
       if (web) deck.web = web
       if (d.playback) deck.playback = d.playback

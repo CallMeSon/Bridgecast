@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DeckMeta, EventMeta, EventSummary, SectionMeta } from '../../shared/types'
 import { orderItems, splitOrder } from '../../shared/sections'
 import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '../../shared/program'
-import type { ImportRequest } from '../../shared/ipc'
+import type { ImportRequest, OrphanDeck } from '../../shared/ipc'
 import { IMPORT_WIDTH, type DeckFit } from '../../shared/canvas'
 import type { Playback } from '../../shared/types'
 import type { NewEventOptions } from '../../shared/event-outputs'
@@ -34,6 +34,7 @@ import {
 import { Strip } from './components/Strip'
 import { Splitters } from './components/Splitters'
 import { ActionError, SaveNote } from './components/ActionError'
+import { OrphanDecksWarning } from './components/OrphanDecksWarning'
 import { CaptureWarning } from './components/CaptureWarning'
 import { HoldWarning } from './components/HoldWarning'
 import { EditErrorBanner, NativeFallbackWarning, PendingBanner } from './components/NativeNotices'
@@ -198,6 +199,8 @@ function App({
   // A failed Program action (shown next to the tally) and a short "saved" note.
   const [actionError, setActionError] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  // Deck folders on disk that no event lists (a lost event list); offered back at startup.
+  const [orphans, setOrphans] = useState<OrphanDeck[]>([])
   const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const announce = useCallback((text: string) => {
@@ -258,6 +261,26 @@ function App({
     [api, reportError]
   )
 
+  // Puts a deck found on disk back at the end of its event, then refreshes the library.
+  const restoreOrphan = useCallback(
+    (deck: OrphanDeck) => {
+      if (!deck.eventId) return
+      api.restoreDeck(deck.deckId, deck.eventId).then(
+        async (restored) => {
+          if (!restored) {
+            setActionError('Its event no longer exists, so the deck cannot be put back.')
+            return
+          }
+          setOrphans((list) => list.filter((o) => o.deckId !== deck.deckId))
+          announce(`“${deck.name}” put back`)
+          await reloadAll(deck.eventId!)
+        },
+        (e) => setActionError(errorMessage(e))
+      )
+    },
+    [api, reloadAll, announce]
+  )
+
   // Initial load and main-process subscriptions.
   useEffect(() => {
     const offState = api.onProgramState(setProgram)
@@ -299,6 +322,10 @@ function App({
       tabsLoaded.current = true
       setProgram(session.state)
       await reloadDecks(session.eventId)
+      api
+        .orphanDecks()
+        .then(setOrphans)
+        .catch(() => undefined)
     })().catch((e) => reportError('Decks', e))
     return () => {
       offState()
@@ -1202,6 +1229,11 @@ function App({
         />
         <section className="stage-col" aria-label="Program">
           <ActionError message={actionError} onDismiss={() => setActionError(null)} />
+          <OrphanDecksWarning
+            orphans={orphans}
+            onRestore={restoreOrphan}
+            onDismiss={() => setOrphans([])}
+          />
           {program.webHold && (
             <HoldWarning
               lost={!!program.shown?.web && pages.statuses[program.shown.web.deckId] === 'error'}

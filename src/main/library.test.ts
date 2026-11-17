@@ -119,6 +119,61 @@ describe('Library', () => {
     expect(lib2.getDecks(ev.id)[0].slides).toHaveLength(3)
   })
 
+  it('records the owning event on the deck and finds no orphans in a healthy library', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const d = lib.addDeck(ev.id, deckInput())
+    expect(new Library(root).getDeck(d.id).eventId).toBe(ev.id)
+    expect(lib.orphanDecks()).toEqual([])
+  })
+
+  it('finds a deck whose id was dropped from every event, and restores it to its event', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const other = lib.createEvent('Other')
+    const d = lib.addDeck(ev.id, deckInput(2, 'slide'))
+    // Simulate the lost write: events.json no longer lists the deck, the folder is still there.
+    const file = path.join(root, 'events.json')
+    const events = JSON.parse(fs.readFileSync(file, 'utf8')) as EventMeta[]
+    for (const e of events) e.deckIds = []
+    fs.writeFileSync(file, JSON.stringify(events))
+
+    const lib2 = new Library(root)
+    expect(lib2.getDecks(ev.id)).toEqual([])
+    expect(lib2.orphanDecks()).toEqual([{ deckId: d.id, name: 'slide', eventId: ev.id }])
+    expect(lib2.restoreDeck(d.id, ev.id)).toBe(true)
+    // Back at the end of its event, and not offered twice.
+    expect(new Library(root).getDecks(ev.id).map((x) => x.id)).toEqual([d.id])
+    expect(new Library(root).orphanDecks()).toEqual([])
+    // Its files were never touched.
+    expect(fs.readFileSync(path.join(root, 'decks', d.id, '001.png'), 'utf8')).toBe('png-0')
+    expect(other.deckIds).toEqual([])
+  })
+
+  it('never restores a deck into an event that no longer exists', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('E')
+    const d = lib.addDeck(ev.id, deckInput())
+    const file = path.join(root, 'events.json')
+    fs.writeFileSync(file, JSON.stringify([]))
+
+    const lib2 = new Library(root)
+    expect(lib2.orphanDecks()).toEqual([{ deckId: d.id, name: 'Deck', eventId: null }])
+    expect(lib2.restoreDeck(d.id, ev.id)).toBe(false)
+    expect(new Library(root).orphanDecks()).toHaveLength(1)
+  })
+
+  it('ignores a folder that is not a readable deck', () => {
+    const lib = new Library(root)
+    lib.createEvent('E')
+    // An empty uuid folder and a folder named with something that is not an id.
+    fs.mkdirSync(path.join(root, 'decks', randomUUID()), { recursive: true })
+    const odd = path.join(root, 'decks', 'not-a-uuid')
+    fs.mkdirSync(odd, { recursive: true })
+    fs.writeFileSync(path.join(odd, 'deck.json'), '{}')
+    expect(lib.orphanDecks()).toEqual([])
+  })
+
   it('reorderSlides reorders slides with notes and files', () => {
     const lib = new Library(root)
     const ev = lib.createEvent('E')
