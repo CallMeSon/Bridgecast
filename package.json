@@ -18,6 +18,8 @@
     "postinstall": "electron-builder install-app-deps",
     "build:icons": "node scripts/build-icons.mjs",
     "build:bridge": "bash scripts/build-ppt-bridge.sh",
+    "build:web-bridge": "bash scripts/build-web-bridge.sh",
+    "build:web-bridge:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-web-bridge.ps1",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",

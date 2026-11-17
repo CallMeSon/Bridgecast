@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>web-bridge</AssemblyName>
+    <RootNamespace>WebBridge</RootNamespace>
+    <Platforms>AnyCPU</Platforms>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+  <!-- ppt-bridge's audio capture is already process-agnostic (pid + pipe name): share it. -->
+  <ItemGroup>
+    <Compile Include="../ppt-bridge/Audio.cs" Link="Shared/Audio.cs" />
+    <Compile Include="../ppt-bridge/PingPolicy.cs" Link="Shared/PingPolicy.cs" />
+    <Compile Include="../ppt-bridge/Native.cs" Link="Shared/Native.cs" />
+  </ItemGroup>
+</Project>

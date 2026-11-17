@@ -22,5 +22,8 @@ resources/omt/**/*.dll
 # ppt-bridge build output
 native/ppt-bridge/bin/
 native/ppt-bridge/obj/
+# web-bridge build output
+native/web-bridge/bin/
+native/web-bridge/obj/
 __pycache__/
 *.pyc
