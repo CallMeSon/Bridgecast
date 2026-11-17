@@ -42,6 +42,9 @@ import {
   type EngineInfo
 } from './platform'
 import { readFolderDeck } from './import/folder'
+import { readVideoDeck } from './import/video-file'
+import { grabPoster } from './import/grab-poster'
+import { VIDEO_EXTENSIONS_RE } from '../shared/video-file'
 import { ImportQueue } from './import-queue'
 import type { DeckMeta } from '../shared/types'
 import { DeckEditor } from './slideshow/editor'
@@ -476,8 +479,23 @@ function registerIpc(
         state.refresh()
         return
       }
+      if (VIDEO_EXTENSIONS_RE.test(job.path)) {
+        const out = tempDir()
+        try {
+          const deck = await readVideoDeck(job.path, out, grabPoster)
+          progress({ id: job.id, name: job.name, percent: 90, status: 'busy' })
+          // Same source as a folder deck: playback, volume and the strip play mark are unchanged.
+          lib.addDeck(eventId, { ...deck, source: 'folder' })
+          state.refresh()
+        } finally {
+          fs.rmSync(out, { recursive: true, force: true })
+        }
+        return
+      }
       if (!PPTX_RE.test(job.path)) {
-        throw new Error('This file type is not supported. Choose a PPTX, PPT, or PDF file.')
+        throw new Error(
+          'This file type is not supported. Choose a PPTX, PPT, PDF, MP4, M4V, or WebM file.'
+        )
       }
       const out = tempDir()
       try {
