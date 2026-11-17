@@ -4,6 +4,19 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-17
+
+### Added
+
+- Web decks on Windows run in a real WebView2 (Microsoft Edge) page hosted by a small helper, so sites that reject embedded browsers work, including "Sign in with Google" on Canva. Sign-ins live in a profile folder under the app's data folder and survive a restart.
+- A web page can have its own sign-in profile (one deck signed in to one account, another deck to another), and "Sign out of all websites" clears the profiles of the open pages.
+- If the helper hangs or is killed, the output holds the last good frame (never black), the helper restarts by itself and reopens every page at the address it was on. After three failed restarts the session switches to the built-in browser instead of leaving the output without a page.
+- Web page sound keeps the same deck-volume and master rules, now fed from the helper's audio pipe through the outputs' gain.
+
+### Fixed
+
+- A web page that failed to load loads again after Reload (the error state is cleared when the new document starts), in both the built-in browser and the WebView2 helper.
+
 ## [0.1.5] - 2026-11-17
 
 ### Added

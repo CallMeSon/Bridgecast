@@ -92,6 +92,16 @@ if (
 ) {
   buildCommands.push(['npm', ['run', 'build:bridge']])
 }
+// The installer ships the WebView2 helper too; without it web decks fall back to Electron.
+if (
+  platforms.includes('win') &&
+  !existsSync(join(root, 'native/web-bridge/bin/Release/net48/web-bridge.exe'))
+) {
+  buildCommands.push([
+    'npm',
+    ['run', process.platform === 'win32' ? 'build:web-bridge:win' : 'build:web-bridge']
+  ])
+}
 for (const platform of platforms) {
   const target = platform === 'win' ? ['--win'] : ['--linux', 'AppImage', 'deb']
   buildCommands.push(['npx', ['electron-builder', ...target, '--publish', 'never']])
