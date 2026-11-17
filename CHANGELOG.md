@@ -4,6 +4,8 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-17
+
 ### Added
 
 - New event takes decks at once: drop PPTX, PPT or PDF files or a whole folder into the dialog, or pick them with "Choose files" / "Choose folder". They are imported into the event as soon as it is created.
