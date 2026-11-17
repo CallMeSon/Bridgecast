@@ -49,7 +49,13 @@ export function useOutputSettings(): OutputSettingsState {
     const offs = [
       api.onHdmiStatus(setStatus),
       api.onDisplaysChanged(setDisplays),
-      api.onAudioSettings(setAudio)
+      api.onAudioSettings(setAudio),
+      // Main switched an output by itself (an event's saved outputs took over).
+      api.onOutputSettings((s) => {
+        setHdmi(s.hdmi)
+        setOmt(s.omt)
+        setNdi(s.ndi)
+      })
     ]
     api.getSettings().then((s) => {
       setHdmi(s.hdmi)

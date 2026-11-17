@@ -4,6 +4,10 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Added
+
+- New event sets the event's Canvas (the default, a preset, the HDMI display's size or a custom size) and its Outputs (HDMI, OMT, NDI), so the event is ready when it is used. The outputs are switched when the event takes the output, and a switch changed in the Output panel is remembered by that event.
+
 ## [0.1.3] - 2026-11-17
 
 ### Added

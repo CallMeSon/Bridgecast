@@ -1,17 +1,30 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { UploadSimpleIcon, WarningCircleIcon, XIcon } from '@phosphor-icons/react'
+import { displayCanvas, type Canvas } from '../../../shared/canvas'
+import { pickDisplay } from '../../../shared/displays'
+import type { EventOutputs, NewEventOptions } from '../../../shared/event-outputs'
 import { errorMessage, hasFiles } from '../model'
-import { addDeckFiles, checkEventName, EVENT_NAME_MAX } from '../new-event'
+import {
+  addDeckFiles,
+  canvasChoices,
+  canvasOfChoice,
+  checkEventName,
+  EVENT_NAME_MAX
+} from '../new-event'
+import { Switch } from './Switch'
+import type { OutputSettingsState } from './useOutputSettings'
 
 interface Props {
   /** Names of the existing events, to refuse a duplicate. */
   existing: readonly string[]
+  /** This PC's output settings: the default canvas, the HDMI display and what is on now. */
+  output: OutputSettingsState
   /**
-   * Creates and opens the event, then imports `files` into it as decks. Rejects with a
-   * user-facing message when main refuses.
+   * Creates and opens the event with its canvas and outputs, then imports `files` into it as
+   * decks. Rejects with a user-facing message when main refuses.
    */
-  onSubmit(name: string, files: File[]): Promise<void>
+  onSubmit(name: string, files: File[], options: NewEventOptions): Promise<void>
   /** Closes the dialog; `restoreFocus` is true when the keyboard closed it. */
   onClose(restoreFocus: boolean): void
 }
@@ -57,14 +70,21 @@ async function filesOfDrop(dt: DataTransfer): Promise<File[]> {
   return files
 }
 
-const FOCUSABLE = 'input, button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
+const FOCUSABLE = 'input, select, button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
+
+const OUTPUTS: readonly { key: keyof EventOutputs; label: string }[] = [
+  { key: 'hdmi', label: 'HDMI' },
+  { key: 'omt', label: 'OMT' },
+  { key: 'ndi', label: 'NDI' }
+]
 
 /**
- * "New event": a modal with a Name field and an optional list of decks to import (files or a
- * folder, dropped or chosen). Focus stays inside (Tab wraps), Escape, the scrim
+ * "New event": a modal with a Name field, the event's Canvas and Outputs, and an optional list
+ * of decks to import (files or a folder, dropped or chosen). Canvas and Outputs start from this
+ * PC's settings, so an event created without touching them changes nothing. Focus stays inside (Tab wraps), Escape, the scrim
  * or Cancel closes it, Enter creates. The caller returns focus to the opener on `onClose(true)`.
  */
-export function NewEventDialog({ existing, onSubmit, onClose }: Props): React.JSX.Element {
+export function NewEventDialog({ existing, output, onSubmit, onClose }: Props): React.JSX.Element {
   const box = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
   const id = useId()
@@ -76,6 +96,19 @@ export function NewEventDialog({ existing, onSubmit, onClose }: Props): React.JS
   const [over, setOver] = useState(false)
   const filePicker = useRef<HTMLInputElement>(null)
   const folderPicker = useRef<HTMLInputElement | null>(null)
+  const [canvasChoice, setCanvasChoice] = useState('default')
+  const [custom, setCustom] = useState({ width: '', height: '' })
+  const [canvasError, setCanvasError] = useState<string | null>(null)
+  const customWidth = useRef<HTMLInputElement>(null)
+  // What is on now on this PC: an untouched dialog saves exactly that.
+  const [outputs, setOutputs] = useState<EventOutputs>(() => ({
+    hdmi: output.hdmi?.enabled ?? false,
+    omt: output.omt?.enabled ?? false,
+    ndi: output.ndi?.enabled ?? false
+  }))
+  const hdmiDisplay = pickDisplay(output.displays, output.hdmi?.displayId ?? null)
+  const display: Canvas | null = displayCanvas(hdmiDisplay)
+  const choices = canvasChoices(output.canvas, display)
 
   const addFiles = (added: File[]): void => {
     const r = addDeckFiles(files, added)
@@ -117,9 +150,15 @@ export function NewEventDialog({ existing, onSubmit, onClose }: Props): React.JS
       input.current?.focus()
       return
     }
+    const canvas = canvasOfChoice(canvasChoice, custom, display)
+    if (!canvas.ok) {
+      setCanvasError(canvas.error)
+      customWidth.current?.focus()
+      return
+    }
     setBusy(true)
     try {
-      await onSubmit(checked.name, files)
+      await onSubmit(checked.name, files, { canvas: canvas.canvas, outputs })
       onClose(true)
     } catch (e) {
       setError(errorMessage(e))
@@ -229,6 +268,90 @@ export function NewEventDialog({ existing, onSubmit, onClose }: Props): React.JS
                 {error}
               </p>
             )}
+          </div>
+          <div className="field">
+            <label htmlFor={`${id}-canvas`}>Canvas</label>
+            <select
+              id={`${id}-canvas`}
+              className="text-input"
+              value={canvasChoice}
+              disabled={busy}
+              data-testid="new-event-canvas"
+              onChange={(e) => {
+                setCanvasChoice(e.target.value)
+                setCanvasError(null)
+              }}
+            >
+              {choices.map((c) => (
+                <option key={c.value} value={c.value} disabled={c.disabled}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            {canvasChoice === 'custom' && (
+              <div className="ne-custom" role="group" aria-label="Custom size">
+                {(['width', 'height'] as const).map((side) => (
+                  <input
+                    key={side}
+                    ref={side === 'width' ? customWidth : undefined}
+                    className="text-input num"
+                    type="number"
+                    inputMode="numeric"
+                    aria-label={side === 'width' ? 'Width' : 'Height'}
+                    placeholder={side === 'width' ? '1920' : '1080'}
+                    value={custom[side]}
+                    disabled={busy}
+                    aria-invalid={canvasError !== null || undefined}
+                    aria-describedby={canvasError ? `${id}-canvas-error` : undefined}
+                    data-testid={`new-event-${side}`}
+                    onChange={(e) => {
+                      setCustom((c) => ({ ...c, [side]: e.target.value }))
+                      setCanvasError(null)
+                    }}
+                  />
+                ))}
+                <span className="px">px</span>
+              </div>
+            )}
+            {canvasError ? (
+              <p
+                id={`${id}-canvas-error`}
+                className="pop-error"
+                role="alert"
+                data-testid="new-event-canvas-error"
+              >
+                <WarningCircleIcon size={16} />
+                {canvasError}
+              </p>
+            ) : (
+              <span className="hint">The size of the picture this event sends to the outputs.</span>
+            )}
+          </div>
+          <div className="field" role="group" aria-labelledby={`${id}-outputs`}>
+            <span className="ne-label" id={`${id}-outputs`}>
+              Outputs
+            </span>
+            <div className="ne-outputs">
+              {OUTPUTS.map(({ key, label }) => (
+                <div className="ne-output" key={key}>
+                  <span id={`${id}-out-${key}`}>{label}</span>
+                  <Switch
+                    id={`${id}-sw-${key}`}
+                    labelledBy={`${id}-out-${key}`}
+                    checked={outputs[key]}
+                    disabled={busy}
+                    testId={`new-event-out-${key}`}
+                    onChange={(on) => setOutputs((o) => ({ ...o, [key]: on }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <span className="hint">
+              {outputs.hdmi && !hdmiDisplay
+                ? 'No second display is connected: HDMI stays off until one is. '
+                : ''}
+              Switched when this event takes the output. The Output panel can still change them.
+            </span>
           </div>
           <div className="field">
             <label htmlFor={`${id}-files`}>

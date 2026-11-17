@@ -5,6 +5,7 @@ import type { NdiSettings, NdiStatus, OmtSettings, OmtStatus } from './omt'
 import type { AudioSettings, HdmiSettings, PptImportFormat, Settings } from './settings'
 import type { DisplayInfo } from './displays'
 import type { Canvas, DeckFit } from './canvas'
+import type { NewEventOptions } from './event-outputs'
 import type { DeckAudio } from './audio-levels'
 import type { SlideshowStatus } from './playback'
 import type { UpdateStatus } from './update'
@@ -111,6 +112,7 @@ export const Broadcast = {
   displaysChanged: 'displays:changed',
   hdmiStatus: 'hdmi:status',
   audioSettings: 'audio:settings',
+  outputSettings: 'output:settings',
   omtStatus: 'omt:status',
   ndiStatus: 'ndi:status',
   webStatus: 'web:status',
@@ -200,7 +202,7 @@ export interface Session {
 export interface InvokeMap {
   'app:version': { args: []; result: string }
   'events:list': { args: []; result: EventMeta[] }
-  'events:create': { args: [name: string]; result: EventMeta }
+  'events:create': { args: [name: string, options?: NewEventOptions]; result: EventMeta }
   'events:select': { args: [eventId: string]; result: ProgramState }
   'events:summaries': { args: []; result: EventSummary[] }
   /** Refused while that event holds the output (something on air). */
@@ -337,6 +339,8 @@ export interface BroadcastMap {
   'displays:changed': DisplayInfo[]
   'hdmi:status': HdmiStatus
   'audio:settings': AudioSettings
+  /** Main changed HDMI, OMT or NDI by itself (an event's saved outputs were applied). */
+  'output:settings': Settings
   'omt:status': OmtStatus
   'ndi:status': NdiStatus
   'web:status': WebStatusEvent
@@ -382,7 +386,8 @@ export interface Api {
   listEvents(): Promise<EventMeta[]>
   eventSummaries(): Promise<EventSummary[]>
   setEventArchived(eventId: string, archived: boolean): Promise<EventMeta>
-  createEvent(name: string): Promise<EventMeta>
+  /** `options`: the event's own canvas and outputs, set in the New event dialog. */
+  createEvent(name: string, options?: NewEventOptions): Promise<EventMeta>
   selectEvent(eventId: string): Promise<ProgramState>
   listDecks(eventId: string): Promise<DeckMeta[]>
   importDecks(eventId: string, files: ImportRequest[]): Promise<void>
@@ -424,6 +429,7 @@ export interface Api {
   setAudio(a: AudioSettings): Promise<Settings>
   patchAudio(patch: Partial<AudioSettings>): Promise<Settings>
   onAudioSettings(cb: (a: AudioSettings) => void): () => void
+  onOutputSettings(cb: (s: Settings) => void): () => void
   /** Output window only (HDMI): the first frame for the current program state is rendered. */
   outputReady(): void
   setOmt(o: OmtSettings): Promise<Settings>

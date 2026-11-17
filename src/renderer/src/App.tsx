@@ -5,6 +5,7 @@ import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '.
 import type { ImportRequest } from '../../shared/ipc'
 import { IMPORT_WIDTH, type DeckFit } from '../../shared/canvas'
 import type { Playback } from '../../shared/types'
+import type { NewEventOptions } from '../../shared/event-outputs'
 import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
 import { Home } from './components/Home'
@@ -621,8 +622,8 @@ function App({
   // Throws when main refuses: the New event dialog shows the message under its field. Decks
   // picked in the dialog are imported into the new event once it is open.
   const createEvent = useCallback(
-    async (name: string, files: File[] = []) => {
-      const ev = await api.createEvent(name)
+    async (name: string, files: File[] = [], options: NewEventOptions = {}) => {
+      const ev = await api.createEvent(name, options)
       setEvents(await api.listEvents())
       await selectEvent(ev.id)
       if (files.length && eventRef.current === ev.id) importFiles(files)
@@ -1110,6 +1111,7 @@ function App({
       {newEventOpen && (
         <NewEventDialog
           existing={events.map((e) => e.name)}
+          output={output}
           onSubmit={createEvent}
           onClose={closeNewEvent}
         />

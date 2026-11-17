@@ -4442,6 +4442,40 @@ button > svg,
   display: block;
 }
 
+/* New event: Canvas (custom size fields) and Outputs (one switch per row). */
+.ne-custom {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+.ne-custom .px {
+  color: var(--text-3);
+  font: 400 12px var(--font-mono);
+}
+.ne-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+.ne-outputs {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+.ne-output {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--h-md);
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.ne-output + .ne-output {
+  border-top: 1px solid var(--line);
+}
+
 /* New event: optional decks. A quiet dashed well; the list below it scrolls on its own. */
 .ne-drop {
   display: grid;

@@ -61,6 +61,35 @@ afterEach(() => {
 })
 
 describe('Library', () => {
+  it('createEvent saves the canvas and outputs of the New event dialog', () => {
+    const lib = new Library(root)
+    const ev = lib.createEvent('Gala', 1, {
+      canvas: { width: 3841, height: 1080 },
+      outputs: { hdmi: true, omt: false, ndi: true }
+    })
+    expect(ev.canvas).toEqual({ width: 3840, height: 1080 })
+    expect(ev.outputs).toEqual({ hdmi: true, omt: false, ndi: true })
+    // Kept across a restart; a plain event has neither field.
+    const again = new Library(root)
+    expect(again.listEvents()[0].outputs).toEqual({ hdmi: true, omt: false, ndi: true })
+    const plain = again.createEvent('Plain', 2, { canvas: null, outputs: null })
+    expect('canvas' in plain || 'outputs' in plain).toBe(false)
+    expect(() => again.createEvent('Bad', 3, { canvas: { width: 10, height: 10 } })).toThrow(
+      'Use a width and height'
+    )
+  })
+
+  it('patchEventOutputs updates only an event that saved its outputs', () => {
+    const lib = new Library(root)
+    const own = lib.createEvent('Own', 1, { outputs: { hdmi: false, omt: false, ndi: false } })
+    const plain = lib.createEvent('Plain', 2)
+    expect(lib.patchEventOutputs(own.id, { omt: true })).toBe(true)
+    expect(lib.patchEventOutputs(plain.id, { omt: true })).toBe(false)
+    const events = new Library(root).listEvents()
+    expect(events[0].outputs).toEqual({ hdmi: false, omt: true, ndi: false })
+    expect(events[1].outputs).toBeUndefined()
+  })
+
   it('createEvent trims name and rejects empty', () => {
     const lib = new Library(root)
     expect(lib.createEvent('  Gala  ').name).toBe('Gala')

@@ -14,6 +14,11 @@ import {
   type SlideMeta
 } from '../shared/types'
 import { CANVAS_INVALID, isDeckFit, sanitizeCanvas } from '../shared/canvas'
+import {
+  sanitizeEventOutputs,
+  type EventOutputs,
+  type NewEventOptions
+} from '../shared/event-outputs'
 import { canNative, isPlayback } from '../shared/playback'
 import { sanitizeDeckAudio } from '../shared/audio-levels'
 import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections'
@@ -123,6 +128,7 @@ function copyEvent(ev: EventMeta): EventMeta {
   const copy: EventMeta = { ...ev, deckIds: [...ev.deckIds] }
   if (ev.sections) copy.sections = ev.sections.map((s) => ({ ...s }))
   if (ev.canvas) copy.canvas = { ...ev.canvas }
+  if (ev.outputs) copy.outputs = { ...ev.outputs }
   return copy
 }
 
@@ -172,6 +178,11 @@ export class Library {
           const canvas = sanitizeCanvas(ev.canvas)
           if (canvas) ev.canvas = canvas
           else delete ev.canvas
+        }
+        if ('outputs' in ev) {
+          const outputs = sanitizeEventOutputs(ev.outputs)
+          if (outputs) ev.outputs = outputs
+          else delete ev.outputs
         }
         const e = ev as { createdAt?: unknown; lastOpened?: unknown; archived?: unknown }
         for (const k of ['createdAt', 'lastOpened'] as const) {
@@ -243,7 +254,8 @@ export class Library {
     writeJsonAtomic(path.join(this.deckDir(deck.id), 'deck.json'), deck)
   }
 
-  createEvent(name: string, now = Date.now()): EventMeta {
+  /** `options` (New event dialog): the event's own canvas and its outputs; both optional. */
+  createEvent(name: string, now = Date.now(), options: NewEventOptions = {}): EventMeta {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Event name is empty. Type a name for the event.')
     const ev: EventMeta = {
@@ -253,6 +265,13 @@ export class Library {
       createdAt: now,
       lastOpened: now
     }
+    if (options.canvas != null) {
+      const canvas = sanitizeCanvas(options.canvas)
+      if (!canvas) throw new Error(CANVAS_INVALID)
+      ev.canvas = canvas
+    }
+    const outputs = sanitizeEventOutputs(options.outputs)
+    if (outputs) ev.outputs = outputs
     this.events.push(ev)
     this.saveEvents()
     return copyEvent(ev)
@@ -644,6 +663,20 @@ export class Library {
     }
     this.saveEvents()
     return copyEvent(ev)
+  }
+
+  /**
+   * Updates the outputs an event remembers (the operator switched one in the Output panel while
+   * the event owned the output). An event without saved outputs is left alone: returns false.
+   */
+  patchEventOutputs(eventId: string, patch: Partial<EventOutputs>): boolean {
+    const ev = this.events.find((e) => e.id === eventId)
+    if (!ev?.outputs) return false
+    const next = sanitizeEventOutputs({ ...ev.outputs, ...patch })
+    if (!next) return false
+    ev.outputs = next
+    this.saveEvents()
+    return true
   }
 
   removeDeck(eventId: string, deckId: string): void {

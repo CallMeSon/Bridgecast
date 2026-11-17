@@ -60,6 +60,7 @@ import { HdmiOutput, screenDisplays } from './display-output'
 import { NetOutput } from './net-output'
 import type { ScreenDisplay } from './hdmi-plan'
 import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
+import { outputChanges, type EventOutputs } from '../shared/event-outputs'
 import { permissionAllowed } from './permissions'
 import {
   sanitizeNdi,
@@ -345,10 +346,49 @@ function registerIpc(
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
   handle(Invoke.eventsList, () => lib.listEvents())
-  handle(Invoke.eventsCreate, (name) => {
+  handle(Invoke.eventsCreate, (name, options) => {
     assertString(name, 'Event name')
-    return lib.createEvent(name)
+    const o = typeof options === 'object' && options !== null ? options : {}
+    return lib.createEvent(name, Date.now(), { canvas: o.canvas, outputs: o.outputs })
   })
+  // An event's saved outputs (New event dialog). The event that owns the output (the air event)
+  // decides: when it changes, its outputs are applied to this PC's settings; a switch the
+  // operator flips in the Output panel meanwhile is remembered by that event.
+  const rememberOutput = (patch: Partial<EventOutputs>): void => {
+    const owner = state.state.airEvent
+    if (owner) lib.patchEventOutputs(owner, patch)
+  }
+  const applyEventOutputs = (eventId: string | null): void => {
+    const wanted = eventId ? lib.listEvents().find((e) => e.id === eventId)?.outputs : undefined
+    if (!wanted) return
+    const cur = settings.get()
+    const change = outputChanges(wanted, {
+      hdmi: cur.hdmi.enabled,
+      omt: cur.omt.enabled,
+      ndi: cur.ndi.enabled
+    })
+    let changed = false
+    if (change.hdmi !== undefined) {
+      // The same checks as the HDMI switch: with no usable display HDMI stays as it is (the
+      // header shows it off) and the event keeps its wish for the next time.
+      const input = { ...cur.hdmi, enabled: change.hdmi }
+      const displays = hdmi.displays()
+      const operatorId = hdmi.operatorDisplayId()
+      if (!hdmiSettingsError(input, displays, operatorId)) {
+        hdmi.apply(settings.saveHdmi(resolveHdmi(input, displays, operatorId)).hdmi)
+        changed = true
+      }
+    }
+    if (change.omt !== undefined || change.ndi !== undefined) {
+      if (change.omt !== undefined) settings.saveOmt({ ...cur.omt, enabled: change.omt })
+      if (change.ndi !== undefined) settings.saveNdi({ ...cur.ndi, enabled: change.ndi })
+      const saved = settings.get()
+      net.apply({ omt: saved.omt, ndi: saved.ndi })
+      changed = true
+    }
+    if (changed) broadcast(Broadcast.outputSettings, settings.get())
+  }
+  let outputOwner = state.state.airEvent
   handle(Invoke.eventsSelect, (eventId) => {
     assertString(eventId, 'Event ID')
     const s = state.setEvent(eventId)
@@ -783,6 +823,7 @@ function registerIpc(
     if (error) throw new Error(error)
     const saved = settings.saveHdmi(resolveHdmi(input, displays, operatorId))
     hdmi.apply(saved.hdmi)
+    rememberOutput({ hdmi: saved.hdmi.enabled })
     return saved
   })
 
@@ -805,6 +846,7 @@ function registerIpc(
   handle(Invoke.omtSet, (input: OmtSettings) => {
     const saved = settings.saveOmt(sanitizeOmt(input))
     net.apply({ omt: saved.omt, ndi: saved.ndi })
+    rememberOutput({ omt: saved.omt.enabled })
     return saved
   })
   handle(Invoke.networkSetFps, (fps: 30 | 60) => {
@@ -823,6 +865,7 @@ function registerIpc(
   handle(Invoke.ndiSet, (input: NdiSettings) => {
     const saved = settings.saveNdi(sanitizeNdi(input))
     net.apply({ omt: saved.omt, ndi: saved.ndi })
+    rememberOutput({ ndi: saved.ndi.enabled })
     return saved
   })
 
@@ -832,6 +875,11 @@ function registerIpc(
     net.canvasChanged()
     // What is on air may be a Fit slide now, or not: the sent rectangle follows it.
     net.contentChanged()
+    // The output has a new owner: its saved outputs (if any) take over.
+    if (s.airEvent !== outputOwner) {
+      outputOwner = s.airEvent
+      applyEventOutputs(outputOwner)
+    }
   })
 }
 

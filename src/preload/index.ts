@@ -46,7 +46,7 @@ ipcRenderer.on(SLIDESHOW_AUDIO_PORT, (e) => {
 
 const api: Api = {
   listEvents: () => invoke(Invoke.eventsList),
-  createEvent: (name) => invoke(Invoke.eventsCreate, name),
+  createEvent: (name, options) => invoke(Invoke.eventsCreate, name, options),
   selectEvent: (eventId) => invoke(Invoke.eventsSelect, eventId),
   eventSummaries: () => invoke(Invoke.eventsSummaries),
   setEventArchived: (eventId, archived) => invoke(Invoke.eventsSetArchived, eventId, archived),
@@ -82,6 +82,7 @@ const api: Api = {
   setAudio: (a) => invoke(Invoke.audioSet, a),
   patchAudio: (patch) => invoke(Invoke.audioPatch, patch),
   onAudioSettings: (cb) => subscribe(Broadcast.audioSettings, cb),
+  onOutputSettings: (cb) => subscribe(Broadcast.outputSettings, cb),
   outputReady: () => ipcRenderer.send(Send.outputReady),
   setOmt: (o) => invoke(Invoke.omtSet, o),
   getOmtStatus: () => invoke(Invoke.omtGetStatus),

@@ -27,6 +27,8 @@ export function Switch({
     <span className="switch-ctl">
       <button
         id={id}
+        // Never a submit button: inside a form (New event) a click must only flip the switch.
+        type="button"
         className="switch"
         role="switch"
         aria-checked={checked}

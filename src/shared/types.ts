@@ -1,3 +1,4 @@
+import type { EventOutputs } from './event-outputs'
 import type { Canvas, DeckFit } from './canvas'
 import type { DeckAudio } from './audio-levels'
 
@@ -57,6 +58,8 @@ export interface EventMeta {
   kv?: string
   /** Output canvas for this event; absent = the machine default. */
   canvas?: Canvas
+  /** Outputs this event turns on or off when it becomes the output's event; absent = none. */
+  outputs?: EventOutputs
   /** Creation time, ms since epoch; absent on events made before this field existed. */
   createdAt?: number
   /** Last time the operator opened the event, ms since epoch. */
