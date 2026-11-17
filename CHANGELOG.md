@@ -4,11 +4,18 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-17
+
 ### Added
 
 - Video files (MP4, M4V, WebM) can be added to the library directly, from Add files, drag and drop or the New event dialog: one file becomes one deck with one video slide, named after the file.
 - A Bridgecast installed from the `.deb` updates itself: Settings > About > "Check for updates" finds a newer version, downloads it in the background and installs it on "Restart and install" or when Bridgecast is closed. The install asks for the administrator password. A `.deb` of 0.1.4 or older has no updater: install this version by hand once.
 - Web decks block ads and trackers (Ghostery filter lists, cached in the data folder, best effort: with no network on the first run the pages load unblocked). It only applies to the web deck profile. `PPT_ADBLOCK=0` turns it off.
+
+### Fixed
+
+- A file added as a video is imported as one slide deck with a poster taken from the video; a file Chromium cannot play is refused with a message and leaves no deck behind.
+- The app builds again: the Dark-theme About logo uses its tracked SVG instead of a PNG that was never committed.
 
 ## [0.1.4] - 2026-11-17
 

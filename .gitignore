@@ -3,6 +3,7 @@ dist/
 out/
 .superpowers/
 .playwright-mcp/
+.commandcode/
 *.png
 !fixtures/**/*.png
 !resources/**/*.png
