@@ -4,6 +4,10 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Changed
+
+- The key visual (KV) box is an upload area: drag and drop an image onto it or click to browse, with a preview, Replace and Remove once an image is set.
+
 ## [0.1.2] - 2026-11-17
 
 ### Added

@@ -24,6 +24,11 @@ function readDrop(dt: DataTransfer): DroppedItems {
   return { files, folders }
 }
 
+/** True when the drop lands on an element that handles it itself (`data-own-drop`). */
+function ownDrop(target: EventTarget | null): boolean {
+  return !!(target as Element | null)?.closest?.('[data-own-drop]')
+}
+
 /**
  * Full-window overlay while files from outside are dragged over the window
  * (counter-based dragenter/dragleave, like the mockup). Drags that reorder
@@ -67,6 +72,9 @@ export function DropOverlay({
     const over = (e: DragEvent): void => {
       if (!hasFiles(e.dataTransfer?.types)) return
       e.preventDefault() // allow the drop (and never let Chromium open the file)
+      // Over a target that takes the drop itself (the KV well) the overlay steps aside.
+      setOn(!off.current && !ownDrop(e.target))
+      if (ownDrop(e.target)) return
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
     }
     const drop = (e: DragEvent): void => {
@@ -74,7 +82,7 @@ export function DropOverlay({
       e.preventDefault()
       depth.current = 0
       setOn(false)
-      if (off.current) return
+      if (off.current || ownDrop(e.target)) return
       if (e.dataTransfer) handler.current(readDrop(e.dataTransfer))
     }
     // Esc during a drag or a drag cancelled outside the window ends without dragleave

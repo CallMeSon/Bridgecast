@@ -700,7 +700,7 @@ function registerIpc(
     assertString(file, 'File location')
     if (!path.isAbsolute(file)) {
       throw new Error(
-        'The file location is not valid. Choose the KV image with Choose image or Replace image.'
+        'The file location is not valid. Choose the KV image with Select image or Replace.'
       )
     }
     return state.setKv(eventId, file)

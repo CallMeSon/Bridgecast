@@ -51,7 +51,8 @@ import {
   playbackChip,
   REVERT_CONFIRM,
   LO_EDIT_CONFIRM,
-  NO_EVENT_YET
+  NO_EVENT_YET,
+  hasFiles
 } from '../model'
 import { orderItems, type OrderItem } from '../../../shared/sections'
 import { fitMenuTop, onMenuKeyDown, useContextMenu } from './menuNav'
@@ -737,44 +738,71 @@ function KvBlock({
       setBusy(false)
     }
   }
+  const [over, setOver] = useState(false)
+  const editable = canEdit && !busy
+  const browse = (): void => {
+    if (editable) input.current?.click()
+  }
+  // The well takes an image dropped on it; the window's "add as decks" drop leaves it alone.
+  const drag = {
+    'data-own-drop': true,
+    'data-over': over,
+    onDragOver: (e: React.DragEvent): void => {
+      if (!hasFiles(e.dataTransfer.types)) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = editable ? 'copy' : 'none'
+      setOver(editable)
+    },
+    onDragLeave: (e: React.DragEvent): void => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false)
+    },
+    onDrop: (e: React.DragEvent): void => {
+      if (!hasFiles(e.dataTransfer.types)) return
+      e.preventDefault()
+      setOver(false)
+      const file = e.dataTransfer.files[0]
+      if (file && editable) void run(() => onSet(file))
+    }
+  }
   return (
     <div className="kv-block" role="group" aria-label="Key visual (KV)" data-testid="kv-block">
-      <div className="kv-body">
-        <div className="kv-thumb" data-testid="kv-thumb" data-empty={kvUrl === null}>
-          {kvUrl ? (
+      {kvUrl ? (
+        <div className="kv-well set" {...drag}>
+          <div className="kv-thumb" data-testid="kv-thumb" data-empty={false}>
             <img src={kvUrl} alt="Event key visual" draggable={false} />
-          ) : (
-            <span>
-              <ImageIcon size={16} />
-              No KV yet
-            </span>
-          )}
+          </div>
+          <div className="kv-text">
+            <div className="kv-head">Key visual (KV)</div>
+            <div className="kv-sub">Shown with K</div>
+            <div className="kv-actions">
+              <button className="btn sm" disabled={!editable} onClick={browse}>
+                <UploadSimpleIcon size={14} />
+                Replace
+              </button>
+              <button
+                className="btn sm remove"
+                disabled={busy || onAir}
+                onClick={() => void run(onClear)}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="kv-text">
+      ) : (
+        <div className="kv-well" aria-disabled={!editable} onClick={browse} {...drag}>
+          <div className="kv-thumb" data-testid="kv-thumb" data-empty={true}>
+            <ImageIcon size={18} />
+          </div>
           <div className="kv-head">Key visual (KV)</div>
-          <div className="kv-sub">Shown with K</div>
-        </div>
-        <div className="kv-actions">
-          <button
-            className="btn sm icon"
-            disabled={!canEdit || busy}
-            aria-label={kvUrl ? 'Replace image' : 'Choose image'}
-            title={kvUrl ? 'Replace image' : 'Choose image'}
-            onClick={() => input.current?.click()}
-          >
-            <UploadSimpleIcon size={16} />
+          <div className="kv-sub">No KV yet. Drag and drop an image here or click to browse.</div>
+          <div className="kv-note">PNG, JPG or WebP. Shown with K.</div>
+          <button className="btn sm" disabled={!editable}>
+            <UploadSimpleIcon size={14} />
+            Select image
           </button>
-          {kvUrl && (
-            <button
-              className="btn sm remove"
-              disabled={busy || onAir}
-              onClick={() => void run(onClear)}
-            >
-              Remove
-            </button>
-          )}
         </div>
-      </div>
+      )}
       {kvUrl && onAir && (
         <p className="kv-hint" data-testid="kv-hint">
           Turn KV off first to remove it.

@@ -1294,31 +1294,61 @@ main {
   padding: 16px var(--pad) 0;
   border-top: 1px solid var(--line);
 }
+/* Key visual: an upload well. Empty it is a centred drop target (icon, title, hint, button);
+   with an image it is a compact row (preview, title, Replace / Remove). */
+.kv-well {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 12px;
+  border: 1px dashed var(--line-hi);
+  border-radius: var(--r);
+  text-align: center;
+  cursor: pointer;
+}
+.kv-well[aria-disabled='true'] {
+  cursor: default;
+}
+.kv-well:hover:not([aria-disabled='true']):not(.set),
+.kv-well[data-over='true'] {
+  border-color: var(--text-2);
+  background: var(--raised);
+}
+.kv-well.set {
+  grid-template-columns: 96px minmax(0, 1fr);
+  justify-items: stretch;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: default;
+}
 .kv-head {
-  font-weight: 500;
+  font-weight: 600;
 }
 .kv-sub {
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.kv-note {
   color: var(--text-3);
   font-size: 12px;
 }
-.kv-body {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
+.kv-well > .btn {
+  margin-top: 8px;
 }
 .kv-text {
   min-width: 0;
 }
-.kv-head,
-.kv-sub {
+.kv-well.set .kv-head,
+.kv-well.set .kv-sub {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .kv-thumb {
   position: relative;
-  width: 64px;
+  width: 96px;
   aspect-ratio: 16/9;
   overflow: hidden;
   border: 1px solid var(--line-hi);
@@ -1333,24 +1363,23 @@ main {
   object-fit: contain;
   display: block;
 }
+/* Empty: a round icon badge, like an upload target. */
 .kv-thumb[data-empty='true'] {
-  background: var(--placeholder);
-  color: var(--placeholder-ink);
+  display: grid;
+  place-items: center;
+  width: 40px;
+  aspect-ratio: 1;
+  margin-bottom: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--raised-hi);
+  color: var(--text-2);
 }
-.kv-thumb span {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  font-size: 12px;
-  text-align: center;
-}
-/* One row: thumb, title, action. With a KV set there are two actions, so they drop below. */
 .kv-actions {
-  display: contents;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 .kv-actions .btn {
   white-space: nowrap;
@@ -1363,10 +1392,6 @@ main {
 .kv-actions .btn.icon:disabled,
 .kv-actions .btn.icon[aria-disabled='true'] {
   border-color: var(--line);
-}
-.kv-actions .btn.remove {
-  grid-column: 1 / 4;
-  justify-self: start;
 }
 .kv-hint {
   margin-top: 8px;

@@ -271,7 +271,8 @@ function sizeChecks(m, size) {
   )
   check(
     'decks footer is compact' + at,
-    m.footer !== null && m.footer <= 150,
+    // The empty KV upload well (icon, title, two hint lines, button) plus the Add row.
+    m.footer !== null && m.footer <= 290,
     m.footer === null ? 'kv-block or Add row missing' : `${Math.round(m.footer)}px`
   )
   check('KV title is not truncated' + at, m.kvClipped.length === 0, m.kvClipped.join('; '))
@@ -462,8 +463,8 @@ try {
         const m = await win.evaluate(measure)
         const at = ` with KV set at ${w}x${h}${theme === 'dark' ? ' (dark)' : ''}`
         check(
-          'decks footer is compact' + at + ' (cap 190)',
-          m.footer !== null && m.footer <= 190,
+          'decks footer is compact' + at + ' (cap 220)',
+          m.footer !== null && m.footer <= 220,
           String(m.footer && Math.round(m.footer))
         )
         check('KV title is not truncated' + at, m.kvClipped.length === 0, m.kvClipped.join('; '))
