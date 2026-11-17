@@ -3273,6 +3273,42 @@ try {
       'Delete on the live tab leaves the tab and the output alone'
     )
 
+    // Middle click on the live tab does nothing either.
+    await live.click({ button: 'middle' })
+    await sleep(300)
+    check(
+      (await live.count()) === 1 && (await session()).state.shown !== null,
+      'a middle click on the live tab leaves the tab and the output alone'
+    )
+
+    // A mouse click on Fade does not keep the focus: the next arrow key is Next, not Cut.
+    await win.getByRole('radio', { name: 'Fade' }).click()
+    const before = (await session()).state.index
+    await win.keyboard.press('ArrowRight')
+    await win.waitForFunction(
+      (i) => window.api.getSession().then((s) => s.state.index === i + 1),
+      before
+    )
+    check(
+      (await session()).state.transition === 'fade',
+      'ArrowRight after a click on Fade takes the next slide and the transition stays Fade'
+    )
+
+    // The console header has Off air (not the Controls tab). Cancel keeps the output live.
+    check(
+      (await win.getByTestId('controls-offair').count()) === 0,
+      'Controls has no Off air button'
+    )
+    await win.getByTestId('header-offair').click()
+    const headConfirm = win.getByTestId('header-offair-confirm')
+    await headConfirm.waitFor()
+    await headConfirm.getByRole('button', { name: 'Cancel' }).click()
+    await headConfirm.waitFor({ state: 'detached' })
+    check(
+      (await session()).state.shown !== null,
+      'Cancel on the header Off air leaves the output live'
+    )
+
     // Home shows the on-air banner. Cancel on the confirm keeps the output live.
     await win.getByTestId('home-btn').click()
     await win.getByTestId('home').waitFor()
@@ -3312,9 +3348,13 @@ try {
     )
     const close = win.locator('.evtabs .otab .x')
     check((await close.count()) === 1, 'the tab after Off air has an × button')
-    await close.click()
+    check(
+      (await win.getByTestId('header-offair').count()) === 0,
+      'the header has no Off air button while nothing is on air'
+    )
+    await win.locator('.evtabs .otab').click({ button: 'middle' })
     await win.locator('.evtabs [role=tab]').first().waitFor({ state: 'detached' })
-    check(true, 'closing the tab after Off air removes it')
+    check(true, 'a middle click on the tab after Off air closes it')
   } catch (e) {
     failed = true
     console.error(e)

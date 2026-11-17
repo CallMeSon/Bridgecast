@@ -5,6 +5,7 @@ import type { Theme } from '../theme'
 import { BrandMark } from './BrandMark'
 import { EventTabs } from './EventTabs'
 import type { Tally } from '../model'
+import { OffAirButton } from './OffAirButton'
 import { OutputMenu } from './OutputMenu'
 import type { OutputSettingsState } from './useOutputSettings'
 
@@ -26,6 +27,10 @@ interface Props {
   onOpenOutput(): void
   theme: Theme
   onSetTheme(theme: Theme): void
+  /** The on-air event's name, for the Off air question. */
+  airName: string
+  /** Takes the show off air; asked for first by the header's Off air button. */
+  onOffAir(): void
   /** Opens the Settings dialog (Task 4). No handler yet: the gear stays out of the way. */
   onOpenSettings?(): void
   /** The update chip, shown beside Settings only when a newer version was announced. */
@@ -96,6 +101,10 @@ export function Header(p: Props): React.JSX.Element {
       />
       <span className="grow" />
       <OutputMenu program={p.program} out={p.output} onOpen={p.onOpenOutput} />
+      {/* Console only: Home has its own Off air in the on-air banner. */}
+      {p.view === 'console' && p.airState !== 'idle' && (
+        <OffAirButton eventName={p.airName} onConfirm={p.onOffAir} testId="header-offair" popover />
+      )}
       <ThemeSwitch theme={p.theme} onSet={p.onSetTheme} />
       {p.updateChip && (
         <button

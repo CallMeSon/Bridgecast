@@ -6,20 +6,25 @@ interface Props {
   /** Takes the show off air (the reducer's offAir action). */
   onConfirm(): void
   testId: string
+  /**
+   * Header: the button stays and the question drops under it as a popover (the 52px bar has
+   * no room for an inline question).
+   */
+  popover?: boolean
 }
 
 /**
  * Off air: a secondary button that asks before it ends the show. The question is an inline
- * region that replaces the button (no modal). While it is open it owns the keyboard: Esc
+ * region that replaces the button (no modal); in the header (`popover`) it drops under it. While it is open it owns the keyboard: Esc
  * cancels it, and no other key reaches Home or the console shortcuts.
  */
-export function OffAirButton({ eventName, onConfirm, testId }: Props): React.JSX.Element {
+export function OffAirButton({ eventName, onConfirm, testId, popover }: Props): React.JSX.Element {
   const [asking, setAsking] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const cancel = useRef<HTMLButtonElement>(null)
   // Focus goes back to the button only when the question is dismissed, not when it is confirmed.
   const restore = useRef(false)
-  const region = useRef<HTMLDivElement>(null)
+  const region = useRef<HTMLElement>(null)
   const questionId = useId()
 
   useEffect(() => {
@@ -59,23 +64,23 @@ export function OffAirButton({ eventName, onConfirm, testId }: Props): React.JSX
     return () => removeEventListener('pointerdown', away, true)
   }, [asking])
 
-  if (!asking) {
-    return (
-      <button
-        ref={button}
-        type="button"
-        className="btn"
-        onClick={() => setAsking(true)}
-        data-testid={testId}
-      >
-        Off air
-      </button>
-    )
-  }
+  const trigger = (
+    <button
+      ref={button}
+      type="button"
+      className="btn"
+      aria-expanded={popover ? asking : undefined}
+      onClick={() => setAsking((a) => !a)}
+      data-testid={testId}
+    >
+      Off air
+    </button>
+  )
+  if (!asking) return popover ? <span className="offair-pop">{trigger}</span> : trigger
 
-  return (
+  const question = (
     <div
-      ref={region}
+      ref={popover ? undefined : (region as React.RefObject<HTMLDivElement>)}
       className="offair-confirm"
       role="alertdialog"
       aria-labelledby={questionId}
@@ -84,7 +89,8 @@ export function OffAirButton({ eventName, onConfirm, testId }: Props): React.JSX
       // Focus moving out of the question (Tab past it, or a click on something unfocusable that
       // drops focus) closes it, as a click outside does; focus is left where the operator put it.
       onBlur={(e) => {
-        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+        const keep = popover ? region.current : e.currentTarget
+        if (keep?.contains(e.relatedTarget as Node | null)) return
         setAsking(false)
       }}
     >
@@ -116,5 +122,13 @@ export function OffAirButton({ eventName, onConfirm, testId }: Props): React.JSX
         </button>
       </span>
     </div>
+  )
+  if (!popover) return question
+  // The wrapper is the region: a press on the button itself is not "outside".
+  return (
+    <span ref={region as React.RefObject<HTMLSpanElement>} className="offair-pop">
+      {trigger}
+      {question}
+    </span>
   )
 }

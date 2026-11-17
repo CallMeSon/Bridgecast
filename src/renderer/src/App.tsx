@@ -1093,6 +1093,8 @@ function App({
         onOpenOutput={showOutput}
         theme={theme}
         onSetTheme={chooseTheme}
+        airName={events.find((e) => e.id === program.airEvent)?.name ?? ''}
+        onOffAir={() => dispatch({ type: 'offAir' })}
         onOpenSettings={() => setSettingsOpen(true)}
         updateChip={updateUi.chip}
         onUpdateChip={() => setBannerDismissedFor(null)}
@@ -1277,8 +1279,6 @@ function App({
               canNextSection={canNextSection(decks, program, sections)}
               canPrevDeck={reduce(program, { type: 'prevDeck' }, decks, sections) !== program}
               canNextDeck={reduce(program, { type: 'nextDeck' }, decks, sections) !== program}
-              onAir={airTally !== 'idle'}
-              airName={events.find((e) => e.id === program.airEvent)?.name ?? ''}
               onAction={dispatch}
             />
           }

@@ -12,6 +12,7 @@ interface Props<T extends string | number> {
 /**
  * Radio group of buttons (the .seg look of Transition): one tab stop, the arrows
  * move and choose inside it. The chosen segment also carries a bar, not fill alone.
+ * A mouse click on the console gives the focus back, so the arrows stay with the slides.
  */
 export function Segmented<T extends string | number>({
   label,
@@ -70,8 +71,13 @@ export function Segmented<T extends string | number>({
           aria-checked={value === o.value}
           aria-disabled={disabled || undefined}
           tabIndex={value === o.value ? 0 : -1}
-          onClick={() => {
+          onClick={(e) => {
             if (!disabled && o.value !== value) onChange(o.value)
+            // A mouse click (detail > 0) must not leave the focus here: on the console the
+            // next arrow key is Next/Prev slide, not a move inside this group. Keyboard users
+            // (Tab, then arrows) keep it, and so do dialogs and popovers, which own their keys.
+            if (e.detail > 0 && !e.currentTarget.closest('[role=dialog], [data-no-shortcuts]'))
+              e.currentTarget.blur()
           }}
         >
           {o.label}

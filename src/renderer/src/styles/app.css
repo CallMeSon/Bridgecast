@@ -37,8 +37,15 @@ h2 {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--h-lg) minmax(0, 1fr);
 }
-.app[data-resizing] {
+/* An operator console, not a document: a drag or a double click never selects labels, tabs or
+   buttons. Inputs stay editable; speaker notes and values meant to be copied opt back in. */
+.app,
+.modal-scrim,
+.menu {
   user-select: none;
+}
+.notes {
+  user-select: text;
 }
 
 /* top bar: 52px, flat, one rule below */
@@ -4079,9 +4086,23 @@ button > svg,
   gap: 8px;
   justify-content: flex-end;
 }
-.controls-extra > .offair-confirm {
-  display: flex;
-  flex-direction: column;
+/* Header: the button keeps its place, the question is a popover under its right edge. */
+.offair-pop {
+  position: relative;
+  flex: none;
+}
+.offair-pop > .btn {
+  height: var(--h-sm);
+  padding: 0 12px;
+}
+.offair-pop > .offair-confirm {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 280px;
+  background: var(--panel);
+  box-shadow: var(--pop-shadow);
 }
 .onair .offair-confirm {
   flex: 0 1 auto;

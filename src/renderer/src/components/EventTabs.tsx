@@ -187,6 +187,16 @@ export function EventTabs({
               role="presentation"
               data-selected={isSel || undefined}
               data-live={live || undefined}
+              // Middle click closes the tab, as in a browser; never the on-air one. The press
+              // is cancelled so Windows does not start its autoscroll.
+              onMouseDown={(e) => {
+                if (e.button === 1) e.preventDefault()
+              }}
+              onAuxClick={(e) => {
+                if (e.button !== 1) return
+                e.preventDefault()
+                if (!live) onClose(ev.id)
+              }}
             >
               <button
                 role="tab"
