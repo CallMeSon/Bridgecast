@@ -40,8 +40,10 @@ import { useSlideshow } from './slideshow'
 import { engineName } from '../../shared/playback'
 import type { PptImportFormat } from '../../shared/settings'
 import {
+  canInstallNow,
   releaseNotesLines,
   UNSUPPORTED_UPDATE_STATUS,
+  updateNotes as updateNotesOf,
   type UpdateStatus
 } from '../../shared/update'
 import { UpdateBanner } from './components/UpdateBanner'
@@ -358,8 +360,10 @@ function App({
       if (isUpdateKeyTarget(document.activeElement)) {
         if (e.key === 'Enter') return
         if (e.key === ' ') {
+          // Never a click on the button; the usual guards (held key, modifiers) still apply.
           e.preventDefault()
-          dispatch({ type: 'next' })
+          const next = keyToAction(e)
+          if (next) dispatch(next)
           return
         }
       }
@@ -1043,13 +1047,10 @@ function App({
 
   // Updates: one subscription in App; the chip, banner and About all read this view.
   const updateVersion = announcedVersion(update)
-  const updateNotes = useMemo(
-    () => (update.kind === 'available' ? releaseNotesLines(update.notes) : []),
-    [update]
-  )
+  const updateNotes = useMemo(() => releaseNotesLines(updateNotesOf(update)), [update])
   const updateUi = useMemo(
-    () => updateView(update, program.shown !== null, bannerDismissedFor),
-    [update, program.shown, bannerDismissedFor]
+    () => updateView(update, !canInstallNow(program), bannerDismissedFor),
+    [update, program, bannerDismissedFor]
   )
   const runUpdatePrimary = (): void => {
     const action = updateUi.banner?.primary?.action
@@ -1095,6 +1096,7 @@ function App({
         onSetTheme={chooseTheme}
         onOpenSettings={() => setSettingsOpen(true)}
         updateChip={updateUi.chip}
+        onUpdateChip={() => setBannerDismissedFor(null)}
       >
         <UpdateBanner
           view={updateUi}

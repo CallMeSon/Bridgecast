@@ -6,6 +6,7 @@ import {
   isPrerelease,
   isUpdateSupported,
   releaseNotesLines,
+  releaseNotesText,
   sanitizeUpdates
 } from './update'
 
@@ -54,7 +55,30 @@ describe('isUpdateSupported', () => {
   })
 })
 
+describe('releaseNotesText', () => {
+  it('turns the HTML notes GitHub serves into headings and bullets', () => {
+    const html =
+      '<h3>Added</h3>\n<ul>\n<li>Fast <strong>start</strong> &amp; stop</li>\n<li>Second</li>\n</ul>\n<p>Thanks.</p>'
+    expect(releaseNotesText(html)).toBe('### Added\n- Fast start & stop\n- Second\nThanks.')
+    expect(releaseNotesLines(releaseNotesText(html))).toEqual([
+      { kind: 'heading', text: 'Added' },
+      { kind: 'bullet', text: 'Fast start & stop' },
+      { kind: 'bullet', text: 'Second' },
+      { kind: 'paragraph', text: 'Thanks.' }
+    ])
+  })
+
+  it('leaves markdown notes alone', () => {
+    expect(releaseNotesText('### Added\n- a < b')).toBe('### Added\n- a < b')
+  })
+})
+
 describe('canInstallNow', () => {
+  it('refuses while the operator has the key visual on air', () => {
+    expect(canInstallNow({ ...initialState, kv: true, kvUrl: 'slide://kv' })).toBe(false)
+    expect(canInstallNow({ ...initialState, kvUrl: 'slide://kv' })).toBe(true)
+  })
+
   it('allows install only when no slide is shown', () => {
     expect(canInstallNow(initialState)).toBe(true)
     expect(

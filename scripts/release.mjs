@@ -140,9 +140,11 @@ if (dryRun) {
 }
 
 const releaseMode = modeOfRelease()
+// npm and npx are .cmd shims on Windows: Node only runs those through a shell.
+const shell = process.platform === 'win32'
 for (const [cmd, args] of buildCommands) {
   show(cmd, args)
-  execFileSync(cmd, args, { cwd: root, stdio: 'inherit' })
+  execFileSync(cmd, args, { cwd: root, stdio: 'inherit', shell })
 }
 
 // (d) Fail before publishing if a platform's installer, update metadata or (Windows)

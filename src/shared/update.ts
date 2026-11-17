@@ -1,17 +1,23 @@
 import type { ProgramState } from './program'
 
 export type UpdateStatus =
-  | { kind: 'idle' }
+  /** `checkFailed`: the last check could not reach the release (offline, rate limit). */
+  | { kind: 'idle'; checkFailed?: boolean }
   | { kind: 'checking' }
   | { kind: 'available'; version: string; notes: string }
-  | { kind: 'downloading'; version: string; percent: number }
-  | { kind: 'ready'; version: string }
-  | { kind: 'error'; version: string; message: string }
+  | { kind: 'downloading'; version: string; percent: number; notes?: string }
+  | { kind: 'ready'; version: string; notes?: string }
+  | { kind: 'error'; version: string; message: string; notes?: string }
   /** This build cannot self-update (dev build, .deb, macOS): no update UI is shown. */
   | { kind: 'unsupported' }
 
 /** Shared status for builds without an update engine, so callers cannot drift. */
 export const UNSUPPORTED_UPDATE_STATUS: UpdateStatus = Object.freeze({ kind: 'unsupported' })
+
+/** Release notes of the announced version; they travel with it from available to ready. */
+export function updateNotes(status: UpdateStatus): string {
+  return 'notes' in status ? (status.notes ?? '') : ''
+}
 
 export function isUpdateSupported(status: UpdateStatus): boolean {
   return status.kind !== 'unsupported'
@@ -72,6 +78,34 @@ export function isPrerelease(version: string): boolean {
   return parsed !== null && parsed.prerelease !== null
 }
 
+const HTML_ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&nbsp;': ' '
+}
+
+/**
+ * GitHub serves release notes as HTML. Turns that into the plain markdown-like text
+ * `releaseNotesLines` reads (headings, bullets, paragraphs); text without tags is returned as is.
+ */
+export function releaseNotesText(notes: string): string {
+  if (!/<[a-z][^>]*>/i.test(notes)) return notes
+  return notes
+    .replace(/\r?\n/g, ' ')
+    .replace(/<h[1-6][^>]*>/gi, '\n### ')
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<\/(?:h[1-6]|p|li|ul|ol|div)>|<br\s*\/?>|<p[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, (entity) => HTML_ENTITIES[entity])
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 export type ReleaseNotesLine = { kind: 'heading' | 'bullet' | 'paragraph'; text: string }
 
 function plainText(text: string): string {
@@ -101,8 +135,9 @@ export function releaseNotesLines(markdown: string): ReleaseNotesLine[] {
   return lines
 }
 
+/** Nothing the operator put on air: no slide shown and no key visual pressed (STANDBY may show the KV by itself). */
 export function canInstallNow(state: ProgramState): boolean {
-  return state.shown === null
+  return state.shown === null && !state.kv
 }
 
 export function sanitizeUpdates(raw: unknown): UpdateSettings {

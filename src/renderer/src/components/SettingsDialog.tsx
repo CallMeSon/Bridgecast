@@ -47,6 +47,9 @@ const FOCUSABLE = [
 function updateStatusLine(status: UpdateStatus, checkedIdle: boolean): string {
   switch (status.kind) {
     case 'idle':
+      if (checkedIdle && status.checkFailed) {
+        return 'Could not check for updates. Check your connection and try again.'
+      }
       return checkedIdle ? "You're up to date." : 'No update information available.'
     case 'checking':
       return 'Checking for updates…'
@@ -55,7 +58,7 @@ function updateStatusLine(status: UpdateStatus, checkedIdle: boolean): string {
     case 'downloading':
       return `Downloading Bridgecast ${status.version}… ${Math.round(status.percent)}%`
     case 'ready':
-      return `Bridgecast ${status.version} is ready to install.`
+      return `Bridgecast ${status.version} is downloaded. It installs when you close Bridgecast.`
     case 'error':
       return status.message
     case 'unsupported':
@@ -125,7 +128,7 @@ function AboutSection({
               Check for updates
             </button>
           </div>
-          {update.kind === 'available' && updateNotes.length > 0 && (
+          {updateNotes.length > 0 && (
             <div className="about-update-notes">
               <strong>What&apos;s new</strong>
               <ReleaseNotes lines={updateNotes} />

@@ -4,6 +4,20 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Changed
+
+- Updates no longer wait for a click: a newer version downloads by itself while nothing is on air and installs when Bridgecast is closed. Nothing downloads by itself or installs during a show, "Restart and install" still installs at once, and "Skip this version" also works after the download.
+- The update chip in the header reopens the update popover after "Later".
+
+### Fixed
+
+- "Restart and install" is refused while the key visual is on air, not only while a slide is shown.
+- Holding Space, or Space with Ctrl/Alt, on a focused update button no longer moves the Program.
+- "Check for updates" reports a failed check instead of "You're up to date."
+- Release notes from GitHub show as plain text instead of HTML tags.
+- A background check no longer hides "Try again" after a failed download.
+- `npm run release` works on Windows (npm and npx are run through a shell there).
+
 ## [0.1.0] - 2026-11-16
 
 ### Added

@@ -30,6 +30,8 @@ interface Props {
   onOpenSettings?(): void
   /** The update chip, shown beside Settings only when a newer version was announced. */
   updateChip?: { label: string } | null
+  /** Reopens the update popover after it was closed with Later. */
+  onUpdateChip?(): void
   /** The update popover, rendered under the header; never in the stage's flow. */
   children?: React.ReactNode
 }
@@ -96,10 +98,17 @@ export function Header(p: Props): React.JSX.Element {
       <OutputMenu program={p.program} out={p.output} onOpen={p.onOpenOutput} />
       <ThemeSwitch theme={p.theme} onSet={p.onSetTheme} />
       {p.updateChip && (
-        <span className="update-chip" data-testid="update-chip" data-update-ui>
+        <button
+          type="button"
+          className="update-chip"
+          data-testid="update-chip"
+          data-update-ui
+          title="Show update"
+          onClick={p.onUpdateChip}
+        >
           <BellRingingIcon size={12} aria-hidden="true" />
           {p.updateChip.label}
-        </span>
+        </button>
       )}
       <button
         className="gear"

@@ -205,7 +205,8 @@ Otomatis di Linux hanya untuk tab, Home dan Settings (`e2e/web.mjs`, `e2e/settin
 
 **NOT YET VERIFIED ON WINDOWS.** The only automated evidence is the Linux/xvfb e2e with the fake
 engine (`npm run test:e2e:update`, `PPT_UPDATE_FAKE=1`): it checks the chip, the popover, the
-keyboard guard, the on-air install gate and skip-across-restart. No real GitHub check, download,
+automatic download, the keyboard guard, the on-air install gate and skip-across-restart. Install on
+quit (added 2026-11-17) is covered by unit tests of `UpdateManager.prepareQuit` only. No real GitHub check, download,
 sha512 verification, NSIS/AppImage install or relaunch has been run on a user machine. Everything
 below is a field-check script for another agent on the user's Windows PC (plus a Linux PC for the
 AppImage half). Record **OK** or the exact observation for each item.
@@ -243,7 +244,8 @@ silently.
       opens under it over the top of the right panel. The STANDBY/LIVE tally, the "Program" title
       and the whole monitor must stay visible (the popover must never cover the centre column).
       Click "What's new": the newest CHANGELOG section appears as plain lines.
-- [ ] **Download progress:** click "Download". The popover shows "Downloading Bridgecast 0.1.1"
+- [ ] **Automatic download:** with nothing on air, click nothing. Within seconds of the chip the
+      popover shows "Downloading Bridgecast 0.1.1"
       with a progress bar and no action button. Nothing is installed yet; the running 0.1.0 keeps
       working and the output is untouched.
 - [ ] **Install refused while a slide is live:** import a deck, press Space so the tally is LIVE,
@@ -251,6 +253,15 @@ silently.
       "Something is on air. Take it off air or wait until the show ends." Clicking it does nothing;
       the output still shows the same slide. Pressing Space while that button has focus still moves
       the Program to the next slide and never starts an install.
+- [ ] **Download waits for off air:** start 0.1.0, take a slide live within 15 s. The popover reads
+      "Bridgecast 0.1.1 is available" with a Download button and nothing downloads. Take the Program
+      off air: the download starts by itself.
+- [ ] **Install on close:** with the update ready and nothing on air, close Bridgecast with the
+      window's ×. The NSIS installer runs silently (note any UAC prompt), the app does _not_ reopen,
+      and the next start is 0.1.1. Repeat on the AppImage.
+- [ ] **No install on close while live:** with the update ready and a slide LIVE, close Bridgecast.
+      No installer runs; reopening is immediate and still 0.1.0, and the update becomes ready again
+      without a second full download.
 - [ ] **Install while idle:** take everything off air (STANDBY), click "Restart and install".
       Bridgecast and the OMT sender stop cleanly, then the NSIS installer runs and the app relaunches
       on 0.1.1. Confirm the OMT worker shut down before termination in the console (no forced-kill
@@ -267,9 +278,9 @@ silently.
 - [ ] **Offline start:** disconnect the network and start 0.1.0 (or 0.1.1). Nothing appears — no
       chip, no popover, no error toast, no log above info. Startup is not delayed; the next check is
       in 6 h. Reconnect and confirm the next scheduled check still works.
-- [ ] **Skip a version:** with `Update 0.1.1` showing, click "Skip this version". Chip and popover
+- [ ] **Skip a version:** with `Update 0.1.1` downloaded and ready, click "Skip this version". Chip and popover
       disappear; `updates.skippedVersion` in `settings.json` becomes `0.1.1`. Close and reopen the
-      app, wait past the 15 s check: 0.1.1 is still hidden (the fake-engine e2e covers this case).
+      app (no installer may run on that close), wait past the 15 s check: 0.1.1 is still hidden (the fake-engine e2e covers this case).
       Publish 0.1.2 and confirm 0.1.2 _is_ announced, so only the skipped version is suppressed.
 - [ ] **NDI Runtime is not redownloaded:** with the NDI Runtime already installed, note the
       installer's Show details output during the 0.1.1 update. It must print

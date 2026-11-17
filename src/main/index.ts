@@ -1516,7 +1516,8 @@ Location: ${root}`
     Object.defineProperty(globalThis, '__pptWeb', { configurable: true, get: () => host.debug() })
   }
   // Auto-update: only packaged Win/Linux-AppImage builds (or the fake test engine) ever check or
-  // download; a failed check is silent and nothing installs without an operator action.
+  // download. A failed check is silent; a newer version downloads by itself while nothing is on
+  // air and installs when the app quits with nothing on air (or when the operator restarts).
   const updatesEnabled =
     process.env['PPT_UPDATE_FAKE'] === '1' ||
     (app.isPackaged &&
@@ -1536,6 +1537,8 @@ Location: ${root}`
     : null
   // Check 15 s after the operator window first shows, then every 6 hours. The delay starts at
   // ready-to-show, not at app start, so a slow window cannot consume the operator's grace period.
+  // A version found during a show starts downloading as soon as the Program goes off air.
+  if (updateManager) state.onChange(() => updateManager.autoDownload())
   let updateCheckTimer: ReturnType<typeof setInterval> | null = null
   let updateCheckFirstTimer: ReturnType<typeof setTimeout> | null = null
   let updateCheckScheduled = false
@@ -1555,6 +1558,8 @@ Location: ${root}`
   let omtDone = false
   let omtStopping = false
   app.on('before-quit', (e) => {
+    // A downloaded update installs on the way out, unless something is still on air.
+    updateManager?.prepareQuit()
     if (updateCheckTimer) clearInterval(updateCheckTimer)
     if (updateCheckFirstTimer) clearTimeout(updateCheckFirstTimer)
     updateCheckTimer = null

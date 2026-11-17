@@ -21,6 +21,9 @@ export function createFakeEngine(opts?: { version?: string; notes?: string }): U
     },
     quitAndInstall() {
       console.log('[update] fake engine: quitAndInstall()')
+    },
+    setInstallOnQuit(enabled) {
+      console.log(`[update] fake engine: setInstallOnQuit(${enabled})`)
     }
   }
 }

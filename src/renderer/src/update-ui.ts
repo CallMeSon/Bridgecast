@@ -46,7 +46,9 @@ export function updateView(
     case 'available':
       banner = {
         title: `Bridgecast ${version} is available`,
-        detail: 'A newer version is ready. It is only downloaded and installed when you ask.',
+        detail: onAir
+          ? 'It downloads by itself once nothing is on air. You can also download it now.'
+          : 'The download starts by itself.',
         primary: { label: 'Download', action: 'download' },
         primaryDisabledReason: null,
         showSkip: true,
@@ -69,11 +71,11 @@ export function updateView(
       banner = {
         title: `Bridgecast ${version} is ready to install`,
         detail: reason
-          ? 'The update is downloaded. Install it once nothing is on air.'
-          : 'The update is downloaded. Restart to install it.',
+          ? 'The update is downloaded. It installs when you close Bridgecast with nothing on air.'
+          : 'The update is downloaded. It installs when you close Bridgecast, or restart now.',
         primary: { label: 'Restart and install', action: 'install' },
         primaryDisabledReason: reason,
-        showSkip: false,
+        showSkip: true,
         showLater: true
       }
       break
@@ -92,7 +94,9 @@ export function updateView(
   return { chip, banner, progress }
 }
 
-/** True when a key event comes from an update button or its container. */
+/** True when a key event comes from an update button or its container on the console. */
 export function isUpdateKeyTarget(el: Element | null): boolean {
+  // A dialog that owns the keyboard (Settings > About) keeps its normal button keys.
+  if (el?.closest?.('[data-no-shortcuts]')) return false
   return !!el?.closest?.('[data-update-ui]')
 }

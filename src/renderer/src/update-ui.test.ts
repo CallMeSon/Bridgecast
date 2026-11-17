@@ -51,6 +51,10 @@ describe('updateView', () => {
       showLater: true
     })
     expect(v.progress).toBeNull()
+    expect(v.banner?.detail).toBe('The download starts by itself.')
+    expect(updateView(available, true, null).banner?.detail).toBe(
+      'It downloads by itself once nothing is on air. You can also download it now.'
+    )
     const dismissed = updateView(available, false, '1.2.0')
     expect(dismissed.banner).toBeNull()
     expect(dismissed.chip).toEqual({ label: 'Update 1.2.0' })
@@ -71,6 +75,13 @@ describe('updateView', () => {
     expect(on.banner?.primaryDisabledReason).toBe(
       'Something is on air. Take it off air or wait until the show ends.'
     )
+    expect(off.banner?.detail).toBe(
+      'The update is downloaded. It installs when you close Bridgecast, or restart now.'
+    )
+    expect(on.banner?.detail).toBe(
+      'The update is downloaded. It installs when you close Bridgecast with nothing on air.'
+    )
+    expect(off.banner?.showSkip).toBe(true)
   })
 
   it('offers a retry on error', () => {
@@ -94,5 +105,10 @@ describe('isUpdateKeyTarget', () => {
     expect(isUpdateKeyTarget(el({}))).toBe(true)
     expect(isUpdateKeyTarget(el(null))).toBe(false)
     expect(isUpdateKeyTarget(null)).toBe(false)
+  })
+
+  it('leaves update controls inside a dialog that owns the keyboard alone', () => {
+    const inDialog = { closest: () => ({}) } as unknown as Element
+    expect(isUpdateKeyTarget(inDialog)).toBe(false)
   })
 })

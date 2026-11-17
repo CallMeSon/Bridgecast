@@ -44,7 +44,7 @@ async function launch(userData) {
 
 const status = (win) => win.evaluate(() => window.api.getUpdateStatus())
 
-// --- Announcement, key guard, download and the on-air install gate ---
+// --- Announcement, automatic download, key guard and the on-air install gate ---
 {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'bridgecast-update-live-'))
   const { app, win } = await launch(userData)
@@ -53,44 +53,8 @@ const status = (win) => win.evaluate(() => window.api.getUpdateStatus())
     await chip.waitFor({ timeout: 20_000 })
     check((await chip.innerText()).trim() === 'Update 99.0.0', 'header chip shows Update 99.0.0')
     check(await win.getByTestId('update-banner').isVisible(), 'update popover is visible')
+    // Nothing is on air, so the download starts by itself and ends ready to install.
     const primary = win.getByTestId('update-primary')
-    check((await primary.innerText()).trim() === 'Download', 'the first action is Download')
-
-    // A real fixture deck, imported like the other suites do, so Space can move a slide.
-    await win.click('.newbtn')
-    await win.fill('[data-testid=new-event-name]', 'Update Event')
-    await win.press('[data-testid=new-event-name]', 'Enter')
-    await win.locator('[role=tab][aria-selected=true]', { hasText: 'Update Event' }).waitFor()
-    await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
-    await win.locator('.deck .meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })
-    await win.evaluate(() => document.activeElement?.blur())
-    await win.keyboard.press('Space')
-    await win.waitForFunction(
-      () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
-    )
-    check((await win.getByTestId('pos').innerText()).trim() === '01 / 03', 'fixture deck is live')
-
-    // Space on the focused Download button is Program's Next, not a click on the button.
-    await primary.focus()
-    check(
-      await win.evaluate(() => document.activeElement?.dataset?.testid === 'update-primary'),
-      'the Download button has focus'
-    )
-    await win.keyboard.press('Space')
-    await win.waitForFunction(
-      () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03',
-      null,
-      { timeout: 5000 }
-    )
-    check(true, 'Space with Download focused moves the Program to the next slide')
-    check(
-      (await status(win)).kind === 'available',
-      'Space with Download focused does not start the download'
-    )
-    check((await primary.innerText()).trim() === 'Download', 'the button is still Download')
-
-    // Download is allowed while live; install is not.
-    await primary.click()
     await win.waitForFunction(
       () =>
         document.querySelector('[data-testid=update-primary]')?.textContent?.trim() ===
@@ -98,7 +62,37 @@ const status = (win) => win.evaluate(() => window.api.getUpdateStatus())
       null,
       { timeout: 10_000 }
     )
-    check(true, 'Download finishes and the action becomes Restart and install')
+    check(true, 'the update downloads by itself and the action becomes Restart and install')
+    check((await status(win)).kind === 'ready', 'the update is ready without any click')
+    check(!(await primary.isDisabled()), 'install is offered while nothing is on air')
+
+    // A real fixture deck, imported like the other suites do, so Space can take a slide.
+    await win.click('.newbtn')
+    await win.fill('[data-testid=new-event-name]', 'Update Event')
+    await win.press('[data-testid=new-event-name]', 'Enter')
+    await win.locator('[role=tab][aria-selected=true]', { hasText: 'Update Event' }).waitFor()
+    await win.setInputFiles('[data-testid=file-input]', path.join(root, 'fixtures/sample.pdf'))
+    await win.locator('.deck .meta', { hasText: '3 slides' }).waitFor({ timeout: 60_000 })
+
+    // Space on the focused install button is Program's take, never a restart.
+    await primary.focus()
+    check(
+      await win.evaluate(() => document.activeElement?.dataset?.testid === 'update-primary'),
+      'the Restart and install button has focus'
+    )
+    await win.keyboard.press('Space')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE',
+      null,
+      { timeout: 5000 }
+    )
+    check(
+      (await win.getByTestId('pos').innerText()).trim() === '01 / 03',
+      'Space with the install button focused takes the slide live'
+    )
+    check((await status(win)).kind === 'ready', 'Space did not start the install')
+
+    // Install is refused while live.
     check(await primary.isDisabled(), 'install is disabled while a slide is live')
     check(
       (await win.getByTestId('update-on-air-reason').innerText()).trim() ===
@@ -115,7 +109,7 @@ const status = (win) => win.evaluate(() => window.api.getUpdateStatus())
   }
 }
 
-// --- Skip this version hides the UI and survives a relaunch ---
+// --- Skip this version (after the automatic download) hides the UI and survives a relaunch ---
 {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'bridgecast-update-skip-'))
   {
