@@ -59,6 +59,8 @@ export interface WebOpenOptions {
  * `desktopCapturer` and reads the deck's sound from `audioPipe`.
  */
 export interface WebPageEngine {
+  /** The helper is running (started and not exited). */
+  readonly running: boolean
   open(
     deckId: string,
     o: WebOpenOptions

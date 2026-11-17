@@ -139,6 +139,18 @@ export function holdBeforeNavigate(s: { live: boolean; frozen: boolean; held: bo
   return s.live && !s.frozen && !s.held
 }
 
+/**
+ * Input from a Prepare window goes only to the deck that window was opened for; the
+ * operator monitor and the outputs are not tied to one Prepare window.
+ */
+export function prepareInputAllowed(
+  role: AppWindowRole,
+  deckId: string,
+  prepareDeck: string | null
+): boolean {
+  return role !== 'prepare' || deckId === prepareDeck
+}
+
 /** The windows whose pause a HOLD before navigating waits for: active outputs, else the operator. */
 export function heldAckRoles(outputsActive: { hdmi: boolean; omt: boolean }): AppWindowRole[] {
   return (['hdmi', 'omt', 'operator'] as const).filter((r) => frameSenderAllowed(r, outputsActive))

@@ -94,6 +94,14 @@ function saveBounds(win: BrowserWindow): void {
   }
 }
 
+/** The deck a Prepare window was opened for, or null when `wc` is not a Prepare page. */
+export function prepareDeckOf(wc: Electron.WebContents): string | null {
+  for (const [deckId, win] of windows) {
+    if (!win.isDestroyed() && win.webContents === wc) return deckId
+  }
+  return null
+}
+
 /**
  * Opens the Prepare window of a web deck (hash route `#/prepare?deck=<id>` of the
  * app renderer, so main treats it as an app window). It is a normal, resizable

@@ -22,6 +22,9 @@ export class FakeWebEngine implements WebPageEngine {
   hung = false
   /** When set, `ping` rejects (the supervisor treats it as a hang). */
   pingFails = false
+  get running(): boolean {
+    return this.alive
+  }
   private navCbs: ((s: WebNavState) => void)[] = []
   private statusCbs: ((s: WebEngineStatus) => void)[] = []
   private crashCbs: ((deckId: string) => void)[] = []

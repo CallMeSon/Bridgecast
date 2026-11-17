@@ -11,6 +11,7 @@ import {
   isAppPageUrl,
   mergeDisableFeatures,
   NavCoalescer,
+  prepareInputAllowed,
   syncPlan,
   webDeckName
 } from './host-rules'
@@ -24,6 +25,19 @@ const web = (
   web: { url: string }
 } => ({ id, source: 'web', web: { url } })
 const pdf = (id: string): { id: string; source: 'pdf' } => ({ id, source: 'pdf' })
+
+describe('prepareInputAllowed', () => {
+  it('a Prepare window may only drive the page it was opened for', () => {
+    expect(prepareInputAllowed('prepare', 'a', 'a')).toBe(true)
+    expect(prepareInputAllowed('prepare', 'b', 'a')).toBe(false)
+    expect(prepareInputAllowed('prepare', 'a', null)).toBe(false)
+  })
+  it('the operator and output windows are not limited to one deck', () => {
+    expect(prepareInputAllowed('operator', 'b', 'a')).toBe(true)
+    expect(prepareInputAllowed('hdmi', 'b', null)).toBe(true)
+    expect(prepareInputAllowed('omt', 'b', null)).toBe(true)
+  })
+})
 
 describe('syncPlan', () => {
   it('opens the web decks that have no page yet, never other decks', () => {

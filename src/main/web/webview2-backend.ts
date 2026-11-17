@@ -227,6 +227,16 @@ export class WebView2PageBackend implements PageBackend {
     void this.engine.setMuted(deckId, muted).catch(() => undefined)
   }
 
+  /** After the supervisor restarted the helper: the pages have new windows and pipes. */
+  applyReopened(pages: Map<string, { windowId: string; audioPipe: string | null }>): void {
+    for (const [deckId, r] of pages) {
+      const p = this.pages.get(deckId)
+      if (!p) continue
+      p.windowId = r.windowId
+      p.audioPipe = r.audioPipe
+    }
+  }
+
   async debug(deckId: string): Promise<Record<string, unknown> | null> {
     const p = this.pages.get(deckId)
     if (!p) return null

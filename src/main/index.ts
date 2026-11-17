@@ -115,20 +115,22 @@ import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '.
 import { WebHost } from './web/web-host'
 import { ElectronPageBackend } from './web/electron-page-backend'
 import { WebView2PageBackend } from './web/webview2-backend'
-import { WebBridgeEngine, webBridgeExePath } from './web/web-engine'
+import { WebBridgeEngine, webBridgeExePath, type WebPageEngine } from './web/web-engine'
 import { FakeWebEngine } from './web/fake-web-engine'
+import { WebEngineSupervisor } from './web/web-engine-supervisor'
 import type { PageBackend } from './web/page-backend'
 import {
   frameSenderAllowed,
   HeldAcks,
   heldAckRoles,
+  prepareInputAllowed,
   updateCaptureWarnings,
   isAppPageUrl,
   mergeDisableFeatures,
   webDeckName,
   type AppWindowRole
 } from './web/host-rules'
-import { openPrepareWindow } from './web/prepare-window'
+import { openPrepareWindow, prepareDeckOf } from './web/prepare-window'
 import type { NetId } from './net/sender-binding'
 import { migrateUserData } from './migrate-user-data'
 
@@ -945,6 +947,10 @@ function createWebPageBackend(o: {
   env: NodeJS.ProcessEnv
   operatorWindow: () => BrowserWindow | null
   isLive: (deckId: string) => boolean
+  /** HOLD the deck (the helper hung). */
+  onHold: (deckId: string) => void
+  /** The helper gave up: main switches this session to the Electron backend. */
+  onFallback: (message: string) => void
   devUrl?: string
 }): PageBackend {
   const electron = (): PageBackend =>
@@ -961,14 +967,27 @@ function createWebPageBackend(o: {
   const useHelper =
     o.platform === 'win32' && o.env['PPT_WEB_BACKEND'] !== 'electron' && fs.existsSync(exe)
   if (!useHelper) return electron()
-  const engine =
-    o.env['PPT_ENGINE_FAKE'] === '1'
-      ? new FakeWebEngine()
-      : new WebBridgeEngine({ exe, userData: join(o.userData, 'web-profile') })
-  return new WebView2PageBackend(engine, {
+  const fake = o.env['PPT_ENGINE_FAKE'] === '1'
+  const createEngine = (): WebPageEngine =>
+    fake ? new FakeWebEngine() : new WebBridgeEngine({ exe, userData: join(o.userData, 'web-profile') })
+  // The supervisor keeps one stable engine reference while replacing the process behind it.
+  const supervisor = new WebEngineSupervisor({
+    create: createEngine,
+    onHold: o.onHold,
+    onFallback: o.onFallback
+  })
+  const backend = new WebView2PageBackend(supervisor, {
     getSources: (types) => desktopCapturer.getSources({ types }),
     thumbnailSources: (opts) => desktopCapturer.getSources(opts)
   })
+  supervisor.onPagesReopened = (pages) => backend.applyReopened(pages)
+  if (o.env['PPT_OUTPUT_DUMP']) {
+    Object.defineProperty(globalThis, '__pptWebEngine', {
+      configurable: true,
+      get: () => ({ ready: supervisor.ready(), kill: () => supervisor.kill() })
+    })
+  }
+  return backend
 }
 
 /** web:* channels; every one refuses a caller that is not an app window. */
@@ -1058,8 +1077,12 @@ function registerWebIpc(
     return web.setZoom(deckId, zoom)
   })
   appHandle(Invoke.webNavStates, () => web.navStates())
-  appHandle(Invoke.webInput, (_e, deckId, input) => {
+  appHandle(Invoke.webInput, (e, deckId, input) => {
     assertString(deckId, 'Deck ID')
+    // A Prepare window drives only the deck it was opened for.
+    const role = roleOf(e.sender)
+    const prepareDeck = role === 'prepare' ? prepareDeckOf(e.sender) : null
+    if (!prepareInputAllowed(role, deckId, prepareDeck)) return false
     return web.prepareInput(deckId, input)
   })
   appHandle(Invoke.webSetInteract, (e, deckId, on) => {
@@ -1629,6 +1652,15 @@ Location: ${root}`
   const hdmi = createHdmiOutput(settings)
   const net = createNetOutput(settings, state, lib)
   let operator: BrowserWindow | null = null
+  const webDevUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  const isLiveWeb = (deckId: string): boolean => state.state.shown?.web?.deckId === deckId
+  const electronWebBackend = (): PageBackend =>
+    new ElectronPageBackend({
+      operatorWindow: () => operator,
+      isLive: isLiveWeb,
+      ...(webDevUrl ? { devUrl: webDevUrl } : {})
+    })
+  let webHost: WebHost | null = null
   const host = new WebHost(
     lib,
     state,
@@ -1648,13 +1680,19 @@ Location: ${root}`
       platform: process.platform,
       env: process.env,
       operatorWindow: () => operator,
-      isLive: (deckId) => state.state.shown?.web?.deckId === deckId,
-      ...(is.dev && process.env['ELECTRON_RENDERER_URL']
-        ? { devUrl: process.env['ELECTRON_RENDERER_URL'] }
-        : {})
+      isLive: isLiveWeb,
+      onHold: (deckId) => {
+        if (isLiveWeb(deckId)) state.setWebHold(true)
+      },
+      onFallback: (message) => {
+        console.warn('[web]', message)
+        void webHost?.switchBackend(electronWebBackend())
+      },
+      ...(webDevUrl ? { devUrl: webDevUrl } : {})
     }),
     (s) => broadcast(Broadcast.webNavState, s)
   )
+  webHost = host
   web = host
   isWebPage = (wc) => host.owns(wc)
   // Web page sound: the deck on air reads the helper's pipe (web-bridge) through the same

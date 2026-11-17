@@ -85,7 +85,11 @@ export class WebHost {
       (fn, ms) => setTimeout(fn, ms),
       (h) => clearTimeout(h as ReturnType<typeof setTimeout>)
     )
-    this.backend.setEvents({
+    this.wire(this.backend)
+  }
+
+  private wire(backend: PageBackend): void {
+    backend.setEvents({
       nav: (s) => this.onBackendNav(s),
       loaded: (deckId, info) => this.onLoaded(deckId, info),
       loadFailed: (deckId, message) => this.onLoadFailed(deckId, message),
@@ -94,6 +98,46 @@ export class WebHost {
       warning: (deckId, warning) => this.onWarning(deckId, warning),
       closed: (deckId) => this.onPageClosed(deckId)
     })
+  }
+
+  /**
+   * Replaces the page backend (the web helper gave up, or the app changed its mind):
+   * every open page is opened again on the new one. The audience sees HOLD or the
+   * snapshot while the new windows come up, never black.
+   */
+  async switchBackend(next: PageBackend): Promise<void> {
+    if (this.closed) return
+    const old = this.backend
+    this.backend = next
+    this.wire(next)
+    old.dispose()
+    for (const p of [...this.pages.values()]) {
+      p.loaded = false
+      p.failed = null
+      p.frameSeen = false
+      p.status = 'loading'
+      this.onStatus(p.deckId, p.status, undefined, p.warning)
+      try {
+        await next.open(p.deckId, {
+          url: p.nav?.url || this.deckUrl(p.deckId),
+          canvas: this.canvas(),
+          zoom: this.storedZoom(p.deckId),
+          profile: p.profile
+        })
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        this.onLoadFailed(p.deckId, message)
+      }
+    }
+  }
+
+  /** The deck's saved address (for reopening after a backend switch). */
+  private deckUrl(deckId: string): string {
+    try {
+      return this.lib.getDeck(deckId).web?.url ?? ''
+    } catch {
+      return ''
+    }
   }
 
   /** True for a web deck page (only the Electron backend has Electron page windows). */
