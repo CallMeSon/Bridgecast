@@ -120,8 +120,9 @@ section of `docs/test-checklist.md`.
 ## Releases
 
 Windows and Linux AppImage builds are published to the **same** GitHub release. Each installer is
-built on its own OS. The Linux release also carries a `.deb`; it cannot self-update (install a newer
-`.deb` by hand), and macOS builds are not published.
+built on its own OS. The Linux release also carries a `.deb`; from the version after 0.1.4 it updates itself like
+the AppImage (the install asks for the administrator password; older `.deb` installs need one
+newer `.deb` installed by hand), and macOS builds are not published.
 
 1. Bump `"version"` in `package.json` and add a `## [X.Y.Z] - YYYY-MM-DD` section to
    `CHANGELOG.md`. Its newest version section becomes the release notes operators see under

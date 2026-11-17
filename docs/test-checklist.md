@@ -273,8 +273,13 @@ silently.
       still present; no library folder was moved or renamed.
 - [ ] **Linux AppImage:** on the Linux PC, run the 0.1.0 AppImage with internet, see the same chip
       and popover, download, install while idle and relaunch on 0.1.1 with the library intact.
-      Install the 0.1.0 `.deb` too: it must show the version in Settings > About but **no** chip,
-      popover or "Check for updates" button (updates are unsupported there).
+- [ ] **Linux `.deb`** (self-update since the version after 0.1.4; older `.deb` installs show no
+      update UI and need one manual install): install a `.deb` that has the updater, publish a
+      newer release, and check Settings > About > "Check for updates": the chip appears, the
+      download runs in the background, and "Restart and install" asks for the administrator
+      password, installs with `dpkg` and relaunches on the new version with the library intact.
+      Cancel the password dialog once: the app must stay on the old version and still work.
+      Closing the app with a downloaded update asks for the password too.
 - [ ] **Offline start:** disconnect the network and start 0.1.0 (or 0.1.1). Nothing appears — no
       chip, no popover, no error toast, no log above info. Startup is not delayed; the next check is
       in 6 h. Reconnect and confirm the next scheduled check still works.

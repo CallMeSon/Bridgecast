@@ -8,7 +8,7 @@ export type UpdateStatus =
   | { kind: 'downloading'; version: string; percent: number; notes?: string }
   | { kind: 'ready'; version: string; notes?: string }
   | { kind: 'error'; version: string; message: string; notes?: string }
-  /** This build cannot self-update (dev build, .deb, macOS): no update UI is shown. */
+  /** This build cannot self-update (dev build, macOS): no update UI is shown. */
   | { kind: 'unsupported' }
 
 /** Shared status for builds without an update engine, so callers cannot drift. */

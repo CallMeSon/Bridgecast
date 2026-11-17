@@ -2366,9 +2366,11 @@ footer .empty {
   /* The strip runs off the right edge with a fade, not a scrollbar bar. */
   mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
 }
+/* Thumbnails follow the strip height: 140px wide at the default 176px, 16:9 at any size. */
 .th {
-  flex: 0 0 140px;
-  width: 140px;
+  --th-w: max(64px, calc(140px + (var(--strip-h, 176px) - 176px) * 16 / 9));
+  flex: 0 0 var(--th-w);
+  width: var(--th-w);
   min-width: 0;
   padding: 0;
   border: 0;

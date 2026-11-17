@@ -38,6 +38,7 @@ import {
   needsX11Relaunch,
   probeLinux,
   x11RelaunchOptions,
+  canSelfUpdate,
   type EngineInfo
 } from './platform'
 import { readFolderDeck } from './import/folder'
@@ -172,6 +173,15 @@ let isWebPage: (wc: Electron.WebContents) => boolean = () => false
 function broadcast<C extends keyof BroadcastMap>(channel: C, payload: BroadcastMap[C]): void {
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed() && !isWebPage(w.webContents)) w.webContents.send(channel, payload)
+  }
+}
+
+/** `resources/package-type` of a packaged Linux build (`deb` in a .deb install), else null. */
+function readPackageType(): string | null {
+  try {
+    return fs.readFileSync(join(process.resourcesPath, 'package-type'), 'utf8')
+  } catch {
+    return null
   }
 }
 
@@ -782,7 +792,7 @@ function registerIpc(
   const operatorOnly = (e: IpcMainInvokeEvent): void => {
     if (roleOf(e.sender) !== 'operator') throw new Error(NOT_APP_WINDOW)
   }
-  // No manager on this build (dev, .deb, macOS): the renderer hides every update control.
+  // No manager on this build (dev, macOS): the renderer hides every update control.
   const noopStatus = UNSUPPORTED_UPDATE_STATUS
   appHandle(Invoke.updateStatus, (e) => {
     operatorOnly(e)
@@ -1567,15 +1577,18 @@ Location: ${root}`
   if (process.env['PPT_OUTPUT_DUMP']) {
     Object.defineProperty(globalThis, '__pptWeb', { configurable: true, get: () => host.debug() })
   }
-  // Auto-update: only packaged Win/Linux-AppImage builds (or the fake test engine) ever check or
+  // Auto-update: only packaged Windows, Linux AppImage and Linux .deb builds (or the fake test
+  // engine) ever check or
   // download. A failed check is silent; a newer version downloads by itself while nothing is on
   // air and installs when the app quits with nothing on air (or when the operator restarts).
   const updatesEnabled =
     process.env['PPT_UPDATE_FAKE'] === '1' ||
-    (app.isPackaged &&
-      (process.platform === 'win32' ||
-        (process.platform === 'linux' && process.env['APPIMAGE'] !== undefined)) &&
-      process.env['BRIDGECAST_NO_UPDATE_CHECK'] !== '1')
+    canSelfUpdate({
+      packaged: app.isPackaged,
+      platform: process.platform,
+      env: process.env,
+      packageType: readPackageType()
+    })
   const updateManager = updatesEnabled
     ? new UpdateManager({
         engine:

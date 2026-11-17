@@ -4,6 +4,11 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Added
+
+- A Bridgecast installed from the `.deb` updates itself: Settings > About > "Check for updates" finds a newer version, downloads it in the background and installs it on "Restart and install" or when Bridgecast is closed. The install asks for the administrator password. A `.deb` of 0.1.4 or older has no updater: install this version by hand once.
+- Web decks block ads and trackers (Ghostery filter lists, cached in the data folder, best effort: with no network on the first run the pages load unblocked). It only applies to the web deck profile. `PPT_ADBLOCK=0` turns it off.
+
 ## [0.1.4] - 2026-11-17
 
 ### Added

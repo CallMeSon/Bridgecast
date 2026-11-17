@@ -1,3 +1,4 @@
+import { startAdBlock } from './adblock'
 import { BrowserWindow, screen, session, type Session, type WebContents } from 'electron'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -130,6 +131,7 @@ export class WebHost {
     if (!this.ses) {
       this.ses = session.fromPartition(WEB_PARTITION)
       applyWebSession(this.ses, this.ses.getUserAgent(), this.devUrl)
+      startAdBlock(this.ses)
     }
     return this.ses
   }

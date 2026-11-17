@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canSelfUpdate,
   INSTALL_LIBREOFFICE,
   NO_POWERPOINT_ENGINE,
   WAYLAND_STILLS,
@@ -86,5 +87,25 @@ describe('x11RelaunchOptions', () => {
     expect(
       x11RelaunchOptions({ APPIMAGE: '/home/u/Bridgecast.AppImage' }, ['/tmp/.mount_x/bridgecast'])
     ).toEqual({ execPath: '/home/u/Bridgecast.AppImage', args: ['--ozone-platform=x11'] })
+  })
+})
+
+describe('canSelfUpdate', () => {
+  const base = { packaged: true, platform: 'linux' as const, env: {}, packageType: null }
+
+  it('is true for Windows, an AppImage and a .deb install', () => {
+    expect(canSelfUpdate({ ...base, platform: 'win32' })).toBe(true)
+    expect(canSelfUpdate({ ...base, env: { APPIMAGE: '/x/b.AppImage' } })).toBe(true)
+    expect(canSelfUpdate({ ...base, packageType: 'deb\n' })).toBe(true)
+  })
+
+  it('is false for dev builds, macOS, other Linux packages and when switched off', () => {
+    expect(canSelfUpdate({ ...base, packaged: false, packageType: 'deb' })).toBe(false)
+    expect(canSelfUpdate({ ...base, platform: 'darwin' })).toBe(false)
+    expect(canSelfUpdate(base)).toBe(false)
+    expect(canSelfUpdate({ ...base, packageType: 'rpm' })).toBe(false)
+    expect(
+      canSelfUpdate({ ...base, packageType: 'deb', env: { BRIDGECAST_NO_UPDATE_CHECK: '1' } })
+    ).toBe(false)
   })
 })

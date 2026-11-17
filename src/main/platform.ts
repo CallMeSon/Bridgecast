@@ -96,3 +96,22 @@ export function x11RelaunchOptions(
   const appImage = env['APPIMAGE']
   return appImage ? { execPath: appImage, args } : { args }
 }
+
+/**
+ * Whether this build can update itself: a packaged Windows build, a Linux AppImage, or a Linux
+ * `.deb` install. `packageType` is the text of `resources/package-type`, which electron-builder
+ * writes into a `.deb` (`deb`); electron-updater picks its installer from the same file. A
+ * `.deb` update is installed with `dpkg` and asks for the administrator password.
+ * `BRIDGECAST_NO_UPDATE_CHECK=1` switches updates off.
+ */
+export function canSelfUpdate(o: {
+  packaged: boolean
+  platform: NodeJS.Platform
+  env: Record<string, string | undefined>
+  packageType: string | null
+}): boolean {
+  if (!o.packaged || o.env['BRIDGECAST_NO_UPDATE_CHECK'] === '1') return false
+  if (o.platform === 'win32') return true
+  if (o.platform !== 'linux') return false
+  return o.env['APPIMAGE'] !== undefined || o.packageType?.trim() === 'deb'
+}
