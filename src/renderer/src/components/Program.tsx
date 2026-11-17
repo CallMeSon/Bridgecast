@@ -10,6 +10,7 @@ import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
 import { TransportBar } from './TransportBar'
 import { audienceNote, standbyCard } from './program-copy'
+import { useIdlePointer } from '../use-idle-pointer'
 
 /**
  * The Program column: title row with the state tag, the monitor, one meta line and the
@@ -62,6 +63,8 @@ export function Program({
   const screen = useRef<HTMLDivElement>(null)
   const capture = useRef<HTMLDivElement>(null)
   const monitor = useMonitorInteract(liveWeb, state.frozen, screen, capture)
+  // The pointer over the picture rests out of the way (moving shows it again).
+  const pointer = useIdlePointer()
   return (
     <div className="program" data-state={t} data-testid="program">
       <div className="ptitle">
@@ -102,7 +105,7 @@ export function Program({
           )}
         </h2>
       </div>
-      <div className="pgm-view">
+      <div className="pgm-view" onPointerMove={pointer.poke}>
         <div
           className="pgm-stack"
           style={
@@ -118,6 +121,7 @@ export function Program({
             data-black={state.black}
             data-transition={state.transition}
             data-interact={String(monitor.on)}
+            style={{ cursor: pointer.hidden ? 'none' : undefined }}
           >
             {shown || media ? (
               <SlideLayers

@@ -4,6 +4,16 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-11-17
+
+### Changed
+
+- The mouse pointer over a preview hides while it rests and comes back as soon as it moves: on the Prepare page image and on the operator's Program monitor, so the picture stays clean while you watch it.
+
+### Fixed
+
+- The desktop window capture now asks for no mouse pointer in the frame (`cursor: 'never'`), so a pointer cannot be baked into the page image on Chromium builds that add one. Measured on Windows with this Electron: neither the live capture nor the deck thumbnail contains the pointer.
+
 ## [0.1.8] - 2026-11-17
 
 ### Fixed

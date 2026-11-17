@@ -85,7 +85,8 @@ describe('desktopConstraints', () => {
           chromeMediaSourceId: 'window:1324:0',
           maxWidth: 1920,
           maxHeight: 1080,
-          maxFrameRate: 30
+          maxFrameRate: 30,
+          cursor: 'never'
         }
       }
     })

@@ -44,6 +44,7 @@ import {
   zoomLabel
 } from './prepare-ui'
 import { PrepareMiniMap } from './components/PrepareMiniMap'
+import { useIdlePointer } from './use-idle-pointer'
 import { VIDEO_ONLY_FPS } from './stream'
 import { centred, clampPan, layout, panBy, type View, type ViewMode } from './prepare-view'
 import { useWebInteract } from './use-web-interact'
@@ -118,6 +119,8 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [interact, setInteract] = useState(false)
   const [mapShown, setMapShown] = useState(readMapShown)
+  // Hides the resting pointer over the page image.
+  const pointer = useIdlePointer()
   const [stageFocused, setStageFocused] = useState(false)
   const [released, setReleased] = useState(false)
   const dpr = useDpr()
@@ -800,16 +803,20 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
               style={{
                 width: stageSize.width,
                 height: stageSize.height,
-                cursor: stageCursor({
-                  interact,
-                  locked,
-                  canPan: panReady,
-                  panning,
-                  page: nav?.cursor ?? 'default'
-                })
+                // A resting pointer is hidden so the preview stays clean; moving shows it.
+                cursor: pointer.hidden
+                  ? 'none'
+                  : stageCursor({
+                      interact,
+                      locked,
+                      canPan: panReady,
+                      panning,
+                      page: nav?.cursor ?? 'default'
+                    })
               }}
               onFocus={() => setStageFocused(true)}
               onBlur={() => setStageFocused(false)}
+              onPointerMove={pointer.poke}
               onMouseLeave={web.onMouseLeave}
               onMouseDown={onMouse}
               onMouseUp={onMouse}

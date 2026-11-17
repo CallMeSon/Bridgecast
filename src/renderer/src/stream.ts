@@ -53,7 +53,10 @@ export function desktopConstraints(
       chromeMediaSourceId: sourceId,
       maxWidth: clampInt(canvas.width, 1, MAX_SIDE, 1920),
       maxHeight: clampInt(canvas.height, 1, MAX_SIDE, 1080),
-      maxFrameRate: clampInt(fps, 1, 60, 30)
+      maxFrameRate: clampInt(fps, 1, 60, 30),
+      // No mouse pointer in the picture (Chromium ignores it where it does not know it;
+      // Windows capture on this build does not add one, older ones do).
+      cursor: 'never'
     }
   }
   return { video } as MediaStreamConstraints
