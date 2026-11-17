@@ -340,6 +340,20 @@ namespace WebBridge
             if (!closed) { crashes = 0; core.Reload(); }
         }
 
+        /// <summary>
+        /// A PNG of the page itself (WebView2's own rendering, no window frame, no cursor).
+        /// Works while the window is parked off the desktop, where a desktop thumbnail does
+        /// not show the content.
+        /// </summary>
+        public async Task<string> SnapshotPng()
+        {
+            using (var stream = new System.IO.MemoryStream())
+            {
+                await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
+                return Convert.ToBase64String(stream.ToArray());
+            }
+        }
+
         public void ClosePage()
         {
             if (closed) return;

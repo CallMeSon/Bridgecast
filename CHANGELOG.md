@@ -4,6 +4,12 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-11-17
+
+### Fixed
+
+- The mouse pointer no longer shows up inside the page image on HDMI, OMT or in the preview. Windows' window capture paints the pointer into the frame when it is inside the captured window, and Chromium's `cursor` constraint does not stop it (measured). The helper window is now parked outside every display, where the pointer can never be inside it; the capture still delivers live frames from the parked window (verified with an animated page). The deck snapshot now comes from WebView2's own `CapturePreviewAsync`, so it has no pointer or window frame either.
+
 ## [0.1.9] - 2026-11-17
 
 ### Changed

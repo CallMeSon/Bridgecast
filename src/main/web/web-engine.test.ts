@@ -139,6 +139,16 @@ describe('WebBridgeEngine', () => {
     expect(r.audioPipe).toBe('\\\\.\\pipe\\web-audio-1-2')
   })
 
+  it('asks the helper for a page snapshot and returns its base64 PNG', async () => {
+    await engine.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
+    child.reply = (m) =>
+      m.cmd === 'snapshot' ? { id: m.id, ok: true, png: 'aGk=' } : { id: m.id, ok: true }
+    await expect(engine.snapshot('d1')).resolves.toBe('aGk=')
+    child.reply = (m) => ({ id: m.id, ok: true })
+    await expect(engine.snapshot('d1')).resolves.toBeNull()
+    expect(child.written.find((m) => m.cmd === 'snapshot')).toMatchObject({ deckId: 'd1' })
+  })
+
   it('maps every command with the deck id', async () => {
     await engine.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
     await engine.navigate('d1', 'https://c.d')
@@ -149,6 +159,7 @@ describe('WebBridgeEngine', () => {
     await engine.resize('d1', { width: 2520, height: 1080 })
     engine.input('d1', { kind: 'key', type: 'keyDown', keyCode: 'ArrowRight', modifiers: [] })
     await engine.setMuted('d1', true)
+    await engine.snapshot('d1')
     await engine.signOut('default')
     await engine.setLive('d1', true)
     engine.stop('d1')
@@ -162,6 +173,7 @@ describe('WebBridgeEngine', () => {
       'resize',
       'input',
       'setMuted',
+      'snapshot',
       'signOut',
       'setLive',
       'stop',

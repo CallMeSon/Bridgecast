@@ -25,15 +25,15 @@ function domKey(electronKey: string): string {
 
 /** What the app uses to find the helper window's `desktopCapturer` source (injected in tests). */
 type GetSources = (types: ['window']) => Promise<{ id: string; thumbnail?: unknown }[]>
-type ThumbnailSources = (
-  opts: { types: ['window']; thumbnailSize: { width: number; height: number } }
-) => Promise<{ id: string; thumbnail: { toPNG(): Buffer } }[]>
 
 interface WebView2BackendOptions {
   /** `desktopCapturer.getSources`, as main passes it. */
   getSources: GetSources
-  /** `desktopCapturer.getSources` with a thumbnail, for the snapshot (never black). */
-  thumbnailSources?: ThumbnailSources
+  /**
+   * Where to park the helper window: outside every display, so the mouse pointer can never
+   * be inside it (Windows capture draws the cursor into the frame; see web.log).
+   */
+  parkAt?: (canvas: PageSize) => { x: number; y: number }
 }
 
 interface PageState {
@@ -108,7 +108,12 @@ export class WebView2PageBackend implements PageBackend {
     deckId: string,
     o: { url: string; canvas: PageSize; zoom: number; profile: string; live?: boolean }
   ): Promise<void> {
-    const r = await this.engine.open(deckId, { ...o, live: o.live ?? false })
+    const at = this.opts.parkAt?.(o.canvas)
+    const r = await this.engine.open(deckId, {
+      ...o,
+      live: o.live ?? false,
+      ...(at ? { x: at.x, y: at.y } : {})
+    })
     webLog(
       `${deckId} helper window ${r.windowId}${r.audioPipe ? ` pipe ${r.audioPipe}` : ' (no audio pipe)'}`
     )
@@ -241,22 +246,15 @@ export class WebView2PageBackend implements PageBackend {
     }
   }
 
-  /** A picture of the helper window (never a screen), for the snapshot fallback. */
+  /** A PNG of the page from WebView2 itself: no window frame, no cursor, works parked. */
   async snapshot(deckId: string): Promise<Buffer | null> {
     const p = this.pages.get(deckId)
-    if (!p || !this.opts.thumbnailSources) return null
+    if (!p) return null
     try {
-      const sources = await this.opts.thumbnailSources({
-        types: ['window'],
-        thumbnailSize: { width: p.canvas.width, height: p.canvas.height }
-      })
-      const prefix = `window:${p.windowId}:`
-      const source = sources.find((s) => s.id.startsWith(prefix))
-      if (!source) return null
-      const png = source.thumbnail.toPNG()
-      return png && png.length > 0 ? png : null
+      const b64 = await this.engine.snapshot(deckId)
+      return b64 ? Buffer.from(b64, 'base64') : null
     } catch (e) {
-      console.warn('[web] helper window snapshot failed:', e instanceof Error ? e.message : e)
+      console.warn('[web] helper snapshot failed:', e instanceof Error ? e.message : e)
       return null
     }
   }

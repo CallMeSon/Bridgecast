@@ -248,6 +248,10 @@ export class WebEngineSupervisor implements WebPageEngine {
     await this.live?.setMuted(deckId, muted)
   }
 
+  async snapshot(deckId: string): Promise<string | null> {
+    return this.live ? this.live.snapshot(deckId) : null
+  }
+
   async signOut(profile: string): Promise<void> {
     await this.live?.signOut(profile)
   }

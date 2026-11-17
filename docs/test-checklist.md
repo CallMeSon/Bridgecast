@@ -140,6 +140,7 @@ sungguhan, login Google, capture jendela helper, dan loopback audio browser.
 - [ ] Saat deck **live**, tautan `target=_blank` atau `window.open` tidak membuka jendela dan tidak memindahkan halaman yang sedang tayang.
 - [ ] Halaman macet di JavaScript (mis. skrip berat di konsol): sekitar 5 detik kemudian muncul HOLD (bukan diam saja).
 - [ ] Halaman helper tidak pernah mengambil fokus: clicker dan F/B/D tetap bekerja tanpa klik ulang ke jendela operator.
+- [ ] **Tidak ada kursor di gambar**: gerakkan mouse di layar operator saat deck web live; HDMI/OMT dan preview tidak boleh memuat panah kursor (jendela helper diparkir di luar semua layar). Snapshot/thumbnail deck juga tanpa kursor.
 - [ ] Canvas 2520x1080 (dan 3840x1080): gambar di HDMI/OMT tidak melar atau berbingkai; ukuran jendela = canvas.
 - [ ] Jendela helper ditutup aplikasi lain: capture tetap mengalir (atau HOLD), tidak hitam dan bukan desktop.
 - [ ] Jendela helper di layar kedua / layar dimatikan: capture tetap mengalir atau HOLD.

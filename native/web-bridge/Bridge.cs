@@ -169,6 +169,8 @@ namespace WebBridge
                     Need(a).Input(Io.Obj(a, "ev") ?? throw new BridgeException("args", "input needs ev."));
                     return null;
                 case "setMuted": Need(a).SetMuted(Io.Bool(a, "muted", false)); return null;
+                case "snapshot":
+                    return new Dictionary<string, object> { { "png", await Need(a).SnapshotPng() } };
                 case "signOut": await SignOut(Io.Str(a, "profile", "default")); return null;
                 case "close": CloseSession(Io.Str(a, "deckId", "")); return null;
                 default: throw new BridgeException("unknown", "Unknown command " + r.Cmd);

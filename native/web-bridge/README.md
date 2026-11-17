@@ -41,6 +41,8 @@ Requests (the reply carries the same `id`):
 | `resize` | `deckId, width, height` | `{}` |
 | `input` | `deckId, ev` (a `PrepareInput` shape) | `{}` |
 | `setMuted` | `deckId, muted` | `{}` |
+| `setLive` | `deckId, live` | `{}` (a page on air may not open a window) |
+| `snapshot` | `deckId` | `{png}` (base64 PNG of the page, no window frame, no cursor) |
 | `signOut` | `profile` | `{}` |
 | `close` | `deckId` | `{}` |
 | `ping` | — | `{busy}`; an unanswered ping means the UI thread hangs |
@@ -60,16 +62,22 @@ finds the matching `desktopCapturer` window source `window:<handle>:<n>`.
 
 ## Window behavior
 
-The page window is a borderless top-level window with `WS_EX_NOACTIVATE`. It is shown
-behind the operator window (never on the HDMI display) and never takes focus. Its client
-area is exactly `width x height` at the screen's DPI (the process is PerMonitorV2 DPI
-aware), so the capture is the canvas, not a stretched or letterboxed copy.
+The page window is a borderless top-level window with `WS_EX_NOACTIVATE`. It never takes
+focus. Its client area is exactly `width x height` at the screen's DPI (the process is
+PerMonitorV2 DPI aware), so the capture is the canvas, not a stretched or letterboxed copy.
+
+**It is parked outside every display** (`x`/`y` from `open`: main passes a point left of the
+virtual desktop). Windows capture paints the mouse pointer into the frame when the pointer is
+inside the captured window; parking the window where the pointer can never be removes it,
+while frames keep arriving (verified: a parked window still delivers live frames, and the
+pointer no longer appears). The page snapshot therefore comes from WebView2 itself
+(`CoreWebView2.CapturePreviewAsync`), not from a desktop thumbnail, and also contains no
+pointer or window frame.
 
 It must **not** carry `WS_EX_TOOLWINDOW`, and it must not be an owned window (WinForms
-`ShowInTaskbar = false` creates a hidden owner): Chromium's `desktopCapturer` lists neither,
-and without a listed window the app can never capture the page (`web.log` says
-`not capturable`). The taskbar button is removed with `ITaskbarList.DeleteTab` instead. The
-window can therefore appear in Alt+Tab; it never takes focus.
+`ShowInTaskbar = false` creates a hidden owner): Chromium's `desktopCapturer` lists neither.
+The taskbar button is removed with `ITaskbarList.DeleteTab` instead. The window can therefore
+appear in Alt+Tab; it never takes focus.
 
 ## Sound
 

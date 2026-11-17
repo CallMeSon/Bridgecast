@@ -53,6 +53,9 @@ export interface WebOpenOptions {
   profile: string
   /** The deck is on the output (the helper refuses new windows while it is). */
   live?: boolean
+  /** Where the helper puts the window (main parks it off the desktop). */
+  x?: number
+  y?: number
 }
 
 /**
@@ -77,6 +80,8 @@ export interface WebPageEngine {
   resize(deckId: string, canvas: Canvas): Promise<void>
   /** Fire and forget: input never delays the operator. */
   input(deckId: string, ev: PrepareInput): void
+  /** A PNG of the page itself (base64), from WebView2's own capture (no cursor, no frame). */
+  snapshot(deckId: string): Promise<string | null>
   setMuted(deckId: string, muted: boolean): Promise<void>
   /** The deck went on or off the output (a page on air may not open a window). */
   setLive(deckId: string, live: boolean): void
@@ -108,6 +113,8 @@ interface WebBridgeEngineOptions {
 const OPEN_MS = 60_000
 const MOVE_MS = 5_000
 const PING_MS = 3_000
+/** A page snapshot is a PNG of the whole canvas; it can take a moment. */
+const SNAPSHOT_MS = 15_000
 
 interface Live {
   child: BridgeChild
@@ -288,8 +295,8 @@ export class WebBridgeEngine implements WebPageEngine {
         url: o.url,
         width: o.canvas.width,
         height: o.canvas.height,
-        x: 0,
-        y: 0,
+        x: o.x ?? 0,
+        y: o.y ?? 0,
         profile: o.profile,
         zoom: o.zoom,
         live: o.live ?? false
@@ -376,6 +383,13 @@ export class WebBridgeEngine implements WebPageEngine {
     const live = this.live
     if (!live || live.exited) return
     await live.client.request('setMuted', { deckId, muted }, MOVE_MS)
+  }
+
+  async snapshot(deckId: string): Promise<string | null> {
+    const live = this.live
+    if (!live || live.exited) return null
+    const res = await live.client.request('snapshot', { deckId }, SNAPSHOT_MS)
+    return typeof res.png === 'string' && res.png.length > 0 ? res.png : null
   }
 
   async signOut(profile: string): Promise<void> {

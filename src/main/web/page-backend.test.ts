@@ -20,9 +20,8 @@ const nav = (deckId: string, rest: Partial<WebNavState> = {}): WebNavState => ({
 let engine: FakeWebEngine
 let backend: WebView2PageBackend
 let events: PageBackendEvents
-let thumbs: { id: string; thumbnail: { toPNG(): Buffer } }[]
 
-function make(): void {
+function make(parkAt?: (canvas: { width: number; height: number }) => { x: number; y: number }): void {
   engine = new FakeWebEngine()
   engine.open = async (deckId, o) => {
     engine.opened.set(deckId, o)
@@ -30,7 +29,7 @@ function make(): void {
   }
   backend = new WebView2PageBackend(engine, {
     getSources: async () => [{ id: 'window:4242:0' }, { id: 'window:9999:0' }],
-    thumbnailSources: async () => thumbs
+    ...(parkAt ? { parkAt } : {})
   })
   events = {
     nav: vi.fn(),
@@ -45,7 +44,6 @@ function make(): void {
 }
 
 beforeEach(() => {
-  thumbs = [{ id: 'window:4242:0', thumbnail: { toPNG: () => Buffer.from([1, 2, 3]) } }]
   make()
 })
 
@@ -132,12 +130,19 @@ describe('PageBackend contract', () => {
     )
   })
 
-  it('snapshots the helper window with a thumbnail, and nothing when it is gone', async () => {
+  it('snapshots the page from the helper, and nothing when there is no page', async () => {
     await backend.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
+    engine.png = Buffer.from([1, 2, 3]).toString('base64')
     await expect(backend.snapshot('d1')).resolves.toEqual(Buffer.from([1, 2, 3]))
-    thumbs = []
+    engine.png = null
     await expect(backend.snapshot('d1')).resolves.toBeNull()
     await expect(backend.snapshot('missing')).resolves.toBeNull()
+  })
+
+  it('parks the window where main says (off the desktop, so no pointer can be in it)', async () => {
+    make(() => ({ x: -4040, y: -200 }))
+    await backend.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
+    expect(engine.opened.get('d1')).toMatchObject({ x: -4040, y: -200 })
   })
 
   it('sends one key down and one key up for Next/Prev', async () => {

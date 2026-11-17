@@ -19,6 +19,7 @@ type BridgeCmd =
   | 'setMuted'
   | 'setLive'
   | 'stop'
+  | 'snapshot' // web-bridge: a PNG of the page (base64), no window frame
   | 'signOut' // web-bridge only
 
 /** Events of both helpers; each engine reads the ones it knows. */

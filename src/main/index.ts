@@ -1003,7 +1003,15 @@ function createWebPageBackend(o: {
   })
   const backend = new WebView2PageBackend(supervisor, {
     getSources: (types) => desktopCapturer.getSources({ types }),
-    thumbnailSources: (opts) => desktopCapturer.getSources(opts)
+    // Park the page window outside every display: Windows capture draws the mouse pointer
+    // into the frame when it is inside the window, and the operator's pointer lives on the
+    // operator display. Verified: frames keep arriving from a parked window.
+    parkAt: (canvas) => {
+      const bounds = screen.getAllDisplays().map((d) => d.bounds)
+      const left = Math.min(...bounds.map((b) => b.x))
+      const top = Math.min(...bounds.map((b) => b.y))
+      return { x: left - canvas.width - 200, y: top }
+    }
   })
   supervisor.onPagesReopened = (pages) => backend.applyReopened(pages)
   if (o.env['PPT_OUTPUT_DUMP']) {

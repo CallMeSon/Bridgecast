@@ -130,6 +130,13 @@ export class FakeWebEngine implements WebPageEngine {
     this.muted.set(deckId, muted)
   }
 
+  /** Scripted page snapshot (base64 PNG); null by default. */
+  png: string | null = null
+
+  async snapshot(): Promise<string | null> {
+    return this.png
+  }
+
   async signOut(profile: string): Promise<void> {
     this.signedOut.push(profile)
   }
