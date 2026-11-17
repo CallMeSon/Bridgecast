@@ -41,6 +41,7 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 
 - [ ] Impor folder hasil ekspor Canva (`page-NN.png` + `page-NN.mp4`). Deck siap dengan jumlah halaman yang benar; slide video bertanda ikon play di strip dan di panel "Up next".
 - [ ] Seret folder `fixtures/video-deck` dari File Explorer ke jendela aplikasi dan pastikan folder itu terimpor sebagai deck. (Drop folder asli tidak bisa diotomatisasi.)
+- [ ] **File video langsung:** tambahkan satu file `.mp4` (H.264) dan satu `.webm` lewat Add files, lalu satu lagi lewat drag and drop, dan satu lewat New event. Tiap file jadi satu deck bernama sesuai file dengan satu slide video (tanda play di strip). Take slide itu: video tampil di HDMI dan berhenti di frame terakhir. Suara keluar dari HDMI bila file punya audio. Tambahkan file `.mov`: muncul baris error yang menyebut tipe yang didukung dan tidak ada deck yang dibuat. Tambahkan teks yang diganti nama jadi `.mp4`: pesan "cannot be played", tidak ada deck. Gambar poster deck (`001.png`) harus seukuran video aslinya.
 - [ ] Animasi diputar sekali di layar HDMI saat slide video tampil, lalu berhenti di frame terakhir.
 - [ ] Black atau KV off pada slide video menampilkan frame akhir, bukan awal animasi.
 - [ ] Suara keluar dari perangkat audio/HDMI yang dipilih.

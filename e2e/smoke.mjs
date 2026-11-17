@@ -2134,6 +2134,127 @@ async function videoChecks(win, tally) {
   return { missingDeckId: mId }
 }
 
+// --- Video files imported directly (one file = one deck with one video slide) ---
+/** ffmpeg on PATH, or null (the section is skipped with a clear log line). */
+function ffmpegPath() {
+  for (const bin of ['ffmpeg', 'ffmpeg.exe']) {
+    try {
+      execFileSync(bin, ['-version'], { stdio: 'ignore' })
+      return bin
+    } catch {
+      // not on PATH
+    }
+  }
+  return null
+}
+
+async function videoFileChecks(win, tally) {
+  const ffmpeg = ffmpegPath()
+  if (!ffmpeg) {
+    console.log('SKIP video file import: ffmpeg is not installed (its fixtures cannot be made).')
+    return
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ppt-share-video-file-'))
+  const mp4 = path.join(dir, 'clip.mp4')
+  const webm = path.join(dir, 'clip-webm.webm')
+  execFileSync(ffmpeg, [
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    'color=c=#1e3bff:s=640x360:d=2',
+    '-pix_fmt',
+    'yuv420p',
+    mp4
+  ])
+  execFileSync(ffmpeg, ['-y', '-f', 'lavfi', '-i', 'color=c=#ffd400:s=640x360:d=2', webm])
+  const fake = path.join(dir, 'fake.mp4')
+  fs.writeFileSync(fake, 'this is not a video')
+  const empty = path.join(dir, 'empty.mp4')
+  fs.writeFileSync(empty, '')
+
+  const decksNow = () =>
+    win.$$eval('[data-testid=decks] .deck[data-deck-id]', (els) => els.map((e) => e.dataset.deckId))
+  const namesNow = () =>
+    win.$$eval('[data-testid=decks] .deck .name', (els) => els.map((e) => e.textContent))
+  const errorsNow = () =>
+    win.$$eval('[data-testid=import-error], .import-error', (els) => els.map((e) => e.textContent))
+
+  const before = await decksNow()
+  const beforeErrors = (await errorsNow()).length
+  await win.evaluate(
+    async ([files]) => {
+      const { eventId } = await window.api.getSession()
+      await window.api.importDecks(
+        eventId,
+        files.map((f, i) => ({ id: `e2e-video-file-${i}-${Date.now()}`, path: f }))
+      )
+    },
+    [[mp4, webm, fake, empty]]
+  )
+  await win.waitForFunction(
+    (b) =>
+      [...document.querySelectorAll('[data-testid=decks] .deck[data-deck-id]:not(.busy)')].filter(
+        (e) => !b.includes(e.dataset.deckId)
+      ).length >= 2,
+    before,
+    { timeout: 60_000 }
+  )
+  const added = (await decksNow()).filter((d) => !before.includes(d))
+  const names = await namesNow()
+  check(added.length === 2, `two deck files become two decks (got ${added.length})`)
+  check(
+    names.includes('clip') && names.includes('clip-webm'),
+    `decks are named after the files (${JSON.stringify(names)})`
+  )
+
+  // Each new deck has exactly one slide, with a play mark in the strip.
+  await win.locator(`.deck[data-deck-id="${added[0]}"]`).click()
+  await win.evaluate(() => document.activeElement?.blur())
+  await win.waitForFunction(() => document.querySelector('[data-testid=pos]')?.textContent === '01 / 01')
+  await win.keyboard.press('Space')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
+  )
+  const top = await waitOutputTop((t) => t.kind === 'video', 'a direct video file plays on HDMI')
+  check(top.kind === 'video', `the imported video file reaches the output (${top.src})`)
+
+  // The poster PNG is the video's own size (640x360).
+  const posterSize = await win.evaluate(async (deckId) => {
+    const { eventId } = await window.api.getSession()
+    const decks = await window.api.listDecks(eventId)
+    const deck = decks.find((d) => d.id === deckId)
+    return deck ? { width: deck.width, height: deck.height, slides: deck.slides.length } : null
+  }, added[0])
+  check(
+    !!posterSize && posterSize.width === 640 && posterSize.height === 360 && posterSize.slides === 1,
+    `the deck keeps the video size and one slide (${JSON.stringify(posterSize)})`
+  )
+
+  // A file renamed .mp4 that is not a video, and a 0-byte file, become error rows and no deck.
+  const afterBad = await decksNow()
+  const errors = await errorsNow()
+  check(
+    errors.length > beforeErrors,
+    `the fake and empty files are refused with a message (${JSON.stringify(errors)})`
+  )
+  check(
+    afterBad.length === added.length + before.length,
+    'no deck was left behind for a refused video file'
+  )
+
+  // Remove the two decks so the following checks keep their deck list.
+  for (const id of added) {
+    const row = win.locator(`.deck[data-deck-id="${id}"]`)
+    await row.click({ button: 'right' })
+    await win.getByTestId('deck-menu').getByRole('menuitem', { name: 'Remove deck…' }).click()
+    await win.getByTestId('confirm-remove').getByRole('button', { name: 'Remove' }).click()
+    await row.waitFor({ state: 'detached' })
+  }
+  fs.rmSync(dir, { recursive: true, force: true })
+  check((await tally.textContent()) === 'LIVE', 'video file checks done')
+}
+
 // --- Canvas, Fit and audio levels (2026-10-27) ---
 // Read back from the HDMI output renderer: `.output-stage[data-canvas]`, the
 // newest on-screen layer's `data-fit`, and `.output[data-gain]`.
@@ -3088,6 +3209,7 @@ try {
   await renamed.waitFor()
 
   const { missingDeckId } = await videoChecks(win, tally)
+  await videoFileChecks(win, tally)
 
   await canvasAndLevelsChecks(win, tally)
 
