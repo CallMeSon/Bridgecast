@@ -270,13 +270,16 @@ export class WebHost {
   }
 
   async back(deckId: string): Promise<void> {
-    this.page(deckId)
+    const p = this.page(deckId)
+    // Nothing to go back to: a HOLD for a no-op would freeze the output for nothing.
+    if (!p.nav?.canGoBack) return
     await this.holdFirst(deckId)
     await this.backend.back(deckId)
   }
 
   async forward(deckId: string): Promise<void> {
-    this.page(deckId)
+    const p = this.page(deckId)
+    if (!p.nav?.canGoForward) return
     await this.holdFirst(deckId)
     await this.backend.forward(deckId)
   }
@@ -449,12 +452,13 @@ export class WebHost {
     const p = this.pages.get(s.deckId)
     if (!p) return
     p.nav = s
-    // A new main-frame document started (Reload, a new URL, or the backend's own reload
-    // after a crash): the previous failure no longer describes the page.
-    if (s.loading && s.url !== '' && p.failed) {
-      p.failed = null
+    // A new main-frame document started (Reload, a new URL, history, or the backend's own
+    // reload after a crash): the previous load and failure no longer describe the page.
+    if (s.loading && s.url !== '') {
+      const changed = p.loaded || p.failed !== null
       p.loaded = false
-      this.updateStatus(p)
+      p.failed = null
+      if (changed) this.updateStatus(p)
     }
     this.coalescer.push(s)
   }
