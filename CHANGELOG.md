@@ -4,9 +4,21 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-17
+
+### Added
+
+- A middle click on an event tab closes it. The on-air tab still cannot be closed.
+
 ### Changed
 
 - The key visual (KV) box is an upload area: drag and drop an image onto it or click to browse, with a preview, Replace and Remove once an image is set.
+- Off air moved from the Controls tab to the top bar, left of the Light / Dark switch. It still asks before it takes the show off air.
+- Labels, tabs and buttons can no longer be selected by dragging or double-clicking. Text fields, speaker notes and the OMT source name can still be selected.
+
+### Fixed
+
+- After a click on Cut / Fade (or another switch of that kind) the arrow keys take the next or previous slide again, instead of moving inside the switch.
 
 ## [0.1.2] - 2026-11-17
 
