@@ -3,7 +3,7 @@
 // installers with publishing disabled, verify their files, then attach them to v<version>.
 // Dry run is the default; --publish builds and publishes for real.
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -92,9 +92,30 @@ if (
 ) {
   buildCommands.push(['npm', ['run', 'build:bridge']])
 }
-// The installer ships the WebView2 helper too. Always rebuild it for a release: a stale
-// exe under native/web-bridge/bin would otherwise ship old helper code.
-if (platforms.includes('win')) {
+// The installer ships the WebView2 helper too. Rebuild it only when its output is older
+// than its sources: a stale exe must not ship, and rebuilding a running helper fails on
+// Windows because the app keeps the exe locked.
+function helperIsStale() {
+  const exe = join(root, 'native/web-bridge/bin/Release/net48/web-bridge.exe')
+  if (!existsSync(exe)) return true
+  const sources = []
+  const walk = (dir) => {
+    if (!existsSync(dir)) return
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name !== 'bin' && entry.name !== 'obj') walk(full)
+      } else if (/\.(cs|csproj|manifest)$/i.test(entry.name)) sources.push(full)
+    }
+  }
+  walk(join(root, 'native/web-bridge'))
+  for (const shared of ['Audio.cs', 'PingPolicy.cs', 'Native.cs']) {
+    sources.push(join(root, 'native/ppt-bridge', shared))
+  }
+  const built = statSync(exe).mtimeMs
+  return sources.some((file) => statSync(file).mtimeMs > built)
+}
+if (platforms.includes('win') && helperIsStale()) {
   buildCommands.push([
     'npm',
     ['run', process.platform === 'win32' ? 'build:web-bridge:win' : 'build:web-bridge']
