@@ -6,7 +6,8 @@
     <Nullable>disable</Nullable>
     <AssemblyName>web-bridge</AssemblyName>
     <RootNamespace>WebBridge</RootNamespace>
-    <Platforms>AnyCPU</Platforms>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
