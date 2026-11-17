@@ -1,11 +1,38 @@
-/** JSON-lines protocol between the main process and the PowerPoint bridge. */
+/** JSON-lines protocol between the main process and the helpers (ppt-bridge, web-bridge). */
 type BridgeCmd =
-  'open' | 'next' | 'prev' | 'goto' | 'close' | 'ping' | 'edit' | 'setVolume' | 'import' // lo-bridge only (the Linux PowerPoint import)
+  | 'open'
+  | 'next'
+  | 'prev'
+  | 'goto'
+  | 'close'
+  | 'ping'
+  | 'edit'
+  | 'setVolume'
+  | 'import' // lo-bridge only (the Linux PowerPoint import)
+  | 'navigate'
+  | 'reload'
+  | 'back'
+  | 'forward'
+  | 'setZoom'
+  | 'resize'
+  | 'input'
+  | 'setMuted'
+  | 'signOut' // web-bridge only
 
-export type BridgeEvent = { event: 'position' | 'error' | 'exited' | 'app' } & Record<
-  string,
-  unknown
->
+/** Events of both helpers; each engine reads the ones it knows. */
+export type BridgeEvent = {
+  event: 'position' | 'error' | 'exited' | 'app' | 'nav' | 'status' | 'crashed'
+} & Record<string, unknown>
+
+const KNOWN_EVENTS = new Set([
+  'position',
+  'error',
+  'exited',
+  'app',
+  'nav',
+  'status',
+  'crashed'
+])
 
 export class BridgeError extends Error {
   constructor(
@@ -91,12 +118,7 @@ export class BridgeClient {
     }
     const m = msg as Record<string, unknown>
     if (typeof m.event === 'string') {
-      if (
-        m.event === 'position' ||
-        m.event === 'error' ||
-        m.event === 'exited' ||
-        m.event === 'app'
-      ) {
+      if (KNOWN_EVENTS.has(m.event)) {
         for (const cb of this.listeners) cb(m as BridgeEvent)
       }
       return
