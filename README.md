@@ -120,7 +120,8 @@ section of `docs/test-checklist.md`.
 ## Releases
 
 Windows and Linux AppImage builds are published to the **same** GitHub release. Each installer is
-built on its own OS; macOS and `.deb` builds cannot self-update and are not published.
+built on its own OS. The Linux release also carries a `.deb`; it cannot self-update (install a newer
+`.deb` by hand), and macOS builds are not published.
 
 1. Bump `"version"` in `package.json` and add a `## [X.Y.Z] - YYYY-MM-DD` section to
    `CHANGELOG.md`. Its newest version section becomes the release notes operators see under
@@ -130,7 +131,7 @@ built on its own OS; macOS and `.deb` builds cannot self-update and are not publ
    that the installer, update metadata (`.yml`) and blockmap exist in `dist/`, and attaches them
    to release `vX.Y.Z` (creating it the first time, uploading with `--clobber` afterwards).
 3. `npm run release` alone is a dry run: it prints the commands without building or publishing.
-   Use `npm run release -- --branch <name>` when the release branch is not `master`, and
+   Use `npm run release -- --branch <name>` when the release branch is not `main`, and
    `--win` / `--linux` to pick one platform. `--publish` is required to run anything.
 
 The repository must be public and `gh` must be signed in with permission to create releases before

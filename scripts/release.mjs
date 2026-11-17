@@ -27,7 +27,7 @@ function option(name, fallback) {
 
 const publish = flag('publish')
 const dryRun = !publish || flag('dry-run')
-const branch = option('branch', 'master')
+const branch = option('branch', 'main')
 const platforms = []
 if (flag('win')) platforms.push('win')
 if (flag('linux')) platforms.push('linux')
@@ -79,7 +79,8 @@ const installer = (platform) =>
 const required = (platform) =>
   platform === 'win'
     ? [installer(platform), 'dist/latest.yml']
-    : [installer(platform), 'dist/latest-linux.yml']
+    : // The .deb is published for PCs where an AppImage is awkward; it cannot self-update.
+      [installer(platform), 'dist/latest-linux.yml', `dist/${pkg.name}_${version}_amd64.deb`]
 const blockmaps = (platform) => (platform === 'win' ? [`${installer(platform)}.blockmap`] : [])
 const buildCommands = []
 // electron-builder only packages out/: build the current source first, otherwise a stale out/
@@ -92,7 +93,7 @@ if (
   buildCommands.push(['npm', ['run', 'build:bridge']])
 }
 for (const platform of platforms) {
-  const target = platform === 'win' ? ['--win'] : ['--linux', 'AppImage']
+  const target = platform === 'win' ? ['--win'] : ['--linux', 'AppImage', 'deb']
   buildCommands.push(['npx', ['electron-builder', ...target, '--publish', 'never']])
 }
 
@@ -106,7 +107,7 @@ const releaseArgs = (mode, artifacts) =>
         `v${version}`,
         ...artifacts,
         // Without --target, gh creates a new tag on the repo's default branch, which may not be
-        // the release branch (this repo's default is feat/ppt-share).
+        // the release branch when --branch names another one.
         '--target',
         branch,
         '--title',
