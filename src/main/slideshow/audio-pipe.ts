@@ -223,6 +223,14 @@ export function soundWanted(s: ProgramState): boolean {
 }
 
 /**
+ * A web deck's page sound is wanted in the outputs while its page is on air (from the
+ * web-bridge helper's own pipe), and not while Black or a KV with an image covers it.
+ */
+export function webSoundWanted(s: ProgramState): boolean {
+  return !!s.shown?.web && !(s.black || kvOnAir(s))
+}
+
+/**
  * Level (0-1) for PowerPoint's own audio session when the pipe is not available: the live
  * native deck's level times the master, 0 when either is muted or Black/KV covers the
  * slide (restored when they end). Null when no native slide is shown.
@@ -263,6 +271,8 @@ export class SlideSound {
   private lastVolume: number | null = null
   private note: string | null = null
   private last: { state: ProgramState; audio: AudioSettings } | null = null
+  /** The helper's pipe for the web deck on air (web-bridge only), null otherwise. */
+  private webPipePath: string | null = null
 
   constructor(private readonly opts: SlideSoundOptions) {
     this.pipe = new PcmPipe({
@@ -275,16 +285,26 @@ export class SlideSound {
   engineAudio(a: EngineAudio): void {
     this.route = a
     this.lastVolume = null
-    this.pipe.open(a.mode === 'pipe' ? a.pipe : null)
+    this.applyRoute()
     if (this.last) this.program(this.last.state, this.last.audio)
     else this.setNote(null)
+  }
+
+  /**
+   * The pipe of the web deck that just went on air (null when none is). One reader at a
+   * time: a native slide and a web page can never be on air together, so switching decks
+   * closes the old connection and opens the new one.
+   */
+  setWebPipe(path: string | null): void {
+    if (path === this.webPipePath) return
+    this.webPipePath = path
+    this.applyRoute()
   }
 
   /** The program state or the sound settings changed. */
   program(state: ProgramState, audio: AudioSettings): void {
     this.last = { state, audio }
-    const wanted = soundWanted(state)
-    this.fanout.setWanted(wanted && this.route.mode === 'pipe')
+    this.applyRoute()
     const live = nativeLive(state)
     const degraded =
       this.route.mode === 'fallback' ||
@@ -302,6 +322,21 @@ export class SlideSound {
         e instanceof Error ? e.message : e
       )
     })
+  }
+
+  /**
+   * Reads the pipe of the deck on air: PowerPoint's (native slide) or the web-bridge
+   * helper's (web page). Both pipes stay connected while their deck kind is on air;
+   * Black and the KV only stop the forwarding, so the reading resumes without a reconnect.
+   */
+  private applyRoute(): void {
+    const last = this.last
+    const nativePath = this.route.mode === 'pipe' ? this.route.pipe : null
+    const webOnAir = !!last?.state.shown?.web
+    this.pipe.open(webOnAir ? this.webPipePath : nativePath)
+    const nativeWant = !!last && soundWanted(last.state) && this.route.mode === 'pipe'
+    const webWant = !!last && webSoundWanted(last.state) && this.webPipePath !== null
+    this.fanout.setWanted(nativeWant || webWant)
   }
 
   dispose(): void {

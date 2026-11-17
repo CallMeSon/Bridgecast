@@ -62,8 +62,11 @@ export function StreamLayer(props: StreamLayerProps): React.JSX.Element {
       paused: () => p().paused,
       sound: (stream) => {
         const a = p().audio
-        // A slide show capture is video only; PowerPoint's sound comes through the PCM port.
-        const want = a && !p().muted && source === 'tab' ? stream : null
+        // Sound goes through OutputAudio only when the capture carries it: a web-bridge
+        // (WebView2) page and a slide show window are captured video-only, their sound
+        // arrives through the PCM pipe instead.
+        const want =
+          a && !p().muted && stream && stream.getAudioTracks().length > 0 ? stream : null
         if (attached.current === want) return
         if (attached.current) a?.detachStream(attached.current)
         attached.current = want && a?.attachStream(want) ? want : null

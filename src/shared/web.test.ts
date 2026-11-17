@@ -16,16 +16,18 @@ describe('sanitizeWebUrl', () => {
       warning: 'This page is not secure (http). Use https if the site supports it.'
     })
   })
-  it('refuses other schemes, spaces in the host and empty input', () => {
+  it('searches when the text is not an address', () => {
+    expect(sanitizeWebUrl('canva')).toEqual({
+      url: 'https://www.google.com/search?q=canva'
+    })
+    expect(sanitizeWebUrl('kartu undangan canva')).toEqual({
+      url: 'https://www.google.com/search?q=kartu%20undangan%20canva'
+    })
+    expect(sanitizeWebUrl('localhost')).toEqual({ url: 'https://localhost/' })
+  })
+  it('refuses other schemes and empty input', () => {
     const err = { error: 'Enter a web address that starts with https://.' }
-    for (const input of [
-      'javascript:alert(1)',
-      'file:///etc/passwd',
-      'ht tps://x',
-      '',
-      '   ',
-      'a b.com'
-    ]) {
+    for (const input of ['javascript:alert(1)', 'file:///etc/passwd', '', '   ']) {
       expect(sanitizeWebUrl(input)).toEqual(err)
     }
     expect(WEB_HTTP_WARNING).toContain('not secure')

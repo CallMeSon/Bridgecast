@@ -9,7 +9,7 @@ import type { NewEventOptions } from './event-outputs'
 import type { DeckAudio } from './audio-levels'
 import type { SlideshowStatus } from './playback'
 import type { UpdateStatus } from './update'
-import type { PrepareInput, WebCaptureWarning, WebNavState, WebOutputs, WebStatus } from './web'
+import type { PrepareInput, WebCaptureSource, WebCaptureWarning, WebNavState, WebOutputs, WebStatus } from './web'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
 export const Invoke = {
@@ -292,8 +292,8 @@ export interface InvokeMap {
    * window is open, so a stale renderer cannot keep it on. Operator and Prepare windows only.
    */
   'web:setInteract': { args: [deckId: string, on: boolean]; result: void }
-  /** Capture id of the deck's page for the calling window (valid 10 s, `chromeMediaSource: 'tab'`). */
-  'web:sourceId': { args: [deckId: string]; result: string }
+  /** Capture id of the deck's page for the calling window (`kind`: tab capture or a helper window). */
+  'web:sourceId': { args: [deckId: string]; result: WebCaptureSource }
   /** The calling window received the first captured frame of the page (ready gate). */
   'web:frame': { args: [deckId: string]; result: void }
   /** An output's capture track of the page ended (HOLD while the deck is on air). */
@@ -479,7 +479,8 @@ export interface Api {
   webInput(deckId: string, input: PrepareInput): Promise<boolean>
   /** Interact on or off for a web deck (see `web:setInteract`). */
   setWebInteract(deckId: string, on: boolean): Promise<void>
-  webSourceId(deckId: string): Promise<string>
+  /** Capture id and kind of a web deck's page for the calling window. */
+  webSourceId(deckId: string): Promise<WebCaptureSource>
   /** Ready gate: report the first frame of the page's capture. */
   webFrame(deckId: string): Promise<void>
   /** Output only: the page's capture track ended. */

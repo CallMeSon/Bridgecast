@@ -135,6 +135,25 @@ export function posterWithVersion(url: string, version: number): string {
   return version > 0 ? `${url}?v=${version}` : url
 }
 
+/**
+ * getUserMedia constraints for a web deck's page (`webSourceId`). Main decides how the
+ * page is hosted: Electron's tab capture (video + sound) or a web-bridge helper window
+ * (`chromeMediaSource: 'desktop'`, video only: its sound comes through the PCM pipe).
+ */
+export async function openWebStream(
+  id: string,
+  canvas: { width: number; height: number },
+  fps: number,
+  audio: boolean
+): Promise<MediaStream> {
+  const source = await window.api.webSourceId(id)
+  return navigator.mediaDevices.getUserMedia(
+    source.kind === 'desktop'
+      ? desktopConstraints(source.id, canvas, fps)
+      : tabConstraints(source.id, canvas, fps, audio)
+  )
+}
+
 /** Requests a fresh capture id (valid ~10 s) and opens the stream. */
 export async function openStream(
   source: StreamSourceKind,
@@ -144,10 +163,8 @@ export async function openStream(
   audio: boolean
 ): Promise<MediaStream> {
   switch (source) {
-    case 'tab': {
-      const sourceId = await window.api.webSourceId(id)
-      return navigator.mediaDevices.getUserMedia(tabConstraints(sourceId, canvas, fps, audio))
-    }
+    case 'tab':
+      return openWebStream(id, canvas, fps, audio)
     case 'desktop': {
       // Video only: PowerPoint's sound arrives through the audio pipe, not the capture.
       const sourceId = await window.api.slideshowSourceId(id)

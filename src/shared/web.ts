@@ -3,10 +3,14 @@ export const WEB_URL_ERROR = 'Enter a web address that starts with https://.'
 /** Shown next to an accepted http address. */
 export const WEB_HTTP_WARNING = 'This page is not secure (http). Use https if the site supports it.'
 
+/** Search engine for text that is not a web address. */
+export const SEARCH_URL = 'https://www.google.com/search?q='
+
 /**
  * Turns what the operator typed or pasted into a web deck URL. No scheme gets
- * `https://`; `http:` is accepted with a warning; every other scheme, spaces in
- * the host and empty input are refused.
+ * `https://`; `http:` is accepted with a warning; text that is not an address
+ * (spaces, or a single word without a dot) becomes a search; every other scheme
+ * and empty input are refused.
  */
 export function sanitizeWebUrl(
   input: string
@@ -19,6 +23,10 @@ export function sanitizeWebUrl(
   const hasScheme =
     !!scheme &&
     (text.slice(scheme[0].length).startsWith('//') || !/^\d/.test(text.slice(scheme[0].length)))
+  // Not an address (spaces, or one word without a dot): search for it, like a browser.
+  if (!hasScheme && (/\s/.test(text) || !/[.:/]/.test(text)) && !/^localhost$/i.test(text)) {
+    return { url: SEARCH_URL + encodeURIComponent(text) }
+  }
   const withScheme = hasScheme ? text : `https://${text}`
   let parsed: URL
   try {
@@ -54,6 +62,17 @@ export interface WebOutputs {
 
 /** What an output captures: a web deck's page, or a native deck's PowerPoint slide show. */
 export type CaptureKind = 'web' | 'slides'
+
+/** How a web deck's page is captured: Electron's tab capture, or a helper window. */
+export type WebCaptureKind = 'tab' | 'desktop'
+
+/** The capture source of one web deck's page for the calling window. */
+export interface WebCaptureSource {
+  /** `tab` capture id (`webContents.getMediaSourceId`) or `window:<handle>:<n>`. */
+  id: string
+  /** Which `chromeMediaSource` the renderer must ask for. */
+  kind: WebCaptureKind
+}
 
 /**
  * An output that shows a still (a web deck's snapshot, or the PNG of a native

@@ -113,6 +113,11 @@ import { defaultPlayback, engineStates, playbackOf, type SlideshowStatus } from 
 import { pdfSourceFields } from './import/pdf-source'
 import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
+import { ElectronPageBackend } from './web/electron-page-backend'
+import { WebView2PageBackend } from './web/webview2-backend'
+import { WebBridgeEngine, webBridgeExePath } from './web/web-engine'
+import { FakeWebEngine } from './web/fake-web-engine'
+import type { PageBackend } from './web/page-backend'
 import {
   frameSenderAllowed,
   HeldAcks,
@@ -926,6 +931,46 @@ function registerIpc(
 /** HOLD before navigating waits at most this long for the outputs to pause their stream. */
 const HELD_ACK_TIMEOUT_MS = 1000
 
+/**
+ * Which backend hosts web deck pages. Windows with web-bridge.exe built ships the WebView2
+ * helper; every other platform (and `PPT_WEB_BACKEND=electron`, or a missing helper) uses
+ * the Electron page window. `PPT_ENGINE_FAKE=1` swaps the helper for FakeWebEngine.
+ */
+function createWebPageBackend(o: {
+  packaged: boolean
+  resourcesPath: string
+  appPath: string
+  userData: string
+  platform: NodeJS.Platform
+  env: NodeJS.ProcessEnv
+  operatorWindow: () => BrowserWindow | null
+  isLive: (deckId: string) => boolean
+  devUrl?: string
+}): PageBackend {
+  const electron = (): PageBackend =>
+    new ElectronPageBackend({
+      operatorWindow: o.operatorWindow,
+      isLive: o.isLive,
+      ...(o.devUrl ? { devUrl: o.devUrl } : {})
+    })
+  const exe = webBridgeExePath({
+    packaged: o.packaged,
+    resourcesPath: o.resourcesPath,
+    appPath: o.appPath
+  })
+  const useHelper =
+    o.platform === 'win32' && o.env['PPT_WEB_BACKEND'] !== 'electron' && fs.existsSync(exe)
+  if (!useHelper) return electron()
+  const engine =
+    o.env['PPT_ENGINE_FAKE'] === '1'
+      ? new FakeWebEngine()
+      : new WebBridgeEngine({ exe, userData: join(o.userData, 'web-profile') })
+  return new WebView2PageBackend(engine, {
+    getSources: (types) => desktopCapturer.getSources({ types }),
+    thumbnailSources: (opts) => desktopCapturer.getSources(opts)
+  })
+}
+
 /** web:* channels; every one refuses a caller that is not an app window. */
 function registerWebIpc(
   lib: Library,
@@ -1595,12 +1640,37 @@ Location: ${root}`
         ...(message ? { message } : {}),
         ...(warning ? { warning } : {})
       }),
-    () => operator,
-    is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined,
+    createWebPageBackend({
+      packaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath(),
+      userData: app.getPath('userData'),
+      platform: process.platform,
+      env: process.env,
+      operatorWindow: () => operator,
+      isLive: (deckId) => state.state.shown?.web?.deckId === deckId,
+      ...(is.dev && process.env['ELECTRON_RENDERER_URL']
+        ? { devUrl: process.env['ELECTRON_RENDERER_URL'] }
+        : {})
+    }),
     (s) => broadcast(Broadcast.webNavState, s)
   )
   web = host
   isWebPage = (wc) => host.owns(wc)
+  // Web page sound: the deck on air reads the helper's pipe (web-bridge) through the same
+  // output gain as PowerPoint; only that page is left unmuted on this PC, and Black/KV
+  // silence it (which also silences the pipe, as the picture is covered).
+  const syncWebSound = (): void => {
+    const s = state.state
+    const live = s.shown?.web?.deckId ?? null
+    slideShow.sound.setWebPipe(live ? host.audioPipe(live) : null)
+    for (const { deckId } of host.statuses()) {
+      host.setMuted(deckId, !(deckId === live && !s.black && !kvOnAir(s)))
+    }
+  }
+  host.onAudioChanged = syncWebSound
+  state.onChange(syncWebSound)
+  syncWebSound()
   // Pages follow the open event's web decks; the one on air stays until it leaves air.
   const syncWeb = (): void => {
     try {

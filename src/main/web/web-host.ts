@@ -1,43 +1,21 @@
-import { startAdBlock } from './adblock'
-import { BrowserWindow, screen, session, type Session, type WebContents } from 'electron'
-import * as fs from 'fs'
-import * as os from 'os'
-import * as path from 'path'
-import { randomUUID } from 'crypto'
+import type { WebContents } from 'electron'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import type { Library } from '../library'
 import type { AppState } from '../state'
 import type { Canvas } from '../../shared/canvas'
 import type { DeckMeta } from '../../shared/types'
-import { webDomain, ZOOM_LIVE_REFUSED, type WebNavState, type WebStatus } from '../../shared/web'
-import {
-  applyWebSession,
-  electronKeyName,
-  frameNavigationAllowed,
-  interactAllowed,
-  navigationAllowed,
-  popupAction,
-  validatePrepareInput,
-  zoomAllowed
-} from './policy'
-import {
-  failLoadIsError,
-  holdBeforeNavigate,
-  NavCoalescer,
-  pageSizeWarning,
-  syncPlan,
-  webDeckName
-} from './host-rules'
+import { ZOOM_LIVE_REFUSED, type WebNavState, type WebStatus } from '../../shared/web'
+import { validatePrepareInput, zoomAllowed } from './policy'
+import { holdBeforeNavigate, NavCoalescer, syncPlan, webDeckName } from './host-rules'
 import { InteractSwitches } from './interact'
+import type { CaptureSource, PageBackend } from './page-backend'
 
 export type { WebStatus }
 
-/** The one browser profile of every web deck (sign-ins persist across restarts). */
-const WEB_PARTITION = 'persist:web'
-/** A page that stays unresponsive this long while on air triggers HOLD. */
-const UNRESPONSIVE_HOLD_MS = 5000
-/** A crashed page is reloaded behind the scenes after this delay. */
-const CRASH_RELOAD_MS = 1000
-/** capturePage fails right after a load (no frame composited yet): retry this often. */
+/** capturePage/thumbnail fails right after a load (no frame composited yet): retry this often. */
 const SNAPSHOT_TRIES = 4
 const SNAPSHOT_RETRY_MS = 500
 /** Without a way to hear back from the outputs, HOLD before navigating waits this long. */
@@ -48,44 +26,31 @@ const INTERACT_NOT_LIVE =
   'Interact works only while the web page is on air. Take the deck first, then turn Interact on.'
 const NOT_OPEN = 'The web page is not open. Reload the deck, then try again.'
 
-/** Same rules as the host page: separate profile, no Node, no preload. */
-const PAGE_PREFERENCES = {
-  sandbox: true,
-  contextIsolation: true,
-  nodeIntegration: false,
-  autoplayPolicy: 'no-user-gesture-required',
-  spellcheck: false
-} as const
-
 interface Page {
   deckId: string
-  win: BrowserWindow
   /** The main frame finished loading (and has not started another document since). */
   loaded: boolean
   /** An app window received a frame of this page's capture (ready gate). */
   frameSeen: boolean
-  /** Last main-frame load failed or the renderer is gone. */
+  /** Last main-frame load failed or the page stopped. */
   failed: string | null
   status: WebStatus
-  popups: Set<BrowserWindow>
-  unresponsive: ReturnType<typeof setTimeout> | null
-  crashReload: ReturnType<typeof setTimeout> | null
   /** Rename the deck after the page title on the next load (added without a name). */
   autoName: boolean
-  /** The content size matches the canvas (a window can be clamped to the screen). */
-  sizeOk: boolean
   /** Operator warning about the page window (its size), sent with its status. */
   warning?: string
-  /** Last cursor type of the page (Electron cursor type string). */
-  cursor: string
+  /** Sign-in profile of the page (`default` unless the deck has its own). */
+  profile: string
+  /** Last navigation state the backend reported. */
+  nav?: WebNavState
 }
 
 /**
- * One hidden window per web deck of the open event (plus the page on air), in the
- * `persist:web` session. Outputs and previews capture it with
- * `getMediaSourceId` + `chromeMediaSource: 'tab'`; a hidden window paints only
- * while it is captured. Electron-bound: the pure decisions live in host-rules.ts
- * and policy.ts; the rest is covered by the end-to-end test.
+ * One page per web deck of the open event (plus the page on air), through a
+ * `PageBackend`: Electron's hidden `BrowserWindow` everywhere, or the Windows
+ * `web-bridge` WebView2 helper. This class keeps the operator-facing rules — the ready
+ * gate, HOLD, status, Interact, snapshots — and delegates everything that touches the
+ * page itself. The pure decisions live in host-rules.ts and policy.ts.
  */
 export class WebHost {
   private pages = new Map<string, Page>()
@@ -93,7 +58,6 @@ export class WebHost {
   private interact = new InteractSwitches<WebContents>()
   /** Owner windows whose close and navigation already drop their switches. */
   private watched = new WeakSet<WebContents>()
-  private ses: Session | null = null
   /** The web deck on air at the last syncEvent, to snapshot it when it leaves. */
   private onAir: string | null = null
   private closed = false
@@ -105,16 +69,14 @@ export class WebHost {
    */
   waitHeld: (deckId: string) => Promise<unknown> = () =>
     new Promise((r) => setTimeout(r, HOLD_SETTLE_MS))
+  private coalescer: NavCoalescer
 
   constructor(
     private lib: Library,
     private state: AppState,
     private canvas: () => Canvas,
     private onStatus: (deckId: string, s: WebStatus, message?: string, warning?: string) => void,
-    /** Where popups (sign-in windows) open: the operator window's display. */
-    private operatorWindow: () => BrowserWindow | null = () => null,
-    /** The dev server URL in development: its origin counts as an app window for tab capture. */
-    private devUrl?: string,
+    private backend: PageBackend,
     /** Navigation state of a page changed (coalesced; `loading` changes go at once). */
     onNav: (s: WebNavState) => void = () => {}
   ) {
@@ -123,22 +85,20 @@ export class WebHost {
       (fn, ms) => setTimeout(fn, ms),
       (h) => clearTimeout(h as ReturnType<typeof setTimeout>)
     )
+    this.backend.setEvents({
+      nav: (s) => this.onBackendNav(s),
+      loaded: (deckId, info) => this.onLoaded(deckId, info),
+      loadFailed: (deckId, message) => this.onLoadFailed(deckId, message),
+      crashed: (deckId, message) => this.onCrashed(deckId, message),
+      hung: (deckId) => this.hold(deckId),
+      warning: (deckId, warning) => this.onWarning(deckId, warning),
+      closed: (deckId) => this.onPageClosed(deckId)
+    })
   }
 
-  private coalescer: NavCoalescer
-
-  private session(): Session {
-    if (!this.ses) {
-      this.ses = session.fromPartition(WEB_PARTITION)
-      applyWebSession(this.ses, this.ses.getUserAgent(), this.devUrl)
-      startAdBlock(this.ses)
-    }
-    return this.ses
-  }
-
-  /** True for a web deck page or one of its popups (anything in the web profile). */
+  /** True for a web deck page (only the Electron backend has Electron page windows). */
   owns(wc: WebContents): boolean {
-    return this.ses !== null && wc.session === this.ses
+    return this.backend.owns?.(wc) ?? false
   }
 
   /** The deck's page is on the output (frozen or not). */
@@ -214,22 +174,21 @@ export class WebHost {
   async reload(deckId: string): Promise<void> {
     this.page(deckId)
     await this.holdFirst(deckId)
-    const p = this.page(deckId)
-    this.clearCrashReload(p)
-    p.win.webContents.reload()
+    this.page(deckId)
+    await this.backend.reload(deckId)
   }
 
   async navigate(deckId: string, url: string): Promise<void> {
     this.page(deckId)
     await this.holdFirst(deckId)
-    const p = this.page(deckId)
-    this.clearCrashReload(p)
-    this.load(p, url)
+    this.page(deckId)
+    await this.backend.load(deckId, url)
   }
 
   /** Stops a load in progress. Allowed on air: it only ends a load. */
   stop(deckId: string): void {
-    this.page(deckId).win.webContents.stop()
+    this.page(deckId)
+    this.backend.stop(deckId)
   }
 
   /** Loads the deck's saved address (HOLD first on air, like a new URL). */
@@ -244,88 +203,50 @@ export class WebHost {
    * is refused while the deck is on air and not frozen.
    */
   setZoom(deckId: string, zoom: number): DeckMeta {
-    const p = this.page(deckId)
+    this.page(deckId)
     if (!zoomAllowed({ live: this.live(deckId), frozen: this.state.state.frozen })) {
       throw new Error(ZOOM_LIVE_REFUSED)
     }
     const ev = this.lib.listEvents().find((e) => e.deckIds.includes(deckId))
     if (!ev) throw new Error(NOT_OPEN)
     const deck = this.lib.setWebZoom(ev.id, deckId, zoom)
-    p.win.webContents.setZoomFactor(zoom)
-    this.pushNav(p)
+    void this.backend.setZoom(deckId, zoom).catch((e: unknown) => {
+      console.warn('[web] page zoom not applied:', e instanceof Error ? e.message : e)
+    })
+    const p = this.pages.get(deckId)
+    if (p?.nav) this.coalescer.push({ ...p.nav, zoom })
     return deck
   }
 
   /** Navigation state of every open page. */
   navStates(): WebNavState[] {
-    return [...this.pages.values()].filter((p) => !p.win.isDestroyed()).map((p) => this.navState(p))
-  }
-
-  private navState(p: Page): WebNavState {
-    const wc = p.win.webContents
-    const h = wc.navigationHistory
-    return {
-      deckId: p.deckId,
-      url: wc.getURL(),
-      title: wc.getTitle(),
-      canGoBack: h.canGoBack(),
-      canGoForward: h.canGoForward(),
-      loading: wc.isLoading(),
-      zoom: this.storedZoom(p.deckId),
-      cursor: p.cursor
-    }
-  }
-
-  private storedZoom(deckId: string): number {
-    try {
-      return this.lib.getDeck(deckId).web?.zoom ?? 1
-    } catch {
-      return 1
-    }
-  }
-
-  private pushNav(p: Page): void {
-    if (this.closed || p.win.isDestroyed()) return
-    this.coalescer.push(this.navState(p))
+    return [...this.pages.values()]
+      .map((p) => p.nav)
+      .filter((s): s is WebNavState => !!s)
   }
 
   async back(deckId: string): Promise<void> {
-    if (!this.page(deckId).win.webContents.navigationHistory.canGoBack()) return
+    this.page(deckId)
     await this.holdFirst(deckId)
-    const h = this.page(deckId).win.webContents.navigationHistory
-    if (h.canGoBack()) h.goBack()
+    await this.backend.back(deckId)
   }
 
   async forward(deckId: string): Promise<void> {
-    if (!this.page(deckId).win.webContents.navigationHistory.canGoForward()) return
+    this.page(deckId)
     await this.holdFirst(deckId)
-    const h = this.page(deckId).win.webContents.navigationHistory
-    if (h.canGoForward()) h.goForward()
+    await this.backend.forward(deckId)
   }
 
-  /**
-   * Next/Prev on air: exactly one keyDown and one keyUp (no char, no repeat). The
-   * hidden page is never focused: that could take the keyboard away from the
-   * operator window, and sendInputEvent reaches the page without focus.
-   */
+  /** Next/Prev on air: exactly one keyDown and one keyUp (no char, no repeat). */
   key(deckId: string, key: 'ArrowRight' | 'ArrowLeft'): void {
-    const p = this.pages.get(deckId)
-    if (!p || p.win.isDestroyed()) return
-    const wc = p.win.webContents
-    const keyCode = electronKeyName(key)
-    wc.sendInputEvent({ type: 'keyDown', keyCode })
-    wc.sendInputEvent({ type: 'keyUp', keyCode })
+    if (!this.pages.has(deckId)) return
+    this.backend.key(deckId, key)
   }
 
-  /**
-   * Sends one already validated input event to the page, without focusing it
-   * (typing into a clicked field works without focus, and the Prepare window keeps
-   * the keyboard).
-   */
+  /** Sends one already validated input event to the page, without focusing it. */
   input(deckId: string, ev: Electron.InputEvent): void {
-    const p = this.pages.get(deckId)
-    if (!p || p.win.isDestroyed()) return
-    p.win.webContents.sendInputEvent(ev as Electron.MouseInputEvent)
+    if (!this.pages.has(deckId)) return
+    this.backend.input(deckId, ev)
   }
 
   /**
@@ -350,7 +271,8 @@ export class WebHost {
    * always allowed. Showing or hiding Interact never changes HOLD or Freeze.
    */
   setInteract(deckId: string, on: boolean, owner: WebContents): void {
-    if (!interactAllowed(on, this.live(deckId))) throw new Error(INTERACT_NOT_LIVE)
+    if (!this.pages.has(deckId)) throw new Error(NOT_OPEN)
+    if (on && !this.live(deckId)) throw new Error(INTERACT_NOT_LIVE)
     if (!on) {
       this.interact.clear(deckId)
       return
@@ -380,11 +302,11 @@ export class WebHost {
     })
   }
 
-  /** Capture id of the page for `requester` (valid 10 s, only for that WebContents). */
-  sourceIdFor(deckId: string, requester: WebContents): string {
+  /** Capture id (and kind) of the page for `requester`. */
+  async sourceIdFor(deckId: string, requester: WebContents): Promise<CaptureSource> {
     const p = this.pages.get(deckId)
-    if (!p || p.win.isDestroyed()) throw new Error(NOT_OPEN)
-    return p.win.webContents.getMediaSourceId(requester)
+    if (!p) throw new Error(NOT_OPEN)
+    return this.backend.captureSource(deckId, requester)
   }
 
   /** An app window received a captured frame of the page (ready gate). */
@@ -402,28 +324,43 @@ export class WebHost {
 
   /** The canvas changed: every page window follows it. */
   resize(): void {
-    for (const p of this.pages.values()) this.fitSize(p)
+    this.backend.resize(this.canvas())
+  }
+
+  /** The named pipe carrying a page's sound (web-bridge only). */
+  audioPipe(deckId: string): string | null {
+    return this.backend.audioPipe?.(deckId) ?? null
+  }
+
+  /** A page's sound pipe may have changed (opened with its page, or closed). Set by main. */
+  onAudioChanged: (deckId: string) => void = () => {}
+
+  /** Mutes one page's own playback (only the deck on air is heard on this PC). */
+  setMuted(deckId: string, muted: boolean): void {
+    if (!this.pages.has(deckId)) return
+    this.backend.setMuted?.(deckId, muted)
   }
 
   /**
-   * Clears every site's cookies, storage and cache in the web profile and reloads
-   * the pages. Refused while a web deck is on air.
+   * Clears every site's cookies, storage and cache and reloads the pages.
+   * Refused while a web deck is on air.
    */
   async signOut(): Promise<void> {
     if (this.state.state.shown?.web) throw new Error(SIGN_OUT_LIVE)
-    const ses = this.session()
-    await ses.clearStorageData()
-    await ses.clearCache()
+    const profiles = [...this.pages.values()].map((p) => p.profile)
     for (const p of this.pages.values()) {
-      for (const w of p.popups) if (!w.isDestroyed()) w.destroy()
-      if (!p.win.isDestroyed()) p.win.webContents.reload()
+      p.loaded = false
+      p.failed = null
+      this.updateStatus(p)
     }
+    await this.backend.signOut(profiles.length > 0 ? profiles : ['default'])
   }
 
   /** Quit: every page and popup goes, no reload timers remain. */
   shutdown(): void {
     this.closed = true
-    for (const id of [...this.pages.keys()]) this.close(id)
+    this.pages.clear()
+    this.backend.dispose()
   }
 
   /** PPT_OUTPUT_DUMP: page state per deck, the counter of the test page read on demand. */
@@ -444,33 +381,79 @@ export class WebHost {
   > {
     const out: Awaited<ReturnType<WebHost['debug']>> = {}
     for (const p of this.pages.values()) {
-      if (p.win.isDestroyed()) continue
-      const wc = p.win.webContents
-      let counter: number | undefined
-      try {
-        // A page still loading never answers executeJavaScript: do not wait for it.
-        const v = await Promise.race([
-          wc.executeJavaScript('window.__counter'),
-          new Promise((resolve) => setTimeout(resolve, 1000))
-        ])
-        if (typeof v === 'number') counter = v
-      } catch {
-        // Page not loaded or crashed: no counter.
-      }
-      if (p.win.isDestroyed()) continue // closed while the counter was read
+      const extra = (await this.backend.debug?.(p.deckId)) ?? {}
+      const contentSize = Array.isArray(extra.contentSize)
+        ? (extra.contentSize as number[])
+        : [this.canvas().width, this.canvas().height]
       out[p.deckId] = {
         status: p.status,
-        ...(counter === undefined ? {} : { counter }),
+        ...(typeof extra.counter === 'number' ? { counter: extra.counter } : {}),
         webHold: this.live(p.deckId) && this.state.state.webHold,
-        windowOpen: [...p.popups].some((w) => !w.isDestroyed()),
+        windowOpen: extra.windowOpen === true || (this.backend.popups?.(p.deckId) ?? 0) > 0,
         frameSeen: p.frameSeen,
-        contentSize: p.win.getContentSize(),
-        sizeOk: p.sizeOk,
-        url: wc.getURL()
+        contentSize,
+        sizeOk: extra.sizeOk === true || (extra.sizeOk === undefined && !p.warning),
+        url: typeof extra.url === 'string' ? extra.url : (p.nav?.url ?? '')
       }
     }
     return out
   }
+
+  // ---- backend events ----
+
+  private onBackendNav(s: WebNavState): void {
+    const p = this.pages.get(s.deckId)
+    if (!p) return
+    p.nav = s
+    this.coalescer.push(s)
+  }
+
+  private onLoaded(deckId: string, info: { title: string; url: string }): void {
+    const p = this.pages.get(deckId)
+    if (!p) return
+    p.loaded = true
+    // A failed load can still finish (the error page): it keeps the error and the old snapshot.
+    if (p.failed) return
+    if (p.autoName) this.renameFromTitle(p, info.title, info.url)
+    this.updateStatus(p)
+    void this.snapshot(deckId)
+  }
+
+  private onLoadFailed(deckId: string, message: string): void {
+    const p = this.pages.get(deckId)
+    if (!p) return
+    p.loaded = false
+    p.failed = message
+    this.updateStatus(p)
+    this.hold(deckId)
+  }
+
+  private onCrashed(deckId: string, message: string): void {
+    const p = this.pages.get(deckId)
+    if (!p) return
+    p.loaded = false
+    p.frameSeen = false
+    p.failed = message
+    this.updateStatus(p)
+    this.hold(deckId)
+  }
+
+  private onWarning(deckId: string, warning: string | undefined): void {
+    const p = this.pages.get(deckId)
+    if (!p || warning === p.warning) return
+    p.warning = warning
+    this.onStatus(p.deckId, p.status, p.failed ?? undefined, p.warning)
+  }
+
+  private onPageClosed(deckId: string): void {
+    const p = this.pages.get(deckId)
+    if (!p) return
+    this.pages.delete(deckId)
+    this.interact.clear(deckId)
+    this.coalescer.drop(deckId)
+  }
+
+  // ---- page lifecycle ----
 
   private inLibrary(deckId: string): boolean {
     try {
@@ -483,210 +466,54 @@ export class WebHost {
 
   private page(deckId: string): Page {
     const p = this.pages.get(deckId)
-    if (!p || p.win.isDestroyed()) throw new Error(NOT_OPEN)
+    if (!p) throw new Error(NOT_OPEN)
     return p
   }
 
   private open(deckId: string, url: string): void {
-    const c = this.canvas()
-    const win = new BrowserWindow({
-      show: false,
-      width: c.width,
-      height: c.height,
-      useContentSize: true,
-      enableLargerThanScreen: true,
-      paintWhenInitiallyHidden: true,
-      skipTaskbar: true,
-      fullscreenable: false,
-      // No `frame: false`: on Linux a frameless window the size of the screen comes out 1 px smaller.
-      backgroundColor: '#000000',
-      title: 'Bridgecast web page',
-      webPreferences: { ...PAGE_PREFERENCES, session: this.session(), backgroundThrottling: false }
-    })
+    if (this.closed) return
     const p: Page = {
       deckId,
-      win,
       loaded: false,
       frameSeen: false,
       failed: null,
       status: 'loading',
-      popups: new Set(),
-      unresponsive: null,
-      crashReload: null,
       autoName: false,
-      sizeOk: true,
-      cursor: 'default'
+      profile: this.profileOf(deckId)
     }
     this.pages.set(deckId, p)
-    this.fitSize(p)
-    const wc = win.webContents
-    // Its sound only reaches the audience through the outputs (tab capture taps it before the mute).
-    wc.setAudioMuted(true)
-    win.on('page-title-updated', (e) => e.preventDefault())
-    // Never really fullscreen: the page already fills a canvas-sized viewport. HTML
-    // full screen (Canva Present calls requestFullscreen) keeps the window hidden
-    // and its content size at the canvas.
-    const keepWindow = (): void => {
-      if (win.isDestroyed()) return
-      if (win.isFullScreen()) win.setFullScreen(false)
-      if (win.isVisible()) win.hide()
-      this.fitSize(p)
-    }
-    win.on('enter-full-screen', keepWindow)
-    win.on('leave-full-screen', keepWindow)
-    win.on('enter-html-full-screen', keepWindow)
-    win.on('leave-html-full-screen', keepWindow)
-
-    // Electron docs (webContents.setZoomMode, v45): the default mode keeps zoom per ORIGIN, so
-    // two decks on one site would share a zoom; 'isolated' is per webContents and survives
-    // navigation. Task 3 assumed the default mode; fixed here. The factor is still re-applied
-    // after every main-frame navigation as a belt-and-braces step (it is a no-op when equal).
-    wc.setZoomMode('isolated')
-    wc.on('did-navigate', () => {
-      wc.setZoomFactor(this.storedZoom(deckId))
-      this.pushNav(p)
-    })
-    wc.on('did-navigate-in-page', (_e, _url, isMainFrame) => {
-      if (isMainFrame) this.pushNav(p)
-    })
-    wc.on('did-start-loading', () => this.pushNav(p))
-    wc.on('did-stop-loading', () => this.pushNav(p))
-    wc.on('page-title-updated', () => this.pushNav(p))
-    wc.on('cursor-changed', (_e, type) => {
-      p.cursor = type
-      this.pushNav(p)
-    })
-
-    wc.on('did-start-navigation', (details) => {
-      if (!details.isMainFrame || details.isSameDocument) return
-      p.loaded = false
-      p.failed = null
-      this.updateStatus(p)
-    })
-    wc.on('did-finish-load', () => {
-      p.loaded = true
-      // A failed load can still finish (the error page): it keeps the error and the old snapshot.
-      if (p.failed) return
-      if (p.autoName) this.renameFromTitle(p)
-      this.updateStatus(p)
-      void this.snapshot(deckId)
-    })
-    wc.on('did-fail-load', (_e, errorCode, _desc, validatedURL, isMainFrame) => {
-      if (!failLoadIsError(errorCode, isMainFrame)) return
-      p.loaded = false
-      p.failed = `Could not open ${webDomain(validatedURL || wc.getURL())}. Check the internet connection, then Reload.`
-      this.updateStatus(p)
-      this.hold(deckId)
-    })
-    wc.on('render-process-gone', (_e, details) => {
-      console.error(`[web] page renderer stopped (${details.reason}); reloading it`)
-      p.loaded = false
-      p.frameSeen = false
-      p.failed = `Could not open ${webDomain(wc.getURL())}. Check the internet connection, then Reload.`
-      this.updateStatus(p)
-      this.hold(deckId)
-      this.clearCrashReload(p)
-      p.crashReload = setTimeout(() => {
-        p.crashReload = null
-        if (!win.isDestroyed()) wc.reload()
-      }, CRASH_RELOAD_MS)
-    })
-    win.on('unresponsive', () => {
-      if (p.unresponsive) return
-      p.unresponsive = setTimeout(() => {
-        p.unresponsive = null
-        this.hold(deckId)
-      }, UNRESPONSIVE_HOLD_MS)
-    })
-    win.on('responsive', () => {
-      if (p.unresponsive) clearTimeout(p.unresponsive)
-      p.unresponsive = null
-    })
-
-    this.guardContents(p, wc)
-    win.on('closed', () => {
-      this.clearTimers(p)
-      for (const w of p.popups) if (!w.isDestroyed()) w.destroy()
-      if (this.pages.get(deckId) === p) {
-        this.pages.delete(deckId)
-        this.coalescer.drop(deckId)
-      }
-    })
     this.onStatus(deckId, p.status, undefined, p.warning)
-    this.load(p, url)
+    void this.backend
+      .open(deckId, {
+        url,
+        canvas: this.canvas(),
+        zoom: this.storedZoom(deckId),
+        profile: p.profile
+      })
+      .catch((e: unknown) => {
+        if (this.closed || this.pages.get(deckId) !== p) return
+        const message = e instanceof Error ? e.message : String(e)
+        this.onLoadFailed(deckId, message)
+      })
+      .then(() => {
+        if (this.closed || this.pages.get(deckId) !== p) return
+        this.onAudioChanged(deckId)
+      })
   }
 
-  /** Navigation, popups and new windows of a page or one of its popups. */
-  private guardContents(p: Page, wc: WebContents): void {
-    // Main frame: web pages only. Subframes may also hold about:srcdoc, blob: and data:
-    // documents (embeds, widgets); external protocols stay blocked everywhere.
-    const block = (e: Electron.Event, url: string, isMainFrame: boolean): void => {
-      if (!frameNavigationAllowed(url, isMainFrame)) e.preventDefault()
-    }
-    wc.on('will-navigate', (e) => block(e, e.url, true))
-    wc.on('will-frame-navigate', (e) => block(e, e.url, e.isMainFrame))
-    wc.on('will-redirect', (e) => block(e, e.url, e.isMainFrame))
-    wc.setWindowOpenHandler((details) => {
-      const action = popupAction(this.live(p.deckId), details.disposition, details.url)
-      if (action === 'samePage') {
-        // A link that wants a new tab: show it in this page, not in a stray window.
-        void this.navigate(p.deckId, details.url).catch(() => undefined)
-        return { action: 'deny' }
-      }
-      if (action === 'deny') return { action: 'deny' }
-      return {
-        action: 'allow',
-        overrideBrowserWindowOptions: {
-          ...this.popupBounds(),
-          show: true,
-          autoHideMenuBar: true,
-          webPreferences: { ...PAGE_PREFERENCES, session: this.session() }
-        }
-      }
-    })
-    wc.on('did-create-window', (child) => {
-      p.popups.add(child)
-      child.on('closed', () => p.popups.delete(child))
-      this.guardContents(p, child.webContents)
-    })
-  }
-
-  /** A normal window centred on the operator window's display (never the HDMI display). */
-  private popupBounds(): { x?: number; y?: number; width: number; height: number } {
-    const width = 1000
-    const height = 760
-    const op = this.operatorWindow()
-    if (!op || op.isDestroyed()) return { width, height }
-    const area = screen.getDisplayMatching(op.getBounds()).workArea
-    const w = Math.min(width, area.width)
-    const h = Math.min(height, area.height)
-    return {
-      x: Math.round(area.x + (area.width - w) / 2),
-      y: Math.round(area.y + (area.height - h) / 2),
-      width: w,
-      height: h
+  private profileOf(deckId: string): string {
+    try {
+      return this.lib.getDeck(deckId).web?.profile ?? 'default'
+    } catch {
+      return 'default'
     }
   }
 
-  private load(p: Page, url: string): void {
-    if (!navigationAllowed(url)) return
-    // A failed load is reported through did-fail-load; the promise must not go unhandled.
-    p.win.webContents.loadURL(url).catch(() => {})
-  }
-
-  /** Content size = canvas; verified, since a window can be clamped to the screen. */
-  private fitSize(p: Page): void {
-    if (p.win.isDestroyed()) return
-    const c = this.canvas()
-    p.win.setContentSize(c.width, c.height)
-    const size = p.win.getContentSize()
-    const warning = pageSizeWarning(size, c)
-    p.sizeOk = warning === undefined
-    if (!p.sizeOk) console.warn(`[web] ${warning}`)
-    if (warning !== p.warning) {
-      p.warning = warning
-      // Same channel as the load state: the operator sees the warning while it lasts.
-      this.onStatus(p.deckId, p.status, p.failed ?? undefined, p.warning)
+  private storedZoom(deckId: string): number {
+    try {
+      return this.lib.getDeck(deckId).web?.zoom ?? 1
+    } catch {
+      return 1
     }
   }
 
@@ -702,10 +529,9 @@ export class WebHost {
     if (this.live(deckId)) this.state.setWebHold(true)
   }
 
-  private renameFromTitle(p: Page): void {
+  private renameFromTitle(p: Page, title: string, url: string): void {
     p.autoName = false
-    const wc = p.win.webContents
-    const name = webDeckName(wc.getTitle(), wc.getURL())
+    const name = webDeckName(title, url)
     const ev = this.lib.listEvents().find((e) => e.deckIds.includes(p.deckId))
     if (!ev) return
     try {
@@ -718,14 +544,13 @@ export class WebHost {
   /** Stores a picture of the page as the deck's slide (thumbnail, poster, Up next). */
   private async snapshot(deckId: string): Promise<void> {
     for (let i = 0; i < SNAPSHOT_TRIES; i++) {
-      const p = this.pages.get(deckId)
-      if (!p || p.win.isDestroyed()) return
+      if (!this.pages.has(deckId)) return
       try {
-        const img = await p.win.webContents.capturePage()
-        if (!img.isEmpty()) {
+        const png = await this.backend.snapshot(deckId)
+        if (png) {
           const tmp = path.join(os.tmpdir(), `ppt-share-web-${randomUUID()}.png`)
           try {
-            await fs.promises.writeFile(tmp, img.toPNG())
+            await fs.promises.writeFile(tmp, png)
             this.lib.updateWebSnapshot(deckId, tmp)
           } finally {
             fs.rmSync(tmp, { force: true })
@@ -733,21 +558,10 @@ export class WebHost {
           return
         }
       } catch {
-        // No frame composited yet (UnknownVizError right after a load), or the deck is gone.
+        // No frame composited yet, or the deck is gone.
       }
       await new Promise((r) => setTimeout(r, SNAPSHOT_RETRY_MS))
     }
-  }
-
-  private clearCrashReload(p: Page): void {
-    if (p.crashReload) clearTimeout(p.crashReload)
-    p.crashReload = null
-  }
-
-  private clearTimers(p: Page): void {
-    this.clearCrashReload(p)
-    if (p.unresponsive) clearTimeout(p.unresponsive)
-    p.unresponsive = null
   }
 
   private close(deckId: string): void {
@@ -756,8 +570,6 @@ export class WebHost {
     this.pages.delete(deckId)
     this.interact.clear(deckId)
     this.coalescer.drop(deckId)
-    this.clearTimers(p)
-    for (const w of p.popups) if (!w.isDestroyed()) w.destroy()
-    if (!p.win.isDestroyed()) p.win.destroy()
+    this.backend.close(deckId)
   }
 }

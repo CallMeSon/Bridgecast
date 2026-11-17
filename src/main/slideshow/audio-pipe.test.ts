@@ -8,6 +8,7 @@ import {
   SlideSound,
   fallbackVolume,
   soundWanted,
+  webSoundWanted,
   type PipeSocket,
   type PortLike
 } from './audio-pipe'
@@ -387,5 +388,81 @@ describe('SlideSound', () => {
     sound.engineAudio({ mode: 'pipe', pipe: 'p', note: null })
     sound.engineAudio({ mode: 'none', pipe: null, note: null })
     expect(sockets[0].destroyed).toBe(true)
+  })
+
+  it('a web deck on air reads the web pipe through the same gain node', () => {
+    const { sound, sockets, ports } = setup()
+    const web = webLive()
+    sound.setWebPipe('\\\\.\\pipe\\web-audio-1-2')
+    sound.program(web, DEFAULT_AUDIO)
+    expect(sockets).toHaveLength(1)
+    sockets[0].emit('data', pcm(PCM_FRAMES))
+    expect(ports[0].sent).toHaveLength(1)
+  })
+
+  it('switching from a web deck to a native one closes the old reader and opens the other', () => {
+    const { sound, sockets } = setup()
+    sound.setWebPipe('web-pipe')
+    sound.program(webLive(), DEFAULT_AUDIO)
+    sound.program(live(), DEFAULT_AUDIO)
+    expect(sockets[0].destroyed).toBe(true)
+    sockets[0].emit('data', pcm(PCM_FRAMES))
+    expect(sockets).toHaveLength(1) // no PowerPoint pipe yet in `none` mode
+    sound.engineAudio({ mode: 'pipe', pipe: 'ppt-pipe', note: null })
+    expect(sockets).toHaveLength(2)
+    expect(sockets[1].destroyed).toBe(false)
+  })
+
+  it('a web page covered by Black or a KV forwards nothing, and resumes after', () => {
+    const { sound, sockets, ports } = setup()
+    sound.setWebPipe('web-pipe')
+    sound.program(webLive(), DEFAULT_AUDIO)
+    sound.program({ ...webLive(), black: true }, DEFAULT_AUDIO)
+    sockets[0].emit('data', pcm(PCM_FRAMES))
+    expect(ports[0].sent).toHaveLength(0)
+    sound.program(webLive(), DEFAULT_AUDIO)
+    sockets[0].emit('data', pcm(PCM_FRAMES))
+    expect(ports[0].sent).toHaveLength(1)
+  })
+
+  it('clearing the web pipe stops forwarding', () => {
+    const { sound, sockets, ports } = setup()
+    sound.setWebPipe('web-pipe')
+    sound.program(webLive(), DEFAULT_AUDIO)
+    sound.setWebPipe(null)
+    expect(sockets[0].destroyed).toBe(true)
+    sockets[0].emit('data', pcm(PCM_FRAMES))
+    expect(ports[0].sent).toHaveLength(0)
+  })
+
+  function webLive(): ProgramState {
+    return {
+      ...initialState,
+      shown: { deckId: 'w', index: 0, file: '001.png', web: { deckId: 'w' } }
+    } as ProgramState
+  }
+})
+
+describe('webSoundWanted', () => {
+  const web = {
+    deckId: 'w',
+    index: 0,
+    file: '001.png',
+    web: { deckId: 'w' }
+  } as const
+  const st = (over: Partial<ProgramState> = {}): ProgramState =>
+    ({ ...initialState, shown: web, ...over }) as ProgramState
+  it('only while a web deck is the slide on air', () => {
+    expect(webSoundWanted(st())).toBe(true)
+    expect(webSoundWanted(initialState)).toBe(false)
+    expect(
+      webSoundWanted({ ...initialState, shown: { deckId: 'd', index: 0, file: '001.png' } })
+    ).toBe(false)
+  })
+  it('not while Black or a KV with an image covers it; a KV without an image does not', () => {
+    expect(webSoundWanted(st({ black: true }))).toBe(false)
+    expect(webSoundWanted(st({ kv: true, kvUrl: 'slide://kv/k.png' }))).toBe(false)
+    expect(webSoundWanted(st({ kv: true, kvUrl: null }))).toBe(true)
+    expect(webSoundWanted(st({ frozen: true }))).toBe(true)
   })
 })

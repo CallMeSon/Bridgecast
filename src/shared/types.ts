@@ -44,7 +44,12 @@ export interface DeckMeta {
    */
   eventId?: string
   /** The page of a web deck (source 'web'). */
-  web?: { url: string; zoom?: number }
+  web?: {
+    url: string
+    zoom?: number
+    /** Its own WebView2 sign-in profile; absent means the shared `default` profile. */
+    profile?: string
+  }
 }
 
 export interface SectionMeta {
