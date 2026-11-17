@@ -29,9 +29,21 @@ function readDrop(dt: DataTransfer): DroppedItems {
  * (counter-based dragenter/dragleave, like the mockup). Drags that reorder
  * decks or slides carry no Files and are ignored. Dropping anywhere imports.
  */
-export function DropOverlay({ onDrop }: { onDrop(items: DroppedItems): void }): React.JSX.Element {
+export function DropOverlay({
+  onDrop,
+  disabled = false
+}: {
+  onDrop(items: DroppedItems): void
+  /** A dialog takes the drop itself: no overlay and no import, but the file never opens. */
+  disabled?: boolean
+}): React.JSX.Element {
   const [on, setOn] = useState(false)
   const depth = useRef(0)
+  const off = useRef(disabled)
+  useEffect(() => {
+    off.current = disabled
+    if (disabled) depth.current = 0
+  }, [disabled])
   const handler = useRef(onDrop)
   useEffect(() => {
     handler.current = onDrop
@@ -41,6 +53,7 @@ export function DropOverlay({ onDrop }: { onDrop(items: DroppedItems): void }): 
     const enter = (e: DragEvent): void => {
       if (!hasFiles(e.dataTransfer?.types)) return
       e.preventDefault()
+      if (off.current) return
       depth.current++
       setOn(true)
     }
@@ -61,6 +74,7 @@ export function DropOverlay({ onDrop }: { onDrop(items: DroppedItems): void }): 
       e.preventDefault()
       depth.current = 0
       setOn(false)
+      if (off.current) return
       if (e.dataTransfer) handler.current(readDrop(e.dataTransfer))
     }
     // Esc during a drag or a drag cancelled outside the window ends without dragleave
@@ -84,7 +98,11 @@ export function DropOverlay({ onDrop }: { onDrop(items: DroppedItems): void }): 
   }, [])
 
   return (
-    <div className={on ? 'overlay on' : 'overlay'} data-testid="drop-overlay" aria-hidden={!on}>
+    <div
+      className={on && !disabled ? 'overlay on' : 'overlay'}
+      data-testid="drop-overlay"
+      aria-hidden={!on || disabled}
+    >
       <span>
         <UploadSimpleIcon className="ph" size={22} />
         Drop files to add them as decks

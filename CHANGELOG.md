@@ -4,6 +4,15 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Added
+
+- New event takes decks at once: drop PPTX, PPT or PDF files or a whole folder into the dialog, or pick them with "Choose files" / "Choose folder". They are imported into the event as soon as it is created.
+
+### Changed
+
+- Bridgecast always starts on Home with no event tab open, and the Home button only opens Home.
+- Development runs keep their library in a separate `bridgecast-dev` folder, so test decks no longer appear in an installed Bridgecast on the same PC.
+
 ## [0.1.1] - 2026-11-17
 
 ### Changed

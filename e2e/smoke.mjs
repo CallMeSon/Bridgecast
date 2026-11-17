@@ -2171,7 +2171,13 @@ async function canvasAndLevelsChecks(win, tally) {
     win.evaluate(() => document.querySelector('.deck.live')?.getAttribute('data-deck-id') ?? null)
   const { eventId } = await session()
   const pickEvent = async (name) => {
-    await win.locator('[role=tab]', { hasText: name }).click({ timeout: 4000 })
+    // Tabs are not brought back after a restart: an event without a tab is opened from Home.
+    const tab = win.locator('[role=tab]', { hasText: name })
+    if ((await tab.count()) > 0) await tab.click({ timeout: 4000 })
+    else {
+      await win.getByTestId('home-btn').click()
+      await win.getByTestId('home-card').filter({ hasText: name }).first().click({ timeout: 4000 })
+    }
     await win.locator('[role=tab][aria-selected=true]', { hasText: name }).waitFor()
   }
 

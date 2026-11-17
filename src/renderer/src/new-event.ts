@@ -16,3 +16,34 @@ export function checkEventName(raw: string, existing: readonly string[] = []): E
   }
   return { ok: true, name }
 }
+
+/** What the New event dialog needs to know about a picked file. */
+export interface DeckFileLike {
+  name: string
+  size: number
+}
+
+const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+
+/**
+ * Adds picked or dropped files to the dialog's list: only PPTX, PPT and PDF are kept, a file
+ * already listed (same name and size) is not added twice, and the list stays in natural name
+ * order ("2 Opening" before "10 Closing"). `skipped` counts the files that cannot be imported.
+ */
+export function addDeckFiles<T extends DeckFileLike>(
+  current: readonly T[],
+  added: readonly T[]
+): { files: T[]; skipped: number } {
+  const files = [...current]
+  let skipped = 0
+  for (const f of added) {
+    if (!/\.(pptx?|pdf)$/i.test(f.name)) {
+      skipped++
+      continue
+    }
+    if (files.some((x) => x.name === f.name && x.size === f.size)) continue
+    files.push(f)
+  }
+  files.sort((a, b) => byName.compare(a.name, b.name))
+  return { files, skipped }
+}

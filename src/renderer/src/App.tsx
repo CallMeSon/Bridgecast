@@ -8,7 +8,7 @@ import type { Playback } from '../../shared/types'
 import type { DeckAudio } from '../../shared/audio-levels'
 import { Header } from './components/Header'
 import { Home } from './components/Home'
-import { closeTab, keepAirTab, loadOpenTabs, openTab, saveOpenTabs } from './open-tabs'
+import { closeTab, keepAirTab, openTab } from './open-tabs'
 import { SettingsDialog } from './components/SettingsDialog'
 import { NewEventDialog } from './components/NewEventDialog'
 import { Library, type ImportRow } from './components/Library'
@@ -115,7 +115,7 @@ function App({
   const api = window.api
   const [events, setEvents] = useState<EventMeta[]>([])
   const [eventId, setEventId] = useState<string | null>(null)
-  // Open event tabs (this window's localStorage) and what the main area shows. Home opens first.
+  // Open event tabs (this run only) and what the main area shows. Home opens first, alone.
   const [openIds, setOpenIds] = useState<string[]>([])
   const [view, setView] = useState<'console' | 'home'>(skipHome ? 'console' : 'home')
   const tabsLoaded = useRef(false)
@@ -185,9 +185,6 @@ function App({
   useEffect(() => {
     airRef.current = program.airEvent
   }, [program.airEvent])
-  useEffect(() => {
-    if (tabsLoaded.current) saveOpenTabs(localStorage, openIds)
-  }, [openIds])
   // The event on air always has a tab (it cannot be closed while on air): it is opened again
   // when missing.
   const airTally = tally(program)
@@ -291,12 +288,12 @@ function App({
         })
       )
       setEventId(session.eventId)
+      // Only Home is open at start: no event tab is brought back from the last run. (The e2e
+      // console start keeps the current event's tab, like a tab the operator just opened.)
       setOpenIds(
-        loadOpenTabs(
-          localStorage,
-          evs.map((e) => e.id),
-          session.eventId
-        )
+        skipHome && session.eventId && evs.some((e) => e.id === session.eventId)
+          ? [session.eventId]
+          : []
       )
       tabsLoaded.current = true
       setProgram(session.state)
@@ -307,7 +304,7 @@ function App({
       offUpdate()
       offProgress()
     }
-  }, [api, upsertImport, reloadDecks, reportError, skipTour])
+  }, [api, upsertImport, reloadDecks, reportError, skipTour, skipHome])
 
   const dispatch = useCallback(
     (a: Action) => {
@@ -482,16 +479,6 @@ function App({
     } else if (eventRef.current && openIds.includes(eventRef.current)) setView('console')
   }, [events, openIds, selectEvent])
 
-  // Throws when main refuses: the New event dialog shows the message under its field.
-  const createEvent = useCallback(
-    async (name: string) => {
-      const ev = await api.createEvent(name)
-      setEvents(await api.listEvents())
-      await selectEvent(ev.id)
-    },
-    [api, selectEvent]
-  )
-
   const openNewEvent = useCallback(() => {
     newEventOpener.current = document.activeElement as HTMLElement | null
     setNewEventOpen(true)
@@ -629,6 +616,18 @@ function App({
       }
     },
     [api, upsertImport, reportError, importPdf]
+  )
+
+  // Throws when main refuses: the New event dialog shows the message under its field. Decks
+  // picked in the dialog are imported into the new event once it is open.
+  const createEvent = useCallback(
+    async (name: string, files: File[] = []) => {
+      const ev = await api.createEvent(name)
+      setEvents(await api.listEvents())
+      await selectEvent(ev.id)
+      if (files.length && eventRef.current === ev.id) importFiles(files)
+    },
+    [api, selectEvent, importFiles]
   )
 
   // Reorder and delete: the list moves at once (optimistic), main persists it,
@@ -1087,7 +1086,7 @@ function App({
         airState={tally(program)}
         onSelectEvent={selectEvent}
         onCloseTab={closeEventTab}
-        onHome={() => setView((v) => (v === 'home' ? 'console' : 'home'))}
+        onHome={() => setView('home')}
         onNewEvent={openNewEvent}
         program={program}
         output={output}
@@ -1305,7 +1304,10 @@ function App({
       </main>
       <SaveNote text={note} />
       <Splitters appRef={appRef} />
-      <DropOverlay onDrop={({ files, folders }) => importFiles(files, folders)} />
+      <DropOverlay
+        disabled={newEventOpen}
+        onDrop={({ files, folders }) => importFiles(files, folders)}
+      />
       <WebPrecapture deckIds={precapture} canvas={program.canvas} onGone={pages.refresh} />
     </div>
   )

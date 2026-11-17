@@ -1395,6 +1395,10 @@ function createWindow(onReady?: () => void): BrowserWindow {
 // Lets the e2e smoke test (and power users) point the library at another folder.
 if (process.env['PPT_SHARE_USER_DATA']) {
   app.setPath('userData', process.env['PPT_SHARE_USER_DATA'])
+} else if (!app.isPackaged) {
+  // Development runs keep their own library, so test decks never show up in an installed
+  // Bridgecast on the same PC (both would otherwise share one userData folder).
+  app.setPath('userData', join(app.getPath('appData'), 'bridgecast-dev'))
 } else {
   // Renamed from PPT Share: carry the old library over once.
   migrateUserData(app.getPath('userData'), app.getPath('appData'))

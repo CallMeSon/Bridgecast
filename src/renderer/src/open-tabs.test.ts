@@ -1,58 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { closeTab, keepAirTab, loadOpenTabs, MAX_TABS, openTab, saveOpenTabs } from './open-tabs'
+import { closeTab, keepAirTab, openTab } from './open-tabs'
 
-const store = (raw: string | null): { getItem: () => string | null } => ({ getItem: () => raw })
 const ids = (n: number): string[] => Array.from({ length: n }, (_, i) => `e${i}`)
-
-describe('loadOpenTabs', () => {
-  it('garbage JSON gives only the current event', () => {
-    expect(loadOpenTabs(store('{nope'), ['a', 'b'], 'b')).toEqual(['b'])
-  })
-  it('missing key, null storage, throwing storage', () => {
-    expect(loadOpenTabs(store(null), ['a'], 'a')).toEqual(['a'])
-    expect(loadOpenTabs(null, ['a'], null)).toEqual([])
-    const bad = {
-      getItem: () => {
-        throw new Error('x')
-      }
-    }
-    expect(loadOpenTabs(bad, ['a'], 'a')).toEqual(['a'])
-  })
-  it('wrong shapes give a valid list', () => {
-    expect(loadOpenTabs(store('{"ids":"a"}'), ['a'], null)).toEqual([])
-    expect(loadOpenTabs(store('{"ids":[1,null,"a"]}'), ['a'], null)).toEqual(['a'])
-    expect(loadOpenTabs(store('null'), ['a'], 'a')).toEqual(['a'])
-  })
-  it('drops deleted and duplicate ids, keeps order, appends current', () => {
-    const raw = JSON.stringify({ ids: ['b', 'gone', 'a', 'b'] })
-    expect(loadOpenTabs(store(raw), ['a', 'b', 'c'], 'c')).toEqual(['b', 'a', 'c'])
-  })
-  it('20 ids cap at 8 and keep the current event', () => {
-    const all = ids(20)
-    const raw = JSON.stringify({ ids: all })
-    const out = loadOpenTabs(store(raw), all, 'e0')
-    expect(out).toHaveLength(MAX_TABS)
-    expect(out).toContain('e0')
-    expect(new Set(out).size).toBe(MAX_TABS)
-  })
-  it('ignores a current event that does not exist', () => {
-    expect(loadOpenTabs(store(null), ['a'], 'zzz')).toEqual([])
-  })
-})
-
-describe('saveOpenTabs', () => {
-  it('round-trips and survives a throwing store', () => {
-    let saved = ''
-    saveOpenTabs({ setItem: (_k, v) => (saved = v) }, ['a'])
-    expect(loadOpenTabs(store(saved), ['a'], null)).toEqual(['a'])
-    const full = {
-      setItem: () => {
-        throw new Error('full')
-      }
-    }
-    expect(() => saveOpenTabs(full, ['a'])).not.toThrow()
-  })
-})
 
 describe('openTab', () => {
   it('does not duplicate', () => {
