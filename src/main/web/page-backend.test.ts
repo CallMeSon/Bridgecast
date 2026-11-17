@@ -104,13 +104,13 @@ describe('PageBackend contract', () => {
     expect(events.crashed).toHaveBeenCalledWith('d1', loadFailedText('a.b'))
   })
 
-  it('a crash followed by a stale ready keeps the error (the helper reloads behind the scenes)', async () => {
+  it('a crashed page reports the error and then recovers when the helper reloads it', async () => {
     await backend.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
     engine.emitNav(nav('d1'))
     engine.emitCrashed('d1')
-    engine.emitStatus('d1', 'ready')
-    expect(events.loaded).not.toHaveBeenCalled()
     expect(events.crashed).toHaveBeenCalledTimes(1)
+    engine.emitStatus('d1', 'ready')
+    expect(events.loaded).toHaveBeenCalledWith('d1', { title: 'Canva', url: 'https://canva.com/x' })
   })
 
   it('reports a helper exit as a crash of every open page', async () => {
