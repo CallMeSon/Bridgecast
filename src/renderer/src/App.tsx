@@ -596,6 +596,7 @@ function App({
           pdfChain.current = pdfChain.current.then(() => importPdf(target, id, f))
           continue
         }
+        // PPTX and video files go to main's import queue (path on disk required).
         queueForMain(
           f,
           id,

@@ -7,6 +7,7 @@ import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import { DEFAULT_AUDIO, type AudioSettings, type HdmiSettings } from '../../shared/settings'
 import { DEFAULT_DECK_AUDIO, effectiveGain, type DeckAudio } from '../../shared/audio-levels'
 import type { PrepareInput, WebCaptureWarning, WebStatus } from '../../shared/web'
+import { VIDEO_EXTENSIONS_RE } from '../../shared/video-file'
 import { posterWithVersion, type StreamSourceKind } from './stream'
 
 export type NextView =
@@ -213,18 +214,19 @@ export function keyToAction(e: KeyLike): Action | null {
   }
 }
 
-export type FileKind = 'pptx' | 'pdf' | 'unsupported'
+export type FileKind = 'pptx' | 'pdf' | 'video' | 'unsupported'
 
 export function fileKind(name: string): FileKind {
   if (/\.pptx?$/i.test(name)) return 'pptx'
   if (/\.pdf$/i.test(name)) return 'pdf'
+  if (VIDEO_EXTENSIONS_RE.test(name)) return 'video'
   return 'unsupported'
 }
 
 /** Copy for a dropped or picked item that cannot be imported (an error row). */
 export const UNSUPPORTED = {
   meta: 'Unsupported',
-  file: 'Only PPTX, PPT, or PDF files can be imported.'
+  file: 'Only PPTX, PPT, PDF, MP4, M4V, or WebM files can be imported.'
 } as const
 
 /** True when a drag carries files from outside (Explorer), not a deck or slide being reordered. */

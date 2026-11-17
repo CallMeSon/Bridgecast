@@ -359,7 +359,7 @@ export function NewEventDialog({ existing, output, onSubmit, onClose }: Props): 
             </label>
             <div className={over ? 'ne-drop over' : 'ne-drop'} data-testid="new-event-drop">
               <UploadSimpleIcon size={20} aria-hidden="true" />
-              <p>Drop PPTX, PPT or PDF files here, or a folder that holds them.</p>
+              <p>Drop PPTX, PPT, PDF or video files here, or a folder that holds them.</p>
               <div className="ne-drop-actions">
                 <button
                   type="button"
@@ -384,7 +384,7 @@ export function NewEventDialog({ existing, output, onSubmit, onClose }: Props): 
               ref={filePicker}
               type="file"
               multiple
-              accept=".pptx,.ppt,.pdf"
+              accept=".pptx,.ppt,.pdf,.mp4,.m4v,.webm"
               className="visually-hidden"
               tabIndex={-1}
               aria-hidden="true"
@@ -424,8 +424,8 @@ export function NewEventDialog({ existing, output, onSubmit, onClose }: Props): 
             )}
             {skipped > 0 && (
               <p className="hint" role="status" data-testid="new-event-skipped">
-                {skipped === 1 ? '1 item was' : `${skipped} items were`} left out: only PPTX, PPT or
-                PDF files can be imported.
+                {skipped === 1 ? '1 item was' : `${skipped} items were`} left out: only PPTX, PPT,
+                PDF, MP4, M4V or WebM files can be imported.
               </p>
             )}
           </div>

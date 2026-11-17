@@ -1,4 +1,5 @@
 import { CANVAS_INVALID, CANVAS_PRESETS, sanitizeCanvas, type Canvas } from '../../shared/canvas'
+import { VIDEO_EXTENSIONS_RE } from '../../shared/video-file'
 
 /** Longest event name the New event dialog accepts (same cap the tab bar field had). */
 export const EVENT_NAME_MAX = 60
@@ -28,8 +29,8 @@ export interface DeckFileLike {
 const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
 
 /**
- * Adds picked or dropped files to the dialog's list: only PPTX, PPT and PDF are kept, a file
- * already listed (same name and size) is not added twice, and the list stays in natural name
+ * Adds picked or dropped files to the dialog's list: only PPTX, PPT, PDF and video files are kept,
+ * a file already listed (same name and size) is not added twice, and the list stays in natural name
  * order ("2 Opening" before "10 Closing"). `skipped` counts the files that cannot be imported.
  */
 export function addDeckFiles<T extends DeckFileLike>(
@@ -39,7 +40,7 @@ export function addDeckFiles<T extends DeckFileLike>(
   const files = [...current]
   let skipped = 0
   for (const f of added) {
-    if (!/\.(pptx?|pdf)$/i.test(f.name)) {
+    if (!/\.(pptx?|pdf)$/i.test(f.name) && !VIDEO_EXTENSIONS_RE.test(f.name)) {
       skipped++
       continue
     }

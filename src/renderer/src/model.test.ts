@@ -331,6 +331,14 @@ describe('files', () => {
     expect(fileKind('a.txt')).toBe('unsupported')
     expect(baseName('Keynote v2.pdf')).toBe('Keynote v2')
   })
+  it('classifies video files by extension, case-insensitively', () => {
+    expect(fileKind('Clip.MP4')).toBe('video')
+    expect(fileKind('a.m4v')).toBe('video')
+    expect(fileKind('b.webm')).toBe('video')
+    expect(fileKind('c.mov')).toBe('unsupported')
+    expect(fileKind('d.avi')).toBe('unsupported')
+    expect(fileKind('e.png')).toBe('unsupported')
+  })
 })
 
 describe('errorMessage', () => {

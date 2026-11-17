@@ -1490,7 +1490,7 @@ export function Library(p: Props): React.JSX.Element {
         ref={input}
         type="file"
         multiple
-        accept=".pptx,.ppt,.pdf"
+        accept=".pptx,.ppt,.pdf,.mp4,.m4v,.webm"
         className="visually-hidden"
         tabIndex={-1}
         aria-hidden="true"

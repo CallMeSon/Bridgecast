@@ -16,6 +16,12 @@ describe('addDeckFiles', () => {
     expect(r.skipped).toBe(2)
   })
 
+  it('keeps video files too and counts the unsupported ones', () => {
+    const r = addDeckFiles([], [f('a.mp4'), f('b.webm'), f('c.pptx'), f('d.mov')])
+    expect(r.files.map((x) => x.name)).toEqual(['a.mp4', 'b.webm', 'c.pptx'])
+    expect(r.skipped).toBe(1)
+  })
+
   it('orders names naturally and never lists the same file twice', () => {
     const first = addDeckFiles([], [f('10 Closing.pdf'), f('2 Opening.pptx')])
     expect(first.files.map((x) => x.name)).toEqual(['2 Opening.pptx', '10 Closing.pdf'])

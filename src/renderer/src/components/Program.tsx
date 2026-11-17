@@ -20,7 +20,7 @@ import { audienceNote, standbyCard } from './program-copy'
 export function Program({
   state,
   deck,
-  emptyHint = 'Drag .pptx, .ppt, or .pdf files into this window.',
+  emptyHint = 'Drag .pptx, .ppt, .pdf, or video files into this window.',
   posterVersion = 0,
   stream,
   stepLabel = null,
