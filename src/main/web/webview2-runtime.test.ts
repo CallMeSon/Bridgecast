@@ -34,6 +34,16 @@ describe('webView2RuntimeFound', () => {
     ).toBe(false)
   })
 
+  it('finds a per-user Evergreen install', () => {
+    expect(
+      webView2RuntimeFound({
+        env: {},
+        exists: found(['C:\\Users\\op\\AppData\\Local\\Microsoft\\EdgeWebView\\Application']),
+        localAppData: 'C:\\Users\\op\\AppData\\Local'
+      })
+    ).toBe(true)
+  })
+
   it('honours WEBVIEW2_BROWSER_EXECUTABLE_FOLDER (a fixed-version runtime)', () => {
     expect(
       webView2RuntimeFound({

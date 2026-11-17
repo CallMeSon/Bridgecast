@@ -29,14 +29,22 @@ namespace WebBridge
         private int crashes;
         private string cursor = "default";
         private int clientWidth, clientHeight;
+        /// <summary>The deck is on the output: a page may not open a new window then (spec 2).</summary>
+        private bool live;
         /// <summary>CSS viewport of the page (`innerWidth/innerHeight`); input coordinates are in it.</summary>
         private double viewportWidth, viewportHeight;
         private string lastUrl = "";
+        private readonly Timer liveness = new Timer { Interval = 2000 };
+        private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+        private Task<string> probe;
+        private long probeStart;
+        private bool hungReported;
 
-        private PageWindow(string deckId, double zoom)
+        private PageWindow(string deckId, double zoom, bool live)
         {
             this.deckId = deckId;
             this.zoom = zoom <= 0 ? 1 : zoom;
+            this.live = live;
             Text = WINDOW_TITLE;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
@@ -45,6 +53,9 @@ namespace WebBridge
             MaximizeBox = false;
             BackColor = Color.Black;
         }
+
+        /// <summary>Main reports whether the deck is on the output (popup rule).</summary>
+        public void SetLive(bool value) { live = value; }
 
         /// <summary>The window handle as the app's capture code reports it (`window:&lt;handle&gt;:&lt;n&gt;`).</summary>
         public string WindowId { get { return ((long)Handle).ToString(); } }
@@ -71,11 +82,11 @@ namespace WebBridge
         /// <summary>Creates the window, the WebView2 controller and the first navigation. Runs on the UI thread.</summary>
         public static async Task<PageWindow> OpenAsync(
             string deckId, string url, int x, int y, int width, int height,
-            double zoom, CoreWebView2Environment env)
+            double zoom, bool live, CoreWebView2Environment env)
         {
             if (!NavigationAllowed(url)) throw new BridgeException("url", "This address cannot be opened.");
             if (width <= 0 || height <= 0) throw new BridgeException("args", "open needs a size.");
-            var w = new PageWindow(deckId, zoom);
+            var w = new PageWindow(deckId, zoom, live);
             w.clientWidth = width;
             w.clientHeight = height;
             w.ClientSize = new Size(width, height);
@@ -113,11 +124,18 @@ namespace WebBridge
             s.IsZoomControlEnabled = false;
             s.AreBrowserAcceleratorKeysEnabled = false;
 
-            // New windows and the sign-in popup stay in this page (Stagecast RenderEngine does the same).
+            // On air: no new windows (a page must not navigate the live deck away, spec 2).
+            // Off air: WebView2 opens a real popup in the same profile, with window.opener
+            // intact, so popup-mode sign-in (Google Identity Services) can post its result
+            // back to the deck page.
             core.NewWindowRequested += (_, e) =>
             {
-                e.Handled = true;
-                if (NavigationAllowed(e.Uri)) NavigateTo(e.Uri);
+                if (live)
+                {
+                    e.Handled = true;
+                    return;
+                }
+                e.Handled = false;
             };
             // Deny by default: camera, microphone, location, notifications, clipboard read, ...
             core.PermissionRequested += (_, e) => { e.State = CoreWebView2PermissionState.Deny; };
@@ -148,6 +166,8 @@ namespace WebBridge
                     EmitStatus("ready", null);
                     InjectCursorScript();
                     RefreshViewport();
+                    probe = null;
+                    hungReported = false;
                 }
                 else if (e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
                 {
@@ -161,6 +181,29 @@ namespace WebBridge
             core.HistoryChanged += (_, __) => EmitNav();
             core.WebMessageReceived += OnWebMessage;
             core.ProcessFailed += OnProcessFailed;
+            liveness.Tick += (_, __) => OnLiveness();
+            liveness.Start();
+        }
+
+        /// <summary>
+        /// A renderer stuck in JS keeps the host window responsive, so the ping cannot see it.
+        /// Ask the page for a value every 2 s; one that has not answered after 5 s means the
+        /// page hangs (the app then HOLDs the deck on air, spec 6).
+        /// </summary>
+        private void OnLiveness()
+        {
+            if (closed || core == null) return;
+            if (probe == null || probe.IsCompleted)
+            {
+                probe = core.ExecuteScriptAsync("1");
+                probeStart = Clock.ElapsedMilliseconds;
+                return;
+            }
+            if (!probe.IsCompleted && !hungReported && Clock.ElapsedMilliseconds - probeStart > 5000)
+            {
+                hungReported = true;
+                Io.Event("hung", new Dictionary<string, object> { { "deckId", deckId } });
+            }
         }
 
         /// <summary>Render process gone: report it and reload behind the scenes; give up after repeated crashes.</summary>
@@ -171,6 +214,9 @@ namespace WebBridge
             if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited)
             {
                 EmitStatus("error", LoadFailed(lastUrl));
+                // Nothing is left to host: leave, so the supervisor restarts the helper and
+                // reopens the pages at their last address instead of keeping dead windows.
+                System.Windows.Forms.Application.ExitThread();
                 return;
             }
             if (closed) return;
@@ -198,6 +244,12 @@ namespace WebBridge
         {
             crashes = 0;
             core.Reload();
+        }
+
+        /** End a load in progress (the Prepare toolbar's Stop). */
+        public void StopLoad()
+        {
+            try { core.Stop(); } catch (Exception e) { Io.Log("stop: " + e.Message); }
         }
 
         public void Back()
@@ -231,6 +283,12 @@ namespace WebBridge
 
         public void SetMuted(bool muted)
         {
+            // Measured on Windows: muting the page (CoreWebView2.IsMuted) and muting the
+            // browser tree's audio sessions (ISimpleAudioVolume) both silence the process
+            // loopback capture too, so the page on air cannot be muted locally without
+            // losing its sound in the outputs. Main therefore leaves the live page unmuted
+            // and mutes the others (and the live one while Black/KV covers it, where the
+            // outputs are silent anyway).
             try { core.IsMuted = muted; } catch (Exception e) { Io.Log("setMuted: " + e.Message); }
         }
 
@@ -263,6 +321,8 @@ namespace WebBridge
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             closed = true;
+            liveness.Stop();
+            liveness.Dispose();
             base.OnFormClosed(e);
         }
 
@@ -383,7 +443,7 @@ namespace WebBridge
             if (type == "mouseLeave") return;
             string cdpType = type == "mouseDown" ? "mousePressed"
                 : type == "mouseUp" ? "mouseReleased" : "mouseMoved";
-            int buttons = type == "mouseDown" || type == "mouseUp" ? ButtonMask(button) : 0;
+            int buttons = type == "mouseDown" ? ButtonMask(button) : 0;
             Cdp("Input.dispatchMouseEvent", new Dictionary<string, object>
             {
                 { "type", cdpType }, { "x", x }, { "y", y },

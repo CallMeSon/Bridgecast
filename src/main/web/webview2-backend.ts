@@ -5,6 +5,19 @@ import type { WebNavState } from '../../shared/web'
 import { webDomain } from '../../shared/web'
 import { slideshowSourceId } from '../slideshow/capture'
 
+/** `sendInputEvent` key names back to the DOM names the helper's key table uses. */
+const DOM_KEYS: Readonly<Record<string, string>> = {
+  Right: 'ArrowRight',
+  Left: 'ArrowLeft',
+  Up: 'ArrowUp',
+  Down: 'ArrowDown',
+  Space: ' '
+}
+
+function domKey(electronKey: string): string {
+  return DOM_KEYS[electronKey] ?? electronKey
+}
+
 /** What the app uses to find the helper window's `desktopCapturer` source (injected in tests). */
 type GetSources = (types: ['window']) => Promise<{ id: string; thumbnail?: unknown }[]>
 type ThumbnailSources = (
@@ -66,6 +79,10 @@ export class WebView2PageBackend implements PageBackend {
       if (!p) return
       this.events?.crashed(deckId, loadFailedText(webDomain(p.lastNav?.url ?? '')))
     })
+    engine.on('hung', (deckId) => {
+      if (!this.pages.has(deckId)) return
+      this.events?.hung(deckId)
+    })
     engine.on('exited', () => {
       for (const deckId of [...this.pages.keys()]) {
         const p = this.pages.get(deckId)
@@ -80,9 +97,9 @@ export class WebView2PageBackend implements PageBackend {
 
   async open(
     deckId: string,
-    o: { url: string; canvas: PageSize; zoom: number; profile: string }
+    o: { url: string; canvas: PageSize; zoom: number; profile: string; live?: boolean }
   ): Promise<void> {
-    const r = await this.engine.open(deckId, o)
+    const r = await this.engine.open(deckId, { ...o, live: o.live ?? false })
     this.pages.set(deckId, {
       windowId: r.windowId,
       audioPipe: r.audioPipe,
@@ -106,9 +123,15 @@ export class WebView2PageBackend implements PageBackend {
     await this.engine.forward(deckId)
   }
 
-  /** The helper has no stop command: a load ends by reloading or navigating away. */
+  /** The helper has a stop command now (the Prepare toolbar's Stop). */
   stop(deckId: string): void {
-    void deckId
+    if (!this.pages.has(deckId)) return
+    this.engine.stop(deckId)
+  }
+
+  setLive(deckId: string, live: boolean): void {
+    if (!this.pages.has(deckId)) return
+    this.engine.setLive(deckId, live)
   }
 
   key(deckId: string, key: 'ArrowRight' | 'ArrowLeft'): void {
@@ -142,7 +165,7 @@ export class WebView2PageBackend implements PageBackend {
       this.engine.input(deckId, {
         kind: 'key',
         type,
-        keyCode: String(e.keyCode ?? ''),
+        keyCode: domKey(String(e.keyCode ?? '')),
         modifiers: Array.isArray(e.modifiers) ? (e.modifiers as string[]) : []
       })
       return

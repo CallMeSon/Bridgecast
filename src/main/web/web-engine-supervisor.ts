@@ -43,6 +43,7 @@ export class WebEngineSupervisor implements WebPageEngine {
   private navCbs: ((s: WebNavState) => void)[] = []
   private statusCbs: ((s: WebEngineStatus) => void)[] = []
   private crashCbs: ((deckId: string) => void)[] = []
+  private hungCbs: ((deckId: string) => void)[] = []
   private exitCbs: (() => void)[] = []
   /** Main's backend uses this to replace its cached window ids and audio pipes. */
   onPagesReopened: (
@@ -54,11 +55,13 @@ export class WebEngineSupervisor implements WebPageEngine {
   on(ev: 'nav', cb: (s: WebNavState) => void): void
   on(ev: 'status', cb: (s: WebEngineStatus) => void): void
   on(ev: 'crashed', cb: (deckId: string) => void): void
+  on(ev: 'hung', cb: (deckId: string) => void): void
   on(ev: 'exited', cb: () => void): void
-  on(ev: 'nav' | 'status' | 'crashed' | 'exited', cb: never): void {
+  on(ev: 'nav' | 'status' | 'crashed' | 'hung' | 'exited', cb: never): void {
     if (ev === 'nav') this.navCbs.push(cb)
     else if (ev === 'status') this.statusCbs.push(cb)
     else if (ev === 'crashed') this.crashCbs.push(cb)
+    else if (ev === 'hung') this.hungCbs.push(cb)
     else this.exitCbs.push(cb)
   }
 
@@ -89,6 +92,9 @@ export class WebEngineSupervisor implements WebPageEngine {
     })
     engine.on('crashed', (deckId) => {
       for (const cb of this.crashCbs) cb(deckId)
+    })
+    engine.on('hung', (deckId) => {
+      for (const cb of this.hungCbs) cb(deckId)
     })
     engine.on('exited', () => {
       for (const cb of this.exitCbs) cb()
@@ -175,7 +181,25 @@ export class WebEngineSupervisor implements WebPageEngine {
     o: WebOpenOptions
   ): Promise<{ windowId: string; audioPipe: string | null }> {
     this.pages.set(deckId, { options: o, url: o.url })
-    return this.engine().open(deckId, o)
+    try
+    {
+      return await this.engine().open(deckId, o)
+    }
+    catch (e)
+    {
+      // A helper that cannot start at all (missing exe, blocked, no DLL) must degrade the
+      // session to the Electron backend, the same way three crashes do.
+      if ((e as { code?: string }).code === 'start') this.giveUp()
+      throw e
+    }
+  }
+
+  /** Stop trying and tell main to switch this session to the Electron backend. */
+  private giveUp(): void {
+    if (this.stopped && !this.live) return
+    this.stopped = true
+    this.stopHeartbeat()
+    this.opts.onFallback(WEB_ENGINE_FALLBACK)
   }
 
   async navigate(deckId: string, url: string): Promise<void> {
@@ -186,6 +210,14 @@ export class WebEngineSupervisor implements WebPageEngine {
 
   async reload(deckId: string): Promise<void> {
     await this.engine().reload(deckId)
+  }
+
+  stop(deckId: string): void {
+    this.live?.stop(deckId)
+  }
+
+  setLive(deckId: string, live: boolean): void {
+    this.live?.setLive(deckId, live)
   }
 
   async back(deckId: string): Promise<void> {

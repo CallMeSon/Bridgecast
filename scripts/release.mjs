@@ -92,11 +92,9 @@ if (
 ) {
   buildCommands.push(['npm', ['run', 'build:bridge']])
 }
-// The installer ships the WebView2 helper too; without it web decks fall back to Electron.
-if (
-  platforms.includes('win') &&
-  !existsSync(join(root, 'native/web-bridge/bin/Release/net48/web-bridge.exe'))
-) {
+// The installer ships the WebView2 helper too. Always rebuild it for a release: a stale
+// exe under native/web-bridge/bin would otherwise ship old helper code.
+if (platforms.includes('win')) {
   buildCommands.push([
     'npm',
     ['run', process.platform === 'win32' ? 'build:web-bridge:win' : 'build:web-bridge']

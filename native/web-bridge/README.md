@@ -67,7 +67,7 @@ PerMonitorV2 DPI aware), so the capture is the canvas, not a stretched or letter
 
 ## Sound
 
-`open` replies `audioPipe` (a named pipe `\\.\pipe\web-audio-<helper pid>`) carrying raw PCM:
+`open` replies `audioPipe` (a named pipe `\\.\pipe\web-audio-<helper pid>-<browser pid>`) carrying raw PCM:
 interleaved float32 little-endian, 48000 Hz, stereo, no header — the same format
 `PcmBlocker` in `src/main/slideshow/audio-pipe.ts` reads for PowerPoint. The capture is a
 WASAPI process loopback of the WebView2 browser process and its children (`Audio.cs`,

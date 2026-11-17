@@ -51,6 +51,8 @@ export interface WebOpenOptions {
   zoom: number
   /** WebView2 profile name: `default` or a deck id (its own sign-in profile). */
   profile: string
+  /** The deck is on the output (the helper refuses new windows while it is). */
+  live?: boolean
 }
 
 /**
@@ -67,6 +69,8 @@ export interface WebPageEngine {
   ): Promise<{ windowId: string; audioPipe: string | null }>
   navigate(deckId: string, url: string): Promise<void>
   reload(deckId: string): Promise<void>
+  /** Ends a load in progress (the Prepare toolbar's Stop). */
+  stop(deckId: string): void
   back(deckId: string): Promise<void>
   forward(deckId: string): Promise<void>
   setZoom(deckId: string, zoom: number): Promise<void>
@@ -74,6 +78,8 @@ export interface WebPageEngine {
   /** Fire and forget: input never delays the operator. */
   input(deckId: string, ev: PrepareInput): void
   setMuted(deckId: string, muted: boolean): Promise<void>
+  /** The deck went on or off the output (a page on air may not open a window). */
+  setLive(deckId: string, live: boolean): void
   signOut(profile: string): Promise<void>
   close(deckId: string): Promise<void>
   /** Never replies when the helper hangs (the supervisor's heartbeat). */
@@ -81,6 +87,8 @@ export interface WebPageEngine {
   on(ev: 'nav', cb: (s: WebNavState) => void): void
   on(ev: 'status', cb: (s: WebEngineStatus) => void): void
   on(ev: 'crashed', cb: (deckId: string) => void): void
+  /** The page did not answer for 5 s (a hung renderer keeps the helper itself alive). */
+  on(ev: 'hung', cb: (deckId: string) => void): void
   on(ev: 'exited', cb: () => void): void
   shutdown(): Promise<void>
 }
@@ -116,6 +124,7 @@ export class WebBridgeEngine implements WebPageEngine {
   private navCbs: ((s: WebNavState) => void)[] = []
   private statusCbs: ((s: WebEngineStatus) => void)[] = []
   private crashCbs: ((deckId: string) => void)[] = []
+  private hungCbs: ((deckId: string) => void)[] = []
   private exitCbs: (() => void)[] = []
   private live: Live | null = null
   private startError: string | null = null
@@ -127,11 +136,13 @@ export class WebBridgeEngine implements WebPageEngine {
   on(ev: 'nav', cb: (s: WebNavState) => void): void
   on(ev: 'status', cb: (s: WebEngineStatus) => void): void
   on(ev: 'crashed', cb: (deckId: string) => void): void
+  on(ev: 'hung', cb: (deckId: string) => void): void
   on(ev: 'exited', cb: () => void): void
-  on(ev: 'nav' | 'status' | 'crashed' | 'exited', cb: never): void {
+  on(ev: 'nav' | 'status' | 'crashed' | 'hung' | 'exited', cb: never): void {
     if (ev === 'nav') this.navCbs.push(cb)
     else if (ev === 'status') this.statusCbs.push(cb)
     else if (ev === 'crashed') this.crashCbs.push(cb)
+    else if (ev === 'hung') this.hungCbs.push(cb)
     else this.exitCbs.push(cb)
   }
 
@@ -235,6 +246,10 @@ export class WebBridgeEngine implements WebPageEngine {
       if (typeof e.deckId !== 'string') return
       for (const cb of this.crashCbs) cb(e.deckId)
     }
+    if (e.event === 'hung') {
+      if (typeof e.deckId !== 'string') return
+      for (const cb of this.hungCbs) cb(e.deckId)
+    }
   }
 
   private navState(e: BridgeEvent): WebNavState | null {
@@ -276,7 +291,8 @@ export class WebBridgeEngine implements WebPageEngine {
         x: 0,
         y: 0,
         profile: o.profile,
-        zoom: o.zoom
+        zoom: o.zoom,
+        live: o.live ?? false
       },
       OPEN_MS
     )
@@ -304,6 +320,19 @@ export class WebBridgeEngine implements WebPageEngine {
 
   reload(deckId: string): Promise<void> {
     return this.call('reload', deckId)
+  }
+
+  stop(deckId: string): void {
+    const live = this.live
+    if (!live || live.exited) return
+    live.client.request('stop', { deckId }, MOVE_MS).catch(() => undefined)
+  }
+
+  /** Fire and forget: the helper keeps this for its popup rule. */
+  setLive(deckId: string, live: boolean): void {
+    const l = this.live
+    if (!l || l.exited) return
+    l.client.request('setLive', { deckId, live }, MOVE_MS).catch(() => undefined)
   }
 
   back(deckId: string): Promise<void> {

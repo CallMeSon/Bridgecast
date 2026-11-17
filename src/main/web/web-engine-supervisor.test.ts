@@ -92,4 +92,23 @@ describe('WebEngineSupervisor', () => {
     expect(engines).toHaveLength(n)
     expect(sup.ready()).toBe(false)
   })
+
+  it('a helper that cannot start at all falls back to Electron once', async () => {
+    const second = new WebEngineSupervisor({
+      create: () => {
+        const e = new FakeWebEngine()
+        e.open = async () => {
+          throw Object.assign(new Error('web-bridge.exe not found'), { code: 'start' })
+        }
+        return e
+      },
+      onHold: (deckId) => holds.push(deckId),
+      onFallback: (m) => fallbacks.push(m)
+    })
+    await expect(second.open('d1', open)).rejects.toMatchObject({ code: 'start' })
+    expect(fallbacks).toEqual([WEB_ENGINE_FALLBACK])
+    expect(second.ready()).toBe(false)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(fallbacks).toHaveLength(1)
+  })
 })

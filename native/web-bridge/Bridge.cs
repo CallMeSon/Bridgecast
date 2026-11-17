@@ -79,7 +79,13 @@ namespace WebBridge
         /// <summary>Liveness without the UI thread: no page window is hung (SendMessageTimeout, no WebView2 call).</summary>
         bool WindowsAlive()
         {
-            foreach (var p in Snapshot()) if (!p.IsAlive()) return false;
+            // A page can be added on the UI thread while this reader thread iterates: an
+            // exception here must not leave the ping unanswered (the app would call it hung).
+            try
+            {
+                foreach (var p in Snapshot()) if (!p.IsAlive()) return false;
+            }
+            catch (Exception e) { Io.Log("ping: " + e.Message); }
             return true;
         }
 
@@ -127,7 +133,7 @@ namespace WebBridge
 
         async Task Execute(Req r)
         {
-            bool isLong = r.Cmd == "open";
+            bool isLong = r.Cmd == "open" || r.Cmd == "signOut";
             Interlocked.Exchange(ref busyState, ((Clock.ElapsedMilliseconds + 1) << 1) | (isLong ? 1L : 0L));
             try
             {
@@ -153,6 +159,8 @@ namespace WebBridge
                     Need(a).NavigateTo(Io.Str(a, "url", ""));
                     return null;
                 case "reload": Need(a).Reload(); return null;
+                case "stop": Need(a).StopLoad(); return null;
+                case "setLive": Need(a).SetLive(Io.Bool(a, "live", false)); return null;
                 case "back": Need(a).Back(); return null;
                 case "forward": Need(a).Forward(); return null;
                 case "setZoom": Need(a).SetZoom(Io.Num(a, "zoom", 1)); return null;
@@ -187,11 +195,12 @@ namespace WebBridge
             double w = Io.Num(a, "width", 1920), h = Io.Num(a, "height", 1080);
             double x = Io.Num(a, "x", 0), y = Io.Num(a, "y", 0);
             double zoom = Io.Num(a, "zoom", 1);
+            bool live = Io.Bool(a, "live", false);
             if (w < 1 || h < 1) throw new BridgeException("args", "open needs a size.");
 
             if (pages.ContainsKey(deckId)) CloseSession(deckId);
             var env = await Environment(profile);
-            var page = await PageWindow.OpenAsync(deckId, url, (int)x, (int)y, (int)w, (int)h, zoom, env);
+            var page = await PageWindow.OpenAsync(deckId, url, (int)x, (int)y, (int)w, (int)h, zoom, live, env);
             pages[deckId] = page;
             pageProfile[deckId] = profile;
 

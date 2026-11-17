@@ -150,6 +150,8 @@ describe('WebBridgeEngine', () => {
     engine.input('d1', { kind: 'key', type: 'keyDown', keyCode: 'ArrowRight', modifiers: [] })
     await engine.setMuted('d1', true)
     await engine.signOut('default')
+    await engine.setLive('d1', true)
+    engine.stop('d1')
     await engine.close('d1')
     expect(child.written.slice(1).map((m) => m.cmd)).toEqual([
       'navigate',
@@ -161,6 +163,8 @@ describe('WebBridgeEngine', () => {
       'input',
       'setMuted',
       'signOut',
+      'setLive',
+      'stop',
       'close'
     ])
     expect(child.written.find((m) => m.cmd === 'setZoom')).toMatchObject({ deckId: 'd1', zoom: 2 })
@@ -244,6 +248,15 @@ describe('WebBridgeEngine', () => {
     child.send({ event: 'crashed', deckId: 'd1' })
     child.send({ event: 'crashed' })
     expect(crashed).toEqual(['d1'])
+  })
+
+  it('reports a hung page (the renderer stopped answering)', async () => {
+    const hung: string[] = []
+    engine.on('hung', (deckId) => hung.push(deckId))
+    await engine.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
+    child.send({ event: 'hung', deckId: 'd1' })
+    child.send({ event: 'hung' })
+    expect(hung).toEqual(['d1'])
   })
 
   it('rejects a call with the bridge code and message', async () => {

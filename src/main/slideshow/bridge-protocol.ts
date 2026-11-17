@@ -17,11 +17,13 @@ type BridgeCmd =
   | 'resize'
   | 'input'
   | 'setMuted'
+  | 'setLive'
+  | 'stop'
   | 'signOut' // web-bridge only
 
 /** Events of both helpers; each engine reads the ones it knows. */
 export type BridgeEvent = {
-  event: 'position' | 'error' | 'exited' | 'app' | 'nav' | 'status' | 'crashed'
+  event: 'position' | 'error' | 'exited' | 'app' | 'nav' | 'status' | 'crashed' | 'hung'
 } & Record<string, unknown>
 
 const KNOWN_EVENTS = new Set([
@@ -31,7 +33,8 @@ const KNOWN_EVENTS = new Set([
   'app',
   'nav',
   'status',
-  'crashed'
+  'crashed',
+  'hung'
 ])
 
 export class BridgeError extends Error {

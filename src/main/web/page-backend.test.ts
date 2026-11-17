@@ -62,7 +62,8 @@ describe('PageBackend contract', () => {
       url: 'https://canva.com/x',
       canvas,
       zoom: 1.5,
-      profile: 'deck-1'
+      profile: 'deck-1',
+      live: false
     })
     expect(backend.audioPipe('d1')).toBe('\\\\.\\pipe\\web-audio-1-2')
     expect(backend.audioPipe('other')).toBeNull()
@@ -191,6 +192,30 @@ describe('PageBackend contract', () => {
       keyCode: 'ArrowRight',
       modifiers: ['shift']
     })
+  })
+
+  it('tells the helper when the deck goes on or off the output, and stops a load', async () => {
+    await backend.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
+    backend.setLive('d1', true)
+    backend.setLive('missing', true)
+    await Promise.resolve()
+    expect(engine.live.get('d1')).toBe(true)
+    expect(engine.live.has('missing')).toBe(false)
+    backend.stop('d1')
+    expect(engine.stopped).toEqual(['d1'])
+  })
+
+  it('reports a hung page so WebHost can HOLD it', async () => {
+    await backend.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
+    engine.emitHung('d1')
+    engine.emitHung('missing')
+    expect(events.hung).toHaveBeenCalledWith('d1')
+    expect(events.hung).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes the live flag to open', async () => {
+    await backend.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default', live: true })
+    expect(engine.opened.get('d1')?.live).toBe(true)
   })
 
   it('closes a page, signs out its profile and shuts the helper down', async () => {

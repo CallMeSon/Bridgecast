@@ -136,17 +136,19 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 sungguhan, login Google, capture jendela helper, dan loopback audio browser.
 
 - [ ] `resources/web-bridge/web-bridge.exe` + `Microsoft.Web.WebView2.Core.dll` + `WebView2Loader.dll` ada di installer.
-- [ ] Deck web Canva: **Sign in with Google** berhasil di jendela helper; tutup dan buka aplikasi, login masih ada (profil `<userData>/web-profile/default`).
+- [ ] Deck web Canva: **Sign in with Google** berhasil di jendela helper (popup maupun redirect); tutup dan buka aplikasi, login masih ada (profil `<userData>/web-profile/default`).
+- [ ] Saat deck **live**, tautan `target=_blank` atau `window.open` tidak membuka jendela dan tidak memindahkan halaman yang sedang tayang.
+- [ ] Halaman macet di JavaScript (mis. skrip berat di konsol): sekitar 5 detik kemudian muncul HOLD (bukan diam saja).
 - [ ] Halaman helper tidak pernah mengambil fokus: clicker dan F/B/D tetap bekerja tanpa klik ulang ke jendela operator.
 - [ ] Canvas 2520x1080 (dan 3840x1080): gambar di HDMI/OMT tidak melar atau berbingkai; ukuran jendela = canvas.
 - [ ] Jendela helper ditutup aplikasi lain: capture tetap mengalir (atau HOLD), tidak hitam dan bukan desktop.
 - [ ] Jendela helper di layar kedua / layar dimatikan: capture tetap mengalir atau HOLD.
-- [ ] YouTube dengan suara: Local, OMT, Both. Volume deck dan master berlaku; hanya satu jendela bersuara di PC ini (deck lain yang tidak on air dibisukan).
+- [ ] YouTube dengan suara: Local, OMT, Both. Volume deck dan master berlaku **di jalur output** (HDMI/OMT dan rute Local lewat app). Batas yang diketahui: halaman yang live juga berbunyi langsung di PC ini pada volume Windows penuh (mute halaman akan membungkam pipe, sudah diukur), jadi deck/master/Mute tidak berlaku untuk salinan langsung itu; catat apakah terdengar dobel di rute Local.
 - [ ] Black atau KV saat deck web live: suara ikut senyap dan kembali setelah dibuka.
 - [ ] Matikan helper lewat Task Manager saat live: HOLD (frame terakhir, bukan hitam), helper hidup lagi sendiri, halaman dibuka lagi di alamat terakhir, lalu **Resume web**.
 - [ ] Tiga kali helper gagal: aplikasi pindah ke backend Electron untuk sesi itu (halaman tetap tampil, bukan hitam); catat pesannya di konsol.
 - [ ] `PPT_WEB_BACKEND=electron`: deck web tetap jalan lewat jendela Electron (tab capture).
-- [ ] PC tanpa WebView2 Runtime: aplikasi memakai backend Electron; catat bahwa tidak ada banner (hanya log konsol).
+- [ ] PC tanpa WebView2 Runtime (atau tanpa `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`): aplikasi memakai backend Electron dan menampilkan satu baris peringatan "WebView2 is not installed on this PC. Web pages use the built-in browser."
 - [ ] Sign out of all websites dari Prepare: login hilang dan halaman dimuat ulang.
 
 ## Putar PPT asli (native slideshow)

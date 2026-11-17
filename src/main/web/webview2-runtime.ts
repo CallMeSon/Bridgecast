@@ -15,9 +15,16 @@ export function webView2RuntimeFound(o: {
   exists: (path: string) => boolean
   programFiles?: string
   programFilesX86?: string
+  localAppData?: string
 }): boolean {
   const custom = o.env['WEBVIEW2_BROWSER_EXECUTABLE_FOLDER']
   if (custom) return o.exists(custom)
-  const bases = [o.programFilesX86, o.programFiles].filter((b): b is string => !!b)
-  return bases.some((b) => o.exists(join(b, 'Microsoft', 'EdgeWebView', 'Application')))
+  const candidates = [
+    // A per-machine Evergreen install.
+    o.programFilesX86 && join(o.programFilesX86, 'Microsoft', 'EdgeWebView', 'Application'),
+    o.programFiles && join(o.programFiles, 'Microsoft', 'EdgeWebView', 'Application'),
+    // A per-user Evergreen install.
+    o.localAppData && join(o.localAppData, 'Microsoft', 'EdgeWebView', 'Application')
+  ].filter((p): p is string => !!p)
+  return candidates.some((p) => o.exists(p))
 }

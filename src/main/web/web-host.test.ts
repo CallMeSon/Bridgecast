@@ -16,9 +16,11 @@ function make(): {
   statuses: { deckId: string; status: string }[]
   events: PageBackendEvents
   calls: string[]
+  live: Map<string, boolean>
 } {
   let events: PageBackendEvents | null = null
   const calls: string[] = []
+  const live = new Map<string, boolean>()
   const backend: PageBackend = {
     setEvents: (e) => {
       events = e
@@ -35,6 +37,9 @@ function make(): {
     resize: () => undefined,
     captureSource: async () => ({ id: 'window:1:0', kind: 'desktop' as const }),
     snapshot: async () => null,
+    setLive: (deckId, value) => {
+      live.set(deckId, value)
+    },
     signOut: async () => undefined,
     close: () => undefined,
     dispose: () => undefined
@@ -68,7 +73,7 @@ function make(): {
     backend,
     () => undefined
   )
-  return { host, state, statuses, events: events as unknown as PageBackendEvents, calls }
+  return { host, state, statuses, events: events as unknown as PageBackendEvents, calls, live }
 }
 
 const navState = (loading: boolean, url = 'https://a.b/d1', extra: Partial<WebNavState> = {}): WebNavState => ({
@@ -145,5 +150,14 @@ describe('WebHost navigation', () => {
     await host.back('d1')
     expect(state.webHold).toBe(true)
     expect(calls).toEqual(['back:d1'])
+  })
+
+  it('tells the backend which decks are on the output (the helper popup rule)', () => {
+    const { host, state, live } = make()
+    host.syncEvent([deck] as never, null)
+    expect(live.get('d1')).toBe(false)
+    state.shown = { deckId: 'd1', web: { deckId: 'd1' } }
+    host.syncEvent([deck] as never, 'd1')
+    expect(live.get('d1')).toBe(true)
   })
 })

@@ -972,17 +972,28 @@ function createWebPageBackend(o: {
     env: o.env,
     exists: fs.existsSync,
     ...(o.env['ProgramFiles(x86)'] ? { programFilesX86: o.env['ProgramFiles(x86)'] } : {}),
-    ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {})
+    ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {}),
+    ...(o.env['LOCALAPPDATA'] ? { localAppData: o.env['LOCALAPPDATA'] } : {})
   })
-  const useHelper = helperExists && runtime && o.env['PPT_WEB_BACKEND'] !== 'electron'
+  const fake = o.env['PPT_ENGINE_FAKE'] === '1'
+  // The fake helper runs anywhere (e2e on Linux too); the real one only on Windows with the
+  // exe built and the WebView2 runtime present.
+  const useHelper =
+    o.env['PPT_WEB_BACKEND'] !== 'electron' &&
+    (fake || (o.platform === 'win32' && helperExists && runtime))
   if (!useHelper) {
     // The helper is shipped but this PC has no WebView2: the built-in browser takes over.
-    if (helperExists && !runtime) o.onNote(WEBVIEW2_MISSING)
+    if (!fake && helperExists && !runtime) o.onNote(WEBVIEW2_MISSING)
     return electron()
   }
-  const fake = o.env['PPT_ENGINE_FAKE'] === '1'
   const createEngine = (): WebPageEngine =>
-    fake ? new FakeWebEngine() : new WebBridgeEngine({ exe, userData: join(o.userData, 'web-profile') })
+    fake
+      ? new FakeWebEngine()
+      : new WebBridgeEngine({
+          exe,
+          userData: join(o.userData, 'web-profile'),
+          onStartFailure: (message) => o.onNote(message)
+        })
   // The supervisor keeps one stable engine reference while replacing the process behind it.
   const supervisor = new WebEngineSupervisor({
     create: createEngine,

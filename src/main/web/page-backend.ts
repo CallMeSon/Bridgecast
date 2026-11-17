@@ -16,6 +16,8 @@ export interface PageOpenOptions {
   zoom: number
   /** `default` unless the deck has its own WebView2 profile. */
   profile: string
+  /** The deck is on the output (a page on air may not open a window). */
+  live?: boolean
 }
 
 /**
@@ -74,6 +76,8 @@ export interface PageBackend {
   audioPipe?(deckId: string): string | null
   /** Mutes the page's own playback (the Electron page is always muted; tab capture carries it). */
   setMuted?(deckId: string, muted: boolean): void
+  /** The deck went on or off the output (the helper's popup rule). */
+  setLive?(deckId: string, live: boolean): void
   /** Extra diagnostics for `PPT_OUTPUT_DUMP`. */
   debug?(deckId: string): Promise<Record<string, unknown> | null>
   /** Clears the sign-in data of the given profiles and reloads their pages. */

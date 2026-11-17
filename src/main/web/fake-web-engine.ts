@@ -15,6 +15,8 @@ export class FakeWebEngine implements WebPageEngine {
   readonly closed: string[] = []
   readonly signedOut: string[] = []
   readonly muted = new Map<string, boolean>()
+  readonly live = new Map<string, boolean>()
+  readonly stopped: string[] = []
   readonly sizes = new Map<string, Canvas>()
   /** False while the "helper" is down: calls reject like the real engine after an exit. */
   alive = true
@@ -28,16 +30,19 @@ export class FakeWebEngine implements WebPageEngine {
   private navCbs: ((s: WebNavState) => void)[] = []
   private statusCbs: ((s: WebEngineStatus) => void)[] = []
   private crashCbs: ((deckId: string) => void)[] = []
+  private hungCbs: ((deckId: string) => void)[] = []
   private exitCbs: (() => void)[] = []
 
   on(ev: 'nav', cb: (s: WebNavState) => void): void
   on(ev: 'status', cb: (s: WebEngineStatus) => void): void
   on(ev: 'crashed', cb: (deckId: string) => void): void
+  on(ev: 'hung', cb: (deckId: string) => void): void
   on(ev: 'exited', cb: () => void): void
-  on(ev: 'nav' | 'status' | 'crashed' | 'exited', cb: never): void {
+  on(ev: 'nav' | 'status' | 'crashed' | 'hung' | 'exited', cb: never): void {
     if (ev === 'nav') this.navCbs.push(cb)
     else if (ev === 'status') this.statusCbs.push(cb)
     else if (ev === 'crashed') this.crashCbs.push(cb)
+    else if (ev === 'hung') this.hungCbs.push(cb)
     else this.exitCbs.push(cb)
   }
 
@@ -87,6 +92,14 @@ export class FakeWebEngine implements WebPageEngine {
 
   async reload(): Promise<void> {
     this.guard()
+  }
+
+  stop(deckId: string): void {
+    this.stopped.push(deckId)
+  }
+
+  setLive(deckId: string, live: boolean): void {
+    this.live.set(deckId, live)
   }
 
   async back(): Promise<void> {
@@ -152,6 +165,10 @@ export class FakeWebEngine implements WebPageEngine {
 
   emitCrashed(deckId: string): void {
     for (const cb of this.crashCbs) cb(deckId)
+  }
+
+  emitHung(deckId: string): void {
+    for (const cb of this.hungCbs) cb(deckId)
   }
 
   /** The helper process went away: pending calls reject and the supervisor restarts it. */
