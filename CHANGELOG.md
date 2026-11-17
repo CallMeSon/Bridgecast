@@ -4,6 +4,21 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-17
+
+### Fixed
+
+- "Sign in with Google" in a web deck: the WebView2 page no longer replaces itself with the sign-in target. While the deck is off air the helper opens a real popup in the same profile, so popup-based sign-in can finish and hand the result back to the page; while the deck is on air the page cannot open a window or navigate itself away.
+- If the WebView2 browser process exits, the helper now leaves, so the app restarts it and reopens the pages at their last address instead of leaving dead windows behind (Resume web used to resume a black window).
+- A web page stuck in JavaScript raises HOLD after about five seconds instead of leaving the output silently frozen.
+- A helper that cannot start at all (missing file or DLL, blocked exe) falls back to the built-in browser for the session and shows one notice, instead of leaving every web deck in Error until a restart.
+- Stop in the Prepare toolbar works for web pages; a mouse release and the arrow keys from Prepare are sent to the page correctly.
+- The helper end-to-end suite runs on Linux and macOS too (fake helper), and the release script always rebuilds the helper so an old exe cannot be shipped under a new version.
+
+### Known
+
+- The page on air also plays on the PC's default device at the Windows volume; muting it there would silence it for the outputs too (measured), so deck level and Mute apply to the output path only.
+
 ## [0.1.6] - 2026-11-17
 
 ### Added
