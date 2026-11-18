@@ -8,21 +8,29 @@ export type { EngineKind }
 export const INSTALL_LIBREOFFICE =
   'Install LibreOffice Impress and python3-uno to import PowerPoint files, or export the file to PDF and import the PDF.'
 export const WAYLAND_STILLS =
-  "Animated slides need an X11 session on Linux. Log in with 'GNOME on Xorg' to play animations; showing still slides."
+  "Animated slides need X11 on Linux, through Xwayland or an X11 session ('GNOME on Xorg'). Showing still slides."
 export const NO_POWERPOINT_ENGINE =
   'PowerPoint files can be imported on Windows and Linux only. Export the file to PDF and import the PDF.'
 
 export interface PlatformProbe {
   platform: NodeJS.Platform
-  /** `XDG_SESSION_TYPE`. */
+  /** The session's own `XDG_SESSION_TYPE` (read before `x11CaptureEnv` changes it). */
   sessionType?: string
+  /**
+   * Wayland session, but the app runs on X11 (Xwayland) and its window capture was switched to
+   * X11 (`x11CaptureEnv`), so the slide show window (an X11 window) can be captured.
+   */
+  x11Capture?: boolean
   hasSoffice: boolean
   hasPyUno: boolean
 }
 
 export interface EngineInfo {
   engine: EngineKind
-  /** The slide show window can be captured (false on Wayland: native decks play as still images). */
+  /**
+   * The slide show window can be captured (false on Wayland without Xwayland: native decks play
+   * as still images). At run time a window that is not listed still falls back to the PNG.
+   */
   canCapture: boolean
   /** Operator copy: why PowerPoint import is refused (`none`) or why slides stay still (Wayland). */
   message?: string
@@ -30,7 +38,8 @@ export interface EngineInfo {
 
 /**
  * Engine choice is by platform only (no setting): Windows uses PowerPoint; Linux uses LibreOffice
- * Impress when `soffice` and python3-uno are there, and plays native decks as stills under Wayland.
+ * Impress when `soffice` and python3-uno are there. Under Wayland native decks play through
+ * Xwayland (`x11Capture`), and as stills when the app could not get there.
  */
 export function detectEngine(p: PlatformProbe): EngineInfo {
   if (p.platform === 'win32') return { engine: 'powerpoint', canCapture: true }
@@ -38,7 +47,7 @@ export function detectEngine(p: PlatformProbe): EngineInfo {
     if (!p.hasSoffice || !p.hasPyUno) {
       return { engine: 'none', canCapture: false, message: INSTALL_LIBREOFFICE }
     }
-    if (p.sessionType === 'wayland') {
+    if (p.sessionType === 'wayland' && !p.x11Capture) {
       return { engine: 'libreoffice', canCapture: false, message: WAYLAND_STILLS }
     }
     return { engine: 'libreoffice', canCapture: true }
@@ -95,6 +104,45 @@ export function x11RelaunchOptions(
   const args = [...argv.slice(1), '--ozone-platform=x11']
   const appImage = env['APPIMAGE']
   return appImage ? { execPath: appImage, args } : { args }
+}
+
+/** Holds the session's own `XDG_SESSION_TYPE` while the app says `x11` (see `x11CaptureEnv`). */
+export const SESSION_TYPE_ENV = 'BRIDGECAST_SESSION_TYPE'
+
+/**
+ * Linux in a Wayland session with the app on X11 (`--ozone-platform=x11`, an X server in
+ * `DISPLAY`): Chromium's window capture takes the PipeWire portal whenever `XDG_SESSION_TYPE` is
+ * `wayland`, even for an X11 app, and that path never lists the LibreOffice slide show window
+ * (an X11 window). With `x11` it captures X11 windows (measured on GNOME Wayland, see
+ * docs/superpowers/notes/2026-11-18-wayland-libreoffice-capture.md). Returns the variables to
+ * set in this process before the first capture, or null. Child processes get the session's own
+ * value back from `childEnv`.
+ */
+export function x11CaptureEnv(
+  platform: NodeJS.Platform,
+  env: Record<string, string | undefined>,
+  argv: readonly string[]
+): Record<string, string> | null {
+  if (platform !== 'linux') return null
+  if (env['XDG_SESSION_TYPE'] !== 'wayland' || !env['DISPLAY']) return null
+  if (!argv.includes('--ozone-platform=x11')) return null
+  return { XDG_SESSION_TYPE: 'x11', [SESSION_TYPE_ENV]: 'wayland' }
+}
+
+/**
+ * The environment for a program the app starts (LibreOffice, the user's own LibreOffice through
+ * Edit): this process's, with the session's own `XDG_SESSION_TYPE` back when `x11CaptureEnv`
+ * changed it.
+ */
+export function childEnv(
+  env: Record<string, string | undefined>
+): Record<string, string | undefined> {
+  const out = { ...env }
+  const own = out[SESSION_TYPE_ENV]
+  if (own === undefined) return out
+  delete out[SESSION_TYPE_ENV]
+  out['XDG_SESSION_TYPE'] = own
+  return out
 }
 
 /**

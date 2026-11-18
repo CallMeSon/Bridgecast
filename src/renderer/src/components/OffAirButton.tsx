@@ -68,7 +68,7 @@ export function OffAirButton({ eventName, onConfirm, testId, popover }: Props): 
     <button
       ref={button}
       type="button"
-      className="btn"
+      className="btn alert"
       aria-expanded={popover ? asking : undefined}
       onClick={() => setAsking((a) => !a)}
       data-testid={testId}
@@ -100,7 +100,7 @@ export function OffAirButton({ eventName, onConfirm, testId, popover }: Props): 
       <span className="actions">
         <button
           type="button"
-          className="btn primary"
+          className="btn alert"
           onClick={() => {
             setAsking(false)
             onConfirm()

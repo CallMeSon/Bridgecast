@@ -40,6 +40,9 @@ OPEN_FAILED = (
 BUSY_SHORT = 1.0
 BUSY_LONG = {'open': 30.0, 'edit': 30.0, 'import': 300.0}
 POLL_SECONDS = 0.1
+# After start() the window still shows the editing view (and a black block) for a moment, about
+# 0.4 s measured on Xwayland: open answers only after this, so the first captured frame is the show.
+SHOW_SETTLE_SECONDS = 1.0
 
 _out_lock = threading.Lock()
 _x_handler = None
@@ -617,6 +620,8 @@ class Bridge:
                 set_wm_state(int(s.window_id), bool(req.get('behind', True)))
             idx = s.controller.getCurrentSlideIndex()
             s.counter = StepCounter(idx, s.clicks_of(idx))
+            if s.window_id:
+                time.sleep(SHOW_SETTLE_SECONDS)
         except BridgeError:
             self.discard(s)
             raise

@@ -60,9 +60,24 @@ PowerPoint. Install it with the Python bridge dependency and the fonts that Powe
 sudo apt install libreoffice-impress python3-uno fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation
 ```
 
-Use an **X11** session (Ubuntu / Zorin: pick "Ubuntu on Xorg" at the login screen). Wayland is not
-supported yet and the app says so. The `.deb` lists LibreOffice and `python3-uno` as recommended
-packages; the AppImage needs them installed on the PC. Integration tests with a real LibreOffice:
+Videos inside a deck are played by LibreOffice through GStreamer. PowerPoint saves them as H.264/AAC
+MP4, and LibreOffice only suggests the decoders, so install them too (without them GStreamer cannot
+decode the picture or the sound):
+
+```bash
+sudo apt install gstreamer1.0-plugins-good gstreamer1.0-libav
+```
+
+Animated slides play in an X11 session and in a Wayland session alike; no "on Xorg" login is
+needed. Under Wayland the app runs on Xwayland (it restarts itself with `--ozone-platform=x11`) and
+captures the LibreOffice slide show as an X11 window. Only a Wayland session without Xwayland
+(`DISPLAY` not set) plays native decks as still slides, and the app says so. **A video inside a
+slide is not captured yet**: its sound plays, but the output shows the slide without the video
+picture (LibreOffice draws the video in a separate window). Web decks on Linux use the built-in
+Electron page window (the same fallback Windows uses without WebView2): nothing extra to install and
+no screen-cast permission is asked. Google sign-in is not available there, because the site sees an
+embedded browser; on Windows the WebView2 helper is what makes it work. The `.deb` lists LibreOffice, `python3-uno` and the two GStreamer
+packages as recommended packages; the AppImage needs them installed on the PC. Integration tests with a real LibreOffice:
 `xvfb-run -a npx vitest run test/integration` (skipped when `soffice` is missing).
 
 ## OMT native libraries

@@ -27,6 +27,14 @@ export interface PageOpenOptions {
 export interface PageBackendEvents {
   /** Navigation state changed (url, title, history, loading, cursor). */
   nav(s: WebNavState): void
+  /**
+   * A new main-frame document started loading (a new URL, Reload, history, or the
+   * backend's own reload after a crash): the previous load and failure no longer describe
+   * the page. Never sent for the error page of a failed load, a subframe or a
+   * same-document navigation, so a `nav` report alone (even with `loading`) never ends an
+   * error.
+   */
+  navStarted(deckId: string): void
   /** The main frame finished loading successfully. */
   loaded(deckId: string, info: { title: string; url: string }): void
   /** The main-frame load failed; `message` is the operator copy. */

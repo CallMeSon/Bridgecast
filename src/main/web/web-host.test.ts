@@ -110,6 +110,7 @@ describe('WebHost ready gate', () => {
     events.loaded('d1', { title: 'T', url: 'https://a.b/d1' })
     host.frameSeen('d1')
     expect(host.webReady('d1')).toBe(true)
+    events.navStarted('d1')
     events.nav(navState(true, 'https://a.b/other'))
     expect(host.webReady('d1')).toBe(false)
     expect(statuses.at(-1)).toEqual({ deckId: 'd1', status: 'loading' })
@@ -122,10 +123,28 @@ describe('WebHost ready gate', () => {
     host.syncEvent([deck] as never, null)
     events.loadFailed('d1', 'Could not open a.b. Check the internet connection, then Reload.')
     expect(host.statuses()[0]).toMatchObject({ status: 'error' })
+    events.navStarted('d1')
     events.nav(navState(true))
     expect(host.statuses()[0]).toMatchObject({ status: 'loading' })
     events.loaded('d1', { title: 'T', url: 'https://a.b/d1' })
     expect(host.statuses()[0]).toMatchObject({ status: 'loading' })
+  })
+
+  it('keeps the error while the failed load finishes (the error page is not a new document)', () => {
+    const { host, events } = make()
+    host.syncEvent([deck] as never, null)
+    events.nav(navState(true, ''))
+    events.loadFailed('d1', 'Could not open a.b. Check the internet connection, then Reload.')
+    // Chromium commits its error page at the failed address inside the same load.
+    events.nav(navState(true))
+    events.loaded('d1', { title: 'a.b', url: 'https://a.b/d1' })
+    events.nav(navState(false))
+    host.frameSeen('d1')
+    expect(host.statuses()[0]).toMatchObject({
+      status: 'error',
+      message: 'Could not open a.b. Check the internet connection, then Reload.'
+    })
+    expect(host.webReady('d1')).toBe(false)
   })
 })
 

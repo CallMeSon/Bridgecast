@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { win32 } from 'node:path'
 
 /** Copy shown while a PC has no WebView2 Evergreen runtime (web pages stay in Electron). */
 export const WEBVIEW2_MISSING =
@@ -21,10 +21,10 @@ export function webView2RuntimeFound(o: {
   if (custom) return o.exists(custom)
   const candidates = [
     // A per-machine Evergreen install.
-    o.programFilesX86 && join(o.programFilesX86, 'Microsoft', 'EdgeWebView', 'Application'),
-    o.programFiles && join(o.programFiles, 'Microsoft', 'EdgeWebView', 'Application'),
+    o.programFilesX86 && win32.join(o.programFilesX86, 'Microsoft', 'EdgeWebView', 'Application'),
+    o.programFiles && win32.join(o.programFiles, 'Microsoft', 'EdgeWebView', 'Application'),
     // A per-user Evergreen install.
-    o.localAppData && join(o.localAppData, 'Microsoft', 'EdgeWebView', 'Application')
+    o.localAppData && win32.join(o.localAppData, 'Microsoft', 'EdgeWebView', 'Application')
   ].filter((p): p is string => !!p)
   return candidates.some((p) => o.exists(p))
 }

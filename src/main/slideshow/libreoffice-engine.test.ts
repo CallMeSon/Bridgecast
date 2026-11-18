@@ -46,28 +46,34 @@ class FakeChild implements BridgeChild {
   }
 }
 
-function make(opts: { sink?: boolean; reply?: FakeChild['reply'] } = {}): {
+function make(
+  opts: { sink?: boolean; reply?: FakeChild['reply']; env?: Record<string, string> } = {}
+): {
   engine: LibreOfficeEngine
   child: FakeChild
   args: () => string[]
+  env: () => Record<string, string | undefined> | null
   audio: unknown[]
 } {
   const child = new FakeChild()
   if (opts.reply) child.reply = opts.reply
   let args: string[] = []
+  let env: Record<string, string | undefined> | null = null
   const audio: unknown[] = []
   const engine = new LibreOfficeEngine({
     script: '/x/bridge.py',
     profile: '/data/lo-profile',
     exists: () => true,
-    spawn: (_py, a) => {
+    spawn: (_py, a, e) => {
       args = a
+      env = e
       return child
     },
+    ...(opts.env ? { env: opts.env } : {}),
     ensureSink: async () => opts.sink ?? true,
     onAudio: (a) => audio.push(a)
   })
-  return { engine, child, args: () => args, audio }
+  return { engine, child, args: () => args, env: () => env, audio }
 }
 
 const canvas = { width: 1920, height: 1080 }
@@ -102,6 +108,14 @@ describe('LibreOfficeEngine', () => {
     await s.next()
     await s.goto(3)
     expect(child.written.slice(1).map((m) => m.cmd)).toEqual(['next', 'goto'])
+  })
+
+  it('starts the bridge with the session type of the session, not the one the app sets for capture', async () => {
+    const { engine, env } = make({
+      env: { PATH: '/usr/bin', XDG_SESSION_TYPE: 'x11', BRIDGECAST_SESSION_TYPE: 'wayland' }
+    })
+    await engine.open('d1', '/deck/source.odp', canvas)
+    expect(env()).toEqual({ PATH: '/usr/bin', XDG_SESSION_TYPE: 'wayland' })
   })
 
   it('without a sound sink: no PULSE_SINK argument and the default-device copy', async () => {

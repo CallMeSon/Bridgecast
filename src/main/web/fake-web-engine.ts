@@ -57,8 +57,10 @@ export class FakeWebEngine implements WebPageEngine {
     this.guard()
     this.opened.set(deckId, o)
     this.sizes.set(deckId, o.canvas)
-    // A real helper reports navigation starting, then the load, like WebView2.
+    // A real helper reports navigation starting (status `loading`, then nav), then the
+    // load, like WebView2.
     setTimeout(() => {
+      this.emitStatus(deckId, 'loading')
       this.emitNav(this.navOf(deckId, o.url, true, o.zoom))
       this.emitStatus(deckId, 'ready')
       this.emitNav(this.navOf(deckId, o.url, false, o.zoom))
@@ -84,6 +86,7 @@ export class FakeWebEngine implements WebPageEngine {
     const o = this.opened.get(deckId)
     if (o) this.opened.set(deckId, { ...o, url })
     setTimeout(() => {
+      this.emitStatus(deckId, 'loading')
       this.emitNav(this.navOf(deckId, url, true, o?.zoom))
       this.emitStatus(deckId, 'ready')
       this.emitNav(this.navOf(deckId, url, false, o?.zoom))

@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
 import type { Canvas } from '../../shared/canvas'
+import { childEnv } from '../platform'
 import { BridgeClient, BridgeError, type BridgeEvent } from './bridge-protocol'
 import type { EngineError, EnginePosition, EngineSession, SlideShowEngine } from './engine'
 import type { BridgeChild } from './powerpoint-engine'
@@ -13,10 +14,14 @@ export const LO_START_FAILED =
 /** Shown when LibreOffice's sound cannot be routed by the app (no pactl, sink not created). */
 export const LO_DEFAULT_DEVICE_SOUND = "LibreOffice sound plays on this PC's default device only."
 
-type LoSpawnFn = (python: string, args: string[]) => BridgeChild
+type LoSpawnFn = (
+  python: string,
+  args: string[],
+  env: Record<string, string | undefined>
+) => BridgeChild
 
-const defaultSpawn: LoSpawnFn = (python, args) =>
-  nodeSpawn(python, args, { stdio: ['pipe', 'pipe', 'pipe'] }) as BridgeChild
+const defaultSpawn: LoSpawnFn = (python, args, env) =>
+  nodeSpawn(python, args, { stdio: ['pipe', 'pipe', 'pipe'], env }) as BridgeChild
 
 /** Where `bridge.py` is: `resources/lo-bridge/` packaged, `native/lo-bridge/` in dev. */
 export function loBridgePath(opts: {
@@ -34,6 +39,8 @@ interface LibreOfficeEngineOptions {
   /** The app's own LibreOffice profile (`<userData>/lo-profile`). */
   profile: string
   spawn?: LoSpawnFn
+  /** This process's environment (default `process.env`); the bridge gets it through `childEnv`. */
+  env?: Record<string, string | undefined>
   exists?: (file: string) => boolean
   /** Creates the private sound sink; true when LibreOffice's sound can be captured. */
   ensureSink?: () => Promise<boolean>
@@ -106,7 +113,10 @@ export class LibreOfficeEngine implements SlideShowEngine {
     if (sink) args.push('--pulse-sink', SINK_NAME)
     let child: BridgeChild
     try {
-      child = (this.opts.spawn ?? defaultSpawn)('python3', args)
+      // The session's own XDG_SESSION_TYPE (the app may say x11 for its capture): the bridge
+      // sets the X11 VCL plugin for its soffice itself, and Edit opens the user's LibreOffice.
+      const env = childEnv(this.opts.env ?? process.env)
+      child = (this.opts.spawn ?? defaultSpawn)('python3', args, env)
     } catch (e) {
       return this.failStart(e instanceof Error ? e.message : String(e))
     }

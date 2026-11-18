@@ -69,11 +69,6 @@ linux:
       filter:
         - bridge.py
         - steps.py
-    # Web page helper: drives the PC's Chrome or Chromium (Node script, run by Electron itself)
-    - from: native/web-bridge-linux
-      to: web-bridge-linux
-      filter:
-        - bridge.mjs
   target:
     - AppImage
     - deb
@@ -81,6 +76,8 @@ deb:
   recommends:
     - libreoffice-impress
     - python3-uno
+    - gstreamer1.0-plugins-good
+    - gstreamer1.0-libav
   maintainer: electronjs.org
   category: Utility
 appImage:

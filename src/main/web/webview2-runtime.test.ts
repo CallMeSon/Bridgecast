@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { WEBVIEW2_MISSING, webView2RuntimeFound } from './webview2-runtime'
 
-const found = (paths: string[]) => (p: string): boolean => paths.includes(p)
+const found =
+  (paths: string[]) =>
+  (p: string): boolean =>
+    paths.includes(p)
 
 describe('webView2RuntimeFound', () => {
   it('finds the Evergreen folder under either Program Files', () => {

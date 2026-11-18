@@ -202,7 +202,8 @@ sungguhan, login Google, capture jendela helper, dan loopback audio browser.
 - [ ] Suara di dalam slide: rute Local, Network, Both. Tidak ganda di perangkat default; tidak ada suara bocor saat deck tidak live.
 - [ ] LibreOffice dimatikan paksa saat live: output memakai PNG slide yang sama (tidak hitam, tidak desktop), lalu kembali ke native.
 - [ ] Edit in LibreOffice: peringatan simpan muncul dulu; simpan memperbarui slide; saat deck live, perubahan menunggu sampai turun dari air; Revert mengembalikan file impor.
-- [ ] Sesi Wayland: pesan "X11 session" benar, deck tetap bisa diputar sebagai Vector / Still images.
+- [ ] Sesi Wayland (dengan Xwayland, bawaan GNOME): deck beranimasi diputar Native lewat Xwayland, animasi terlihat di HDMI dan OMT, tidak ada dialog "Share screen" GNOME. Video di dalam slide: suara terdengar, gambarnya belum tertangkap (diketahui). Frame pertama setelah deck dibuka adalah slide, bukan tampilan edit LibreOffice. Pointer mouse tidak ikut di gambar (lihat catatan 2026-11-18).
+- [ ] Sesi Wayland tanpa Xwayland (`DISPLAY` kosong): pesan "need X11" benar, deck tetap bisa diputar sebagai Vector / Still images.
 - [ ] `.deb` terpasang bersih dan AppImage berjalan; keduanya bisa impor dan memutar.
 - [ ] HDMI di X11: jendela slide show tidak pernah terlihat di layar operator atau HDMI di luar Program.
 

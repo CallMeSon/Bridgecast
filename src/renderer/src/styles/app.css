@@ -937,6 +937,16 @@ main {
   background: var(--text-2);
   border-color: var(--text);
 }
+/* Off air: a dedicated alert red, distinct from the user's accent in both themes. */
+.btn.alert {
+  background: var(--alert-fill);
+  border-color: var(--alert-fill);
+  color: var(--alert-ink);
+}
+.btn.alert:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--alert-fill-hi);
+  border-color: var(--alert-fill-hi);
+}
 
 /* library: soft rows, a 64x36 tile (first slide or source icon), name and sub line */
 .decks {

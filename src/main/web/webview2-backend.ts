@@ -77,8 +77,12 @@ export class WebView2PageBackend implements PageBackend {
       if (s.status === 'error') {
         const domain = webDomain(p.lastNav?.url ?? '')
         this.events?.loadFailed(s.deckId, s.message || loadFailedText(domain))
+        return
       }
-      // `loading` is reported through `nav`; WebHost derives the status itself.
+      // `loading` = a new main-frame document started (NavigationStarting, or the reload
+      // after a crash). The helper's nav `loading` stays true after a failed load, so only
+      // this status may end an error.
+      this.events?.navStarted(s.deckId)
     })
     engine.on('crashed', (deckId) => {
       const p = this.pages.get(deckId)

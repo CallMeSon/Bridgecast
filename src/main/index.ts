@@ -17,7 +17,6 @@ import * as path from 'path'
 import { join } from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
-import { spawn } from 'child_process'
 import { randomUUID } from 'crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -26,7 +25,7 @@ import { AppState } from './state'
 import { FakeEngine } from './slideshow/fake-engine'
 import { SlideShowManager } from './slideshow/manager'
 import type { SlideShowEngine } from './slideshow/engine'
-import { PowerPointEngine, bridgeExePath, type BridgeChild } from './slideshow/powerpoint-engine'
+import { PowerPointEngine, bridgeExePath } from './slideshow/powerpoint-engine'
 import { SlideSound } from './slideshow/audio-pipe'
 import { LibreOfficeEngine, loBridgePath } from './slideshow/libreoffice-engine'
 import { PulseSink } from './slideshow/pulse-sink'
@@ -38,6 +37,7 @@ import {
   detectEngine,
   needsX11Relaunch,
   probeLinux,
+  x11CaptureEnv,
   x11RelaunchOptions,
   canSelfUpdate,
   type EngineInfo
@@ -116,13 +116,6 @@ import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '.
 import { WebHost } from './web/web-host'
 import { ElectronPageBackend } from './web/electron-page-backend'
 import { WebView2PageBackend } from './web/webview2-backend'
-import {
-  LINUX_BROWSER_MISSING,
-  findLinuxBrowser,
-  linuxProfileRoot,
-  looksLikeSnap,
-  webBridgeLinuxScriptPath
-} from './web/linux-browser'
 import { WebBridgeEngine, webBridgeExePath, type WebPageEngine } from './web/web-engine'
 import { FakeWebEngine } from './web/fake-web-engine'
 import { WebEngineSupervisor } from './web/web-engine-supervisor'
@@ -155,6 +148,14 @@ if (needsX11Relaunch(process.platform, process.env, process.argv)) {
   app.relaunch(x11RelaunchOptions(process.env, process.argv))
   app.exit(0)
 }
+
+// The session's own XDG_SESSION_TYPE, read before the line below may change it.
+const sessionType = process.env['XDG_SESSION_TYPE']
+// Wayland session, app on X11 (after the relaunch, or `npm run dev` with the flag): tell Chromium's
+// window capture the session is X11 so it lists the LibreOffice slide show window instead of
+// asking the PipeWire portal (see x11CaptureEnv). Before any capture; children get it back.
+const x11Capture = x11CaptureEnv(process.platform, process.env, process.argv)
+if (x11Capture) Object.assign(process.env, x11Capture)
 
 // Hidden web deck pages must keep painting on Windows when covered or minimised
 // (merged with any features already disabled on the command line).
@@ -981,81 +982,33 @@ function createWebPageBackend(o: {
     resourcesPath: o.resourcesPath,
     appPath: o.appPath
   })
-  const linuxScript = webBridgeLinuxScriptPath({
-    packaged: o.packaged,
-    resourcesPath: o.resourcesPath,
-    appPath: o.appPath
+  const helperExists = o.platform === 'win32' && fs.existsSync(exe)
+  const runtime = webView2RuntimeFound({
+    env: o.env,
+    exists: fs.existsSync,
+    ...(o.env['ProgramFiles(x86)'] ? { programFilesX86: o.env['ProgramFiles(x86)'] } : {}),
+    ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {}),
+    ...(o.env['LOCALAPPDATA'] ? { localAppData: o.env['LOCALAPPDATA'] } : {})
   })
-  const linuxBrowser =
-    o.platform === 'linux'
-      ? findLinuxBrowser({
-          env: o.env,
-          exists: fs.existsSync,
-          isSnap: (file) => {
-            try {
-              return looksLikeSnap(
-                file,
-                fs.realpathSync(file),
-                fs.readFileSync(file, 'latin1').slice(0, 4096)
-              )
-            } catch {
-              return false
-            }
-          }
-        })
-      : null
-  const linuxHelper = o.platform === 'linux' && fs.existsSync(linuxScript)
-  const helperExists = o.platform === 'win32' ? fs.existsSync(exe) : linuxHelper
-  const runtime =
-    o.platform === 'linux'
-      ? linuxBrowser !== null
-      : webView2RuntimeFound({
-          env: o.env,
-          exists: fs.existsSync,
-          ...(o.env['ProgramFiles(x86)'] ? { programFilesX86: o.env['ProgramFiles(x86)'] } : {}),
-          ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {}),
-          ...(o.env['LOCALAPPDATA'] ? { localAppData: o.env['LOCALAPPDATA'] } : {})
-        })
   const fake = o.env['PPT_ENGINE_FAKE'] === '1'
-  // The fake helper runs anywhere (e2e on Linux too); the real one needs its helper built
-  // (Windows: web-bridge.exe and the WebView2 runtime; Linux: bridge.mjs and Chrome/Chromium).
+  // The fake helper runs anywhere (e2e on Linux too); the real one is Windows only (WebView2).
+  // Everywhere else the built-in Electron page window is the webview.
   const useHelper =
     o.env['PPT_WEB_BACKEND'] !== 'electron' &&
-    (fake || ((o.platform === 'win32' || o.platform === 'linux') && helperExists && runtime))
+    (fake || (o.platform === 'win32' && helperExists && runtime))
   if (!useHelper) {
-    // The helper is shipped but this PC has no browser for it: the built-in browser takes over.
-    if (!fake && helperExists && !runtime) {
-      o.onNote(o.platform === 'linux' ? LINUX_BROWSER_MISSING : WEBVIEW2_MISSING)
-    }
+    // The helper is shipped but this PC has no WebView2: the built-in browser takes over.
+    if (!fake && helperExists && !runtime) o.onNote(WEBVIEW2_MISSING)
     return electron()
   }
-  const linuxReal = !fake && o.platform === 'linux' && linuxBrowser !== null
   const createEngine = (): WebPageEngine =>
     fake
       ? new FakeWebEngine()
-      : linuxReal
-        ? new WebBridgeEngine({
-            exe: linuxScript,
-            userData: linuxProfileRoot({
-              snap: linuxBrowser.snap,
-              home: os.homedir(),
-              userData: o.userData,
-              browser: linuxBrowser.path
-            }),
-            args: ['--browser', linuxBrowser.path],
-            // The helper is a Node script: Electron runs it as plain Node.
-            spawn: (script, args) =>
-              spawn(process.execPath, [script, ...args], {
-                stdio: ['pipe', 'pipe', 'pipe'],
-                env: { ...o.env, ELECTRON_RUN_AS_NODE: '1' }
-              }) as unknown as BridgeChild,
-            onStartFailure: (message) => o.onNote(message)
-          })
-        : new WebBridgeEngine({
-            exe,
-            userData: join(o.userData, 'web-profile'),
-            onStartFailure: (message) => o.onNote(message)
-          })
+      : new WebBridgeEngine({
+          exe,
+          userData: join(o.userData, 'web-profile'),
+          onStartFailure: (message) => o.onNote(message)
+        })
   // The supervisor keeps one stable engine reference while replacing the process behind it.
   const supervisor = new WebEngineSupervisor({
     create: createEngine,
@@ -1698,7 +1651,8 @@ app.whenReady().then(async () => {
   // Which program plays PowerPoint files here: by platform only (PowerPoint, LibreOffice, none).
   const engineInfo = detectEngine({
     platform: process.platform,
-    sessionType: process.env['XDG_SESSION_TYPE'],
+    sessionType,
+    x11Capture: x11Capture !== null,
     ...(process.platform === 'linux' ? await probeLinux() : { hasSoffice: false, hasPyUno: false })
   })
   let lib: Library

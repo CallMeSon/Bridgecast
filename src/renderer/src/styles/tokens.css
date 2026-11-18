@@ -61,6 +61,10 @@
   --text-2: #4a4e5c;
   --text-3: #626776;
   --focus: #1a1c24;
+  /* Off air: a dedicated red fill, never the user's accent. */
+  --alert-fill: #b3261e;
+  --alert-fill-hi: #8f1d17;
+  --alert-ink: #ffffff;
   --tag-frozen: #1c55bd;
   --tag-kv: #5342c9;
   --on-tag-kv: #ffffff;
@@ -84,6 +88,10 @@
   --text-2: #adb2c2;
   --text-3: #8a8fa6;
   --focus: #e4e6ee;
+  /* Off air: a dedicated red fill, never the user's accent. */
+  --alert-fill: #cf3439;
+  --alert-fill-hi: #e0474c;
+  --alert-ink: #ffffff;
   --tag-frozen: #98c0ff;
   --tag-kv: #a99cff;
   --on-tag-kv: #16112f;

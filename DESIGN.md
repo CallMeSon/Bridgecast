@@ -298,6 +298,7 @@ One place for every size, from the .pen's Design System frame. Heights come from
 - **Dialog primary** uses the accent fill (`--accent-fill`, `--on-accent`).
 - **Icon button:** 32px square, transparent, hover Raised.
 - **Danger:** Text fill with Ground ink, for a destructive confirm (Delete deck). Never the accent.
+- **Alert:** A fixed red fill with white ink for ending the show (Off air, and its confirm). It is the same red in both themes and never follows the user's accent.
 
 ### Transport bar
 

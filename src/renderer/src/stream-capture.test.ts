@@ -354,6 +354,19 @@ describe('StreamCapture', () => {
     expect(t.host.onFailed).toHaveBeenLastCalledWith(true)
   })
 
+  it('a slide show window that cannot be captured shows the slide (poster), never a frame', async () => {
+    // e.g. the window is not listed (slideshowSourceId rejects): the PNG shows, never black.
+    const t = setup({ tap: true, holdOnEnd: false })
+    t.failOpen(true)
+    t.c.start()
+    await flush()
+    expect(t.view()).toMatchObject({ poster: true, shownKey: null, entries: [] })
+    expect(t.host.onFailed).toHaveBeenLastCalledWith(true)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(t.host.open).toHaveBeenCalledTimes(2)
+    expect(t.view()).toMatchObject({ poster: true, shownKey: null })
+  })
+
   it('a slide show capture still holds its frame while paused (Freeze)', async () => {
     const t = setup({ tap: true, holdOnEnd: false })
     t.c.start()

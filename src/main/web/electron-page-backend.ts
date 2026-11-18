@@ -152,8 +152,12 @@ export class ElectronPageBackend implements PageBackend {
       this.pushNav(p)
     })
 
+    // The one place a new main-frame document starts. Chromium's error page for a failed
+    // load is committed inside that same navigation (no did-start-navigation of its own),
+    // so the failure it reports survives the error page's did-finish-load.
     wc.on('did-start-navigation', (details) => {
       if (!details.isMainFrame || details.isSameDocument) return
+      this.events?.navStarted(deckId)
       this.pushNav(p)
     })
     wc.on('did-finish-load', () => {

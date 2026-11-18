@@ -2150,7 +2150,7 @@ function ffmpegPath() {
   return null
 }
 
-async function videoFileChecks(win, tally) {
+async function videoFileChecks(win) {
   const ffmpeg = ffmpegPath()
   if (!ffmpeg) {
     console.log('SKIP video file import: ffmpeg is not installed (its fixtures cannot be made).')
@@ -3227,7 +3227,7 @@ try {
   await renamed.waitFor()
 
   const { missingDeckId } = await videoChecks(win, tally)
-  await videoFileChecks(win, tally)
+  await videoFileChecks(win)
 
   await canvasAndLevelsChecks(win, tally)
 

@@ -33,6 +33,7 @@ function make(parkAt?: (canvas: { width: number; height: number }) => { x: numbe
   })
   events = {
     nav: vi.fn(),
+    navStarted: vi.fn(),
     loaded: vi.fn(),
     loadFailed: vi.fn(),
     crashed: vi.fn(),
@@ -101,6 +102,17 @@ describe('PageBackend contract', () => {
 
     engine.emitCrashed('d1')
     expect(events.crashed).toHaveBeenCalledWith('d1', loadFailedText('a.b'))
+  })
+
+  it('only a helper `loading` status starts a new document (a nav with loading does not)', async () => {
+    await backend.open('d1', { url: 'https://a.b', canvas, zoom: 1, profile: 'default' })
+    engine.emitStatus('d1', 'error', 'Could not open a.b. Try again.')
+    // After a failed navigation the helper's nav keeps `loading` (it is `!loaded`).
+    engine.emitNav(nav('d1', { loading: true }))
+    expect(events.navStarted).not.toHaveBeenCalled()
+    engine.emitStatus('d1', 'loading')
+    expect(events.navStarted).toHaveBeenCalledWith('d1')
+    expect(events.loadFailed).toHaveBeenCalledTimes(1)
   })
 
   it('a crashed page reports the error and then recovers when the helper reloads it', async () => {

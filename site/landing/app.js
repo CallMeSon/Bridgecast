@@ -448,7 +448,7 @@
     draw()
   }
 
-  function Web(root) {
+  function Web() {
     var ul = $('#ww-list'),
       add = $('#ww-add'),
       n = 0,
@@ -507,7 +507,7 @@
     draw()
   }
 
-  function Edit(root) {
+  function Edit() {
     var msg = $('#we-msg'),
       a = $('#we-apply'),
       r = $('#we-revert'),

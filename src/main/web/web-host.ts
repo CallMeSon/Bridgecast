@@ -104,6 +104,7 @@ export class WebHost {
   private wire(backend: PageBackend): void {
     backend.setEvents({
       nav: (s) => this.onBackendNav(s),
+      navStarted: (deckId) => this.onNavStarted(deckId),
       loaded: (deckId, info) => this.onLoaded(deckId, info),
       loadFailed: (deckId, message) => this.onLoadFailed(deckId, message),
       crashed: (deckId, message) => this.onCrashed(deckId, message),
@@ -486,24 +487,36 @@ export class WebHost {
     const previous = p.nav?.url
     p.nav = s
     if (s.url !== previous) webLog(`${s.deckId} nav ${s.url} (loading=${s.loading})`)
-    // A new main-frame document started (Reload, a new URL, history, or the backend's own
-    // reload after a crash): the previous load and failure no longer describe the page.
-    if (s.loading && s.url !== '') {
-      const changed = p.loaded || p.failed !== null
-      p.loaded = false
-      p.failed = null
-      if (changed) this.updateStatus(p)
-    }
+    // A nav report never ends a load failure by itself: a failed load finishes with the
+    // browser's error page at the same address while it still reads `loading`, which looks
+    // exactly like a Reload starting. Only `navStarted` (a new document) clears it.
     // Google's "unusual traffic" wall is a real page with a real frame: say why the search
     // result is not there instead of leaving the operator with a bare Loading chip (the
-    // wall page often never reports the load as finished).
+    // wall page often never reports the load as finished). It comes from the address, so it
+    // ends as soon as the page is somewhere else.
     const wall = verificationWall(s.url)
     if (wall && p.failed !== wall) {
       p.failed = wall
       this.updateStatus(p)
       this.hold(s.deckId)
+    } else if (!wall && p.failed !== null && p.failed === verificationWall(previous ?? '')) {
+      p.failed = null
+      this.updateStatus(p)
     }
     this.coalescer.push(s)
+  }
+
+  /**
+   * A new main-frame document started (Reload, a new URL, history, or the backend's own
+   * reload after a crash): the previous load and failure no longer describe the page.
+   */
+  private onNavStarted(deckId: string): void {
+    const p = this.pages.get(deckId)
+    if (!p) return
+    const changed = p.loaded || p.failed !== null
+    p.loaded = false
+    p.failed = null
+    if (changed) this.updateStatus(p)
   }
 
   /** Report a page that loaded but never gives a capture frame (the output shows a snapshot). */

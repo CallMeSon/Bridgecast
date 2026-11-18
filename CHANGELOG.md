@@ -4,6 +4,17 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Added
+
+- Web decks on Linux run in the built-in Electron page window (the same webview Windows uses when WebView2 is missing): no Chrome/Chromium helper, nothing extra to install, and no screen-cast permission. Google sign-in is not available in that window; on Windows the WebView2 helper still provides it.
+- The Off air button uses a fixed alert red in both themes, distinct from the user's accent (and so does its confirm).
+
+### Changed
+
+- Linux: animated PowerPoint slides (LibreOffice) now play in a Wayland session too, through Xwayland; logging in with "GNOME on Xorg" is no longer needed. Chromium's window capture asked the PipeWire portal whenever the session said Wayland, and that never listed the slide show window; the app now tells its own capture that the session is X11 (LibreOffice and the other programs it starts still see Wayland). Only a Wayland session without Xwayland keeps still slides. A video inside a slide still plays its sound without its picture in the output.
+- The LibreOffice slide show is reported ready about a second later, once its editing view has gone, so the first captured frame is the slide.
+- The `.deb` also recommends `gstreamer1.0-plugins-good` and `gstreamer1.0-libav`, which LibreOffice needs to play the H.264/AAC videos PowerPoint saves.
+
 ## [0.1.11] - 2026-11-18
 
 ### Added

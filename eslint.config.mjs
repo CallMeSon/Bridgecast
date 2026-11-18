@@ -29,8 +29,15 @@ export default defineConfig(
     }
   },
   {
-    // Plain JS helpers run by Node (scripts, e2e, the Linux web bridge) are not TypeScript.
-    files: ['e2e/**/*.mjs', 'scripts/**/*.mjs', 'native/**/*.mjs'],
+    // Plain JS is not TypeScript: Node helpers (scripts, e2e, native), the landing site's
+    // browser scripts, and the gitignored .superpowers/ scratch workspace.
+    files: [
+      'e2e/**/*.mjs',
+      'scripts/**/*.mjs',
+      'native/**/*.mjs',
+      'site/**/*.js',
+      '.superpowers/**'
+    ],
     rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
   },
   eslintConfigPrettier

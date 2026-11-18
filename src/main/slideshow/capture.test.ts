@@ -52,6 +52,15 @@ describe('slideshowSourceId', () => {
     ).rejects.toThrow(SOURCE_NOT_FOUND)
     expect(called).toBe(false)
   })
+  it('a PipeWire portal list (Wayland capture) never matches the X11 slide show window', async () => {
+    // What desktopCapturer lists when Chromium takes the portal: one placeholder source.
+    for (const id of ['window:1:0', 'window:1:0:s', 'screen:1:0']) {
+      await expect(slideshowSourceId('33554455', async () => [{ id }])).rejects.toThrow(
+        SOURCE_NOT_FOUND
+      )
+    }
+  })
+
   it('throws when the window is not listed, and when the capturer fails', async () => {
     await expect(slideshowSourceId('5', async () => sources)).rejects.toThrow(SOURCE_NOT_FOUND)
     await expect(
