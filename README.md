@@ -147,11 +147,12 @@ newer `.deb` installed by hand), and macOS builds are not published.
    to release `vX.Y.Z` (creating it the first time, uploading with `--clobber` afterwards).
    **Every release must carry both OSes.** A version is not released until the Windows
    installer (`setup.exe`, `latest.yml`, blockmap) and the Linux files (AppImage, `.deb`,
-   `latest-linux.yml`) are all attached to the same `vX.Y.Z`. `release:win` runs first on
-   Windows (it creates the tag), `release:linux` follows on Linux (it uploads with `--clobber`).
+   `latest-linux.yml`) are all attached to the same `vX.Y.Z`. Run `npm run release:win` on
+   Windows and `npm run release:linux` on Linux; either may go first — that machine creates
+   the tag, the other uploads with `--clobber`.
    After both: `node scripts/release.mjs --check X.Y.Z` — it fails unless every Windows and
-   Linux artifact is attached. Do not announce a release, tag it as latest, or ask users to
-   update until that check passes.
+   Linux artifact is attached. The first machine creates the release with its own artifacts;
+   announce the release (or ask users to update) only after that check passes.
 3. `npm run release` alone is a dry run: it prints the commands without building or publishing.
    Use `npm run release -- --branch <name>` when the release branch is not `main`, and
    `--win` / `--linux` to pick one platform. `--publish` is required to run anything.
