@@ -1,13 +1,25 @@
+import * as fs from 'node:fs'
 import path from 'node:path'
 
 /** Copy shown while a Linux PC has no Chrome or Chromium (web pages stay in Electron). */
 export const LINUX_BROWSER_MISSING =
   'Google Chrome or Chromium is not installed on this PC. Web pages use the built-in browser.'
 
+/** Copy shown when the only Chrome-family browser is a Snap package. */
+export const LINUX_BROWSER_SNAP =
+  'Chromium from the Snap Store cannot host web pages; they use the built-in browser. Install Google Chrome to sign in to Google.'
+
+/** Copy shown when python3 (window handling for the helper) is missing. */
+export const LINUX_PYTHON_MISSING =
+  'Chrome for web pages needs python3, which is not installed on this PC. Web pages use the built-in browser.'
+
 /** A Chrome-family browser the Linux web helper can drive. */
 export interface LinuxBrowser {
   path: string
-  /** A snap package: it can only write inside the user's home, outside hidden folders. */
+  /**
+   * A snap package. Refused: its sandbox cannot write the profile under the app's hidden data
+   * folder (`~/.config/...`), so Snap builds are never used.
+   */
   snap: boolean
 }
 
@@ -44,7 +56,8 @@ export interface FindBrowserOptions {
 
 /**
  * The browser the Linux helper drives: `PPT_CHROME` wins, then the first Chrome-family
- * browser on PATH. A real browser (not WebKit) is what lets Google sign-in work.
+ * browser on PATH. A real browser (not an embedded one) is what lets Google sign-in work.
+ * A snap is only returned when nothing else is installed, marked, so the caller can refuse it.
  */
 export function findLinuxBrowser(o: FindBrowserOptions): LinuxBrowser | null {
   const custom = o.env['PPT_CHROME']
@@ -65,35 +78,97 @@ export function findLinuxBrowser(o: FindBrowserOptions): LinuxBrowser | null {
   const found = candidates
     .filter((file) => o.exists(file))
     .map((file) => ({ path: file, snap: o.isSnap(file) }))
-  // A deb or vendor build beats a snap: the snap sandbox limits where it can store a profile.
+  // A deb or vendor build beats a snap.
   return found.find((b) => !b.snap) ?? found[0] ?? null
 }
 
-/**
- * Where the helper keeps sign-in profiles. A snap Chromium cannot reach hidden folders such
- * as `~/.config`, so its profiles live under its own `~/snap/chromium/common`. Any other
- * snap gets a plain `<snap>-common` folder under `~/snap/<snap>/common` when we can name it,
- * falling back to `<userData>/web-profile` for a deb or vendor build.
- */
-export function linuxProfileRoot(o: {
-  snap: boolean
-  home: string
-  userData: string
-  browser?: string
-}): string {
-  if (!o.snap) return path.join(o.userData, 'web-profile')
-  const snap = o.browser ? snapName(o.browser) : 'chromium'
-  return path.join(o.home, 'snap', snap, 'common', `${path.basename(o.userData)}-web-profile`)
+/** Whether `name` is an executable file in one of PATH's folders. */
+export function onPath(
+  name: string,
+  env: NodeJS.ProcessEnv,
+  exists: (file: string) => boolean
+): boolean {
+  return (env['PATH'] ?? '')
+    .split(':')
+    .filter(Boolean)
+    .some((dir) => exists(path.join(dir, name)))
 }
 
-/** The snap package name from a launcher (`/snap/bin/chromium`) or a real path (`/snap/chromium/current/...`). */
-function snapName(browser: string): string {
-  const launcher = /^\/snap\/bin\/([^/]+)/.exec(browser)
-  if (launcher?.[1]) return launcher[1]
-  const direct = /(?:^|\/)snap\/([^/]+)\//.exec(browser)
-  if (direct?.[1] && direct[1] !== 'bin') return direct[1]
-  // Ubuntu's `chromium-browser` wrapper hands over to the chromium snap.
-  return 'chromium'
+/**
+ * Why Chrome cannot host web pages on this PC, or null when it can: a Chrome-family browser
+ * that is not a snap, and python3 for the helper's window handling.
+ */
+export function chromeProblem(o: { browser: LinuxBrowser | null; python: boolean }): string | null {
+  if (!o.browser) return LINUX_BROWSER_MISSING
+  if (o.browser.snap) return LINUX_BROWSER_SNAP
+  if (!o.python) return LINUX_PYTHON_MISSING
+  return null
+}
+
+/** What this PC offers for Chrome web pages (reads PATH and the launchers). */
+export interface ChromeDetection {
+  browser: LinuxBrowser | null
+  /** Operator copy, or null when Chrome can be used. */
+  problem: string | null
+}
+
+/** Looks for a usable Chrome on this PC (Linux). Never throws. */
+export function detectLinuxChrome(env: NodeJS.ProcessEnv): ChromeDetection {
+  const exists = (file: string): boolean => {
+    try {
+      return fs.statSync(file).isFile()
+    } catch {
+      return false
+    }
+  }
+  const browser = findLinuxBrowser({
+    env,
+    exists,
+    isSnap: (file) => {
+      try {
+        return looksLikeSnap(
+          file,
+          fs.realpathSync(file),
+          fs.readFileSync(file, 'latin1').slice(0, 4096)
+        )
+      } catch {
+        return false
+      }
+    }
+  })
+  return { browser, problem: chromeProblem({ browser, python: onPath('python3', env, exists) }) }
+}
+
+/**
+ * Where the helper keeps its Chrome profiles: `<userData>/web-profile`, one folder per profile
+ * (`default` is the one every web deck shares). Only Bridgecast's own folder: the user's own
+ * Chrome profile and cookies are never read or touched.
+ */
+export function linuxProfileRoot(userData: string): string {
+  return path.join(userData, 'web-profile')
+}
+
+/** The profile web decks share (the one "Sign in to Google" signs in). */
+export const SHARED_PROFILE = 'default'
+
+/** The address the sign-in window opens. */
+export const GOOGLE_SIGN_IN_URL = 'https://accounts.google.com/'
+
+/**
+ * Arguments of the sign-in browser: the Bridgecast profile and nothing that automates it. Google
+ * refuses sign-in while DevTools is attached, so there is no remote debugging and no automation
+ * flag here. `--password-store=basic` must match the helper, or the helper could not read the
+ * cookies this window saves.
+ */
+export function chromeSignInArgs(profileDir: string, url = GOOGLE_SIGN_IN_URL): string[] {
+  return [
+    `--user-data-dir=${profileDir}`,
+    '--password-store=basic',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--new-window',
+    url
+  ]
 }
 
 /** `resources/web-bridge-linux/bridge.mjs` packaged, the source folder in dev. */

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // web-bridge for Linux: hosts one real Chrome/Chromium app window per web deck, so a web deck
-// renders in a real browser (Google sign-in works) while the app captures the window.
-// Same JSON-lines protocol as native/web-bridge (Windows, WebView2); see that README.
-// Run by Electron itself (ELECTRON_RUN_AS_NODE=1), so it needs no separate Node install.
+// renders in a real browser (a Google session signed in once in the Bridgecast profile works)
+// while the app captures the window. Same JSON-lines protocol as native/web-bridge (Windows,
+// WebView2); see that README. Run by Electron itself (ELECTRON_RUN_AS_NODE=1), so it needs no
+// separate Node install. Window chores (find the X11 window, no frame, below other windows,
+// keep the operator's focus) go through xwin.py (python3 + libX11, no xdotool).
 //
 //   bridge.mjs --user-data <folder> --browser <chrome path>
 import { spawn, execFile } from 'node:child_process'
@@ -11,6 +13,10 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline'
+import { fileURLToPath } from 'node:url'
+
+const XWIN = path.join(path.dirname(fileURLToPath(import.meta.url)), 'xwin.py')
+const xwin = (...args) => run('python3', [XWIN, ...args])
 
 const argv = process.argv.slice(2)
 const opt = (name) => {
@@ -252,10 +258,23 @@ class Browser {
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
       '--disable-background-timer-throttling',
-      '--disable-features=CalculateNativeWinOcclusion,Translate',
-      // Remote debugging would otherwise set navigator.webdriver, which Google sign-in rejects.
-      '--disable-blink-features=AutomationControlled'
+      '--disable-features=CalculateNativeWinOcclusion,Translate'
+      // No --disable-blink-features=AutomationControlled: Chrome answers it with an
+      // "unsupported command-line flag" bar inside the window, which the capture would show.
+      // With remote debugging, navigator.webdriver is true (measured, Chrome 156); Google
+      // sign-in therefore happens in a separate launch without remote debugging (the app's
+      // "Sign in to Google"), and this browser reuses the profile it leaves behind.
     ]
+  }
+
+  /** The browser's environment: no Electron leftovers, sound into the private sink. */
+  env() {
+    const env = { ...process.env }
+    delete env.ELECTRON_RUN_AS_NODE
+    // Electron's desktop name would make Chrome call its windows "Electron".
+    delete env.CHROME_DESKTOP
+    if (this.audio) env.PULSE_SINK = this.audio.name
+    return env
   }
 
   async ensure() {
@@ -282,13 +301,13 @@ class Browser {
       log('audio unavailable:', e.message)
       this.audio = null
     }
-    const env = { ...process.env }
-    delete env.ELECTRON_RUN_AS_NODE
-    if (this.audio) env.PULSE_SINK = this.audio.name
     this.proc = spawn(
       BROWSER,
       [...this.baseFlags(), '--remote-debugging-port=0', appUrl(`${WINDOW_MARK}boot`)],
-      { stdio: ['ignore', 'ignore', process.env.PPT_WEB_BRIDGE_TRACE ? 'inherit' : 'ignore'], env }
+      {
+        stdio: ['ignore', 'ignore', process.env.PPT_WEB_BRIDGE_TRACE ? 'inherit' : 'ignore'],
+        env: this.env()
+      }
     )
     trace('browser spawned', this.proc.pid, BROWSER, this.dir)
     this.proc.on('exit', (code) => {
@@ -355,7 +374,7 @@ class Browser {
         `--window-position=${x},${y}`,
         appUrl(marker)
       ],
-      { stdio: 'ignore' }
+      { stdio: 'ignore', env: this.env() }
     )
     p.on('error', () => undefined)
     return (await this.waitTarget(marker)).targetId
@@ -463,6 +482,11 @@ class Page {
     this.sessionId = sessionId
     await this.cdp('Page.enable')
     await this.cdp('Runtime.enable')
+    await this.cdp('Inspector.enable').catch(() => undefined)
+    // Load events of iframes must not read as the page loading (the app treats `loading` as a
+    // new document, which closes the ready gate).
+    const { frameTree } = await this.cdp('Page.getFrameTree')
+    this.mainFrameId = frameTree?.frame?.id ?? targetId
     await this.cdp('Runtime.addBinding', { name: '__bcCursor' })
     await this.installScript()
     this.liveness = setInterval(() => this.checkLiveness(), 2000)
@@ -583,37 +607,24 @@ class Page {
     }
   }
 
+  /**
+   * The page's X11 window, as desktopCapturer lists it: the client window (WM_STATE) titled
+   * with the deck id, owned by this browser. A name search alone also finds the window
+   * manager's frame (GNOME's mutter-x11-frames copies the title), whose id matches no capture
+   * source. Then: no frame, no taskbar entry, below other windows.
+   */
   async frameless() {
     // open() renamed the window to the deck id before asking for frames.
-    const marker = `${WINDOW_MARK}${this.deckId}`
-    const want = this.deckId
+    const pid = String(this.browser.proc?.pid ?? 0)
     let xid = null
     for (let i = 0; i < 30 && !xid; i++) {
-      const found = await run('xdotool', ['search', '--name', want])
-      for (const line of (found || '').split('\n')) {
-        const id = line.trim()
-        if (!/^[0-9]+$/.test(id)) continue
-        const name = (await run('xdotool', ['getwindowname', id]))?.trim()
-        if (name === want || name === marker) {
-          xid = id
-          break
-        }
-      }
-      if (!xid) await sleep(100)
+      const found = (await xwin('find', pid, this.deckId))?.trim()
+      if (found && /^[0-9]+$/.test(found)) xid = found
+      else await sleep(100)
     }
     if (!xid) return null
     this.xid = xid
-    // No window frame: the capture is the canvas itself.
-    await run('xprop', [
-      '-id',
-      this.xid,
-      '-f',
-      '_MOTIF_WM_HINTS',
-      '32c',
-      '-set',
-      '_MOTIF_WM_HINTS',
-      '2, 0, 0, 0, 0'
-    ])
+    await xwin('prepare', xid)
     return this.xid
   }
 
@@ -651,6 +662,7 @@ function onCdpEvent(browser, method, p, sessionId) {
   if (!page || page.closed) return
   switch (method) {
     case 'Page.frameStartedLoading':
+      if (p.frameId !== page.mainFrameId) break
       page.loaded = false
       page.failed = false
       status(page.deckId, 'loading')
@@ -658,6 +670,7 @@ function onCdpEvent(browser, method, p, sessionId) {
       break
     case 'Page.frameNavigated':
       if (p.frame.parentId) break
+      page.mainFrameId = p.frame.id
       if (p.frame.url.startsWith('chrome-error:') || p.frame.unreachableUrl) {
         page.loaded = false
         page.failed = true
@@ -667,8 +680,8 @@ function onCdpEvent(browser, method, p, sessionId) {
       break
     case 'Page.frameStoppedLoading': {
       // The error page also finishes loading: it is not a ready page. The boot page
-      // (about:blank before the first navigate) is not one either.
-      if (page.failed || page.url === '') break
+      // (about:blank before the first navigate) is not one either, nor is an iframe.
+      if (p.frameId !== page.mainFrameId || page.failed || page.url === '') break
       page.loaded = true
       page.crashes = 0
       page.hungReported = false
@@ -839,8 +852,8 @@ const need = (a) => {
 }
 
 async function previousFocus() {
-  const id = await run('xdotool', ['getactivewindow'])
-  return id ? id.trim() : null
+  const id = (await xwin('active'))?.trim()
+  return id && /^[1-9][0-9]*$/.test(id) ? id : null
 }
 
 async function open(a) {
@@ -886,7 +899,7 @@ async function open(a) {
     page.url = url
     await page.cdp('Page.navigate', { url })
     // The operator keeps the keyboard: the page window must never take focus.
-    if (focus) await run('xdotool', ['windowfocus', focus])
+    if (focus) await xwin('activate', focus)
     const res = {
       windowId: xid ?? '',
       browserPid: browser.proc?.pid ?? 0,
@@ -997,6 +1010,10 @@ async function handle(cmd, a) {
               .cdp('Storage.clearDataForOrigin', { origin, storageTypes: 'all' })
               .catch(() => undefined)
           }
+        }
+        // Like the built-in browser: the pages load again, signed out.
+        for (const p of pages.values()) {
+          if (p.browser === b) await p.cdp('Page.reload').catch(() => undefined)
         }
       } else {
         fs.rmSync(path.join(USER_DATA, profile), { recursive: true, force: true })
