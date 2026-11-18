@@ -82,8 +82,6 @@ interface Props {
   canImport: boolean
   /** URL of the active event's KV image, or null. */
   kvUrl: string | null
-  /** The KV image is on the output now; it cannot be removed meanwhile. */
-  kvOnAir: boolean
   /** Rejects with a user-facing message when main refuses the image. */
   onSetKv(file: File): Promise<void>
   onClearKv(): Promise<void>
@@ -421,6 +419,12 @@ function DeckIcon({ deck }: { deck: DeckMeta }): React.JSX.Element {
         <FilePdfIcon className="ph" size={20} />
       </Tile>
     )
+  if (deck.source === 'image')
+    return (
+      <Tile>
+        <ImageIcon className="ph" size={20} />
+      </Tile>
+    )
   if (deck.source === 'web')
     return (
       <Tile>
@@ -713,13 +717,11 @@ function ConfirmRevert({
 /** "Key visual (KV)": the event's hold image (shown on the output on demand and while STANDBY). */
 function KvBlock({
   kvUrl,
-  onAir,
   canEdit,
   onSet,
   onClear
 }: {
   kvUrl: string | null
-  onAir: boolean
   canEdit: boolean
   onSet(file: File): Promise<void>
   onClear(): Promise<void>
@@ -779,11 +781,7 @@ function KvBlock({
                 <UploadSimpleIcon size={14} />
                 Replace
               </button>
-              <button
-                className="btn sm remove"
-                disabled={busy || onAir}
-                onClick={() => void run(onClear)}
-              >
+              <button className="btn sm remove" disabled={busy} onClick={() => void run(onClear)}>
                 Remove
               </button>
             </div>
@@ -802,11 +800,6 @@ function KvBlock({
             Select image
           </button>
         </div>
-      )}
-      {kvUrl && onAir && (
-        <p className="kv-hint" data-testid="kv-hint">
-          Turn KV off first to remove it.
-        </p>
       )}
       {error && (
         <p className="kv-error" role="alert" data-testid="kv-error">
@@ -1247,6 +1240,8 @@ export function Library(p: Props): React.JSX.Element {
               <Tile>
                 {fileKind(x.name) === 'pdf' ? (
                   <FilePdfIcon className="ph" size={20} />
+                ) : fileKind(x.name) === 'image' ? (
+                  <ImageIcon className="ph" size={20} />
                 ) : (
                   <FilePptIcon className="ph" size={20} />
                 )}
@@ -1433,7 +1428,6 @@ export function Library(p: Props): React.JSX.Element {
       )}
       <KvBlock
         kvUrl={p.kvUrl}
-        onAir={p.kvOnAir}
         canEdit={p.canImport}
         onSet={p.onSetKv}
         onClear={p.onClearKv}
@@ -1490,7 +1484,7 @@ export function Library(p: Props): React.JSX.Element {
         ref={input}
         type="file"
         multiple
-        accept=".pptx,.ppt,.pdf,.mp4,.m4v,.webm"
+        accept=".pptx,.ppt,.pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.avif,.mp4,.m4v,.webm,.mov,.mkv"
         className="visually-hidden"
         tabIndex={-1}
         aria-hidden="true"

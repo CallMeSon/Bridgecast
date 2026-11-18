@@ -69,6 +69,11 @@ linux:
       filter:
         - bridge.py
         - steps.py
+    # Web page helper: drives the PC's Chrome or Chromium (Node script, run by Electron itself)
+    - from: native/web-bridge-linux
+      to: web-bridge-linux
+      filter:
+        - bridge.mjs
   target:
     - AppImage
     - deb

@@ -316,25 +316,45 @@ describe('AppState', () => {
       expect(app.state.kvUrl).toBe(`slide://kv/${a.id}/${kvA}`)
     })
 
-    it('setEvent keeps the KV image on air (forced or automatic at STANDBY)', () => {
+    it('setEvent shows the selected event own KV at STANDBY (1 event = 1 KV)', () => {
       const lib = new Library(root)
       const a = lib.createEvent('A')
       const b = lib.createEvent('B')
       const kvA = lib.setKv(a.id, img('a.png')).kv
       const kvB = lib.setKv(b.id, img('b.png')).kv
-      const urlA = `slide://kv/${a.id}/${kvA}`
       const app = new AppState(lib)
-      app.setEvent(b.id) // STANDBY automatic KV of A stays until the operator acts
-      expect(app.state.kvUrl).toBe(urlA)
-      app.setEvent(a.id)
-      app.dispatch({ type: 'toggleKv' }) // STANDBY: black
-      expect(app.state).toMatchObject({ black: true, kv: false })
-      app.setEvent(b.id) // not on air: B's own KV is applied
+      app.setEvent(b.id)
       expect(app.state.kvUrl).toBe(`slide://kv/${b.id}/${kvB}`)
-      app.dispatch({ type: 'toggleKv' })
-      expect(app.state).toMatchObject({ kv: true, black: false })
       app.setEvent(a.id)
-      expect(app.state).toMatchObject({ kv: true, kvUrl: `slide://kv/${b.id}/${kvB}` })
+      expect(app.state.kvUrl).toBe(`slide://kv/${a.id}/${kvA}`)
+    })
+
+    it('setEvent to an event without a KV releases the previous event KV', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      lib.setKv(a.id, img('a.png'))
+      const app = new AppState(lib)
+      app.setEvent(b.id)
+      expect(app.state).toMatchObject({ kvUrl: null, airEvent: a.id })
+      expect(kvOnAir(app.state)).toBe(false)
+    })
+
+    it('setEvent keeps a KV pressed while a slide was on air', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const b = lib.createEvent('B')
+      const kvA = lib.setKv(a.id, img('a.png')).kv
+      const kvB = lib.setKv(b.id, img('b.png')).kv
+      const app = new AppState(lib)
+      addDeck(lib, a.id, 2)
+      app.refresh()
+      app.dispatch({ type: 'next' }) // A live
+      app.dispatch({ type: 'toggleKv' }) // pressed: A's KV on air
+      app.setEvent(b.id)
+      expect(app.state).toMatchObject({ kv: true, kvUrl: `slide://kv/${a.id}/${kvA}` })
+      app.dispatch({ type: 'toggleKv' }) // off: B's KV ready for K
+      expect(app.state).toMatchObject({ kv: false, kvUrl: `slide://kv/${b.id}/${kvB}` })
     })
 
     it('dispatch off the KV applies the active event KV', () => {
@@ -354,24 +374,26 @@ describe('AppState', () => {
       expect(app.state).toMatchObject({ kv: false, kvUrl: `slide://kv/${b.id}/${kvB}` })
     })
 
-    it('setKv/clearKv on another event leave the KV on air alone', () => {
+    it('setKv/clearKv on another event leave the active event KV alone', () => {
       const lib = new Library(root)
       const a = lib.createEvent('A')
       const b = lib.createEvent('B')
       const kvA = lib.setKv(a.id, img('a.png')).kv
       const urlA = `slide://kv/${a.id}/${kvA}`
       const app = new AppState(lib)
-      app.setEvent(b.id) // automatic KV of A on air
-      app.setKv(b.id, img('b.png'))
-      expect(app.state.kvUrl).toBe(urlA)
+      app.setEvent(b.id) // B is the event being worked on
+      const kvB = app.setKv(b.id, img('b.png')).kv
+      expect(app.state.kvUrl).toBe(`slide://kv/${b.id}/${kvB}`)
       app.clearKv(b.id)
-      expect(app.state.kvUrl).toBe(urlA)
-      app.setKv(a.id, img('a2.png')) // replaces the KV on air
+      expect(app.state).toMatchObject({ black: true, kvUrl: null })
+      app.setKv(a.id, img('a2.png')) // A's own image; B is still active
+      expect(app.state.kvUrl).toBeNull()
+      app.setEvent(a.id)
       expect(app.state.kvUrl).not.toBe(urlA)
       expect(app.state.kvUrl).toContain(a.id)
     })
 
-    it('clearKv of the KV on air at STANDBY turns it off and goes black', () => {
+    it('clearKv of another event KV at STANDBY leaves the active picture alone', () => {
       const lib = new Library(root)
       const a = lib.createEvent('A')
       const b = lib.createEvent('B')
@@ -379,10 +401,10 @@ describe('AppState', () => {
       const kvB = lib.setKv(b.id, img('b.png')).kv
       const app = new AppState(lib)
       app.setEvent(b.id)
-      app.clearKv(a.id) // the image on air belongs to A
+      app.clearKv(a.id) // A is not the event being worked on
       expect(app.state).toMatchObject({
         kv: false,
-        black: true,
+        black: false,
         kvUrl: `slide://kv/${b.id}/${kvB}`
       })
     })
@@ -412,6 +434,37 @@ describe('AppState', () => {
       app.setKv(b.id, img('b.png'))
       expect(app.eventId).toBe(a.id)
       expect(app.state.kvUrl).toBeNull()
+    })
+
+    it('a new event starts without the previous event KV', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      lib.setKv(a.id, img('a.png'))
+      const app = new AppState(lib)
+      expect(app.state.kvUrl).toContain(a.id)
+      const b = lib.createEvent('B')
+      app.setEvent(b.id)
+      expect(app.state).toMatchObject({ kv: false, kvUrl: null })
+    })
+
+    it('clearKv deletes the stored image so it can never be reused', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      lib.setKv(a.id, img('a.png'))
+      const app = new AppState(lib)
+      app.clearKv(a.id)
+      expect(app.state.kvUrl).toBeNull()
+      expect(fs.readdirSync(path.join(root, 'kv', a.id))).toEqual([])
+    })
+
+    it('replacing a KV deletes the previous file', () => {
+      const lib = new Library(root)
+      const a = lib.createEvent('A')
+      const first = lib.setKv(a.id, img('a.png'))
+      const second = lib.setKv(a.id, img('a2.png'))
+      expect(second.kv).not.toBe(first.kv)
+      const files = fs.readdirSync(path.join(root, 'kv', a.id))
+      expect(files).toEqual([second.kv])
     })
 
     it('clearKv turns kv off; KV on and Black are exclusive', () => {
@@ -909,28 +962,28 @@ describe('AppState web decks', () => {
       expect(t.canvas).toMatchObject(c720)
     })
 
-    it('STANDBY: selecting an event with a KV does not put it on air', () => {
+    it('STANDBY: selecting an event with a KV shows that event own image', () => {
       const lib = new Library(root)
-      const a = lib.createEvent('A')
+      lib.createEvent('A')
       const b = lib.createEvent('B')
       lib.setKv(b.id, img('b.png'))
       const app = new AppState(lib)
       app.setEvent(b.id)
-      expect(kvOnAir(app.state)).toBe(false)
+      expect(kvOnAir(app.state)).toBe(true)
       app.dispatch({ type: 'setTransition', transition: 'fade' })
-      expect(kvOnAir(app.state)).toBe(false)
-      expect(app.state.airEvent).toBe(a.id)
+      expect(kvOnAir(app.state)).toBe(true)
     })
 
-    it('STANDBY KV of A stays on air when B (no KV) is selected', () => {
+    it('STANDBY: a KV from another event does not follow the new event', () => {
       const lib = new Library(root)
       const a = lib.createEvent('A')
       const b = lib.createEvent('B')
-      const kvA = lib.setKv(a.id, img('a.png')).kv
+      lib.setKv(a.id, img('a.png'))
       const app = new AppState(lib)
       app.setEvent(b.id)
-      expect(kvOnAir(app.state)).toBe(true)
-      expect(app.state.kvUrl).toBe(`slide://kv/${a.id}/${kvA}`)
+      expect(kvOnAir(app.state)).toBe(false)
+      expect(app.state.kvUrl).toBeNull()
+      expect(app.state.airEvent).toBe(a.id)
     })
 
     it('Black at STANDBY stays black and keeps the air event', () => {

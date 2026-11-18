@@ -12,6 +12,7 @@ import * as http from 'node:http'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { linuxArgs } from './launch-args.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const tmpDirs = []
@@ -38,7 +39,7 @@ const base = `http://127.0.0.1:${server.address().port}`
 async function main() {
   const userData = mkTmp('ppt-share-web-bridge-')
   const app = await electron.launch({
-    args: [root],
+    args: [...linuxArgs, root],
     cwd: root,
     env: {
       ...process.env,

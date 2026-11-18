@@ -30,7 +30,7 @@ import { writeThumbnail } from './thumbnail'
 
 type DeckInput = {
   name: string
-  source: 'pptx' | 'pdf' | 'folder'
+  source: 'pptx' | 'pdf' | 'folder' | 'image'
   width: number
   height: number
   slides: {

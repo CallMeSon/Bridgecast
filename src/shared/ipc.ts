@@ -169,9 +169,10 @@ export interface HdmiStatus {
   message?: string
 }
 
-/** PDF pages rendered in the renderer (pdf.js) and handed to main to store. */
+/** Pages rendered in the renderer (pdf.js for a PDF, a canvas for an image) and handed to main to store. */
 export interface RenderedDeck {
   name: string
+  source: 'pdf' | 'image'
   width: number
   height: number
   pages: Uint8Array[]

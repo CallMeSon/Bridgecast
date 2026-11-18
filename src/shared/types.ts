@@ -21,7 +21,7 @@ export type Playback = 'native' | 'vector' | 'images'
 export interface DeckMeta {
   id: string
   name: string
-  source: 'pptx' | 'pdf' | 'folder' | 'web'
+  source: 'pptx' | 'pdf' | 'folder' | 'image' | 'web'
   width: number
   height: number
   slides: SlideMeta[]

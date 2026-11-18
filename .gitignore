@@ -27,3 +27,6 @@ native/web-bridge/bin/
 native/web-bridge/obj/
 __pycache__/
 *.pyc
+
+# Local scratch from the Linux web-helper debugging (not shipped)
+e2e/_tmp-src.mjs

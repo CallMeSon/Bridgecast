@@ -10,15 +10,15 @@ import {
 describe('addDeckFiles', () => {
   const f = (name: string, size = 1): { name: string; size: number } => ({ name, size })
 
-  it('keeps only PPTX, PPT and PDF and counts the rest', () => {
+  it('keeps only PPTX, PPT, PDF, image and video files and counts the rest', () => {
     const r = addDeckFiles([], [f('a.pptx'), f('b.PPT'), f('c.pdf'), f('notes.txt'), f('d.png')])
-    expect(r.files.map((x) => x.name)).toEqual(['a.pptx', 'b.PPT', 'c.pdf'])
-    expect(r.skipped).toBe(2)
+    expect(r.files.map((x) => x.name)).toEqual(['a.pptx', 'b.PPT', 'c.pdf', 'd.png'])
+    expect(r.skipped).toBe(1)
   })
 
   it('keeps video files too and counts the unsupported ones', () => {
-    const r = addDeckFiles([], [f('a.mp4'), f('b.webm'), f('c.pptx'), f('d.mov')])
-    expect(r.files.map((x) => x.name)).toEqual(['a.mp4', 'b.webm', 'c.pptx'])
+    const r = addDeckFiles([], [f('a.mp4'), f('b.webm'), f('c.pptx'), f('d.mov'), f('e.avi')])
+    expect(r.files.map((x) => x.name)).toEqual(['a.mp4', 'b.webm', 'c.pptx', 'd.mov'])
     expect(r.skipped).toBe(1)
   })
 

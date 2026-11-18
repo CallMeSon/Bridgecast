@@ -85,4 +85,13 @@ describe('readVideoDeck', () => {
       VIDEO_CANNOT_PLAY
     )
   })
+
+  it('accepts MOV and MKV files like MP4', async () => {
+    for (const name of ['clip.mov', 'clip.MKV']) {
+      const deck = await readVideoDeck(temp(name, Buffer.from('video bytes')), outDir(), grabOk)
+      expect(deck.slides).toHaveLength(1)
+      expect(deck.slides[0].videoPath).toContain(name)
+      expect(deck.name).toBe('clip')
+    }
+  })
 })

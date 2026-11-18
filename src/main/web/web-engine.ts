@@ -26,15 +26,7 @@ export function webBridgeExePath(opts: {
 }): string {
   return opts.packaged
     ? path.join(opts.resourcesPath, 'web-bridge', 'web-bridge.exe')
-    : path.join(
-        opts.appPath,
-        'native',
-        'web-bridge',
-        'bin',
-        'Release',
-        'net48',
-        'web-bridge.exe'
-      )
+    : path.join(opts.appPath, 'native', 'web-bridge', 'bin', 'Release', 'net48', 'web-bridge.exe')
 }
 
 /** A page's load state changed (`status`). */
@@ -66,10 +58,7 @@ export interface WebOpenOptions {
 export interface WebPageEngine {
   /** The helper is running (started and not exited). */
   readonly running: boolean
-  open(
-    deckId: string,
-    o: WebOpenOptions
-  ): Promise<{ windowId: string; audioPipe: string | null }>
+  open(deckId: string, o: WebOpenOptions): Promise<{ windowId: string; audioPipe: string | null }>
   navigate(deckId: string, url: string): Promise<void>
   reload(deckId: string): Promise<void>
   /** Ends a load in progress (the Prepare toolbar's Stop). */
@@ -103,6 +92,8 @@ interface WebBridgeEngineOptions {
   /** WebView2 user data root (the app's `userData`/web-profile). */
   userData: string
   spawn?: SpawnFn
+  /** Extra helper arguments after `--user-data` (the Linux helper takes `--browser`). */
+  args?: string[]
   exists?: (file: string) => boolean
   /** Called when the helper cannot start. */
   onStartFailure?: (message: string) => void
@@ -165,10 +156,14 @@ export class WebBridgeEngine implements WebPageEngine {
   private start(): Live {
     if (this.live && !this.live.exited) return this.live
     const exists = this.opts.exists ?? fs.existsSync
-    if (!exists(this.opts.exe)) this.failStart(`web-bridge.exe not found at ${this.opts.exe}`)
+    if (!exists(this.opts.exe)) this.failStart(`web helper not found at ${this.opts.exe}`)
     let child: BridgeChild
     try {
-      child = (this.opts.spawn ?? defaultSpawn)(this.opts.exe, ['--user-data', this.opts.userData])
+      child = (this.opts.spawn ?? defaultSpawn)(this.opts.exe, [
+        '--user-data',
+        this.opts.userData,
+        ...(this.opts.args ?? [])
+      ])
     } catch (e) {
       return this.failStart(e instanceof Error ? e.message : String(e))
     }
@@ -315,7 +310,11 @@ export class WebBridgeEngine implements WebPageEngine {
     }
   }
 
-  private async call(cmd: 'navigate' | 'reload' | 'back' | 'forward' | 'close', deckId: string, args: object = {}): Promise<void> {
+  private async call(
+    cmd: 'navigate' | 'reload' | 'back' | 'forward' | 'close',
+    deckId: string,
+    args: object = {}
+  ): Promise<void> {
     const live = this.live
     if (!live || live.exited) throw new BridgeError('exited', 'The web page helper stopped.')
     await live.client.request(cmd, { deckId, ...args }, MOVE_MS)

@@ -3,7 +3,14 @@
 // installers with publishing disabled, verify their files, then attach them to v<version>.
 // Dry run is the default; --publish builds and publishes for real.
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,7 +23,6 @@ function fail(message) {
   process.exit(1)
 }
 
-const flag = (name) => argv.includes(`--${name}`)
 function option(name, fallback) {
   const at = argv.indexOf(`--${name}`)
   if (at < 0) return fallback
@@ -25,9 +31,55 @@ function option(name, fallback) {
   return value
 }
 
+const flag = (name) => argv.includes(`--${name}`)
+const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+
+// Standalone check: does the published v<version> carry both OSes' artifacts? The two builds
+// are made on different machines, so this is a rule about the published release, not about
+// one machine's dist/. Usage: node scripts/release.mjs --check [version]
+const checkFlag = argv.indexOf('--check')
+if (checkFlag >= 0) {
+  const which =
+    argv[checkFlag + 1] && !argv[checkFlag + 1].startsWith('--') ? argv[checkFlag + 1] : pkg.version
+  const tag = which.startsWith('v') ? which : `v${which}`
+  const version = tag.slice(1)
+  const assetsFor = (os) => {
+    const base = `${pkg.name}-${version}`
+    if (os === 'win') return [`${base}-setup.exe`, `${base}-setup.exe.blockmap`, 'latest.yml']
+    return [`${base}.AppImage`, `latest-linux.yml`, `${pkg.name}_${version}_amd64.deb`]
+  }
+  let names
+  try {
+    names = execFileSync(
+      'gh',
+      ['release', 'view', tag, '--json', 'assets', '--jq', '.assets[].name'],
+      { cwd: root, encoding: 'utf8' }
+    )
+      .split(/\r?\n/)
+      .filter(Boolean)
+  } catch {
+    console.error(`Release ${tag} was not found (or gh is not signed in).`)
+    process.exit(1)
+  }
+  const have = new Set(names)
+  const missing = ['win', 'linux'].flatMap((os) =>
+    assetsFor(os)
+      .filter((a) => !have.has(a))
+      .map((a) => `${os}: ${a}`)
+  )
+  if (missing.length > 0) {
+    console.error(`Release ${tag} is INCOMPLETE — missing:\n  ${missing.join('\n  ')}`)
+    process.exit(1)
+  }
+  console.log(`Release ${tag} carries the Windows and the Linux artifacts.`)
+  process.exit(0)
+}
+
 const publish = flag('publish')
 const dryRun = !publish || flag('dry-run')
 const branch = option('branch', 'main')
+// A release is not one machine: the Windows installer and the Linux AppImage/.deb are built
+// on their own OS and meet on the same v<version>. `--check` verifies that both sets made it.
 const platforms = []
 if (flag('win')) platforms.push('win')
 if (flag('linux')) platforms.push('linux')
@@ -43,7 +95,6 @@ if (platforms.length === 0) {
 }
 
 // (a) Version and the matching changelog section, which becomes the release notes.
-const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const version = pkg.version
 const lines = readFileSync(join(root, 'CHANGELOG.md'), 'utf8').split(/\r?\n/)
 const heading = `## [${version}]`
@@ -194,5 +245,31 @@ try {
   execFileSync('gh', args, { cwd: root, stdio: 'inherit' })
 } catch (error) {
   fail(`gh ${releaseMode} failed: ${error.message}`)
+}
+// One OS publishes at a time and the tag may already exist: a release is not finished until
+// both sets of artifacts are attached. Report what is still missing so nobody forgets the
+// other machine's build.
+try {
+  const names = execFileSync(
+    'gh',
+    ['release', 'view', `v${version}`, '--json', 'assets', '--jq', '.assets[].name'],
+    { cwd: root, encoding: 'utf8' }
+  )
+    .split(/\r?\n/)
+    .filter(Boolean)
+  const have = new Set(names)
+  const expected = ['win', 'linux'].flatMap((p) => [...required(p), ...blockmaps(p)])
+  const missing = expected.filter((f) => !have.has(f.split('/').pop()))
+  if (missing.length > 0) {
+    console.log(
+      `NOTE: v${version} is missing the other build:\n  ${missing.join('\n  ')}\nRun 'node scripts/release.mjs --check ${version}' after the other OS publishes.`
+    )
+  } else {
+    console.log(`v${version} carries the Windows and the Linux artifacts.`)
+  }
+} catch {
+  console.log(
+    `Run 'node scripts/release.mjs --check ${version}' to confirm both OSes are attached.`
+  )
 }
 console.log(`Published Bridgecast ${version} to v${version}.`)

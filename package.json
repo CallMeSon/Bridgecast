@@ -1,6 +1,6 @@
 {
   "name": "bridgecast",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Bridgecast: slide deck output to a second display (HDMI)",
   "main": "./out/main/index.js",
   "author": "Bridgecast",

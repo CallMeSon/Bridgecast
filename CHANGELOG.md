@@ -4,6 +4,18 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-11-18
+
+### Added
+
+- Web decks on Linux can use the PC's own Chrome or Chromium through a helper (`native/web-bridge-linux`), so pages that reject embedded browsers and "Sign in with Google" work there like on Windows. Without one of those browsers (or with `PPT_WEB_BACKEND=electron`) web decks keep using the built-in Electron window; a helper that stops is replaced and, as a last resort, the pages move back to Electron.
+- Images can be added as decks (PNG, JPG, WebP, GIF, BMP, AVIF): one image becomes one deck with one slide, converted to PNG on import. Videos may now be MOV or MKV as well as MP4, M4V and WebM; a codec Chromium cannot play is still refused at import with a message.
+- Releasing is two builds on two machines and the release is not complete until both are attached: `node scripts/release.mjs --check X.Y.Z` fails and names what is missing until the Windows installer and the Linux AppImage/.deb are on the same tag.
+
+### Fixed
+
+- A key visual (KV) belongs to one event again: creating or switching to another event no longer shows the previous event's KV, and Remove releases the image (the file is deleted, so it can never be reused). Remove also works while the KV is on air — the output falls back to the live slide, or to black at STANDBY.
+
 ## [0.1.10] - 2026-11-17
 
 ### Fixed

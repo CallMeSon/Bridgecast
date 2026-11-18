@@ -50,7 +50,9 @@ function same(a: ProgramState, b: ProgramState): boolean {
  * Holds the active event and the Program state. The operator position always
  * belongs to the active event; the output belongs to `airEvent`. `shown` (what is
  * on the output) may still point at a deck of another event and is only cleared
- * when that slide disappears. Switching events never changes the output.
+ * when that slide disappears. Switching events never changes what is shown; the
+ * KV image is the exception, because a key visual belongs to one event (1 event
+ * = 1 KV) and a new event must never show the previous event's image.
  */
 export class AppState {
   private current: ProgramState
@@ -283,15 +285,11 @@ export class AppState {
     if (pressed) air = this.kvOwner(s.kvUrl) ?? this.activeEvent
     else if (s.shown) air = this.lib.eventOfDeck(s.shown.deckId) ?? prev ?? this.activeEvent
     else air = prev ?? this.activeEvent
-    // Visible STANDBY shows the air event's KV by itself; otherwise the active
-    // event's KV is ready for K.
-    const kvUrl = pressed
-      ? s.kvUrl
-      : !s.shown && !s.black
-        ? air
-          ? this.kvUrlOf(air)
-          : null
-        : this.activeKvUrl()
+    // A KV belongs to the event being worked on (1 event = 1 KV): the output shows the
+    // active event's image at STANDBY and the active event's image is ready for K. Only a
+    // KV the operator pressed while it was on air keeps its own image. The air event
+    // (canvas and the event's saved outputs) still follows the output, not the selection.
+    const kvUrl = pressed ? s.kvUrl : this.activeKvUrl()
     const canvasOf = events.find((e) => e.id === (air ?? this.activeEvent))?.canvas
     return {
       airEvent: air,

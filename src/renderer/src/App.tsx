@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DeckMeta, EventMeta, EventSummary, SectionMeta } from '../../shared/types'
 import { orderItems, splitOrder } from '../../shared/sections'
-import { initialState, kvOnAir, reduce, type Action, type ProgramState } from '../../shared/program'
-import type { ImportRequest, OrphanDeck } from '../../shared/ipc'
+import { initialState, reduce, type Action, type ProgramState } from '../../shared/program'
+import { kvImageUrl, type ImportRequest, type OrphanDeck } from '../../shared/ipc'
 import { IMPORT_WIDTH, type DeckFit } from '../../shared/canvas'
 import type { Playback } from '../../shared/types'
 import type { NewEventOptions } from '../../shared/event-outputs'
@@ -99,6 +99,7 @@ import {
 } from './theme'
 import { DEFAULT_ACCENT_HEX } from './appearance'
 import { renderPdf } from './import/pdf'
+import { renderImage } from './import/image'
 
 let importSeq = 0
 const newImportId = (): string => `imp-${Date.now()}-${importSeq++}`
@@ -526,6 +527,8 @@ function App({
   // PDFs render here (pdf.js) one at a time, so several dropped PDFs never
   // compete for the renderer; PPT/PPTX go to main's import queue.
   const pdfChain = useRef<Promise<void>>(Promise.resolve())
+  // Images decode here too (one at a time, same reason); the stored slide is a PNG.
+  const imageChain = useRef<Promise<void>>(Promise.resolve())
 
   const importPdf = useCallback(
     async (target: string, id: string, f: File) => {
@@ -548,10 +551,34 @@ function App({
         upsertImport({ id, name, percent: 95, status: 'busy' })
         await api.addRendered(target, {
           name: baseName(f.name),
+          source: 'pdf',
           width: r.width,
           height: r.height,
           pages: r.pages,
           ...(r.sourcePath ? { sourcePath: r.sourcePath } : {})
+        })
+        upsertImport({ id, name, percent: 100, status: 'done' })
+        await reloadDecks(target)
+      } catch (e) {
+        upsertImport({ id, name, percent: 100, status: 'error', message: errorMessage(e) })
+      }
+    },
+    [api, upsertImport, reloadDecks]
+  )
+
+  const importImage = useCallback(
+    async (target: string, id: string, f: File) => {
+      const name = f.name
+      try {
+        upsertImport({ id, name, percent: 10, status: 'busy' })
+        const r = await renderImage(f, IMPORT_WIDTH)
+        upsertImport({ id, name, percent: 90, status: 'busy' })
+        await api.addRendered(target, {
+          name: baseName(f.name),
+          source: 'image',
+          width: r.width,
+          height: r.height,
+          pages: r.pages
         })
         upsertImport({ id, name, percent: 100, status: 'done' })
         await reloadDecks(target)
@@ -623,6 +650,10 @@ function App({
           pdfChain.current = pdfChain.current.then(() => importPdf(target, id, f))
           continue
         }
+        if (kind === 'image') {
+          imageChain.current = imageChain.current.then(() => importImage(target, id, f))
+          continue
+        }
         // PPTX and video files go to main's import queue (path on disk required).
         queueForMain(
           f,
@@ -644,7 +675,7 @@ function App({
         })
       }
     },
-    [api, upsertImport, reportError, importPdf]
+    [api, upsertImport, reportError, importPdf, importImage]
   )
 
   // Throws when main refuses: the New event dialog shows the message under its field. Decks
@@ -1065,6 +1096,10 @@ function App({
 
   const deck = currentDeck(decks, program)
   const nx = nextView(decks, program, sections)
+  // The KV panel belongs to the event being worked on (1 event = 1 KV); the output's
+  // kvUrl may still be a pressed image from another event while it is on air.
+  const activeEvent = events.find((e) => e.id === eventId) ?? null
+  const activeKvUrl = activeEvent?.kv ? kvImageUrl(activeEvent.id, activeEvent.kv) : null
   const nextLabel = nx.kind === 'slide' && !nx.held ? `Next: slide ${nx.index + 1}` : null
   const ready = deck !== null
   const notice = nativeNotice(program, decks, slideshow.status)
@@ -1195,8 +1230,7 @@ function App({
           frozen={tally(program) === 'frozen' ? program.shown : null}
           airTag={(deckId) => deckRowTag(deckId, program.shown?.deckId ?? null, tally(program))}
           canImport={eventId !== null}
-          kvUrl={program.kvUrl}
-          kvOnAir={kvOnAir(program)}
+          kvUrl={activeKvUrl}
           onSetKv={setKv}
           onClearKv={clearKv}
           onSelectDeck={(deckId) => dispatch({ type: 'selectDeck', deckId })}

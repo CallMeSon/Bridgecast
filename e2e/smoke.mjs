@@ -350,7 +350,9 @@ async function dragAndDropChecks(win, tally, pos, cap) {
     await errRow.waitFor({ timeout: 2000 })
     check(
       (await errRow.locator('.meta').textContent()) === 'Unsupported' &&
-        /PPTX, PPT, PDF, MP4, M4V, or WebM/.test(await errRow.locator('.msg').textContent()),
+        /PPTX, PPT, PDF, image \(PNG, JPG, WebP, GIF, BMP, AVIF\), MP4, M4V, WebM, MOV, or MKV/.test(
+          await errRow.locator('.msg').textContent()
+        ),
       `unsupported file shows an error row: "${await errRow.textContent()}"`
     )
     const dropped = win.locator('.deck', { has: win.locator('.name', { hasText: /^dropped$/ }) })
@@ -2560,11 +2562,11 @@ try {
   check((await tally.textContent()) === 'STANDBY', 'automatic KV keeps the STANDBY tally')
   check(!(await kvBtn.isDisabled()), 'with a KV: the KV button is enabled')
   await waitOnAirSrc('slide://kv/', 'Program monitor shows the KV at STANDBY too')
-  // The automatic KV is on air: it cannot be removed, and the hint says why.
-  check(await kvRemove().isDisabled(), 'KV on air at STANDBY: Remove is disabled')
+  // The automatic KV is on air, but it can still be removed: the standby goes black.
+  check(!(await kvRemove().isDisabled()), 'KV on air at STANDBY: Remove is enabled')
   check(
-    (await win.getByTestId('kv-hint').textContent()).includes('Turn KV off first'),
-    'KV on air: the hint says to turn KV off first'
+    (await win.getByTestId('kv-hint').count()) === 0,
+    'no hint: Remove always releases the KV'
   )
   // K at STANDBY with a KV: the output really leaves the KV (black, tally BLACK); K again brings it back.
   const tallyNow = async (t) =>
@@ -2798,11 +2800,9 @@ try {
   await win.locator('[role=tab]', { hasText: 'Smoke Event' }).click()
   await win.locator('[role=tab][aria-selected=true]', { hasText: 'Smoke Event' }).waitFor()
   await tallyIs('KV')
-  // A KV on air cannot be removed: Remove is disabled with a hint; turn KV off first.
-  check(await kvRemove().isDisabled(), 'KV on air while LIVE: Remove is disabled')
-  check((await win.getByTestId('kv-hint').count()) === 1, 'KV on air while LIVE: hint shown')
-  await win.keyboard.press('k')
-  await tallyIs('LIVE')
+  // A KV on air can be removed directly: the slide comes back and the image is released.
+  check(!(await kvRemove().isDisabled()), 'KV on air while LIVE: Remove is enabled')
+  check((await win.getByTestId('kv-hint').count()) === 0, 'KV on air while LIVE: no hint')
   await kvRemove().click()
   await tallyIs('LIVE')
   await waitFrame([[10, 10]], (px) => blue(px[0]), 'removing the KV on air returns to slide 2')

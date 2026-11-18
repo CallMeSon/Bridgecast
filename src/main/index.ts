@@ -17,6 +17,7 @@ import * as path from 'path'
 import { join } from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import { spawn } from 'child_process'
 import { randomUUID } from 'crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -25,7 +26,7 @@ import { AppState } from './state'
 import { FakeEngine } from './slideshow/fake-engine'
 import { SlideShowManager } from './slideshow/manager'
 import type { SlideShowEngine } from './slideshow/engine'
-import { PowerPointEngine, bridgeExePath } from './slideshow/powerpoint-engine'
+import { PowerPointEngine, bridgeExePath, type BridgeChild } from './slideshow/powerpoint-engine'
 import { SlideSound } from './slideshow/audio-pipe'
 import { LibreOfficeEngine, loBridgePath } from './slideshow/libreoffice-engine'
 import { PulseSink } from './slideshow/pulse-sink'
@@ -115,6 +116,13 @@ import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '.
 import { WebHost } from './web/web-host'
 import { ElectronPageBackend } from './web/electron-page-backend'
 import { WebView2PageBackend } from './web/webview2-backend'
+import {
+  LINUX_BROWSER_MISSING,
+  findLinuxBrowser,
+  linuxProfileRoot,
+  looksLikeSnap,
+  webBridgeLinuxScriptPath
+} from './web/linux-browser'
 import { WebBridgeEngine, webBridgeExePath, type WebPageEngine } from './web/web-engine'
 import { FakeWebEngine } from './web/fake-web-engine'
 import { WebEngineSupervisor } from './web/web-engine-supervisor'
@@ -503,7 +511,7 @@ function registerIpc(
       }
       if (!PPTX_RE.test(job.path)) {
         throw new Error(
-          'This file type is not supported. Choose a PPTX, PPT, PDF, MP4, M4V, or WebM file.'
+          'This file type is not supported. Choose a PPTX, PPT, PDF, image (PNG, JPG, WebP, GIF, BMP, AVIF), MP4, M4V, WebM, MOV, or MKV file.'
         )
       }
       const out = tempDir()
@@ -666,11 +674,16 @@ function registerIpc(
 
   handle(Invoke.decksAddRendered, async (eventId, payload: RenderedDeck) => {
     assertString(eventId, 'Event ID')
+    const source = payload?.source === 'image' ? 'image' : payload?.source === 'pdf' ? 'pdf' : null
+    if (!source) {
+      throw new Error('The import result is not valid. Try importing the file again.')
+    }
+    const what = source === 'pdf' ? 'PDF' : 'image'
     if (!payload || !Array.isArray(payload.pages) || payload.pages.length === 0) {
-      throw new Error('The PDF render result is empty. Try importing the PDF again.')
+      throw new Error(`The ${what} render result is empty. Try importing the ${what} again.`)
     }
     if (!payload.pages.every((p) => p instanceof Uint8Array)) {
-      throw new Error('The PDF render result is not valid. Try importing the PDF again.')
+      throw new Error(`The ${what} render result is not valid. Try importing the ${what} again.`)
     }
     const out = tempDir()
     try {
@@ -684,11 +697,11 @@ function registerIpc(
       )
       const deck = lib.addDeck(eventId, {
         name: String(payload.name),
-        source: 'pdf',
+        source,
         width: Number(payload.width),
         height: Number(payload.height),
         slides,
-        ...pdfSourceFields(payload.sourcePath)
+        ...(source === 'pdf' ? pdfSourceFields(payload.sourcePath) : {})
       })
       state.refresh()
       return deck
@@ -968,33 +981,81 @@ function createWebPageBackend(o: {
     resourcesPath: o.resourcesPath,
     appPath: o.appPath
   })
-  const helperExists = o.platform === 'win32' && fs.existsSync(exe)
-  const runtime = webView2RuntimeFound({
-    env: o.env,
-    exists: fs.existsSync,
-    ...(o.env['ProgramFiles(x86)'] ? { programFilesX86: o.env['ProgramFiles(x86)'] } : {}),
-    ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {}),
-    ...(o.env['LOCALAPPDATA'] ? { localAppData: o.env['LOCALAPPDATA'] } : {})
+  const linuxScript = webBridgeLinuxScriptPath({
+    packaged: o.packaged,
+    resourcesPath: o.resourcesPath,
+    appPath: o.appPath
   })
+  const linuxBrowser =
+    o.platform === 'linux'
+      ? findLinuxBrowser({
+          env: o.env,
+          exists: fs.existsSync,
+          isSnap: (file) => {
+            try {
+              return looksLikeSnap(
+                file,
+                fs.realpathSync(file),
+                fs.readFileSync(file, 'latin1').slice(0, 4096)
+              )
+            } catch {
+              return false
+            }
+          }
+        })
+      : null
+  const linuxHelper = o.platform === 'linux' && fs.existsSync(linuxScript)
+  const helperExists = o.platform === 'win32' ? fs.existsSync(exe) : linuxHelper
+  const runtime =
+    o.platform === 'linux'
+      ? linuxBrowser !== null
+      : webView2RuntimeFound({
+          env: o.env,
+          exists: fs.existsSync,
+          ...(o.env['ProgramFiles(x86)'] ? { programFilesX86: o.env['ProgramFiles(x86)'] } : {}),
+          ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {}),
+          ...(o.env['LOCALAPPDATA'] ? { localAppData: o.env['LOCALAPPDATA'] } : {})
+        })
   const fake = o.env['PPT_ENGINE_FAKE'] === '1'
-  // The fake helper runs anywhere (e2e on Linux too); the real one only on Windows with the
-  // exe built and the WebView2 runtime present.
+  // The fake helper runs anywhere (e2e on Linux too); the real one needs its helper built
+  // (Windows: web-bridge.exe and the WebView2 runtime; Linux: bridge.mjs and Chrome/Chromium).
   const useHelper =
     o.env['PPT_WEB_BACKEND'] !== 'electron' &&
-    (fake || (o.platform === 'win32' && helperExists && runtime))
+    (fake || ((o.platform === 'win32' || o.platform === 'linux') && helperExists && runtime))
   if (!useHelper) {
-    // The helper is shipped but this PC has no WebView2: the built-in browser takes over.
-    if (!fake && helperExists && !runtime) o.onNote(WEBVIEW2_MISSING)
+    // The helper is shipped but this PC has no browser for it: the built-in browser takes over.
+    if (!fake && helperExists && !runtime) {
+      o.onNote(o.platform === 'linux' ? LINUX_BROWSER_MISSING : WEBVIEW2_MISSING)
+    }
     return electron()
   }
+  const linuxReal = !fake && o.platform === 'linux' && linuxBrowser !== null
   const createEngine = (): WebPageEngine =>
     fake
       ? new FakeWebEngine()
-      : new WebBridgeEngine({
-          exe,
-          userData: join(o.userData, 'web-profile'),
-          onStartFailure: (message) => o.onNote(message)
-        })
+      : linuxReal
+        ? new WebBridgeEngine({
+            exe: linuxScript,
+            userData: linuxProfileRoot({
+              snap: linuxBrowser.snap,
+              home: os.homedir(),
+              userData: o.userData,
+              browser: linuxBrowser.path
+            }),
+            args: ['--browser', linuxBrowser.path],
+            // The helper is a Node script: Electron runs it as plain Node.
+            spawn: (script, args) =>
+              spawn(process.execPath, [script, ...args], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                env: { ...o.env, ELECTRON_RUN_AS_NODE: '1' }
+              }) as unknown as BridgeChild,
+            onStartFailure: (message) => o.onNote(message)
+          })
+        : new WebBridgeEngine({
+            exe,
+            userData: join(o.userData, 'web-profile'),
+            onStartFailure: (message) => o.onNote(message)
+          })
   // The supervisor keeps one stable engine reference while replacing the process behind it.
   const supervisor = new WebEngineSupervisor({
     create: createEngine,
@@ -1487,7 +1548,13 @@ function sendRectOf(lib: Library, sendContentOnly: boolean, s: ProgramState): Co
   } catch {
     return whole
   }
-  if (deck.source !== 'pptx' && deck.source !== 'pdf' && deck.source !== 'folder') return whole
+  if (
+    deck.source !== 'pptx' &&
+    deck.source !== 'pdf' &&
+    deck.source !== 'folder' &&
+    deck.source !== 'image'
+  )
+    return whole
   if ((shown.playback ?? playbackOf(deck)) === 'native') return whole
   return contentRect(s.canvas, { width: deck.width, height: deck.height }, shown.fit ?? 'fit')
 }
@@ -1707,7 +1774,7 @@ Location: ${root}`
         deckId,
         status,
         ...(message ? { message } : {}),
-        ...(warning ?? webNote ? { warning: warning ?? webNote! } : {})
+        ...((warning ?? webNote) ? { warning: warning ?? webNote! } : {})
       }),
     createWebPageBackend({
       packaged: app.isPackaged,
