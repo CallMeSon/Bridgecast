@@ -54,6 +54,16 @@ export function sanitizeSendContentOnly(raw: unknown): boolean {
   return typeof raw === 'boolean' ? raw : DEFAULT_SEND_CONTENT_ONLY
 }
 
+/**
+ * Linux: host web decks in the PC's own Chrome instead of the built-in browser (so Google
+ * sign-in works). Off by default; read once at start, so a change applies after a restart.
+ */
+export const DEFAULT_WEB_CHROME = false
+
+export function sanitizeWebChrome(raw: unknown): boolean {
+  return typeof raw === 'boolean' ? raw : DEFAULT_WEB_CHROME
+}
+
 export interface Settings {
   hdmi: HdmiSettings
   /** Next/Prev may leave the live deck (see ProgramState.autoAdvance). Default off. */
@@ -69,6 +79,8 @@ export interface Settings {
   sendContentOnly: boolean
   /** Linux: convert imported PowerPoint files to .odp (default) or keep them as imported. */
   pptImportFormat: PptImportFormat
+  /** Linux: web decks run in the PC's Chrome (see DEFAULT_WEB_CHROME). */
+  webChrome: boolean
   updates: UpdateSettings
 }
 
@@ -152,6 +164,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     ndi: sanitizeNdi(r.ndi),
     sendContentOnly: sanitizeSendContentOnly(r.sendContentOnly),
     pptImportFormat: sanitizePptImportFormat(r.pptImportFormat),
+    webChrome: sanitizeWebChrome(r.webChrome),
     updates: sanitizeUpdates(r.updates)
   }
 }

@@ -7,6 +7,7 @@ Versions restart at 0.x because the app is in development.
 ### Added
 
 - Web decks on Linux run in the built-in Electron page window (the same webview Windows uses when WebView2 is missing): no Chrome/Chromium helper, nothing extra to install, and no screen-cast permission. Google sign-in is not available in that window; on Windows the WebView2 helper still provides it.
+- Linux, optional: Settings > "Use Chrome for web pages" (off by default) hosts web decks in the PC's Google Chrome so sites that refuse embedded browsers work. "Sign in to Google" opens Chrome on Bridgecast's own profile with no automation (Google refuses sign-in while DevTools is attached); web pages then reuse that sign-in. Your personal Chrome profile is never used. The choice applies after a restart, Snap Chromium is not supported (the built-in browser is used, with a message), and a helper that keeps failing moves the pages back to the built-in browser.
 - The Off air button uses a fixed alert red in both themes, distinct from the user's accent (and so does its confirm).
 
 ### Changed

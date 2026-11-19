@@ -18,6 +18,7 @@ import { join } from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
 import { randomUUID } from 'crypto'
+import { spawn } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { Library, PPTX_RE } from './library'
@@ -25,7 +26,7 @@ import { AppState } from './state'
 import { FakeEngine } from './slideshow/fake-engine'
 import { SlideShowManager } from './slideshow/manager'
 import type { SlideShowEngine } from './slideshow/engine'
-import { PowerPointEngine, bridgeExePath } from './slideshow/powerpoint-engine'
+import { PowerPointEngine, bridgeExePath, type BridgeChild } from './slideshow/powerpoint-engine'
 import { SlideSound } from './slideshow/audio-pipe'
 import { LibreOfficeEngine, loBridgePath } from './slideshow/libreoffice-engine'
 import { PulseSink } from './slideshow/pulse-sink'
@@ -38,6 +39,7 @@ import {
   needsX11Relaunch,
   probeLinux,
   x11CaptureEnv,
+  childEnv,
   x11RelaunchOptions,
   canSelfUpdate,
   type EngineInfo
@@ -119,7 +121,24 @@ import { WebView2PageBackend } from './web/webview2-backend'
 import { WebBridgeEngine, webBridgeExePath, type WebPageEngine } from './web/web-engine'
 import { FakeWebEngine } from './web/fake-web-engine'
 import { WebEngineSupervisor } from './web/web-engine-supervisor'
-import { WEBVIEW2_MISSING, webView2RuntimeFound } from './web/webview2-runtime'
+import { webView2RuntimeFound } from './web/webview2-runtime'
+import { chooseWebBackend, type WebBackendChoice } from './web/backend-choice'
+import {
+  SHARED_PROFILE,
+  detectLinuxChrome,
+  linuxProfileRoot,
+  webBridgeLinuxScriptPath,
+  type ChromeDetection
+} from './web/linux-browser'
+import {
+  GoogleSignIn,
+  chromeStatus,
+  profileInUse,
+  signInRefusal,
+  type SignInChild
+} from './web/chrome-signin'
+import type { WebChromeStatus } from '../shared/web'
+
 import { setWebLogFile } from './web/web-log'
 import type { PageBackend } from './web/page-backend'
 import {
@@ -372,7 +391,8 @@ function registerIpc(
   slideShow: SlideShowHost,
   syncWeb: () => void,
   operatorWindow: () => BrowserWindow | null,
-  updateManager: UpdateManager | null
+  updateManager: UpdateManager | null,
+  webChrome: WebChromeControl
 ): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
@@ -872,6 +892,20 @@ function registerIpc(
   })
 
   handle(Invoke.settingsGet, () => settings.get())
+  appHandle(Invoke.webChromeStatus, (e) => {
+    operatorOnly(e)
+    return webChrome.status()
+  })
+  appHandle(Invoke.webChromeSet, (e, on) => {
+    operatorOnly(e)
+    if (typeof on !== 'boolean')
+      throw new Error('Use Chrome for web pages is not valid. Reload the app, then try again.')
+    return webChrome.set(on)
+  })
+  appHandle(Invoke.webChromeSignIn, (e) => {
+    operatorOnly(e)
+    return webChrome.signIn()
+  })
   handle(Invoke.appVersion, () => app.getVersion())
 
   handle(Invoke.displaysList, () => hdmi.displays())
@@ -949,17 +983,71 @@ function registerIpc(
 /** HOLD before navigating waits at most this long for the outputs to pause their stream. */
 const HELD_ACK_TIMEOUT_MS = 1000
 
+/** What Settings can ask of the Chrome web page option (Linux). */
+interface WebChromeControl {
+  status(): WebChromeStatus
+  /** Saves the setting; it applies after a restart. */
+  set(on: boolean): WebChromeStatus
+  /** Opens the Google sign-in window; throws a sentence with the fix when it cannot. */
+  signIn(): WebChromeStatus
+}
+
+/** Reads this PC and the saved setting, then picks the web page backend (see chooseWebBackend). */
+function pickWebBackend(o: {
+  packaged: boolean
+  resourcesPath: string
+  appPath: string
+  platform: NodeJS.Platform
+  env: NodeJS.ProcessEnv
+  chromeEnabled: boolean
+  chrome: ChromeDetection
+}): WebBackendChoice {
+  const exe = webBridgeExePath({
+    packaged: o.packaged,
+    resourcesPath: o.resourcesPath,
+    appPath: o.appPath
+  })
+  const linuxScript = webBridgeLinuxScriptPath({
+    packaged: o.packaged,
+    resourcesPath: o.resourcesPath,
+    appPath: o.appPath
+  })
+  return chooseWebBackend({
+    platform: o.platform,
+    env: o.env,
+    webView2: {
+      helper: o.platform === 'win32' && fs.existsSync(exe),
+      runtime:
+        o.platform === 'win32' &&
+        webView2RuntimeFound({
+          env: o.env,
+          exists: fs.existsSync,
+          ...(o.env['ProgramFiles(x86)'] ? { programFilesX86: o.env['ProgramFiles(x86)'] } : {}),
+          ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {}),
+          ...(o.env['LOCALAPPDATA'] ? { localAppData: o.env['LOCALAPPDATA'] } : {})
+        })
+    },
+    chrome: {
+      enabled: o.chromeEnabled,
+      browser: o.chrome.browser,
+      problem: o.chrome.problem,
+      helper: o.platform === 'linux' && fs.existsSync(linuxScript)
+    }
+  })
+}
+
 /**
- * Which backend hosts web deck pages. Windows with web-bridge.exe built ships the WebView2
- * helper; every other platform (and `PPT_WEB_BACKEND=electron`, or a missing helper) uses
- * the Electron page window. `PPT_ENGINE_FAKE=1` swaps the helper for FakeWebEngine.
+ * The backend that hosts web deck pages, already chosen by `pickWebBackend`: WebView2 on
+ * Windows, the PC's Chrome on Linux when the operator turned it on, otherwise the Electron page
+ * window. `PPT_ENGINE_FAKE=1` swaps the helper for FakeWebEngine. A helper that stops three
+ * times falls back to Electron through the supervisor (`onFallback`).
  */
 function createWebPageBackend(o: {
+  choice: WebBackendChoice
   packaged: boolean
   resourcesPath: string
   appPath: string
   userData: string
-  platform: NodeJS.Platform
   env: NodeJS.ProcessEnv
   operatorWindow: () => BrowserWindow | null
   isLive: (deckId: string) => boolean
@@ -982,33 +1070,39 @@ function createWebPageBackend(o: {
     resourcesPath: o.resourcesPath,
     appPath: o.appPath
   })
-  const helperExists = o.platform === 'win32' && fs.existsSync(exe)
-  const runtime = webView2RuntimeFound({
-    env: o.env,
-    exists: fs.existsSync,
-    ...(o.env['ProgramFiles(x86)'] ? { programFilesX86: o.env['ProgramFiles(x86)'] } : {}),
-    ...(o.env['ProgramFiles'] ? { programFiles: o.env['ProgramFiles'] } : {}),
-    ...(o.env['LOCALAPPDATA'] ? { localAppData: o.env['LOCALAPPDATA'] } : {})
-  })
-  const fake = o.env['PPT_ENGINE_FAKE'] === '1'
-  // The fake helper runs anywhere (e2e on Linux too); the real one is Windows only (WebView2).
-  // Everywhere else the built-in Electron page window is the webview.
-  const useHelper =
-    o.env['PPT_WEB_BACKEND'] !== 'electron' &&
-    (fake || (o.platform === 'win32' && helperExists && runtime))
-  if (!useHelper) {
-    // The helper is shipped but this PC has no WebView2: the built-in browser takes over.
-    if (!fake && helperExists && !runtime) o.onNote(WEBVIEW2_MISSING)
+  const choice = o.choice
+  if (choice.kind === 'electron') {
+    // The operator expects a helper this PC cannot run (no WebView2, Snap Chrome, ...): say why.
+    if (choice.note) o.onNote(choice.note)
     return electron()
   }
-  const createEngine = (): WebPageEngine =>
-    fake
-      ? new FakeWebEngine()
-      : new WebBridgeEngine({
-          exe,
-          userData: join(o.userData, 'web-profile'),
-          onStartFailure: (message) => o.onNote(message)
-        })
+  const createEngine = (): WebPageEngine => {
+    if (choice.kind === 'fake') return new FakeWebEngine()
+    if (choice.kind === 'chrome') {
+      const script = webBridgeLinuxScriptPath({
+        packaged: o.packaged,
+        resourcesPath: o.resourcesPath,
+        appPath: o.appPath
+      })
+      return new WebBridgeEngine({
+        exe: script,
+        userData: linuxProfileRoot(o.userData),
+        args: ['--browser', choice.browser.path],
+        // The helper is a Node script: Electron runs it as plain Node.
+        spawn: (file, args) =>
+          spawn(process.execPath, [file, ...args], {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: { ...o.env, ELECTRON_RUN_AS_NODE: '1' }
+          }) as unknown as BridgeChild,
+        onStartFailure: (message) => o.onNote(message)
+      })
+    }
+    return new WebBridgeEngine({
+      exe,
+      userData: join(o.userData, 'web-profile'),
+      onStartFailure: (message) => o.onNote(message)
+    })
+  }
   // The supervisor keeps one stable engine reference while replacing the process behind it.
   const supervisor = new WebEngineSupervisor({
     create: createEngine,
@@ -1291,6 +1385,10 @@ class SettingsStore {
 
   saveCanvas(canvas: Canvas): Settings {
     return this.save({ ...this.settings, canvas })
+  }
+
+  saveWebChrome(webChrome: boolean): Settings {
+    return this.save({ ...this.settings, webChrome })
   }
 
   saveAutoAdvance(autoAdvance: boolean): Settings {
@@ -1719,6 +1817,58 @@ Location: ${root}`
   let webHost: WebHost | null = null
   /** One-line operator notice while it lasts (a PC without WebView2). */
   let webNote: string | null = null
+  // Linux: web pages in the PC's Chrome (opt-in). Chosen once here; a changed setting applies
+  // after a restart, so a page on air is never touched.
+  const chromeDetect: ChromeDetection =
+    process.platform === 'linux'
+      ? detectLinuxChrome(process.env)
+      : { browser: null, problem: null }
+  const webChoice = pickWebBackend({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+    platform: process.platform,
+    env: process.env,
+    chromeEnabled: settings.get().webChrome,
+    chrome: chromeDetect
+  })
+  /** This session's pages run in Chrome (false again once the supervisor fell back). */
+  let chromeActive = webChoice.kind === 'chrome'
+  const signInProfile = join(linuxProfileRoot(app.getPath('userData')), SHARED_PROFILE)
+  const googleSignIn = new GoogleSignIn(
+    {
+      spawn: (file, args, env) =>
+        spawn(file, args, { stdio: 'ignore', env }) as unknown as SignInChild,
+      mkdir: (dir) => void fs.mkdirSync(dir, { recursive: true }),
+      inUse: (dir) => profileInUse(dir),
+      env: childEnv(process.env)
+    },
+    () => broadcast(Broadcast.webChromeStatus, webChrome.status())
+  )
+  const webChrome: WebChromeControl = {
+    status: () =>
+      chromeStatus({
+        platform: process.platform,
+        enabled: settings.get().webChrome,
+        browser: chromeDetect.browser,
+        problem: chromeDetect.problem,
+        active: chromeActive,
+        signInOpen: googleSignIn.open
+      }),
+    set: (on) => {
+      if (process.platform !== 'linux') throw new Error('Chrome for web pages is only on Linux.')
+      settings.saveWebChrome(on)
+      const s = webChrome.status()
+      broadcast(Broadcast.webChromeStatus, s)
+      return s
+    },
+    signIn: () => {
+      const refusal = signInRefusal(webChrome.status())
+      if (refusal) throw new Error(refusal)
+      googleSignIn.start(chromeDetect.browser!, signInProfile)
+      return webChrome.status()
+    }
+  }
   const host = new WebHost(
     lib,
     state,
@@ -1731,11 +1881,11 @@ Location: ${root}`
         ...((warning ?? webNote) ? { warning: warning ?? webNote! } : {})
       }),
     createWebPageBackend({
+      choice: webChoice,
       packaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
       appPath: app.getAppPath(),
       userData: app.getPath('userData'),
-      platform: process.platform,
       env: process.env,
       operatorWindow: () => operator,
       isLive: isLiveWeb,
@@ -1744,6 +1894,9 @@ Location: ${root}`
       },
       onFallback: (message) => {
         console.warn('[web]', message)
+        // Never black, never desktop: the open pages move to the built-in browser.
+        chromeActive = false
+        broadcast(Broadcast.webChromeStatus, webChrome.status())
         void webHost?.switchBackend(electronWebBackend())
       },
       onNote: (message) => {
@@ -1879,7 +2032,8 @@ Location: ${root}`
     slideShow,
     syncWeb,
     () => operator,
-    updateManager
+    updateManager,
+    webChrome
   )
 
   const startOutputs = (): void => {

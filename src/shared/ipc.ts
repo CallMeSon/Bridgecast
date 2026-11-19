@@ -9,7 +9,15 @@ import type { NewEventOptions } from './event-outputs'
 import type { DeckAudio } from './audio-levels'
 import type { SlideshowStatus } from './playback'
 import type { UpdateStatus } from './update'
-import type { PrepareInput, WebCaptureSource, WebCaptureWarning, WebNavState, WebOutputs, WebStatus } from './web'
+import type {
+  PrepareInput,
+  WebCaptureSource,
+  WebCaptureWarning,
+  WebChromeStatus,
+  WebNavState,
+  WebOutputs,
+  WebStatus
+} from './web'
 
 /** Request/response channels (ipcRenderer.invoke ↔ ipcMain.handle). */
 export const Invoke = {
@@ -68,6 +76,9 @@ export const Invoke = {
   webHeld: 'web:held',
   webOpenPrepare: 'web:openPrepare',
   webSignOut: 'web:signOut',
+  webChromeStatus: 'web:chromeStatus',
+  webChromeSet: 'web:chromeSet',
+  webChromeSignIn: 'web:chromeSignIn',
   webStatuses: 'web:statuses',
   webOutputs: 'web:outputs',
   webCaptureFailed: 'web:captureFailed',
@@ -121,6 +132,7 @@ export const Broadcast = {
   webNavState: 'web:navState',
   webOutputs: 'web:outputs',
   webCaptureWarnings: 'web:captureWarnings',
+  webChromeStatus: 'web:chromeStatus',
   slideshowNote: 'slideshow:note',
   slideshowStatus: 'slideshow:status',
   deckPending: 'deck:pending',
@@ -304,6 +316,12 @@ export interface InvokeMap {
   'web:openPrepare': { args: [deckId: string]; result: void }
   /** Clears the web profile and reloads every page; refused while a web deck is on air. */
   'web:signOut': { args: []; result: void }
+  /** Linux: Chrome for web pages (setting, detection, sign-in window). */
+  'web:chromeStatus': { args: []; result: WebChromeStatus }
+  /** Linux: turn Chrome for web pages on or off; it applies after a restart. */
+  'web:chromeSet': { args: [on: boolean]; result: WebChromeStatus }
+  /** Linux: open Chrome on the Bridgecast profile to sign in to Google (refused with the fix). */
+  'web:chromeSignIn': { args: []; result: WebChromeStatus }
   /** Current load state of every open page (later changes arrive as `web:status`). */
   'web:statuses': { args: []; result: WebStatusEvent[] }
   /** Which outputs main counts for the ready gate (later changes arrive as `web:outputs`). */
@@ -361,6 +379,7 @@ export interface BroadcastMap {
   'web:navState': WebNavState
   'web:outputs': WebOutputs
   'web:captureWarnings': WebCaptureWarning[]
+  'web:chromeStatus': WebChromeStatus
   'slideshow:note': string | null
   'slideshow:status': SlideshowStatus
   'deck:pending': DeckPendingEvent
@@ -490,6 +509,11 @@ export interface Api {
   webHeld(deckId: string): Promise<void>
   openPrepare(deckId: string): Promise<void>
   signOutWeb(): Promise<void>
+  webChromeStatus(): Promise<WebChromeStatus>
+  setWebChrome(on: boolean): Promise<WebChromeStatus>
+  /** Opens Chrome on the Bridgecast profile; its closing arrives through `onWebChromeStatus`. */
+  signInGoogle(): Promise<WebChromeStatus>
+  onWebChromeStatus(cb: (s: WebChromeStatus) => void): () => void
   webStatuses(): Promise<WebStatusEvent[]>
   onWebStatus(cb: (s: WebStatusEvent) => void): () => void
   /** Which outputs are active for the ready gate (who captures pages that are not live yet). */

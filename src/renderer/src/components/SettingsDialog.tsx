@@ -6,6 +6,7 @@ import digiohLogoWhite from '../assets/digioh/digioh-logo-white.svg'
 import { AppearanceSection } from './AppearanceSection'
 import { SoundSection } from './SoundSection'
 import { ImportFormat } from './ImportFormat'
+import { WebChromeSection } from './WebChromeSection'
 import { ReleaseNotes } from './ReleaseNotes'
 import type { AudioSettings, PptImportFormat } from '../../../shared/settings'
 import { isUpdateSupported, type ReleaseNotesLine, type UpdateStatus } from '../../../shared/update'
@@ -219,6 +220,7 @@ export function SettingsDialog(p: Props): React.JSX.Element | null {
               <ImportFormat value={p.importFormat.value} onChange={p.importFormat.onChange} />
             </section>
           )}
+          <WebChromeSection />
           <SoundSection audio={p.audio} onSaved={p.onAudioSaved} />
           <AboutSection
             onReplayTour={p.onReplayTour}

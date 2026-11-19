@@ -9,6 +9,7 @@ import {
   DEFAULT_HDMI,
   DEFAULT_PPT_IMPORT_FORMAT,
   DEFAULT_SEND_CONTENT_ONLY,
+  DEFAULT_WEB_CHROME,
   sanitizeSettings,
   type Settings
 } from '../shared/settings'
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   ndi: DEFAULT_NDI,
   sendContentOnly: DEFAULT_SEND_CONTENT_ONLY,
   pptImportFormat: DEFAULT_PPT_IMPORT_FORMAT,
+  webChrome: DEFAULT_WEB_CHROME,
   updates: DEFAULT_UPDATES
 })
 

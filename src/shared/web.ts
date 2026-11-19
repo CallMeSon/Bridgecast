@@ -131,3 +131,25 @@ export interface WebNavState {
   zoom: number
   cursor: string
 }
+
+/**
+ * Linux, Settings: "Use Chrome for web pages" and "Sign in to Google". The backend is chosen once
+ * at start, so a change of the setting only applies after a restart (`restartNeeded`), also while
+ * a web deck is on air: the page on air is never touched.
+ */
+export interface WebChromeStatus {
+  /** False off Linux: the section is not shown. */
+  supported: boolean
+  /** The saved setting. */
+  enabled: boolean
+  /** The browser found on this PC (its file name), or null. */
+  browser: string | null
+  /** Operator copy for why Chrome cannot be used on this PC (none, Snap, no python3), or null. */
+  problem: string | null
+  /** This session's web pages run in Chrome. */
+  active: boolean
+  /** The saved setting differs from what this session runs. */
+  restartNeeded: boolean
+  /** The sign-in Chrome window is open right now. */
+  signInOpen: boolean
+}

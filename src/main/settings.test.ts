@@ -30,6 +30,7 @@ describe('loadSettings / saveSettings', () => {
       ndi: { enabled: false, name: 'Bridgecast' },
       sendContentOnly: true,
       pptImportFormat: 'odp',
+      webChrome: false,
       updates: { skippedVersion: null }
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
@@ -45,6 +46,7 @@ describe('loadSettings / saveSettings', () => {
       ndi: { enabled: true, name: 'Sala NDI' },
       sendContentOnly: false,
       pptImportFormat: 'original' as const,
+      webChrome: true,
       updates: { skippedVersion: null }
     }
     saveSettings(file, s)
@@ -92,6 +94,7 @@ describe('hdmi settings', () => {
       ndi: { enabled: false, name: 'Aula' },
       sendContentOnly: true,
       pptImportFormat: 'odp',
+      webChrome: false,
       updates: { skippedVersion: null }
     })
   })
@@ -108,6 +111,7 @@ describe('hdmi settings', () => {
       ndi: { enabled: true, name: 'Bridgecast' },
       sendContentOnly: true,
       pptImportFormat: 'odp',
+      webChrome: false,
       updates: { skippedVersion: null }
     })
   })
@@ -327,6 +331,14 @@ describe('ndi setting', () => {
     expect(loadSettings(file).pptImportFormat).toBe('odp')
     fs.writeFileSync(file, JSON.stringify({ pptImportFormat: 'original' }))
     expect(loadSettings(file).pptImportFormat).toBe('original')
+  })
+
+  it('webChrome defaults to off and accepts only booleans', () => {
+    expect(DEFAULT_SETTINGS.webChrome).toBe(false)
+    fs.writeFileSync(file, JSON.stringify({ webChrome: 'yes' }))
+    expect(loadSettings(file).webChrome).toBe(false)
+    fs.writeFileSync(file, JSON.stringify({ webChrome: true }))
+    expect(loadSettings(file).webChrome).toBe(true)
   })
 })
 

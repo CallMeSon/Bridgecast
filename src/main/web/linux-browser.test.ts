@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
+  GOOGLE_SIGN_IN_URL,
+  LINUX_BROWSER_MISSING,
+  LINUX_BROWSER_SNAP,
+  LINUX_PYTHON_MISSING,
+  SHARED_PROFILE,
+  chromeProblem,
+  chromeSignInArgs,
   findLinuxBrowser,
   looksLikeSnap,
   linuxProfileRoot,
+  onPath,
   webBridgeLinuxScriptPath
 } from './linux-browser'
 
@@ -46,35 +54,51 @@ describe('findLinuxBrowser', () => {
 })
 
 describe('linuxProfileRoot', () => {
-  it('keeps profiles in userData for a normal browser', () => {
-    expect(
-      linuxProfileRoot({ snap: false, home: '/home/a', userData: '/home/a/.config/bridgecast' })
-    ).toBe('/home/a/.config/bridgecast/web-profile')
+  // Snap builds are refused (see chromeProblem), so there is no snap location to compute: the
+  // profiles always live in Bridgecast's own userData folder, never in the user's Chrome profile.
+  it('keeps profiles in the app data folder', () => {
+    expect(linuxProfileRoot('/home/a/.config/bridgecast')).toBe(
+      '/home/a/.config/bridgecast/web-profile'
+    )
+    expect(linuxProfileRoot('/home/a/.config/bridgecast-dev')).toBe(
+      '/home/a/.config/bridgecast-dev/web-profile'
+    )
   })
 
-  it('moves them out of hidden folders for a snap', () => {
-    expect(
-      linuxProfileRoot({ snap: true, home: '/home/a', userData: '/home/a/.config/bridgecast-dev' })
-    ).toBe('/home/a/snap/chromium/common/bridgecast-dev-web-profile')
+  it('never points at the personal Chrome profile', () => {
+    expect(linuxProfileRoot('/home/a/.config/bridgecast')).not.toContain('google-chrome')
+    expect(SHARED_PROFILE).toBe('default')
   })
+})
 
-  it('names the snap package from the launcher', () => {
+describe('chromeSignInArgs', () => {
+  it('uses the Bridgecast profile and no automation or debugging flags', () => {
+    const args = chromeSignInArgs('/d/web-profile/default')
+    expect(args).toContain('--user-data-dir=/d/web-profile/default')
+    expect(args[args.length - 1]).toBe(GOOGLE_SIGN_IN_URL)
+    expect(args.join(' ')).not.toMatch(/remote-debugging|enable-automation|AutomationControlled/)
+  })
+})
+
+describe('chromeProblem', () => {
+  const chrome = { path: '/usr/bin/google-chrome-stable', snap: false }
+  it('is null for a real Chrome with python3', () => {
+    expect(chromeProblem({ browser: chrome, python: true })).toBeNull()
+  })
+  it('says why not: none installed, snap, no python3', () => {
+    expect(chromeProblem({ browser: null, python: true })).toBe(LINUX_BROWSER_MISSING)
     expect(
-      linuxProfileRoot({
-        snap: true,
-        home: '/home/a',
-        userData: '/home/a/.config/bridgecast',
-        browser: '/snap/bin/edge'
-      })
-    ).toBe('/home/a/snap/edge/common/bridgecast-web-profile')
-    expect(
-      linuxProfileRoot({
-        snap: true,
-        home: '/home/a',
-        userData: '/home/a/.config/bridgecast',
-        browser: '/snap/brave/current/usr/brave-browser'
-      })
-    ).toBe('/home/a/snap/brave/common/bridgecast-web-profile')
+      chromeProblem({ browser: { path: '/snap/bin/chromium', snap: true }, python: true })
+    ).toBe(LINUX_BROWSER_SNAP)
+    expect(chromeProblem({ browser: chrome, python: false })).toBe(LINUX_PYTHON_MISSING)
+  })
+})
+
+describe('onPath', () => {
+  it('finds a program in one of the PATH folders', () => {
+    const exists = (f: string): boolean => f === '/usr/bin/python3'
+    expect(onPath('python3', { PATH: '/bin:/usr/bin' }, exists)).toBe(true)
+    expect(onPath('python3', { PATH: '/bin' }, exists)).toBe(false)
   })
 })
 
