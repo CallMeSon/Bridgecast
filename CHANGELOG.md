@@ -4,6 +4,8 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-11-19
+
 ### Added
 
 - Web decks on Linux run in the built-in Electron page window (the same webview Windows uses when WebView2 is missing): no Chrome/Chromium helper, nothing extra to install, and no screen-cast permission. Google sign-in is not available in that window; on Windows the WebView2 helper still provides it.
