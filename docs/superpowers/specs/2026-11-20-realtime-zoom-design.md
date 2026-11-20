@@ -101,8 +101,10 @@ The stage clips overflow, so the zoom shows only the visible window.
 before being forwarded to the live page. The zoom does not change the page's own resolution, so the
 quality depends on the capture size.
 
-**Quality note.** PNG slides blur at high zoom; vector PDF stays sharp; stream layers follow the
-capture resolution. This is acceptable for v1; mention it in the UI hint only if the user asks.
+**Quality note.** PNG slides blur at high zoom. Vector PDF blurs the same way: `PdfLayer` rasterises
+at `clientWidth * devicePixelRatio`, and a CSS transform does not change `clientWidth`, so the zoomed
+page is an enlarged bitmap like a PNG. Stream layers follow the capture resolution. This is
+acceptable for v1; mention it in the UI hint only if the user asks.
 
 ## Testing
 
