@@ -14,6 +14,7 @@ import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import { useDeckVersions } from './slideshow'
 import { zoomTransform } from '../../shared/zoom'
+import { useInstantZoom } from './use-instant-zoom'
 import { capturesForGate, precaptureIds, streamFps } from './stream'
 
 const timingId = (key: number): string => `layer-${key}`
@@ -318,6 +319,9 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     : undefined
 
   const stage = program ? stageRect(program.canvas, windowSize) : null
+  // Only the HDMI picture zooms (OMT/NDI stay whole); a take or KV resets it without motion.
+  const zoomOn = role === 'hdmi' && program !== null && zoomApplies(program)
+  const zoomCut = useInstantZoom(program?.take ?? 0, zoomOn)
 
   return (
     <div
@@ -337,10 +341,8 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
             className="zoom-layer"
             data-testid="output-zoom"
             data-zoom={program.zoom.scale.toFixed(2)}
-            style={{
-              transform:
-                role === 'hdmi' && zoomApplies(program) ? zoomTransform(program.zoom) : 'none'
-            }}
+            data-instant={zoomCut}
+            style={{ transform: zoomOn ? zoomTransform(program.zoom) : 'none' }}
           >
             <SlideLayers
               media={media}

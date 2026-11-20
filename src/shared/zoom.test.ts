@@ -7,6 +7,7 @@ import {
   clampZoom,
   centreOn,
   isZoomed,
+  zoomInstant,
   minimapSize,
   panBy,
   pointToCentre,
@@ -133,5 +134,19 @@ describe('minimapSize', () => {
   })
   it('an empty canvas falls back to a square', () => {
     expect(minimapSize({ width: 0, height: 1080 })).toEqual({ width: 96, height: 96 })
+  })
+})
+
+describe('zoomInstant', () => {
+  const live = { take: 3, applies: true }
+  it('zoom in, out, pan and Reset on the same take animate', () => {
+    expect(zoomInstant(live, { take: 3, applies: true })).toBe(false)
+  })
+  it('a new take resets without motion', () => {
+    expect(zoomInstant(live, { take: 4, applies: true })).toBe(true)
+  })
+  it('KV on or off (the zoom stops or starts applying) is a cut', () => {
+    expect(zoomInstant(live, { take: 3, applies: false })).toBe(true)
+    expect(zoomInstant({ take: 3, applies: false }, live)).toBe(true)
   })
 })

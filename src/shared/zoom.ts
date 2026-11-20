@@ -74,6 +74,21 @@ export function minimapSize(
   return w >= h ? { width: max, height: (max * h) / w } : { width: (max * w) / h, height: max }
 }
 
+/** What decides whether a zoom change is a cut: the take, and whether the zoom is drawn. */
+export interface ZoomFrame {
+  take: number
+  applies: boolean
+}
+
+/**
+ * True when this frame's zoom change is a cut and must not animate: a new take (the reducer
+ * resets the zoom with it) or the zoom starting or stopping to apply (KV, STANDBY). Zoom in,
+ * out, pan and Reset keep the same take and animate.
+ */
+export function zoomInstant(prev: ZoomFrame, next: ZoomFrame): boolean {
+  return prev.take !== next.take || prev.applies !== next.applies
+}
+
 const EDGE_EPS = 1e-6
 
 /** Which pan arrows are disabled: all at 1x, and the one facing a canvas edge already reached. */

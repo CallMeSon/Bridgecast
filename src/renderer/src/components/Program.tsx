@@ -6,6 +6,7 @@ import type { PrepareInput } from '../../../shared/web'
 import { errorMessage, INTERACTING_TEXT, outputSource, tally } from '../model'
 import { claimKeys, useWebInteract, type WebInteractHandlers } from '../use-web-interact'
 import { zoomTransform } from '../../../shared/zoom'
+import { useInstantZoom } from '../use-instant-zoom'
 import { EndCard } from './Slide'
 import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
@@ -64,6 +65,8 @@ export function Program({
   const liveWeb = shown?.web?.deckId ?? null
   // Only the live slide zooms; the KV and STANDBY stay whole (and the controls rest).
   const zoomOn = zoomApplies(state)
+  // A take (the reducer resets the zoom with it) or the KV changes the zoom without motion.
+  const zoomCut = useInstantZoom(state.take, zoomOn)
   const screen = useRef<HTMLDivElement>(null)
   const zoom = useRef<HTMLDivElement>(null)
   const capture = useRef<HTMLDivElement>(null)
@@ -133,6 +136,7 @@ export function Program({
               className="zoom-layer"
               data-testid="monitor-zoom"
               data-zoom={state.zoom.scale.toFixed(2)}
+              data-instant={zoomCut}
               style={{ transform: zoomOn ? zoomTransform(state.zoom) : 'none' }}
             >
               {shown || media ? (
