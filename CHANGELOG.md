@@ -4,6 +4,12 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-11-20
+
+### Added
+
+- Realtime zoom for the live slide on the HDMI output. Under the Program monitor: zoom in and out (1x to 4x), four arrows to move the zoomed area, a Reset button, and a small map that shows which part is zoomed (click it or drag its rectangle to move the zoom). The audience sees the zoom at once, and the monitor shows the same picture. Zoom goes back to 1x on every take (next slide, jump, other deck) and on Off air. The KV is never zoomed and the controls rest while it is on air. Network outputs (OMT, NDI) do not zoom yet. Picture quality: image slides and PDF pages get softer at high zoom; a live page or PowerPoint show is as sharp as its capture.
+
 ## [0.1.12] - 2026-11-19
 
 ### Added
