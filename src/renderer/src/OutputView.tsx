@@ -13,6 +13,7 @@ import { SlideLayers, type ShownMedia, type StreamOptions } from './components/S
 import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import { useDeckVersions } from './slideshow'
+import { zoomTransform } from '../../shared/zoom'
 import { capturesForGate, precaptureIds, streamFps } from './stream'
 
 const timingId = (key: number): string => `layer-${key}`
@@ -332,16 +333,26 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
           data-canvas={`${program.canvas.width}x${program.canvas.height}`}
           style={{ left: stage.left, top: stage.top, width: stage.width, height: stage.height }}
         >
-          <SlideLayers
-            media={media}
-            fade={program.transition === 'fade'}
-            muted={audio === null || audio.muted}
-            audio={out}
-            layerClass="output-layer"
-            imgAttrs={(key) => ({ elementtiming: timingId(key) })}
-            onShown={onShown}
-            stream={streamOpts}
-          />
+          <div
+            className="zoom-layer"
+            data-testid="output-zoom"
+            data-zoom={program.zoom.scale.toFixed(2)}
+            style={{
+              transform:
+                role === 'hdmi' && program.shown !== null ? zoomTransform(program.zoom) : 'none'
+            }}
+          >
+            <SlideLayers
+              media={media}
+              fade={program.transition === 'fade'}
+              muted={audio === null || audio.muted}
+              audio={out}
+              layerClass="output-layer"
+              imgAttrs={(key) => ({ elementtiming: timingId(key) })}
+              onShown={onShown}
+              stream={streamOpts}
+            />
+          </div>
         </div>
       )}
       <WebPrecapture deckIds={precapture} canvas={program?.canvas} onGone={pages.refresh} />

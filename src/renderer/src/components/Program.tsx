@@ -5,6 +5,7 @@ import type { Action, ProgramState } from '../../../shared/program'
 import type { PrepareInput } from '../../../shared/web'
 import { errorMessage, INTERACTING_TEXT, outputSource, tally } from '../model'
 import { claimKeys, useWebInteract, type WebInteractHandlers } from '../use-web-interact'
+import { zoomTransform } from '../../../shared/zoom'
 import { EndCard } from './Slide'
 import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
@@ -61,8 +62,9 @@ export function Program({
   const media = outputSource(state, posterVersion)
   const liveWeb = shown?.web?.deckId ?? null
   const screen = useRef<HTMLDivElement>(null)
+  const zoom = useRef<HTMLDivElement>(null)
   const capture = useRef<HTMLDivElement>(null)
-  const monitor = useMonitorInteract(liveWeb, state.frozen, screen, capture)
+  const monitor = useMonitorInteract(liveWeb, state.frozen, zoom, capture)
   // The pointer over the picture rests out of the way (moving shows it again).
   const pointer = useIdlePointer()
   return (
@@ -123,23 +125,31 @@ export function Program({
             data-interact={String(monitor.on)}
             style={{ cursor: pointer.hidden ? 'none' : undefined }}
           >
-            {shown || media ? (
-              <SlideLayers
-                media={media}
-                fade={state.transition === 'fade'}
-                muted
-                layerClass="slide pgm-layer"
-                stream={stream}
-                imgAttrs={(_key, url) => ({
-                  alt:
-                    url === state.kvUrl
-                      ? 'KV on Program'
-                      : `Slide ${(shown?.index ?? 0) + 1} on Program`
-                })}
-              />
-            ) : (
-              <EndCard {...standbyCard(deck, state.index, emptyHint)} />
-            )}
+            <div
+              ref={zoom}
+              className="zoom-layer"
+              data-testid="monitor-zoom"
+              data-zoom={state.zoom.scale.toFixed(2)}
+              style={{ transform: shown !== null ? zoomTransform(state.zoom) : 'none' }}
+            >
+              {shown || media ? (
+                <SlideLayers
+                  media={media}
+                  fade={state.transition === 'fade'}
+                  muted
+                  layerClass="slide pgm-layer"
+                  stream={stream}
+                  imgAttrs={(_key, url) => ({
+                    alt:
+                      url === state.kvUrl
+                        ? 'KV on Program'
+                        : `Slide ${(shown?.index ?? 0) + 1} on Program`
+                  })}
+                />
+              ) : (
+                <EndCard {...standbyCard(deck, state.index, emptyHint)} />
+              )}
+            </div>
             <div className="shade" />
             {/* Interact: the live page's input comes from here, mapped onto the picture. */}
             {monitor.on && (
