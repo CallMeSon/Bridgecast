@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { ZOOM_OFF } from './zoom'
 import {
   reduce,
   reconcile,
@@ -55,7 +56,8 @@ describe('initialState', () => {
       take: 0,
       webHold: false,
       airEvent: null,
-      canvas: { width: 1920, height: 1080, origin: 'default' }
+      canvas: { width: 1920, height: 1080, origin: 'default' },
+      zoom: ZOOM_OFF
     })
   })
 })
@@ -978,5 +980,98 @@ describe('offAir', () => {
       shown: { ...sh('W', 0), web: { deckId: 'W' } }
     })
     expect(reduce(st, { type: 'offAir' }, decks)).toMatchObject({ shown: null, webHold: false })
+  })
+})
+
+describe('zoom', () => {
+  const z2 = { scale: 2, cx: 0.5, cy: 0.5 }
+  const zoomed = (extra: Partial<ProgramState> = {}): ProgramState =>
+    at('A', 1, { zoom: z2, ...extra })
+  const act = (st: ProgramState, a: Parameters<typeof reduce>[1]): ProgramState =>
+    reduce(st, a, decks)
+
+  it('starts off', () => {
+    expect(initialState.zoom).toEqual(ZOOM_OFF)
+  })
+
+  it('zoomIn, zoomOut and zoomReset', () => {
+    const a = act(at('A', 1), { type: 'zoomIn' })
+    expect(a.zoom.scale).toBe(1.25)
+    expect(act(a, { type: 'zoomOut' }).zoom).toEqual(ZOOM_OFF)
+    expect(act(zoomed(), { type: 'zoomReset' }).zoom).toEqual(ZOOM_OFF)
+  })
+
+  it('zoomPan moves and clamps', () => {
+    const r = act(zoomed(), { type: 'zoomPan', dx: 1, dy: 0 })
+    expect(r.zoom.cx).toBe(0.75)
+    expect(r.zoom.cy).toBe(0.5)
+    expect(act(r, { type: 'zoomPan', dx: 1, dy: 0 })).toBe(r)
+  })
+
+  it('zoomTo centres and clamps', () => {
+    expect(act(zoomed(), { type: 'zoomTo', cx: 0.9, cy: 0.1 }).zoom).toEqual({
+      scale: 2,
+      cx: 0.75,
+      cy: 0.25
+    })
+  })
+
+  it('refuses with the same object', () => {
+    const standby = { ...initialState, zoom: z2 }
+    expect(act(standby, { type: 'zoomIn' })).toBe(standby)
+    const live = at('A', 1)
+    expect(act(live, { type: 'zoomOut' })).toBe(live)
+    expect(act(live, { type: 'zoomReset' })).toBe(live)
+    expect(act(live, { type: 'zoomPan', dx: 1, dy: 0 })).toBe(live)
+    const max = at('A', 1, { zoom: { scale: 4, cx: 0.5, cy: 0.5 } })
+    expect(act(max, { type: 'zoomIn' })).toBe(max)
+    const z = zoomed()
+    expect(act(z, { type: 'zoomPan', dx: NaN, dy: 0 })).toBe(z)
+    expect(act(z, { type: 'zoomPan', dx: 0, dy: Infinity })).toBe(z)
+    expect(act(z, { type: 'zoomTo', cx: 'a' as never, cy: 0 })).toBe(z)
+    expect(act(z, { type: 'zoomTo', cx: 0.5, cy: 0.5 })).toBe(z)
+  })
+
+  it('a new take resets zoom', () => {
+    expect(act(zoomed(), { type: 'next' }).zoom).toEqual(ZOOM_OFF)
+    expect(act(zoomed(), { type: 'goto', index: 0 }).zoom).toEqual(ZOOM_OFF)
+    expect(act(zoomed(), { type: 'selectDeck', deckId: 'B' }).zoom).toEqual(ZOOM_OFF)
+  })
+
+  it('a take while frozen keeps zoom', () => {
+    const st = zoomed({ frozen: true })
+    const r = act(st, { type: 'goto', index: 0 })
+    expect(r.shown).toBe(st.shown)
+    expect(r.zoom).toBe(z2)
+  })
+
+  it('enginePosition keeps zoom', () => {
+    const nd = [
+      {
+        id: 'N',
+        playback: 'native' as const,
+        slides: [
+          { file: 'n0.png', notes: '', clicks: 3 },
+          { file: 'n1.png', notes: '', clicks: 2 }
+        ]
+      }
+    ]
+    const st: ProgramState = {
+      ...initialState,
+      deckId: 'N',
+      index: 0,
+      shown: { ...sh('N', 0, 'n0.png'), playback: 'native', step: 0 },
+      zoom: z2
+    }
+    const r = reduce(st, { type: 'enginePosition', deckId: 'N', index: 1, step: 1 }, nd)
+    expect(r.shown?.index).toBe(1)
+    expect(r.zoom).toBe(z2)
+  })
+
+  it('offAir resets zoom; freeze, black and KV keep it', () => {
+    expect(act(zoomed(), { type: 'offAir' }).zoom).toEqual(ZOOM_OFF)
+    expect(act(zoomed(), { type: 'toggleFreeze' }).zoom).toBe(z2)
+    expect(act(zoomed(), { type: 'toggleBlack' }).zoom).toBe(z2)
+    expect(act(zoomed({ kvUrl: 'slide://kv' }), { type: 'toggleKv' }).zoom).toBe(z2)
   })
 })
