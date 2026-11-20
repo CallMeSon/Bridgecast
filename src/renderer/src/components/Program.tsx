@@ -9,6 +9,7 @@ import { zoomTransform } from '../../../shared/zoom'
 import { EndCard } from './Slide'
 import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
+import { ZoomControls } from './ZoomControls'
 import { TransportBar } from './TransportBar'
 import { audienceNote, standbyCard } from './program-copy'
 import { useIdlePointer } from '../use-idle-pointer'
@@ -184,6 +185,13 @@ export function Program({
           {monitor.note}
         </p>
       )}
+      <ZoomControls
+        zoom={state.zoom}
+        canvas={state.canvas}
+        disabled={state.shown === null}
+        media={media}
+        onAction={onAction}
+      />
       <div className="pgm-meta">
         <span className="mono">
           {state.canvas.width} × {state.canvas.height}

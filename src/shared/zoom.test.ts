@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ZOOM_OFF,
   ZOOM_MAX,
+  coalesce,
+  panDisabled,
   clampZoom,
   centreOn,
   isZoomed,
@@ -63,5 +65,57 @@ describe('zoom maths', () => {
   it('pointToCentre', () => {
     expect(pointToCentre(1.5, -1)).toEqual({ cx: 1, cy: 0 })
     expect(pointToCentre(0.3, 0.6)).toEqual({ cx: 0.3, cy: 0.6 })
+  })
+})
+
+describe('panDisabled', () => {
+  it('disables every arrow at 1x', () => {
+    expect(panDisabled(ZOOM_OFF)).toEqual({ left: true, right: true, up: true, down: true })
+  })
+  it('disables only the arrows facing a reached edge', () => {
+    expect(panDisabled({ scale: 2, cx: 0.25, cy: 0.5 })).toEqual({
+      left: true,
+      right: false,
+      up: false,
+      down: false
+    })
+    expect(panDisabled({ scale: 2, cx: 0.75, cy: 0.75 })).toEqual({
+      left: false,
+      right: true,
+      up: false,
+      down: true
+    })
+  })
+})
+
+describe('coalesce', () => {
+  it('sends only the newest value once per tick', () => {
+    const sent: number[] = []
+    let tick: (() => void) | null = null
+    const c = coalesce<number>(
+      (v) => sent.push(v),
+      (run) => {
+        tick = run
+      }
+    )
+    c.push(1)
+    c.push(2)
+    c.push(3)
+    expect(sent).toEqual([])
+    tick!()
+    expect(sent).toEqual([3])
+    c.push(4)
+    tick!()
+    expect(sent).toEqual([3, 4])
+  })
+  it('flush sends a pending value immediately', () => {
+    const sent: number[] = []
+    const c = coalesce<number>(
+      (v) => sent.push(v),
+      () => {}
+    )
+    c.push(7)
+    c.flush()
+    expect(sent).toEqual([7])
   })
 })
