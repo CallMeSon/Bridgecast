@@ -6,6 +6,7 @@ import {
   followSlideOrder,
   initialState,
   kvOnAir,
+  zoomApplies,
   locateShown,
   pendingTake,
   segmentOfDeck,
@@ -1073,5 +1074,15 @@ describe('zoom', () => {
     expect(act(zoomed(), { type: 'toggleFreeze' }).zoom).toBe(z2)
     expect(act(zoomed(), { type: 'toggleBlack' }).zoom).toBe(z2)
     expect(act(zoomed({ kvUrl: 'slide://kv' }), { type: 'toggleKv' }).zoom).toBe(z2)
+  })
+  it('zoomApplies: only a live slide is zoomed, never the KV', () => {
+    const kv = 'slide://kv'
+    expect(zoomApplies(zoomed())).toBe(true)
+    expect(zoomApplies(zoomed({ kvUrl: kv, kv: true }))).toBe(false)
+    expect(zoomApplies(zoomed({ shown: null }))).toBe(false)
+    expect(zoomApplies(zoomed({ shown: null, kvUrl: kv }))).toBe(false)
+    // Black hides everything; the zoom stays applied so it returns unchanged.
+    expect(zoomApplies(zoomed({ black: true }))).toBe(true)
+    expect(zoomApplies(zoomed({ black: true, kvUrl: kv, kv: true }))).toBe(true)
   })
 })

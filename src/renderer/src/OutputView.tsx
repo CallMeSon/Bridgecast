@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ProgramState } from '../../shared/program'
+import { zoomApplies, type ProgramState } from '../../shared/program'
 import { audioPlan, networkRunning, type NdiStatus, type OmtStatus } from '../../shared/omt'
 import type { AudioSettings } from '../../shared/settings'
 import { outputGain, outputSource } from './model'
@@ -339,7 +339,7 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
             data-zoom={program.zoom.scale.toFixed(2)}
             style={{
               transform:
-                role === 'hdmi' && program.shown !== null ? zoomTransform(program.zoom) : 'none'
+                role === 'hdmi' && zoomApplies(program) ? zoomTransform(program.zoom) : 'none'
             }}
           >
             <SlideLayers

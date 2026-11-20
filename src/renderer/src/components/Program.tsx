@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { CursorClickIcon, PauseIcon, WarningIcon } from '@phosphor-icons/react'
 import type { DeckMeta } from '../../../shared/types'
-import type { Action, ProgramState } from '../../../shared/program'
+import { zoomApplies, type Action, type ProgramState } from '../../../shared/program'
 import type { PrepareInput } from '../../../shared/web'
 import { errorMessage, INTERACTING_TEXT, outputSource, tally } from '../model'
 import { claimKeys, useWebInteract, type WebInteractHandlers } from '../use-web-interact'
@@ -62,6 +62,8 @@ export function Program({
   const shown = state.shown
   const media = outputSource(state, posterVersion)
   const liveWeb = shown?.web?.deckId ?? null
+  // Only the live slide zooms; the KV and STANDBY stay whole (and the controls rest).
+  const zoomOn = zoomApplies(state)
   const screen = useRef<HTMLDivElement>(null)
   const zoom = useRef<HTMLDivElement>(null)
   const capture = useRef<HTMLDivElement>(null)
@@ -131,7 +133,7 @@ export function Program({
               className="zoom-layer"
               data-testid="monitor-zoom"
               data-zoom={state.zoom.scale.toFixed(2)}
-              style={{ transform: shown !== null ? zoomTransform(state.zoom) : 'none' }}
+              style={{ transform: zoomOn ? zoomTransform(state.zoom) : 'none' }}
             >
               {shown || media ? (
                 <SlideLayers
@@ -188,7 +190,7 @@ export function Program({
       <ZoomControls
         zoom={state.zoom}
         canvas={state.canvas}
-        disabled={state.shown === null}
+        disabled={!zoomOn}
         media={media}
         onAction={onAction}
       />

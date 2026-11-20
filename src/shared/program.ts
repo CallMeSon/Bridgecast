@@ -121,6 +121,14 @@ export function kvOnAir(s: ProgramState): boolean {
   return !s.black && s.kvUrl !== null && (s.kv || s.shown === null)
 }
 
+/**
+ * Whether the zoom is drawn: only on a live slide. KV on air and STANDBY show unzoomed (the
+ * zoom value itself stays and returns with the picture); under black there is nothing to see.
+ */
+export function zoomApplies(s: ProgramState): boolean {
+  return s.shown !== null && !kvOnAir(s)
+}
+
 export const initialState: ProgramState = {
   deckId: null,
   index: 0,
