@@ -67,7 +67,7 @@ export function Program({
   const screen = useRef<HTMLDivElement>(null)
   const zoom = useRef<HTMLDivElement>(null)
   const capture = useRef<HTMLDivElement>(null)
-  const monitor = useMonitorInteract(liveWeb, state.frozen, zoom, capture)
+  const monitor = useMonitorInteract(liveWeb, state.frozen, zoom, screen, capture)
   // The pointer over the picture rests out of the way (moving shows it again).
   const pointer = useIdlePointer()
   return (
@@ -240,6 +240,9 @@ interface MonitorInteract {
 function useMonitorInteract(
   liveWeb: string | null,
   frozen: boolean,
+  /** The drawn page (the zoom layer): pointer positions map against it. */
+  page: RefObject<HTMLDivElement | null>,
+  /** What is seen of it (the monitor screen): inside/outside tests and edge clamps. */
   screen: RefObject<HTMLDivElement | null>,
   capture: RefObject<HTMLDivElement | null>
 ): MonitorInteract {
@@ -266,7 +269,7 @@ function useMonitorInteract(
     },
     [liveWeb]
   )
-  const input = useWebInteract({ active: on, page: screen, send })
+  const input = useWebInteract({ active: on, page, bounds: screen, send })
   const { release } = input
   const stop = useCallback((): void => {
     release()

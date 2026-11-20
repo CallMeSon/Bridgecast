@@ -48,6 +48,11 @@ export interface WebInteractCapture {
   active: boolean
   /** The drawn page: pointer positions are 0 to 1 of this element's rectangle. */
   page: RefObject<HTMLElement | null>
+  /**
+   * The visible part of the page, for inside/outside tests and edge clamps (a zoomed page is
+   * larger than what is seen). Defaults to `page`.
+   */
+  bounds?: RefObject<HTMLElement | null>
   /** Sends one input to the page; what a refusal means is the caller's to show. */
   send: (input: PrepareInput) => void
 }
@@ -69,7 +74,13 @@ export interface WebInteractHandlers {
  * one move per frame. A press that the caller wants for itself (a pan) is not sent: the
  * caller checks it before calling `onMouse`.
  */
-export function useWebInteract({ active, page, send }: WebInteractCapture): WebInteractHandlers {
+export function useWebInteract({
+  active,
+  page,
+  bounds,
+  send
+}: WebInteractCapture): WebInteractHandlers {
+  const seen = bounds ?? page
   const pendingMove = useRef<MouseEvent | null>(null)
   const moveFrame = useRef(0)
   const lastPoint = useRef<{ x: number; y: number } | null>(null)
@@ -90,26 +101,13 @@ export function useWebInteract({ active, page, send }: WebInteractCapture): WebI
       if (!dragging.current) return
       dragging.current = false
       const r = page.current?.getBoundingClientRect()
-      if (!r || !active) return
-      if (
-        e.clientX >= r.left &&
-        e.clientX <= r.right &&
-        e.clientY >= r.top &&
-        e.clientY <= r.bottom
-      )
-        return
-      const clamped = {
-        type: 'mouseup',
-        button: e.button,
-        detail: 1,
-        clientX: Math.min(Math.max(e.clientX, r.left), r.right),
-        clientY: Math.min(Math.max(e.clientY, r.top), r.bottom)
-      } as MouseEvent
-      emit(toPrepareInput(clamped, r))
+      const b = seen.current?.getBoundingClientRect()
+      if (!r || !b || !active) return
+      emit(releaseOutside(e, b, r))
     }
     window.addEventListener('mouseup', onUp)
     return () => window.removeEventListener('mouseup', onUp)
-  }, [active, page, emit])
+  }, [active, page, seen, emit])
 
   const onMouse = (e: ReactMouseEvent): void => {
     if (!active) return
@@ -142,8 +140,9 @@ export function useWebInteract({ active, page, send }: WebInteractCapture): WebI
     const had = lastPoint.current
     lastPoint.current = null
     const r = page.current?.getBoundingClientRect()
-    if (!active || dragging.current || !had || !r) return
-    emit(leaveAt(e.clientX, e.clientY, r))
+    const b = seen.current?.getBoundingClientRect()
+    if (!active || dragging.current || !had || !r || !b) return
+    emit(leaveAt(e.clientX, e.clientY, b, r))
   }
 
   const onWheel = (e: ReactWheelEvent): void => {
@@ -163,16 +162,46 @@ export function useWebInteract({ active, page, send }: WebInteractCapture): WebI
     const had = lastPoint.current
     lastPoint.current = null
     const r = page.current?.getBoundingClientRect()
-    if (active && had && r) emit(leaveAt(had.x, had.y, r))
-  }, [active, page, emit])
+    const b = seen.current?.getBoundingClientRect()
+    if (active && had && r && b) emit(leaveAt(had.x, had.y, b, r))
+  }, [active, page, seen, emit])
 
   return { onMouse, onMouseLeave, onWheel, onKey, release }
 }
 
-/** A pointer that left the page at (x, y): the page gets a mouseLeave at its edge. */
-function leaveAt(x: number, y: number, r: DOMRect): PrepareInput | null {
+type Box = Pick<DOMRect, 'left' | 'top' | 'right' | 'bottom' | 'width' | 'height'>
+
+/** (x, y) moved onto the nearest point of `b` (unchanged when it is inside). */
+export function clampToBox(x: number, y: number, b: Box): { x: number; y: number } {
+  return { x: Math.min(Math.max(x, b.left), b.right), y: Math.min(Math.max(y, b.top), b.bottom) }
+}
+
+/**
+ * A button released at (clientX, clientY): inside the visible `bounds` the capture saw the
+ * release itself (null); outside, the page gets a mouseUp at the nearest visible edge, mapped
+ * against the drawn `page` (larger than `bounds` while zoomed).
+ */
+export function releaseOutside(
+  e: Pick<MouseEvent, 'clientX' | 'clientY' | 'button'>,
+  bounds: Box,
+  page: Box
+): PrepareInput | null {
+  const p = clampToBox(e.clientX, e.clientY, bounds)
+  if (p.x === e.clientX && p.y === e.clientY) return null
   return toPrepareInput(
-    { type: 'mouseleave', clientX: x, clientY: y, button: 0, detail: 0 } as MouseEvent,
-    r
+    { type: 'mouseup', button: e.button, detail: 1, clientX: p.x, clientY: p.y } as MouseEvent,
+    page as DOMRect
+  )
+}
+
+/**
+ * A pointer that left the page at (x, y): the page gets a mouseLeave at the visible edge,
+ * mapped against the drawn page.
+ */
+export function leaveAt(x: number, y: number, bounds: Box, page: Box): PrepareInput | null {
+  const p = clampToBox(x, y, bounds)
+  return toPrepareInput(
+    { type: 'mouseleave', clientX: p.x, clientY: p.y, button: 0, detail: 0 } as MouseEvent,
+    page as DOMRect
   )
 }
