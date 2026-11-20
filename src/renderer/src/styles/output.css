@@ -12,12 +12,12 @@
   position: absolute;
   overflow: hidden;
 }
+/* Also the operator monitor's zoom layer (Program.tsx): one bundle, one stylesheet. */
 .zoom-layer {
   position: absolute;
   inset: 0;
   transform-origin: 0 0;
   transition: transform 150ms ease-out;
-  will-change: transform;
 }
 @media (prefers-reduced-motion: reduce) {
   .zoom-layer {
