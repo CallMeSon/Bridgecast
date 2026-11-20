@@ -134,7 +134,7 @@ export function ZoomControls({
           0,
           -PAN_STEP,
           <CaretUpIcon size={16} weight="bold" aria-hidden="true" />,
-          'up'
+          'pan-up'
         )}
         {arrow(
           'Pan left',
@@ -142,7 +142,7 @@ export function ZoomControls({
           -PAN_STEP,
           0,
           <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />,
-          'left'
+          'pan-left'
         )}
         {arrow(
           'Pan right',
@@ -150,7 +150,7 @@ export function ZoomControls({
           PAN_STEP,
           0,
           <CaretRightIcon size={16} weight="bold" aria-hidden="true" />,
-          'right'
+          'pan-right'
         )}
         {arrow(
           'Pan down',
@@ -158,7 +158,7 @@ export function ZoomControls({
           0,
           PAN_STEP,
           <CaretDownIcon size={16} weight="bold" aria-hidden="true" />,
-          'down'
+          'pan-down'
         )}
       </div>
       <div className="pgm-zoom-map" role="group" aria-label="Zoom position">

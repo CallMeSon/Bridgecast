@@ -38,6 +38,24 @@ describe('AppState', () => {
     expect(app.state).toMatchObject({ deckId: d, index: 0, shown: null })
   })
 
+  it('zoom actions are committed and broadcast, and the next take resets them', () => {
+    const lib = new Library(root)
+    const a = lib.createEvent('A')
+    const d = addDeck(lib, a.id, 3)
+    const app = new AppState(lib)
+    app.dispatch({ type: 'selectDeck', deckId: d })
+    const cb = vi.fn()
+    app.onChange(cb)
+    app.dispatch({ type: 'zoomIn' })
+    expect(app.state.zoom.scale).toBeGreaterThan(1)
+    expect(cb).toHaveBeenCalledTimes(1)
+    app.dispatch({ type: 'zoomPan', dx: 0.2, dy: 0 })
+    expect(app.state.zoom.cx).toBeGreaterThan(0.5)
+    expect(cb).toHaveBeenCalledTimes(2)
+    app.dispatch({ type: 'goto', index: 1 })
+    expect(app.state.zoom.scale).toBe(1)
+  })
+
   it('goto on the live slide broadcasts because take changed', () => {
     const lib = new Library(root)
     const a = lib.createEvent('A')

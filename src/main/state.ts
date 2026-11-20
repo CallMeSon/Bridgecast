@@ -30,6 +30,9 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.autoAdvance === b.autoAdvance &&
     a.take === b.take &&
     a.webHold === b.webHold &&
+    a.zoom.scale === b.zoom.scale &&
+    a.zoom.cx === b.zoom.cx &&
+    a.zoom.cy === b.zoom.cy &&
     a.canvas.width === b.canvas.width &&
     a.canvas.height === b.canvas.height &&
     a.canvas.origin === b.canvas.origin &&

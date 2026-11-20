@@ -1412,6 +1412,54 @@ async function simulatedHdmiChecks(win, real) {
     await waitHdmiCentre((p) => blue(p), 'Space takes slide 2 (blue) live on HDMI')
     check(true, 'B and Space in the operator window drive the HDMI window')
 
+    // Realtime zoom: the HDMI window follows the operator's zoom, and the next take resets it.
+    const hdmiZoom = () =>
+      app.evaluate(({ BrowserWindow }, title) => {
+        const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === title)
+        return w.webContents.executeJavaScript(`(() => {
+          const el = document.querySelector('[data-testid="output-zoom"]')
+          return el ? { zoom: el.getAttribute('data-zoom'), transform: el.style.transform || 'none' } : null
+        })()`)
+      }, HDMI_TITLE)
+    const waitHdmiZoom = async (pred, what, timeout = 5000) => {
+      const end = Date.now() + timeout
+      let z = null
+      while (Date.now() < end) {
+        z = await hdmiZoom()
+        if (z && pred(z)) return z
+        await sleep(100)
+      }
+      throw new Error(`ASSERT: ${what} (last ${JSON.stringify(z)})`)
+    }
+    const zoomBtn = (name) => win.getByRole('button', { name, exact: true })
+    await zoomBtn('Zoom in').click()
+    await zoomBtn('Zoom in').click()
+    const z1 = await waitHdmiZoom(
+      (z) => z.zoom === '1.56' && z.transform !== 'none',
+      'two Zoom in clicks give data-zoom 1.56 and a transform on the HDMI window'
+    )
+    check(true, `HDMI window zoomed: ${JSON.stringify(z1)}`)
+    await zoomBtn('Pan right').click()
+    const z2 = await waitHdmiZoom(
+      (z) => z.transform !== z1.transform,
+      'Pan right changes the HDMI transform'
+    )
+    check(z2.zoom === '1.56', 'Pan right keeps the zoom at 1.56')
+    await win.keyboard.press('Space')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=pos]')?.textContent === '03 / 03'
+    )
+    await waitHdmiZoom(
+      (z) => z.zoom === '1.00' && z.transform === 'none',
+      'taking the next slide resets the HDMI zoom to 1.00 with no transform'
+    )
+    // Back to slide 2 (blue) for the checks that follow.
+    await win.keyboard.press('ArrowLeft')
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 03'
+    )
+    await waitHdmiCentre((p) => blue(p), 'ArrowLeft returns the HDMI window to slide 2 (blue)')
+
     // Unplug: hidden in place (not moved onto the operator screen), amber status.
     await fake([fakePrimary])
     await win.locator('[data-testid=hdmi-status][data-tone=warn]').waitFor({ timeout: 5000 })
