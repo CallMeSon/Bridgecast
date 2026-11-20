@@ -4603,8 +4603,7 @@ button > svg,
 }
 .pgm-zoom-box {
   position: relative;
-  width: 96px;
-  max-height: 96px;
+  /* Width and height come inline from the canvas (minimapSize): always its aspect. */
   overflow: hidden;
   background: var(--raised);
   border: 1px solid var(--line-hi);

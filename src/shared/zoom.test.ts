@@ -7,6 +7,7 @@ import {
   clampZoom,
   centreOn,
   isZoomed,
+  minimapSize,
   panBy,
   pointToCentre,
   viewRect,
@@ -117,5 +118,20 @@ describe('coalesce', () => {
     c.push(7)
     c.flush()
     expect(sent).toEqual([7])
+  })
+})
+
+describe('minimapSize', () => {
+  it('16:9 keeps the 96 px wide box', () => {
+    expect(minimapSize({ width: 1920, height: 1080 })).toEqual({ width: 96, height: 54 })
+  })
+  it('1:1 is square', () => {
+    expect(minimapSize({ width: 1080, height: 1080 })).toEqual({ width: 96, height: 96 })
+  })
+  it('9:16 is 96 px tall, narrow, with the canvas aspect', () => {
+    expect(minimapSize({ width: 1080, height: 1920 })).toEqual({ width: 54, height: 96 })
+  })
+  it('an empty canvas falls back to a square', () => {
+    expect(minimapSize({ width: 0, height: 1080 })).toEqual({ width: 96, height: 96 })
   })
 })

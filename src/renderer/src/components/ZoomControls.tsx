@@ -14,6 +14,7 @@ import {
   ZOOM_MAX,
   coalesce,
   isZoomed,
+  minimapSize,
   panDisabled,
   pointToCentre,
   viewRect,
@@ -52,6 +53,7 @@ export function ZoomControls({
   const edge = panDisabled(zoom)
   const r = viewRect(zoom)
   const still = stillUrl(media)
+  const size = minimapSize(canvas)
   const box = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
   // One zoomTo per animation frame while dragging.
@@ -166,7 +168,11 @@ export function ZoomControls({
           ref={box}
           className="pgm-zoom-box"
           data-off={minimapOff}
-          style={{ aspectRatio: `${canvas.width} / ${canvas.height}` }}
+          style={{
+            width: `${size.width}px`,
+            height: `${size.height}px`,
+            aspectRatio: `${canvas.width} / ${canvas.height}`
+          }}
           onPointerDown={(e) => {
             if (minimapOff) return
             const c = point(e)

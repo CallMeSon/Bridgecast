@@ -58,6 +58,22 @@ export function pointToCentre(px: number, py: number): { cx: number; cy: number 
   return { cx: c(px), cy: c(py) }
 }
 
+/** Longest side of the minimap, in CSS px. */
+export const MINIMAP_MAX = 96
+
+/**
+ * The minimap box: exactly the canvas aspect, its longest side `max` (16:9 is 96 x 54,
+ * 9:16 is 54 x 96), so the still, the view rectangle and the pointer fractions agree.
+ */
+export function minimapSize(
+  canvas: { width: number; height: number },
+  max = MINIMAP_MAX
+): { width: number; height: number } {
+  const { width: w, height: h } = canvas
+  if (!(w > 0) || !(h > 0)) return { width: max, height: max }
+  return w >= h ? { width: max, height: (max * h) / w } : { width: (max * w) / h, height: max }
+}
+
 const EDGE_EPS = 1e-6
 
 /** Which pan arrows are disabled: all at 1x, and the one facing a canvas edge already reached. */
