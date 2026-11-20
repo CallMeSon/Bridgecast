@@ -1,6 +1,7 @@
 import type { DeckMeta, Playback, SectionMeta } from './types'
 import { playbackOf } from './playback'
 import { segmentsOf } from './sections'
+import { ZOOM_OFF, ZOOM_STEP, clampZoom, zoomBy, panBy, centreOn, type Zoom } from './zoom'
 import { DEFAULT_CANVAS, sanitizeFit, type DeckFit, type ResolvedCanvas } from './canvas'
 import { DEFAULT_DECK_AUDIO, sanitizeDeckAudio, type DeckAudio } from './audio-levels'
 
@@ -78,6 +79,8 @@ export interface ProgramState {
    * on air, or (at STANDBY) of the last one. Set by main, never by the reducer.
    */
   airEvent: string | null
+  /** Zoom of the live picture; reset by every take and Off air. Set only by the zoom actions. */
+  zoom: Zoom
 }
 
 export type Action =
@@ -101,6 +104,11 @@ export type Action =
   | { type: 'enginePosition'; deckId: string; index: number; step: number }
   | { type: 'nativeFallback'; deckId: string }
   | { type: 'resumeNative'; deckId: string }
+  | { type: 'zoomIn' }
+  | { type: 'zoomOut' }
+  | { type: 'zoomPan'; dx: number; dy: number }
+  | { type: 'zoomTo'; cx: number; cy: number }
+  | { type: 'zoomReset' }
 
 type DeckLike = Pick<DeckMeta, 'id' | 'slides' | 'fit' | 'audio'> &
   Partial<Pick<DeckMeta, 'source' | 'web' | 'playback'>>
@@ -111,6 +119,14 @@ type DeckLike = Pick<DeckMeta, 'id' | 'slides' | 'fit' | 'audio'> &
  */
 export function kvOnAir(s: ProgramState): boolean {
   return !s.black && s.kvUrl !== null && (s.kv || s.shown === null)
+}
+
+/**
+ * Whether the zoom is drawn: only on a live slide. KV on air and STANDBY show unzoomed (the
+ * zoom value itself stays and returns with the picture); under black there is nothing to see.
+ */
+export function zoomApplies(s: ProgramState): boolean {
+  return s.shown !== null && !kvOnAir(s)
 }
 
 export const initialState: ProgramState = {
@@ -126,7 +142,8 @@ export const initialState: ProgramState = {
   take: 0,
   webHold: false,
   canvas: { ...DEFAULT_CANVAS, origin: 'default' },
-  airEvent: null
+  airEvent: null,
+  zoom: ZOOM_OFF
 }
 
 /** Move the operator position (index must exist in deck); `shown` follows unless frozen. */
@@ -159,7 +176,8 @@ function moveTo(
     deckId: deck.id,
     index,
     shown: state.frozen ? state.shown : shown,
-    take: state.frozen || !newTake ? state.take : state.take + 1
+    take: state.frozen || !newTake ? state.take : state.take + 1,
+    zoom: state.frozen || !newTake ? state.zoom : ZOOM_OFF
   }
 }
 
@@ -375,6 +393,15 @@ function stepDeck(state: ProgramState, decks: DeckLike[], dir: 1 | -1): ProgramS
   return state
 }
 
+/** Apply a zoom change: refused (same object) at STANDBY or when nothing changes. */
+function withZoom(state: ProgramState, next: Zoom): ProgramState {
+  if (state.shown === null) return state
+  const z = clampZoom(next)
+  const c = state.zoom
+  if (z.scale === c.scale && z.cx === c.cx && z.cy === c.cy) return state
+  return { ...state, zoom: z }
+}
+
 export function reduce(
   state: ProgramState,
   action: Action,
@@ -487,10 +514,37 @@ export function reduce(
       return { ...state, kv: true, black: false, webHold: false }
     case 'offAir':
       // STANDBY, never Black: the operator position and the air event stay.
-      if (state.shown === null && !state.black && !state.kv && !state.frozen && !state.webHold) {
+      if (
+        state.shown === null &&
+        !state.black &&
+        !state.kv &&
+        !state.frozen &&
+        !state.webHold &&
+        state.zoom.scale === 1
+      ) {
         return state
       }
-      return { ...state, shown: null, frozen: false, black: false, kv: false, webHold: false }
+      return {
+        ...state,
+        shown: null,
+        frozen: false,
+        black: false,
+        kv: false,
+        webHold: false,
+        zoom: ZOOM_OFF
+      }
+    case 'zoomIn':
+      return withZoom(state, zoomBy(state.zoom, ZOOM_STEP))
+    case 'zoomOut':
+      return withZoom(state, zoomBy(state.zoom, 1 / ZOOM_STEP))
+    case 'zoomReset':
+      return withZoom(state, ZOOM_OFF)
+    case 'zoomPan':
+      if (!Number.isFinite(action.dx) || !Number.isFinite(action.dy)) return state
+      return withZoom(state, panBy(state.zoom, action.dx, action.dy))
+    case 'zoomTo':
+      if (!Number.isFinite(action.cx) || !Number.isFinite(action.cy)) return state
+      return withZoom(state, centreOn(state.zoom, action.cx, action.cy))
     case 'setTransition':
       return { ...state, transition: action.transition }
     case 'setAutoAdvance':

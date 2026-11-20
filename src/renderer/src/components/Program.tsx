@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { CursorClickIcon, PauseIcon, WarningIcon } from '@phosphor-icons/react'
 import type { DeckMeta } from '../../../shared/types'
-import type { Action, ProgramState } from '../../../shared/program'
+import { zoomApplies, type Action, type ProgramState } from '../../../shared/program'
 import type { PrepareInput } from '../../../shared/web'
 import { errorMessage, INTERACTING_TEXT, outputSource, tally } from '../model'
 import { claimKeys, useWebInteract, type WebInteractHandlers } from '../use-web-interact'
+import { zoomTransform } from '../../../shared/zoom'
+import { useInstantZoom } from '../use-instant-zoom'
 import { EndCard } from './Slide'
 import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
+import { ZoomControls } from './ZoomControls'
 import { TransportBar } from './TransportBar'
 import { audienceNote, standbyCard } from './program-copy'
 import { useIdlePointer } from '../use-idle-pointer'
@@ -60,9 +63,14 @@ export function Program({
   const shown = state.shown
   const media = outputSource(state, posterVersion)
   const liveWeb = shown?.web?.deckId ?? null
+  // Only the live slide zooms; the KV and STANDBY stay whole (and the controls rest).
+  const zoomOn = zoomApplies(state)
+  // A take (the reducer resets the zoom with it) or the KV changes the zoom without motion.
+  const zoomCut = useInstantZoom(state.take, zoomOn)
   const screen = useRef<HTMLDivElement>(null)
+  const zoom = useRef<HTMLDivElement>(null)
   const capture = useRef<HTMLDivElement>(null)
-  const monitor = useMonitorInteract(liveWeb, state.frozen, screen, capture)
+  const monitor = useMonitorInteract(liveWeb, state.frozen, zoom, screen, capture)
   // The pointer over the picture rests out of the way (moving shows it again).
   const pointer = useIdlePointer()
   return (
@@ -123,23 +131,32 @@ export function Program({
             data-interact={String(monitor.on)}
             style={{ cursor: pointer.hidden ? 'none' : undefined }}
           >
-            {shown || media ? (
-              <SlideLayers
-                media={media}
-                fade={state.transition === 'fade'}
-                muted
-                layerClass="slide pgm-layer"
-                stream={stream}
-                imgAttrs={(_key, url) => ({
-                  alt:
-                    url === state.kvUrl
-                      ? 'KV on Program'
-                      : `Slide ${(shown?.index ?? 0) + 1} on Program`
-                })}
-              />
-            ) : (
-              <EndCard {...standbyCard(deck, state.index, emptyHint)} />
-            )}
+            <div
+              ref={zoom}
+              className="zoom-layer"
+              data-testid="monitor-zoom"
+              data-zoom={state.zoom.scale.toFixed(2)}
+              data-instant={zoomCut}
+              style={{ transform: zoomOn ? zoomTransform(state.zoom) : 'none' }}
+            >
+              {shown || media ? (
+                <SlideLayers
+                  media={media}
+                  fade={state.transition === 'fade'}
+                  muted
+                  layerClass="slide pgm-layer"
+                  stream={stream}
+                  imgAttrs={(_key, url) => ({
+                    alt:
+                      url === state.kvUrl
+                        ? 'KV on Program'
+                        : `Slide ${(shown?.index ?? 0) + 1} on Program`
+                  })}
+                />
+              ) : (
+                <EndCard {...standbyCard(deck, state.index, emptyHint)} />
+              )}
+            </div>
             <div className="shade" />
             {/* Interact: the live page's input comes from here, mapped onto the picture. */}
             {monitor.on && (
@@ -174,6 +191,13 @@ export function Program({
           {monitor.note}
         </p>
       )}
+      <ZoomControls
+        zoom={state.zoom}
+        canvas={state.canvas}
+        disabled={!zoomOn}
+        media={media}
+        onAction={onAction}
+      />
       <div className="pgm-meta">
         <span className="mono">
           {state.canvas.width} × {state.canvas.height}
@@ -220,6 +244,9 @@ interface MonitorInteract {
 function useMonitorInteract(
   liveWeb: string | null,
   frozen: boolean,
+  /** The drawn page (the zoom layer): pointer positions map against it. */
+  page: RefObject<HTMLDivElement | null>,
+  /** What is seen of it (the monitor screen): inside/outside tests and edge clamps. */
   screen: RefObject<HTMLDivElement | null>,
   capture: RefObject<HTMLDivElement | null>
 ): MonitorInteract {
@@ -246,7 +273,7 @@ function useMonitorInteract(
     },
     [liveWeb]
   )
-  const input = useWebInteract({ active: on, page: screen, send })
+  const input = useWebInteract({ active: on, page, bounds: screen, send })
   const { release } = input
   const stop = useCallback((): void => {
     release()

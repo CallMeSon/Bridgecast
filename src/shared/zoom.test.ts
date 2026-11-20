@@ -1,0 +1,152 @@
+import { describe, expect, it } from 'vitest'
+import {
+  ZOOM_OFF,
+  ZOOM_MAX,
+  coalesce,
+  panDisabled,
+  clampZoom,
+  centreOn,
+  isZoomed,
+  zoomInstant,
+  minimapSize,
+  panBy,
+  pointToCentre,
+  viewRect,
+  zoomBy,
+  zoomTransform
+} from './zoom'
+
+describe('zoom maths', () => {
+  it('isZoomed', () => {
+    expect(isZoomed(ZOOM_OFF)).toBe(false)
+    expect(isZoomed({ scale: 1.25, cx: 0.5, cy: 0.5 })).toBe(true)
+  })
+
+  it('clampZoom', () => {
+    expect(clampZoom({ scale: 9, cx: 0.5, cy: 0.5 }).scale).toBe(4)
+    expect(clampZoom({ scale: 0.2, cx: 0.1, cy: 0.9 })).toEqual({ scale: 1, cx: 0.5, cy: 0.5 })
+    expect(clampZoom({ scale: 2, cx: 0, cy: 0.5 }).cx).toBe(0.25)
+    expect(clampZoom({ scale: NaN, cx: 0.5, cy: 0.5 })).toEqual(ZOOM_OFF)
+    expect(clampZoom({ scale: 2, cx: Infinity, cy: 0.5 })).toEqual(ZOOM_OFF)
+  })
+
+  it('zoomBy', () => {
+    expect(zoomBy(ZOOM_OFF, 1.25).scale).toBe(1.25)
+    let z = ZOOM_OFF
+    for (let i = 0; i < 20; i++) z = zoomBy(z, 1.25)
+    expect(z.scale).toBe(ZOOM_MAX)
+  })
+
+  it('panBy moves in visible-window units and stops at the edge', () => {
+    const z = { scale: 2, cx: 0.5, cy: 0.5 }
+    expect(panBy(z, 0.2, 0).cx).toBeCloseTo(0.5 + 0.5 * 0.2)
+    expect(panBy(z, 10, 0).cx).toBe(0.75)
+    expect(panBy(z, 0, -10).cy).toBe(0.25)
+  })
+
+  it('centreOn clamps', () => {
+    expect(centreOn({ scale: 2, cx: 0.5, cy: 0.5 }, 5, -5)).toEqual({
+      scale: 2,
+      cx: 0.75,
+      cy: 0.25
+    })
+  })
+
+  it('zoomTransform', () => {
+    expect(zoomTransform(ZOOM_OFF)).toBe('none')
+    expect(zoomTransform({ scale: 2, cx: 0.75, cy: 0.25 })).toBe('translate(-100%, 0%) scale(2)')
+  })
+
+  it('viewRect', () => {
+    expect(viewRect({ scale: 2, cx: 0.75, cy: 0.25 })).toEqual({ x: 0.5, y: 0, w: 0.5, h: 0.5 })
+    // Everything is a fraction of the canvas, so aspect (landscape or portrait) does not matter.
+    const r = viewRect({ scale: 4, cx: 0.5, cy: 0.5 })
+    expect(r.w).toBe(r.h)
+  })
+
+  it('pointToCentre', () => {
+    expect(pointToCentre(1.5, -1)).toEqual({ cx: 1, cy: 0 })
+    expect(pointToCentre(0.3, 0.6)).toEqual({ cx: 0.3, cy: 0.6 })
+  })
+})
+
+describe('panDisabled', () => {
+  it('disables every arrow at 1x', () => {
+    expect(panDisabled(ZOOM_OFF)).toEqual({ left: true, right: true, up: true, down: true })
+  })
+  it('disables only the arrows facing a reached edge', () => {
+    expect(panDisabled({ scale: 2, cx: 0.25, cy: 0.5 })).toEqual({
+      left: true,
+      right: false,
+      up: false,
+      down: false
+    })
+    expect(panDisabled({ scale: 2, cx: 0.75, cy: 0.75 })).toEqual({
+      left: false,
+      right: true,
+      up: false,
+      down: true
+    })
+  })
+})
+
+describe('coalesce', () => {
+  it('sends only the newest value once per tick', () => {
+    const sent: number[] = []
+    let tick: (() => void) | null = null
+    const c = coalesce<number>(
+      (v) => sent.push(v),
+      (run) => {
+        tick = run
+      }
+    )
+    c.push(1)
+    c.push(2)
+    c.push(3)
+    expect(sent).toEqual([])
+    tick!()
+    expect(sent).toEqual([3])
+    c.push(4)
+    tick!()
+    expect(sent).toEqual([3, 4])
+  })
+  it('flush sends a pending value immediately', () => {
+    const sent: number[] = []
+    const c = coalesce<number>(
+      (v) => sent.push(v),
+      () => {}
+    )
+    c.push(7)
+    c.flush()
+    expect(sent).toEqual([7])
+  })
+})
+
+describe('minimapSize', () => {
+  it('16:9 keeps the 96 px wide box', () => {
+    expect(minimapSize({ width: 1920, height: 1080 })).toEqual({ width: 96, height: 54 })
+  })
+  it('1:1 is square', () => {
+    expect(minimapSize({ width: 1080, height: 1080 })).toEqual({ width: 96, height: 96 })
+  })
+  it('9:16 is 96 px tall, narrow, with the canvas aspect', () => {
+    expect(minimapSize({ width: 1080, height: 1920 })).toEqual({ width: 54, height: 96 })
+  })
+  it('an empty canvas falls back to a square', () => {
+    expect(minimapSize({ width: 0, height: 1080 })).toEqual({ width: 96, height: 96 })
+  })
+})
+
+describe('zoomInstant', () => {
+  const live = { take: 3, applies: true }
+  it('zoom in, out, pan and Reset on the same take animate', () => {
+    expect(zoomInstant(live, { take: 3, applies: true })).toBe(false)
+  })
+  it('a new take resets without motion', () => {
+    expect(zoomInstant(live, { take: 4, applies: true })).toBe(true)
+  })
+  it('KV on or off (the zoom stops or starts applying) is a cut', () => {
+    expect(zoomInstant(live, { take: 3, applies: false })).toBe(true)
+    expect(zoomInstant({ take: 3, applies: false }, live)).toBe(true)
+  })
+})

@@ -37,6 +37,25 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] Colok lagi. Output kembali fullscreen di layar yang sama dengan slide yang sedang live.
 - [ ] Biarkan output tampil 30 menit sambil sesekali Next. Tidak ada kedip, hitam mendadak, atau jendela yang pindah.
 
+## Zoom (HDMI dan monitor)
+
+- [ ] **Zoom in/out:** dengan slide LIVE, klik "Zoom in" beberapa kali: HDMI dan monitor operator
+      membesar bersamaan ke tengah slide. "Zoom out" mengecilkan lagi; di 1.00 gambar kembali
+      utuh tanpa pergeseran.
+- [ ] **Panah:** saat diperbesar, tombol panah (kiri, kanan, atas, bawah) menggeser bagian yang
+      terlihat di HDMI dan monitor. Di tepi slide panah tidak membawa gambar keluar dari bingkai.
+- [ ] **Minimap:** klik di minimap memindahkan bagian yang terlihat ke titik itu; geser (drag)
+      kotak minimap menggeser gambar halus tanpa lompatan.
+- [ ] **Reset otomatis:** dengan zoom aktif, ambil slide berikutnya (Space): zoom kembali ke 1.00
+      pada HDMI dan monitor. "Reset zoom" juga mengembalikan ke 1.00.
+- [ ] **STANDBY:** saat STANDBY (belum ada slide live), tombol zoom dan panah nonaktif; HDMI tetap
+      hitam dan tidak pernah menampilkan transform.
+- [ ] **Slide web dengan Interact:** di deck web, perbesar lalu aktifkan Interact: klik pada
+      halaman mengenai elemen tepat di bawah kursor pada gambar yang diperbesar (bukan elemen di
+      posisi tanpa zoom). Setelah zoom di-reset, klik tetap tepat sasaran.
+- [ ] **OMT/NDI tidak ikut zoom:** dengan OMT atau NDI menyala, zoom di operator hanya mengubah
+      HDMI dan monitor; penerima OMT/NDI tetap menerima slide penuh tanpa zoom.
+
 ## Slide video
 
 - [ ] Impor folder hasil ekspor Canva (`page-NN.png` + `page-NN.mp4`). Deck siap dengan jumlah halaman yang benar; slide video bertanda ikon play di strip dan di panel "Up next".

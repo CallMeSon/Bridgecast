@@ -4551,3 +4551,88 @@ button > svg,
   background: var(--raised-hi);
   color: var(--text);
 }
+
+/* Zoom controls (ZoomControls.tsx): buttons left, minimap right; wraps when narrow. */
+.pgm-zoom {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 20px;
+  padding: 8px var(--pad);
+  color: var(--text-2);
+}
+.pgm-zoom-row,
+.pgm-zoom-pad {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pgm-zoom-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  padding: 0;
+  color: var(--text-2);
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.pgm-zoom-btn:hover:not(:disabled) {
+  background: var(--raised);
+}
+.pgm-zoom-btn:disabled {
+  color: var(--text-3);
+  border-color: var(--line-hi);
+  opacity: 0.55;
+  cursor: default;
+}
+.pgm-zoom-scale {
+  min-width: 48px;
+  text-align: center;
+  color: var(--text);
+  font: 600 14px/1 var(--font-mono);
+}
+.pgm-zoom-map {
+  flex: none;
+}
+.pgm-zoom-box {
+  position: relative;
+  /* Width and height come inline from the canvas (minimapSize): always its aspect. */
+  overflow: hidden;
+  background: var(--raised);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r-sm);
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+}
+.pgm-zoom-box[data-off='true'] {
+  opacity: 0.55;
+  cursor: default;
+}
+.pgm-zoom-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.pgm-zoom-view {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--tally);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+@media (max-width: 559px) {
+  .pgm-zoom {
+    flex-direction: column;
+  }
+}

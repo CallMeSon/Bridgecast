@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ProgramState } from '../../shared/program'
+import { zoomApplies, type ProgramState } from '../../shared/program'
 import { audioPlan, networkRunning, type NdiStatus, type OmtStatus } from '../../shared/omt'
 import type { AudioSettings } from '../../shared/settings'
 import { outputGain, outputSource } from './model'
@@ -13,6 +13,8 @@ import { SlideLayers, type ShownMedia, type StreamOptions } from './components/S
 import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import { useDeckVersions } from './slideshow'
+import { zoomTransform } from '../../shared/zoom'
+import { useInstantZoom } from './use-instant-zoom'
 import { capturesForGate, precaptureIds, streamFps } from './stream'
 
 const timingId = (key: number): string => `layer-${key}`
@@ -317,6 +319,9 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     : undefined
 
   const stage = program ? stageRect(program.canvas, windowSize) : null
+  // Only the HDMI picture zooms (OMT/NDI stay whole); a take or KV resets it without motion.
+  const zoomOn = role === 'hdmi' && program !== null && zoomApplies(program)
+  const zoomCut = useInstantZoom(program?.take ?? 0, zoomOn)
 
   return (
     <div
@@ -332,16 +337,24 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
           data-canvas={`${program.canvas.width}x${program.canvas.height}`}
           style={{ left: stage.left, top: stage.top, width: stage.width, height: stage.height }}
         >
-          <SlideLayers
-            media={media}
-            fade={program.transition === 'fade'}
-            muted={audio === null || audio.muted}
-            audio={out}
-            layerClass="output-layer"
-            imgAttrs={(key) => ({ elementtiming: timingId(key) })}
-            onShown={onShown}
-            stream={streamOpts}
-          />
+          <div
+            className="zoom-layer"
+            data-testid="output-zoom"
+            data-zoom={program.zoom.scale.toFixed(2)}
+            data-instant={zoomCut}
+            style={{ transform: zoomOn ? zoomTransform(program.zoom) : 'none' }}
+          >
+            <SlideLayers
+              media={media}
+              fade={program.transition === 'fade'}
+              muted={audio === null || audio.muted}
+              audio={out}
+              layerClass="output-layer"
+              imgAttrs={(key) => ({ elementtiming: timingId(key) })}
+              onShown={onShown}
+              stream={streamOpts}
+            />
+          </div>
         </div>
       )}
       <WebPrecapture deckIds={precapture} canvas={program?.canvas} onGone={pages.refresh} />
