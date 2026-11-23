@@ -1371,11 +1371,10 @@ main {
   background: var(--raised);
 }
 .kv-well.set {
-  grid-template-columns: 96px minmax(0, 1fr);
-  justify-items: stretch;
-  align-items: center;
-  gap: 12px;
-  text-align: left;
+  display: block;
+  padding: 0;
+  border-style: solid;
+  overflow: hidden;
   cursor: default;
 }
 .kv-head {
@@ -1393,15 +1392,6 @@ main {
 .kv-well > .btn {
   margin-top: 8px;
 }
-.kv-text {
-  min-width: 0;
-}
-.kv-well.set .kv-head,
-.kv-well.set .kv-sub {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .kv-thumb {
   position: relative;
   width: 96px;
@@ -1410,6 +1400,11 @@ main {
   border: 1px solid var(--line-hi);
   border-radius: var(--r-sm);
   background: var(--letterbox);
+}
+.kv-well.set .kv-thumb {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
 }
 .kv-thumb img {
   position: absolute;
@@ -1431,11 +1426,21 @@ main {
   background: var(--raised-hi);
   color: var(--text-2);
 }
+/* Over the picture: shown on hover or keyboard focus, so the KV stays full. */
 .kv-actions {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin-top: 8px;
+  background: rgb(0 0 0 / 0.55);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.kv-well.set:hover .kv-actions,
+.kv-well.set:focus-within .kv-actions {
+  opacity: 1;
 }
 .kv-actions .btn {
   white-space: nowrap;

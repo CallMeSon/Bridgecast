@@ -772,10 +772,6 @@ function KvBlock({
         <div className="kv-well set" {...drag}>
           <div className="kv-thumb" data-testid="kv-thumb" data-empty={false}>
             <img src={kvUrl} alt="Event key visual" draggable={false} />
-          </div>
-          <div className="kv-text">
-            <div className="kv-head">Key visual (KV)</div>
-            <div className="kv-sub">Shown with K</div>
             <div className="kv-actions">
               <button className="btn sm" disabled={!editable} onClick={browse}>
                 <UploadSimpleIcon size={14} />
