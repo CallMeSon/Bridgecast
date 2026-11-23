@@ -1836,7 +1836,8 @@ async function videoChecks(win, tally) {
   )
   await win.evaluate(() => window.api.setAudio({ deviceId: null, muted: false }))
   await missing.waitFor({ state: 'detached' })
-  // The output popovers close with Escape or a click outside.
+  // An open output popover swallows the shortcut keys: close it with Escape.
+  await win.keyboard.press('Escape')
   await blur()
 
   // 1c. A hidden output window is silent (I2). Unplugging the display hides the
