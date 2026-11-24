@@ -345,6 +345,19 @@ silently.
 - [ ] **Env switch:** start the installed 0.1.0 with `BRIDGECAST_NO_UPDATE_CHECK=1` and internet.
       No chip, popover or check should appear; Settings > About shows only the version.
 
+## PowerPoint on macOS (Keynote / LibreOffice)
+
+**UNVERIFIED: needs a Mac.** Import of .pptx/.ppt converts to PDF first (Keynote, else LibreOffice), then imports as a Vector PDF deck.
+
+- [ ] Keynote installed: import a .pptx. A Vector deck appears with the file name, correct slide count, sharp slides; Keynote opens the file hidden-ish, then closes it; if Keynote was not running it quits again, if it was running it stays open.
+- [ ] First import shows the macOS prompt "Bridgecast wants to control Keynote" (text from `NSAppleEventsUsageDescription`); Allow, and the import finishes.
+- [ ] Permission denied (Don't Allow, or remove it in System Settings > Privacy & Security > Automation): with LibreOffice absent the row says to allow Bridgecast to control Keynote; with LibreOffice present the import still works through it.
+- [ ] LibreOffice only (no Keynote): import a .pptx and a .ppt; a Vector deck appears. Also with LibreOffice already open on a document.
+- [ ] Neither installed: the row says to install Keynote or LibreOffice, or export to PDF.
+- [ ] The deck's playback is Vector (never Native), the deck menu has no "Edit in PowerPoint", and `original.pptx` in the deck folder is the untouched imported file next to `source.pdf`.
+- [ ] A deck with a modal Keynote dialog (missing fonts) or a 200-slide file: the import fails with a message after about 3 minutes and Keynote is not left hanging.
+- [ ] Packaged build (hardened runtime): Apple events are not silently refused (the entitlement `com.apple.security.automation.apple-events` is present).
+
 ## Selesai
 
 - [ ] Uninstall lewat Settings → Apps berjalan bersih.

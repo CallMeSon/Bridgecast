@@ -225,6 +225,9 @@ export function fileKind(name: string): FileKind {
   return 'unsupported'
 }
 
+/** macOS: PowerPoint files are converted to PDF in main (Keynote or LibreOffice) before import. */
+export const isMacOS = (): boolean => /Mac OS X|Macintosh/.test(navigator.userAgent)
+
 /** Copy for a dropped or picked item that cannot be imported (an error row). */
 export const UNSUPPORTED = {
   meta: 'Unsupported',

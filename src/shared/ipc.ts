@@ -29,6 +29,7 @@ export const Invoke = {
   decksList: 'decks:list',
   decksImport: 'decks:import',
   decksAddRendered: 'decks:addRendered',
+  decksConvertPptx: 'decks:convertPptx',
   decksReorder: 'decks:reorder',
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
@@ -193,6 +194,13 @@ export interface RenderedDeck {
   sourcePath?: string
 }
 
+/** macOS: a PowerPoint file converted to PDF in main; the renderer draws its pages (pdf.js). */
+export interface ConvertedPptx {
+  pdf: Uint8Array
+  /** Temp PDF; pass it back as `RenderedDeck.sourcePath` so main keeps the PowerPoint file as original.*. */
+  pdfPath: string
+}
+
 /** Load state of one web deck's page, broadcast as `web:status`. */
 export interface WebStatusEvent {
   deckId: string
@@ -232,6 +240,7 @@ export interface InvokeMap {
   'decks:list': { args: [eventId: string]; result: DeckMeta[] }
   'decks:import': { args: [eventId: string, files: ImportRequest[]]; result: void }
   'decks:addRendered': { args: [eventId: string, payload: RenderedDeck]; result: DeckMeta }
+  'decks:convertPptx': { args: [file: string]; result: ConvertedPptx }
   'decks:reorder': { args: [eventId: string, items: OrderItem[]]; result: void }
   'slides:reorder': { args: [deckId: string, order: number[]]; result: void }
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
@@ -425,6 +434,8 @@ export interface Api {
   listDecks(eventId: string): Promise<DeckMeta[]>
   importDecks(eventId: string, files: ImportRequest[]): Promise<void>
   addRendered(eventId: string, payload: RenderedDeck): Promise<DeckMeta>
+  /** macOS only: converts a PowerPoint file to PDF (Keynote, else LibreOffice). */
+  convertPptx(file: string): Promise<ConvertedPptx>
   reorderDecks(eventId: string, items: OrderItem[]): Promise<void>
   addSection(eventId: string, at: number | 'end'): Promise<{ event: EventMeta; sectionId: string }>
   renameSection(eventId: string, sectionId: string, name: string): Promise<EventMeta>

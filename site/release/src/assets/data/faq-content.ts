@@ -17,6 +17,6 @@ export const faqItems = [
   {
     question: 'Does it need PowerPoint?',
     answer:
-      'For PowerPoint files, yes on Windows: Bridgecast imports them through PowerPoint and can play them as a real slide show, with animations and sound. On Linux it uses LibreOffice Impress with python3-uno instead. On a Mac, PowerPoint files cannot be imported yet: export them to PDF first. PDF and video decks need nothing else on any system.'
+      'For PowerPoint files, yes on Windows: Bridgecast imports them through PowerPoint and can play them as a real slide show, with animations and sound. On Linux it uses LibreOffice Impress with python3-uno instead. On a Mac, Bridgecast converts PowerPoint files to PDF with Keynote (free from the App Store) or LibreOffice when you import them, and plays them as sharp still slides without animations; macOS asks once to let Bridgecast control Keynote. PDF and video decks need nothing else on any system.'
   }
 ]

@@ -11,5 +11,8 @@
     <!-- Ad-hoc signing has no Team ID, so Electron's frameworks only load without library validation. -->
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
+    <!-- Lets Bridgecast send Apple events to Keynote (PowerPoint to PDF on import). -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
   </dict>
 </plist>

@@ -36,7 +36,7 @@ const TARGETS: Target[] = [
     ],
     notes: [
       'Not signed yet: the first time, right-click the app and choose Open.',
-      'Does not update itself. Export PowerPoint files to PDF to import them. No OMT output.'
+      'Does not update itself. PowerPoint files are converted to PDF on import with Keynote or LibreOffice (no animations). No OMT output.'
     ]
   },
   {

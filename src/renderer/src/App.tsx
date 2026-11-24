@@ -65,6 +65,7 @@ import {
   editingAfter,
   errorMessage,
   fileKind,
+  isMacOS,
   holdDeckId,
   keyToAction,
   moveItem,
@@ -554,6 +555,44 @@ function App({
     [api, upsertImport, reloadDecks]
   )
 
+  // macOS: main converts the PowerPoint file to a PDF (Keynote, else LibreOffice), then it is
+  // imported as any PDF deck; main keeps the PowerPoint file as original.*.
+  const importMacPptx = useCallback(
+    async (target: string, id: string, f: File, file: string) => {
+      const name = f.name
+      try {
+        upsertImport({ id, name, percent: 5, status: 'busy' })
+        const c = await api.convertPptx(file)
+        const r = await renderPdf(
+          c.pdf,
+          IMPORT_WIDTH,
+          (done, total) =>
+            upsertImport({
+              id,
+              name,
+              percent: 20 + Math.round((70 * done) / total),
+              status: 'busy'
+            }),
+          c.pdfPath
+        )
+        upsertImport({ id, name, percent: 95, status: 'busy' })
+        await api.addRendered(target, {
+          name: baseName(f.name),
+          source: 'pdf',
+          width: r.width,
+          height: r.height,
+          pages: r.pages,
+          sourcePath: c.pdfPath
+        })
+        upsertImport({ id, name, percent: 100, status: 'done' })
+        await reloadDecks(target)
+      } catch (e) {
+        upsertImport({ id, name, percent: 100, status: 'error', message: errorMessage(e) })
+      }
+    },
+    [api, upsertImport, reloadDecks]
+  )
+
   const importImage = useCallback(
     async (target: string, id: string, f: File) => {
       const name = f.name
@@ -642,6 +681,13 @@ function App({
           imageChain.current = imageChain.current.then(() => importImage(target, id, f))
           continue
         }
+        if (kind === 'pptx' && isMacOS()) {
+          const p = api.pathForFile(f)
+          if (p) {
+            pdfChain.current = pdfChain.current.then(() => importMacPptx(target, id, f, p))
+            continue
+          }
+        }
         // PPTX and video files go to main's import queue (path on disk required).
         queueForMain(
           f,
@@ -663,7 +709,7 @@ function App({
         })
       }
     },
-    [api, upsertImport, reportError, importPdf, importImage]
+    [api, upsertImport, reportError, importPdf, importMacPptx, importImage]
   )
 
   // Throws when main refuses: the New event dialog shows the message under its field. Decks

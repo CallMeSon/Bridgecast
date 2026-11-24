@@ -114,6 +114,7 @@ import { createElectronEngine } from './updater/electron-engine'
 import { createFakeEngine } from './updater/fake-engine'
 import { defaultPlayback, engineStates, playbackOf, type SlideshowStatus } from '../shared/playback'
 import { pdfSourceFields } from './import/pdf-source'
+import { convertPptxToPdf } from './import/mac-convert'
 import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
 import { ElectronPageBackend } from './web/electron-page-backend'
@@ -693,6 +694,27 @@ function registerIpc(
     }
   })
 
+  // macOS: PowerPoint files become a PDF in main (Keynote, else LibreOffice); the renderer draws
+  // the pages. The temp PDF is remembered here with the PowerPoint file it came from, so
+  // addRendered can keep that file as original.* (a renderer path is never trusted for it).
+  const converted = new Map<string, { dir: string; original: string }>()
+  handle(Invoke.decksConvertPptx, async (file: string) => {
+    assertString(file, 'File location')
+    if (process.platform !== 'darwin' || !path.isAbsolute(file) || !PPTX_RE.test(file)) {
+      throw new Error('This file cannot be converted. Choose a PPTX or PPT file.')
+    }
+    const dir = tempDir()
+    try {
+      const pdfPath = await convertPptxToPdf(file, dir)
+      const pdf = new Uint8Array(await fs.promises.readFile(pdfPath))
+      converted.set(pdfPath, { dir, original: file })
+      return { pdf, pdfPath }
+    } catch (err) {
+      fs.rmSync(dir, { recursive: true, force: true })
+      throw err
+    }
+  })
+
   handle(Invoke.decksAddRendered, async (eventId, payload: RenderedDeck) => {
     assertString(eventId, 'Event ID')
     const source = payload?.source === 'image' ? 'image' : payload?.source === 'pdf' ? 'pdf' : null
@@ -706,6 +728,8 @@ function registerIpc(
     if (!payload.pages.every((p) => p instanceof Uint8Array)) {
       throw new Error(`The ${what} render result is not valid. Try importing the ${what} again.`)
     }
+    const conv =
+      source === 'pdf' && payload.sourcePath ? converted.get(payload.sourcePath) : undefined
     const out = tempDir()
     try {
       // Async writes keep the main process responsive.
@@ -722,12 +746,17 @@ function registerIpc(
         width: Number(payload.width),
         height: Number(payload.height),
         slides,
-        ...(source === 'pdf' ? pdfSourceFields(payload.sourcePath) : {})
+        ...(source === 'pdf' ? pdfSourceFields(payload.sourcePath) : {}),
+        ...(conv ? { originalPath: conv.original } : {})
       })
       state.refresh()
       return deck
     } finally {
       fs.rmSync(out, { recursive: true, force: true })
+      if (conv) {
+        converted.delete(payload.sourcePath as string)
+        fs.rmSync(conv.dir, { recursive: true, force: true })
+      }
     }
   })
 

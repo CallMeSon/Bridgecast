@@ -4,6 +4,10 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Added
+
+- macOS: PowerPoint files (.pptx, .ppt) can be imported. Bridgecast converts them to PDF with Keynote (free from the App Store) or, when Keynote is missing or fails, LibreOffice, then imports the PDF as a Vector deck. There are no animations or native slide show on a Mac, and the converted deck keeps the PowerPoint file as its original. The first import asks for permission to control Keynote (System Settings > Privacy & Security > Automation). Not verified on a real Mac yet.
+
 ## [0.1.14] - 2026-11-24
 
 ### Changed
