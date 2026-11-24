@@ -1,0 +1,41 @@
+# Builds the unsigned macOS disks (Intel and Apple silicon) and attaches them to the GitHub
+# release. Runs when a release is published, or by hand for an existing tag.
+# macOS builds do not self-update and are not notarized: Gatekeeper blocks the first open.
+name: macOS build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach to (for example v0.1.14)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Package
+        run: npx electron-builder --mac dmg --x64 --arm64 --publish never
+        env:
+          # No Apple certificate: ad-hoc signature only.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Attach to the release
+        run: gh release upload "$TAG" dist/*.dmg --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
