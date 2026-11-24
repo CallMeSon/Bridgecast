@@ -4,6 +4,13 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-11-24
+
+### Changed
+
+- Output and Network settings moved into the header. HDMI, OMT, NDI, Sound and Canvas are now chips at the top of the window; each opens a popover with its settings. Frame rate and "Send content only" are shared by OMT and NDI and shown in both popovers. The Output tab of the right panel is gone (Controls and Info remain).
+- An uploaded KV keeps its full width in the library, and its Replace and Remove buttons appear on hover.
+
 ## [0.1.13] - 2026-11-20
 
 ### Added
