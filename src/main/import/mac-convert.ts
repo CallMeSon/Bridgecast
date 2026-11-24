@@ -25,7 +25,7 @@ export const KEYNOTE_SCRIPT = `on run argv
   tell application "Keynote"
     set theDoc to open inFile
     try
-      export theDoc to outFile as PDF with properties {image quality:Best}
+      export theDoc to outFile as PDF
     on error errMsg number errNum
       close theDoc saving no
       if not wasRunning then quit
