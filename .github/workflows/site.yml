@@ -1,0 +1,63 @@
+# Builds the release site (site/release) from GitHub Releases and deploys it to GitHub Pages.
+# It rebuilds when the site changes, when a release is published, after the macOS build has
+# attached its disks, and once a day (a Linux or Windows upload to an existing release fires
+# no event of its own).
+name: Release site
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/release/**', '.github/workflows/site.yml']
+  release:
+    types: [published]
+  workflow_run:
+    workflows: ['macOS build']
+    types: [completed]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site/release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/release/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BASEPATH: /Bridgecast
+          NEXT_PUBLIC_APP_URL: https://callmeson.github.io/Bridgecast
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/release/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
