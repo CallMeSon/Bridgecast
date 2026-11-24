@@ -11,6 +11,9 @@ on:
       tag:
         description: Release tag to build and attach to (for example v0.1.14)
         required: true
+      ref:
+        description: Commit or branch to build from (defaults to the tag)
+        required: false
 
 permissions:
   contents: write
@@ -23,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ inputs.ref || env.TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -31,10 +34,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Package
+        # Ad-hoc signed (mac.identity '-' in electron-builder.yml): no Apple certificate yet.
         run: npx electron-builder --mac dmg --x64 --arm64 --publish never
-        env:
-          # No Apple certificate: ad-hoc signature only.
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify the signature
+        run: |
+          for app in dist/mac*/Bridgecast.app; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+            codesign -dv "$app" 2>&1 | grep -E 'Signature|flags'
+          done
       - name: Attach to the release
         run: gh release upload "$TAG" dist/*.dmg --clobber
         env:

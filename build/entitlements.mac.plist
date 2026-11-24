@@ -8,5 +8,8 @@
     <true/>
     <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
+    <!-- Ad-hoc signing has no Team ID, so Electron's frameworks only load without library validation. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
   </dict>
 </plist>
