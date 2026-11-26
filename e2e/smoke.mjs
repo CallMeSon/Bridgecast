@@ -1431,20 +1431,45 @@ async function simulatedHdmiChecks(win, real) {
       }
       throw new Error(`ASSERT: ${what} (last ${JSON.stringify(z)})`)
     }
-    const zoomBtn = (name) => win.getByRole('button', { name, exact: true })
-    await zoomBtn('Zoom in').click()
-    await zoomBtn('Zoom in').click()
+    // Pointer zoom on the monitor: Ctrl+wheel zooms about the pointer, a drag pans.
+    check(
+      (await win.locator('.pgm-zoom button[aria-label^="Pan"], .pgm-zoom-box').count()) === 0,
+      'no pan arrows and no minimap in the zoom controls'
+    )
+    const screenBox = await win.locator('.pgm-stack .screen').boundingBox()
+    const mx = screenBox.x + screenBox.width * 0.5
+    const my = screenBox.y + screenBox.height * 0.5
+    await win.mouse.move(mx, my)
+    await win.keyboard.down('Control')
+    await win.mouse.wheel(0, -50)
+    await win.mouse.wheel(0, -50)
+    await win.keyboard.up('Control')
     const z1 = await waitHdmiZoom(
-      (z) => z.zoom === '1.56' && z.transform !== 'none',
-      'two Zoom in clicks give data-zoom 1.56 and a transform on the HDMI window'
+      (z) => Number(z.zoom) > 2.7 && z.transform !== 'none',
+      'Ctrl+wheel on the monitor zooms the HDMI window'
     )
     check(true, `HDMI window zoomed: ${JSON.stringify(z1)}`)
-    await zoomBtn('Pan right').click()
+    await win.waitForFunction(
+      () => document.querySelector('[data-testid=zoom-scale]')?.textContent === '2.72x'
+    )
+    await win.mouse.move(mx, my)
+    await win.mouse.down()
+    await win.mouse.move(mx - 80, my - 40, { steps: 5 })
+    await win.mouse.up()
     const z2 = await waitHdmiZoom(
       (z) => z.transform !== z1.transform,
-      'Pan right changes the HDMI transform'
+      'dragging the monitor pans the HDMI window'
     )
-    check(z2.zoom === '1.56', 'Pan right keeps the zoom at 1.56')
+    check(z2.zoom === z1.zoom, `a drag keeps the zoom at ${z1.zoom} (${JSON.stringify(z2)})`)
+    await win.mouse.dblclick(mx, my)
+    await waitHdmiZoom(
+      (z) => z.zoom === '1.00' && z.transform === 'none',
+      'double click on the monitor resets the HDMI zoom'
+    )
+    await win.keyboard.down('Control')
+    await win.mouse.wheel(0, -100)
+    await win.keyboard.up('Control')
+    await waitHdmiZoom((z) => Number(z.zoom) > 1, 'zoom again before the next take')
     await win.keyboard.press('Space')
     await win.waitForFunction(
       () => document.querySelector('[data-testid=pos]')?.textContent === '03 / 03'
@@ -2262,7 +2287,9 @@ async function videoFileChecks(win) {
   // Each new deck has exactly one slide, with a play mark in the strip.
   await win.locator(`.deck[data-deck-id="${added[0]}"]`).click()
   await win.evaluate(() => document.activeElement?.blur())
-  await win.waitForFunction(() => document.querySelector('[data-testid=pos]')?.textContent === '01 / 01')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '01 / 01'
+  )
   await win.keyboard.press('Space')
   await win.waitForFunction(
     () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE'
@@ -2278,11 +2305,22 @@ async function videoFileChecks(win) {
     return deck ? { width: deck.width, height: deck.height, slides: deck.slides.length } : null
   }, added[0])
   check(
-    !!posterSize && posterSize.width === 640 && posterSize.height === 360 && posterSize.slides === 1,
+    !!posterSize &&
+      posterSize.width === 640 &&
+      posterSize.height === 360 &&
+      posterSize.slides === 1,
     `the deck keeps the video size and one slide (${JSON.stringify(posterSize)})`
   )
 
   // A file renamed .mp4 that is not a video, and a 0-byte file, become error rows and no deck.
+  // They wait behind the two real clips in the import queue, so their rows may come later.
+  await win
+    .waitForFunction(
+      (n) => document.querySelectorAll('[data-testid=import-error], .import-error').length > n,
+      beforeErrors,
+      { timeout: 30_000 }
+    )
+    .catch(() => undefined)
   const afterBad = await decksNow()
   const errors = await errorsNow()
   check(
@@ -2308,11 +2346,17 @@ async function videoFileChecks(win) {
   })
   await back.click()
   await win.evaluate(() => document.activeElement?.blur())
-  await win.waitForFunction(() => document.querySelector('[data-testid=pos]')?.textContent === '01 / 04')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '01 / 04'
+  )
   await win.keyboard.press('Space')
-  await win.waitForFunction(() => document.querySelector('[data-testid=pos]')?.textContent === '02 / 04')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '02 / 04'
+  )
   await win.keyboard.press('Space')
-  await win.waitForFunction(() => document.querySelector('[data-testid=pos]')?.textContent === '03 / 04')
+  await win.waitForFunction(
+    () => document.querySelector('[data-testid=pos]')?.textContent === '03 / 04'
+  )
   check(
     await win.waitForFunction(
       () => document.querySelector('[data-testid=tally]')?.textContent === 'LIVE',
@@ -2613,10 +2657,7 @@ try {
   await waitOnAirSrc('slide://kv/', 'Program monitor shows the KV at STANDBY too')
   // The automatic KV is on air, but it can still be removed: the standby goes black.
   check(!(await kvRemove().isDisabled()), 'KV on air at STANDBY: Remove is enabled')
-  check(
-    (await win.getByTestId('kv-hint').count()) === 0,
-    'no hint: Remove always releases the KV'
-  )
+  check((await win.getByTestId('kv-hint').count()) === 0, 'no hint: Remove always releases the KV')
   // K at STANDBY with a KV: the output really leaves the KV (black, tally BLACK); K again brings it back.
   const tallyNow = async (t) =>
     win.waitForFunction((x) => document.querySelector('[data-testid=tally]')?.textContent === x, t)

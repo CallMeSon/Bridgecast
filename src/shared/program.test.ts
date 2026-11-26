@@ -1017,6 +1017,16 @@ describe('zoom', () => {
     })
   })
 
+  it('zoomSet sets scale and centre, clamped', () => {
+    expect(act(zoomed(), { type: 'zoomSet', scale: 9, cx: 0, cy: 1 }).zoom).toEqual({
+      scale: 4,
+      cx: 0.125,
+      cy: 0.875
+    })
+    const z = zoomed()
+    expect(act(z, { type: 'zoomSet', scale: NaN, cx: 0.5, cy: 0.5 })).toBe(z)
+  })
+
   it('refuses with the same object', () => {
     const standby = { ...initialState, zoom: z2 }
     expect(act(standby, { type: 'zoomIn' })).toBe(standby)

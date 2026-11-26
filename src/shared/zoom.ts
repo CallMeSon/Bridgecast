@@ -7,7 +7,6 @@ export interface Zoom {
 export const ZOOM_OFF: Zoom = { scale: 1, cx: 0.5, cy: 0.5 }
 export const ZOOM_MAX = 4
 export const ZOOM_STEP = 1.25
-export const PAN_STEP = 0.2
 
 export function isZoomed(z: Zoom): boolean {
   return z.scale > 1
@@ -53,25 +52,17 @@ export function viewRect(z: Zoom): { x: number; y: number; w: number; h: number 
   return { x: z.cx - w / 2, y: z.cy - w / 2, w, h: w }
 }
 
-export function pointToCentre(px: number, py: number): { cx: number; cy: number } {
-  const c = (n: number): number => Math.min(1, Math.max(0, n))
-  return { cx: c(px), cy: c(py) }
-}
-
-/** Longest side of the minimap, in CSS px. */
-export const MINIMAP_MAX = 96
-
 /**
- * The minimap box: exactly the canvas aspect, its longest side `max` (16:9 is 96 x 54,
- * 9:16 is 54 x 96), so the still, the view rectangle and the pointer fractions agree.
+ * Zoom by `factor` keeping the picture point under the pointer where it is. (px, py) is the
+ * pointer as 0..1 of the visible picture (the monitor screen). Clamped like every zoom.
  */
-export function minimapSize(
-  canvas: { width: number; height: number },
-  max = MINIMAP_MAX
-): { width: number; height: number } {
-  const { width: w, height: h } = canvas
-  if (!(w > 0) || !(h > 0)) return { width: max, height: max }
-  return w >= h ? { width: max, height: (max * h) / w } : { width: (max * w) / h, height: max }
+export function zoomAtPoint(z: Zoom, factor: number, px: number, py: number): Zoom {
+  const scale = Math.min(ZOOM_MAX, Math.max(1, z.scale * factor))
+  const r = viewRect(z)
+  const w = 1 / scale
+  const x = r.x + px * r.w
+  const y = r.y + py * r.h
+  return clampZoom({ scale, cx: x - px * w + w / 2, cy: y - py * w + w / 2 })
 }
 
 /** What decides whether a zoom change is a cut: the take, and whether the zoom is drawn. */
@@ -87,25 +78,6 @@ export interface ZoomFrame {
  */
 export function zoomInstant(prev: ZoomFrame, next: ZoomFrame): boolean {
   return prev.take !== next.take || prev.applies !== next.applies
-}
-
-const EDGE_EPS = 1e-6
-
-/** Which pan arrows are disabled: all at 1x, and the one facing a canvas edge already reached. */
-export function panDisabled(z: Zoom): {
-  left: boolean
-  right: boolean
-  up: boolean
-  down: boolean
-} {
-  if (!isZoomed(z)) return { left: true, right: true, up: true, down: true }
-  const r = viewRect(z)
-  return {
-    left: r.x <= EDGE_EPS,
-    right: r.x + r.w >= 1 - EDGE_EPS,
-    up: r.y <= EDGE_EPS,
-    down: r.y + r.h >= 1 - EDGE_EPS
-  }
 }
 
 /** Keeps only the newest value and hands it to `send` once per `schedule` tick (a frame). */

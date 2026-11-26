@@ -6,6 +6,7 @@ import type { PrepareInput } from '../../../shared/web'
 import { errorMessage, INTERACTING_TEXT, outputSource, tally } from '../model'
 import { claimKeys, useWebInteract, type WebInteractHandlers } from '../use-web-interact'
 import { zoomTransform } from '../../../shared/zoom'
+import { useMonitorZoom } from '../use-monitor-zoom'
 import { useInstantZoom } from '../use-instant-zoom'
 import { EndCard } from './Slide'
 import { StatusTag } from './StatusTag'
@@ -72,6 +73,7 @@ export function Program({
   const zoom = useRef<HTMLDivElement>(null)
   const capture = useRef<HTMLDivElement>(null)
   const monitor = useMonitorInteract(liveWeb, state.frozen, zoom, screen, capture)
+  useMonitorZoom(screen, zoomOn && !monitor.on, state.zoom, onAction)
   // The pointer over the picture rests out of the way (moving shows it again).
   const pointer = useIdlePointer()
   return (
@@ -130,6 +132,7 @@ export function Program({
             data-black={state.black}
             data-transition={state.transition}
             data-interact={String(monitor.on)}
+            data-zoomed={zoomOn && state.zoom.scale > 1}
             style={{ cursor: pointer.hidden ? 'none' : undefined }}
           >
             <div
@@ -192,13 +195,7 @@ export function Program({
           {monitor.note}
         </p>
       )}
-      <ZoomControls
-        zoom={state.zoom}
-        canvas={state.canvas}
-        disabled={!zoomOn}
-        media={media}
-        onAction={onAction}
-      />
+      <ZoomControls zoom={state.zoom} disabled={!zoomOn} onAction={onAction} />
       <div className="pgm-meta">
         <span className="mono">
           {state.canvas.width} × {state.canvas.height}

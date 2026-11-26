@@ -114,6 +114,7 @@ export type Action =
   | { type: 'zoomOut' }
   | { type: 'zoomPan'; dx: number; dy: number }
   | { type: 'zoomTo'; cx: number; cy: number }
+  | { type: 'zoomSet'; scale: number; cx: number; cy: number }
   | { type: 'zoomReset' }
   /** Media player (the media deck on air): play, pause, jump, start over, loop. */
   | { type: 'mediaPlay' }
@@ -425,7 +426,8 @@ export function reduce(
   sections: SectionMeta[] = [],
   now = Date.now()
 ): ProgramState {
-  if (typeof action.type === 'string' && action.type.startsWith('media')) return reduceMedia(state, action, now)
+  if (typeof action.type === 'string' && action.type.startsWith('media'))
+    return reduceMedia(state, action, now)
   const next = reduceCore(state, action, decks, sections)
   return next ? withMedia(state, next, decks, now) : next
 }
@@ -627,6 +629,9 @@ function reduceCore(
     case 'zoomTo':
       if (!Number.isFinite(action.cx) || !Number.isFinite(action.cy)) return state
       return withZoom(state, centreOn(state.zoom, action.cx, action.cy))
+    case 'zoomSet':
+      if (![action.scale, action.cx, action.cy].every(Number.isFinite)) return state
+      return withZoom(state, { scale: action.scale, cx: action.cx, cy: action.cy })
     case 'setTransition':
       return { ...state, transition: action.transition }
     case 'setAutoAdvance':

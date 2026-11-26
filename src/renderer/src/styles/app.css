@@ -4604,7 +4604,7 @@ button > svg,
   color: var(--text);
 }
 
-/* Zoom controls (ZoomControls.tsx): buttons left, minimap right; wraps when narrow. */
+/* Zoom controls (ZoomControls.tsx): buttons and a hint; wraps when narrow. */
 .pgm-zoom {
   flex: none;
   display: flex;
@@ -4615,8 +4615,7 @@ button > svg,
   padding: 8px var(--pad);
   color: var(--text-2);
 }
-.pgm-zoom-row,
-.pgm-zoom-pad {
+.pgm-zoom-row {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -4650,38 +4649,17 @@ button > svg,
   color: var(--text);
   font: 600 14px/1 var(--font-mono);
 }
-.pgm-zoom-map {
-  flex: none;
+.pgm-zoom-hint {
+  color: var(--text-3);
+  font-size: 12px;
 }
-.pgm-zoom-box {
-  position: relative;
-  /* Width and height come inline from the canvas (minimapSize): always its aspect. */
-  overflow: hidden;
-  background: var(--raised);
-  border: 1px solid var(--line-hi);
-  border-radius: var(--r-sm);
+/* Zoomed monitor: drag to pan. */
+.screen[data-zoomed='true'] {
+  cursor: grab;
   touch-action: none;
-  cursor: crosshair;
-  user-select: none;
 }
-.pgm-zoom-box[data-off='true'] {
-  opacity: 0.55;
-  cursor: default;
-}
-.pgm-zoom-still {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;
-}
-.pgm-zoom-view {
-  position: absolute;
-  box-sizing: border-box;
-  border: 2px solid var(--tally);
-  background: var(--accent-soft);
-  pointer-events: none;
+.screen[data-zoomed='true'][data-panning='true'] {
+  cursor: grabbing;
 }
 @media (max-width: 559px) {
   .pgm-zoom {
