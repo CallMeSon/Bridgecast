@@ -36,6 +36,7 @@ import { importPptxPowerPoint } from './import/pptx'
 import { importPptxLibreOffice, installedFonts } from './import/libreoffice'
 import {
   detectEngine,
+  macosMajorFromDarwin,
   needsX11Relaunch,
   probeLinux,
   x11CaptureEnv,
@@ -1357,6 +1358,12 @@ function registerSlideshowIpc(
       desktopCapturer.getSources({ types, thumbnailSize: { width: 0, height: 0 } })
     )
   })
+  appHandle(Invoke.slideshowCrop, (e, deckId) => {
+    assertString(deckId, 'Deck ID')
+    // Prepare windows never show a slide show; the operator and outputs do.
+    if (roleOf(e.sender) === 'prepare') throw new Error(NOT_APP_WINDOW)
+    return host.manager.crop(deckId)
+  })
   appHandle(Invoke.slideshowNote, () => slideNote)
   appHandle(Invoke.slideshowStatus, () => host.status())
 
@@ -1530,11 +1537,14 @@ function createSlideShow(
         })
       : new PowerPointEngine({
           exe: bridgeExePath({
+            platform: process.platform,
             packaged: app.isPackaged,
             resourcesPath: process.resourcesPath,
             appPath: app.getAppPath()
           }),
           dpi: () => screen.getPrimaryDisplay().scaleFactor * 96,
+          // macOS: PowerPoint opens decks from the folder it already has access to (import folder)
+          workDir: join(app.getPath('userData'), 'PowerPoint export'),
           onStartFailure: (message) => {
             helperError = message
             console.error('[slideshow]', message)
@@ -1786,7 +1796,13 @@ app.whenReady().then(async () => {
     platform: process.platform,
     sessionType,
     x11Capture: x11Capture !== null,
-    ...(process.platform === 'linux' ? await probeLinux() : { hasSoffice: false, hasPyUno: false })
+    ...(process.platform === 'linux' ? await probeLinux() : { hasSoffice: false, hasPyUno: false }),
+    ...(process.platform === 'darwin'
+      ? {
+          hasPowerPoint: fs.existsSync('/Applications/Microsoft PowerPoint.app'),
+          macosMajor: macosMajorFromDarwin(os.release())
+        }
+      : {})
   })
   let lib: Library
   try {
@@ -1855,9 +1871,7 @@ Location: ${root}`
   // Linux: web pages in the PC's Chrome (opt-in). Chosen once here; a changed setting applies
   // after a restart, so a page on air is never touched.
   const chromeDetect: ChromeDetection =
-    process.platform === 'linux'
-      ? detectLinuxChrome(process.env)
-      : { browser: null, problem: null }
+    process.platform === 'linux' ? detectLinuxChrome(process.env) : { browser: null, problem: null }
   const webChoice = pickWebBackend({
     packaged: app.isPackaged,
     resourcesPath: process.resourcesPath,
