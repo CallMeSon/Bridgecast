@@ -31,7 +31,7 @@ import { SlideSound } from './slideshow/audio-pipe'
 import { LibreOfficeEngine, loBridgePath } from './slideshow/libreoffice-engine'
 import { PulseSink } from './slideshow/pulse-sink'
 import { slideshowSourceId } from './slideshow/capture'
-import { importPptx, configureImport } from './import'
+import { importPptx, configureImport, importEngine } from './import'
 import { importPptxPowerPoint } from './import/pptx'
 import { importPptxLibreOffice, installedFonts } from './import/libreoffice'
 import {
@@ -114,7 +114,7 @@ import { UpdateManager } from './updater/manager'
 import { createElectronEngine } from './updater/electron-engine'
 import { createFakeEngine } from './updater/fake-engine'
 import { defaultPlayback, engineStates, playbackOf, type SlideshowStatus } from '../shared/playback'
-import { pdfSourceFields } from './import/pdf-source'
+import { renderedDeckFields } from './import/rendered-fields'
 import { convertPptxToPdf, macConvertDeps } from './import/mac-convert'
 import { isPageZoom, sanitizeWebUrl, webDomain, type WebCaptureWarning } from '../shared/web'
 import { WebHost } from './web/web-host'
@@ -747,14 +747,18 @@ function registerIpc(
           return { pngPath, notes: String(payload.notes?.[i] ?? '') }
         })
       )
+      // macOS with PowerPoint for Mac: a converted PowerPoint file plays native (source.pptx + source.pdf).
       const deck = lib.addDeck(eventId, {
         name: String(payload.name),
-        source,
         width: Number(payload.width),
         height: Number(payload.height),
         slides,
-        ...(source === 'pdf' ? pdfSourceFields(payload.sourcePath) : {}),
-        ...(conv ? { originalPath: conv.original } : {})
+        ...renderedDeckFields({
+          source,
+          sourcePath: payload.sourcePath,
+          original: conv?.original,
+          engine: importEngine()
+        })
       })
       state.refresh()
       return deck
