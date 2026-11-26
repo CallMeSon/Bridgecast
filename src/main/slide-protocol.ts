@@ -2,8 +2,8 @@ import * as path from 'path'
 import { KV_FILE_RE, KV_MIME } from '../shared/types'
 import { isUuid } from './uuid'
 
-/** Slide files are `001.png`, ..., videos `001.mp4`, ... and the vector source `source.pdf` (see Library). Never source.pptx or original.*. */
-const FILE_RE = /^\/(\d{3,6}\.(?:png|mp4)|source\.pdf)$/
+/** Slide files are `001.png`, ..., videos `001.mp4` (or another MEDIA_FILE_RE type), ... and the vector source `source.pdf` (see Library). Never source.pptx or original.*. */
+const FILE_RE = /^\/(\d{3,6}\.(?:png|mp4|m4v|mov|webm|mkv|ogv)|source\.pdf)$/
 /** The only query allowed: `?v=<n>`, which renderers add to reload a web deck's rewritten snapshot. */
 const VERSION_RE = /^\?v=\d{1,12}$/
 const badSearch = (search: string): boolean => search !== '' && !VERSION_RE.test(search)

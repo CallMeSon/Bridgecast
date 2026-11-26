@@ -12,6 +12,7 @@ import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
 import { ZoomControls } from './ZoomControls'
 import { TransportBar } from './TransportBar'
+import { MediaBar } from './MediaBar'
 import { audienceNote, standbyCard } from './program-copy'
 import { useIdlePointer } from '../use-idle-pointer'
 
@@ -211,6 +212,7 @@ export function Program({
         {nextLabel && <span data-testid="next-label">{nextLabel}</span>}
         <span className="note">{audienceNote(state, t, deck?.source === 'web')}</span>
       </div>
+      {state.media && <MediaBar clock={state.media} onAction={onAction} />}
       <TransportBar
         state={state}
         deck={deck}

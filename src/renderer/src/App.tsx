@@ -53,6 +53,7 @@ import { WebPrecapture } from './components/WebPrecapture'
 import { useWebOutputs, useWebPages } from './web-pages'
 import type { StreamOptions } from './components/SlideLayers'
 import type { WebCaptureWarning } from '../../shared/web'
+import { probeVideo } from './media-probe'
 import { capturesForGate, precaptureIds, VIDEO_ONLY_FPS } from './stream'
 import {
   baseName,
@@ -616,6 +617,31 @@ function App({
     [api, upsertImport, reloadDecks]
   )
 
+  // Videos are probed and posterized here (a <video> element), then main stores the deck.
+  const importVideo = useCallback(
+    async (target: string, id: string, f: File, path: string) => {
+      const name = f.name
+      try {
+        upsertImport({ id, name, percent: 10, status: 'busy' })
+        const p = await probeVideo(f)
+        upsertImport({ id, name, percent: 60, status: 'busy' })
+        await api.addMedia(target, {
+          name: baseName(f.name),
+          path,
+          duration: p.duration,
+          width: p.width,
+          height: p.height,
+          poster: p.poster
+        })
+        upsertImport({ id, name, percent: 100, status: 'done' })
+        await reloadDecks(target)
+      } catch (e) {
+        upsertImport({ id, name, percent: 100, status: 'error', message: errorMessage(e) })
+      }
+    },
+    [api, upsertImport, reloadDecks]
+  )
+
   /**
    * One path for the "Add files" dialog and drag and drop: imports into the
    * active event. Unsupported files become error rows at once; a dropped folder
@@ -677,6 +703,22 @@ function App({
           pdfChain.current = pdfChain.current.then(() => importPdf(target, id, f))
           continue
         }
+        if (kind === 'video') {
+          const path = api.pathForFile(f)
+          if (!path) {
+            upsertImport({
+              id,
+              name: f.name,
+              percent: 100,
+              status: 'error',
+              message:
+                'Could not find the file location. Save the file to disk, then drag it in from File Explorer.'
+            })
+            continue
+          }
+          pdfChain.current = pdfChain.current.then(() => importVideo(target, id, f, path))
+          continue
+        }
         if (kind === 'image') {
           imageChain.current = imageChain.current.then(() => importImage(target, id, f))
           continue
@@ -709,7 +751,7 @@ function App({
         })
       }
     },
-    [api, upsertImport, reportError, importPdf, importMacPptx, importImage]
+    [api, upsertImport, reportError, importPdf, importMacPptx, importImage, importVideo]
   )
 
   // Throws when main refuses: the New event dialog shows the message under its field. Decks

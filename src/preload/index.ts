@@ -54,6 +54,7 @@ const api: Api = {
   importDecks: (eventId, files) => invoke(Invoke.decksImport, eventId, files),
   addRendered: (eventId, payload) => invoke(Invoke.decksAddRendered, eventId, payload),
   convertPptx: (file) => invoke(Invoke.decksConvertPptx, file),
+  addMedia: (eventId, payload) => invoke(Invoke.decksAddMedia, eventId, payload),
   reorderDecks: (eventId, items) => invoke(Invoke.decksReorder, eventId, items),
   addSection: (eventId, at) => invoke(Invoke.sectionsAdd, eventId, at),
   renameSection: (eventId, sectionId, name) =>

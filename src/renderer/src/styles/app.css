@@ -1875,6 +1875,21 @@ main {
   color: var(--text-3);
   cursor: not-allowed;
 }
+/* Media bar (MediaBar.tsx): the player row of a video deck, same look as the transport row. */
+.transport.mediabar {
+  height: 48px;
+  gap: 8px;
+}
+.mediabar .tpos {
+  min-width: 96px;
+}
+.mediabar .mseek {
+  flex: 1;
+  min-width: 80px;
+  accent-color: var(--accent);
+  height: var(--h-sm);
+  margin: 0;
+}
 /* Hold buttons (Freeze, KV, Black): default, hover, active, pressed, disabled. */
 .tbtn.hold {
   padding: 0 12px;
@@ -3032,7 +3047,7 @@ footer .empty {
 .prepare-page {
   position: absolute;
 }
-/* View row: Fit | 100% segmented control. */
+/* View row: preview zoom (- % +) segmented control, Fit, Interact. */
 .prepare-viewrow {
   display: flex;
   align-items: center;
@@ -3055,23 +3070,33 @@ footer .empty {
   border: 0;
   cursor: pointer;
 }
+.prepare-segicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 0;
+}
+.prepare-segpct {
+  min-width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+.prepare-segbtn:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
 .prepare-segbtn + .prepare-segbtn {
   border-left: 1px solid var(--edge);
 }
 .prepare-segbtn:hover {
   background: var(--raised);
 }
-.prepare-segbtn[aria-pressed='true'] {
-  color: var(--on-accent);
-  background: var(--accent-fill);
-}
 .prepare-segbtn:focus-visible,
-.prepare-togglebtn:focus-visible,
-.prepare-map:focus-visible {
+.prepare-togglebtn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
-/* Interact and Map toggles: pressed = filled accent plus the word On, so state is not colour alone. */
+/* Fit and Interact toggles: pressed = filled accent plus the word On, so state is not colour alone. */
 .prepare-togglebtn {
   display: inline-flex;
   align-items: center;
@@ -3130,23 +3155,6 @@ footer .empty {
 .prepare-released {
   margin-left: 12px;
   font-weight: 600;
-}
-/* Mini-map: page outline with a filled rectangle for the part in view. */
-.prepare-map {
-  position: absolute;
-  right: 20px;
-  bottom: 16px;
-  background: var(--chip);
-  border: 1px solid var(--chip-ink);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  touch-action: none;
-}
-.prepare-map-view {
-  position: absolute;
-  background: color-mix(in srgb, var(--accent) 55%, transparent);
-  border: 1px solid var(--chip-ink);
-  pointer-events: none;
 }
 .prepare-stage:focus-visible {
   outline: 2px solid var(--focus);

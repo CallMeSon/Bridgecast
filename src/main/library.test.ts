@@ -759,6 +759,43 @@ describe('Library', () => {
       expect(fs.existsSync(dir)).toBe(false)
     })
 
+    it('addMediaDeck stores 001.webm with its duration and refuses .avi', async () => {
+      const lib = new Library(root)
+      const ev = lib.createEvent('E')
+      const [poster] = makePngs(1)
+      const webm = path.join(src, 'clip.WEBM')
+      fs.writeFileSync(webm, 'webm-data')
+      const deck = await lib.addMediaDeck(ev.id, {
+        name: 'M',
+        width: 1280,
+        height: 720,
+        posterPath: poster,
+        videoPath: webm,
+        duration: 12.5
+      })
+      const dir = path.join(root, 'decks', deck.id)
+      expect(deck.source).toBe('media')
+      expect(deck.slides).toEqual([
+        { file: '001.png', notes: '', video: '001.webm', duration: 12.5 }
+      ])
+      expect(fs.readFileSync(path.join(dir, '001.webm'), 'utf8')).toBe('webm-data')
+      expect(lib.videoFilePath(deck.id, '001.webm')).toBe(path.join(dir, '001.webm'))
+      expect(lib.getDecks(ev.id).map((x) => x.id)).toEqual([deck.id])
+      const avi = path.join(src, 'clip.avi')
+      fs.writeFileSync(avi, 'x')
+      await expect(
+        lib.addMediaDeck(ev.id, {
+          name: 'A',
+          width: 1,
+          height: 1,
+          posterPath: poster,
+          videoPath: avi,
+          duration: 1
+        })
+      ).rejects.toThrow('not supported')
+      expect(fs.readdirSync(path.join(root, 'decks'))).toEqual([deck.id])
+    })
+
     it('videoFilePath refuses a file no slide uses', () => {
       const lib = new Library(root)
       const ev = lib.createEvent('E')

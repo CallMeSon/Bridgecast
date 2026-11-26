@@ -30,6 +30,7 @@ export const Invoke = {
   decksImport: 'decks:import',
   decksAddRendered: 'decks:addRendered',
   decksConvertPptx: 'decks:convertPptx',
+  decksAddMedia: 'decks:addMedia',
   decksReorder: 'decks:reorder',
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
@@ -211,6 +212,22 @@ export interface WebStatusEvent {
   warning?: string
 }
 
+/**
+ * A video file probed in the renderer (a <video> on a blob URL), handed to main to store as a
+ * media deck: one slide, the poster PNG and a copy of the file.
+ */
+export interface MediaImport {
+  name: string
+  /** Absolute path of the video on disk (`pathForFile`). */
+  path: string
+  /** Length in seconds (finite, > 0). */
+  duration: number
+  width: number
+  height: number
+  /** PNG of a frame near the start. */
+  poster: Uint8Array
+}
+
 export interface ImportRequest {
   id: string
   path: string
@@ -241,6 +258,7 @@ export interface InvokeMap {
   'decks:import': { args: [eventId: string, files: ImportRequest[]]; result: void }
   'decks:addRendered': { args: [eventId: string, payload: RenderedDeck]; result: DeckMeta }
   'decks:convertPptx': { args: [file: string]; result: ConvertedPptx }
+  'decks:addMedia': { args: [eventId: string, payload: MediaImport]; result: DeckMeta }
   'decks:reorder': { args: [eventId: string, items: OrderItem[]]; result: void }
   'slides:reorder': { args: [deckId: string, order: number[]]; result: void }
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
@@ -436,6 +454,7 @@ export interface Api {
   addRendered(eventId: string, payload: RenderedDeck): Promise<DeckMeta>
   /** macOS only: converts a PowerPoint file to PDF (Keynote, else LibreOffice). */
   convertPptx(file: string): Promise<ConvertedPptx>
+  addMedia(eventId: string, payload: MediaImport): Promise<DeckMeta>
   reorderDecks(eventId: string, items: OrderItem[]): Promise<void>
   addSection(eventId: string, at: number | 'end'): Promise<{ event: EventMeta; sectionId: string }>
   renameSection(eventId: string, sectionId: string, name: string): Promise<EventMeta>

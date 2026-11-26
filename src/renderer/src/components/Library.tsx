@@ -9,6 +9,7 @@ import {
   CheckIcon,
   CircleNotchIcon,
   FilePdfIcon,
+  FilmSlateIcon,
   FilePptIcon,
   GlobeIcon,
   ImageIcon,
@@ -1156,7 +1157,9 @@ export function Library(p: Props): React.JSX.Element {
                       ? `Slide ${p.live.index + 1} of ${d.slides.length}`
                       : p.frozen?.deckId === d.id
                         ? `Slide ${p.frozen.index + 1} of ${d.slides.length}`
-                        : `.${d.source}`}
+                        : d.source === 'media'
+                          ? 'Video'
+                          : `.${d.source}`}
                   {d.source !== 'web' && (
                     <span
                       className="pb"
@@ -1238,6 +1241,8 @@ export function Library(p: Props): React.JSX.Element {
                   <FilePdfIcon className="ph" size={20} />
                 ) : fileKind(x.name) === 'image' ? (
                   <ImageIcon className="ph" size={20} />
+                ) : fileKind(x.name) === 'video' ? (
+                  <FilmSlateIcon className="ph" size={20} />
                 ) : (
                   <FilePptIcon className="ph" size={20} />
                 )}
@@ -1480,7 +1485,7 @@ export function Library(p: Props): React.JSX.Element {
         ref={input}
         type="file"
         multiple
-        accept=".pptx,.ppt,.pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.avif,.mp4,.m4v,.webm,.mov,.mkv"
+        accept=".pptx,.ppt,.pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.avif,.mp4,.m4v,.webm,.mov,.mkv,.ogv"
         className="visually-hidden"
         tabIndex={-1}
         aria-hidden="true"

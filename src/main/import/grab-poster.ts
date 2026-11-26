@@ -43,12 +43,17 @@ async function grab(win: BrowserWindow, file: string): Promise<PosterGrab> {
   // A window has no document until it loads one; executeJavaScript would never settle.
   await win.loadURL('about:blank')
   const raw = await win.webContents.executeJavaScript(grabSource(file))
-  const grab = raw as { dataUrl?: string; width?: number; height?: number } | null
+  const grab = raw as {
+    dataUrl?: string
+    width?: number
+    height?: number
+    duration?: number
+  } | null
   if (!grab?.dataUrl || !grab.width || !grab.height) {
     throw new Error('This video cannot be played by Bridgecast.')
   }
   const png = Buffer.from(grab.dataUrl.slice(grab.dataUrl.indexOf(',') + 1), 'base64')
-  return { png, width: grab.width, height: grab.height }
+  return { png, width: grab.width, height: grab.height, duration: grab.duration }
 }
 
 function withTimeout<T>(work: Promise<T>): Promise<T> {
@@ -98,6 +103,6 @@ function grabSource(file: string): string {
     canvas.width = width
     canvas.height = height
     canvas.getContext('2d').drawImage(v, 0, 0, width, height)
-    return { dataUrl: canvas.toDataURL('image/png'), width, height }
+    return { dataUrl: canvas.toDataURL('image/png'), width, height, duration: v.duration }
   })()`
 }

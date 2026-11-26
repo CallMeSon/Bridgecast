@@ -153,9 +153,10 @@ describe('isInside', () => {
 })
 
 describe('video URLs', () => {
-  it('parseSlideUrl accepts NNN.mp4 and nothing else video-like', () => {
+  it('parseSlideUrl accepts NNN.<video ext> and nothing else video-like', () => {
     expect(parseSlideUrl(`slide://${ID}/003.mp4`)).toEqual({ deckId: ID, file: '003.mp4' })
-    expect(parseSlideUrl(`slide://${ID}/003.mov`)).toBeNull()
+    expect(parseSlideUrl(`slide://${ID}/003.webm`)).toEqual({ deckId: ID, file: '003.webm' })
+    expect(parseSlideUrl(`slide://${ID}/003.avi`)).toBeNull()
     // The URL parser already collapses a plain `/../`; encoded or nested forms must not match.
     expect(parseSlideUrl(`slide://${ID}/..%2F003.mp4`)).toBeNull()
     expect(parseSlideUrl(`slide://${ID}/x/003.mp4`)).toBeNull()

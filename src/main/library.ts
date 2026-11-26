@@ -25,6 +25,7 @@ import { sanitizeSections, splitOrder, type OrderItem } from '../shared/sections
 import { isPageZoom, sanitizeWebUrl } from '../shared/web'
 import type { ImportedDeck } from './import/types'
 import { thumbFileName } from './slide-protocol'
+import { MEDIA_FILE_RE } from '../shared/media'
 import { isUuid } from './uuid'
 import { writeThumbnail } from './thumbnail'
 
@@ -490,6 +491,56 @@ export class Library {
       return deck
     } catch (err) {
       ev.deckIds = ev.deckIds.filter((x) => x !== id)
+      fs.rmSync(dir, { recursive: true, force: true })
+      throw err
+    }
+  }
+
+  /**
+   * Adds a one-slide media deck: the poster (`001.png`) and the video copied next to it. The copy
+   * is async so a multi-GB file never blocks the main process.
+   */
+  async addMediaDeck(
+    eventId: string,
+    d: {
+      name: string
+      width: number
+      height: number
+      posterPath: string
+      videoPath: string
+      duration: number
+    }
+  ): Promise<DeckMeta> {
+    const ext = path.extname(d.videoPath).slice(1).toLowerCase()
+    if (!MEDIA_FILE_RE.test(d.videoPath)) {
+      throw new Error(
+        'This file type is not supported. Choose an MP4, M4V, MOV, WebM, MKV or OGV video.'
+      )
+    }
+    this.findEvent(eventId) // fail early, before copying a large file
+    const id = randomUUID()
+    const dir = this.deckDir(id)
+    fs.mkdirSync(dir, { recursive: true })
+    try {
+      const file = slideName(0)
+      const video = slideName(0, ext)
+      await fs.promises.copyFile(d.posterPath, path.join(dir, file))
+      await fs.promises.copyFile(d.videoPath, path.join(dir, video))
+      const deck: DeckMeta = {
+        id,
+        name: d.name,
+        source: 'media',
+        width: d.width,
+        height: d.height,
+        slides: [{ file, notes: '', video, duration: d.duration }]
+      }
+      this.writeDeck(deck)
+      const ev = this.findEvent(eventId) // the event may have been deleted during the copy
+      ev.deckIds.push(id)
+      this.saveEvents()
+      void this.generateThumbs(deck)
+      return deck
+    } catch (err) {
       fs.rmSync(dir, { recursive: true, force: true })
       throw err
     }

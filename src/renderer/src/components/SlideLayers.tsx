@@ -5,6 +5,7 @@ import { layerFor, type LayerSpec } from './layers'
 import type { StreamSourceKind } from '../stream'
 import { StreamLayer } from './StreamLayer'
 import { PdfLayer } from './PdfLayer'
+import { syncMedia, type MediaSyncState } from '../media-sync'
 
 /** Crossfade length for a 'fade' transition (spec: 250 ms); the CSS animations match. */
 export const FADE_MS = 250
@@ -233,6 +234,14 @@ export function SlideLayers({
     [commit, clearPending]
   )
 
+  /** What each video layer last applied of its media clock. */
+  const syncStates = useRef(new Map<number, MediaSyncState>())
+  const syncState = useCallback((key: number): MediaSyncState => {
+    let st = syncStates.current.get(key)
+    if (!st) syncStates.current.set(key, (st = { seek: null }))
+    return st
+  }, [])
+
   const reveal = useCallback(
     (key: number) => {
       const ls = current.current
@@ -249,7 +258,10 @@ export function SlideLayers({
       let covers = Promise.resolve()
       if (layer.spec?.kind === 'video' && !layer.failed && v) {
         played.current.add(layer.spec.take ?? -1)
-        v.play().catch((e: unknown) => fail(key, e))
+        const clock = layer.spec.clock
+        // A media deck's video plays on the shared clock; any other video just plays.
+        const started = clock ? syncMedia(v, clock, syncState(key)) : v.play()
+        started?.catch((e: unknown) => fail(key, e))
         // A video layer is see-through (CSS) until its first frame is on screen,
         // so the slide underneath stays visible until then, never a black frame.
         covers = framePresented(v)
@@ -269,7 +281,7 @@ export function SlideLayers({
         timers.current.add(t)
       })
     },
-    [commit, fail, clearPending]
+    [commit, fail, clearPending, syncState]
   )
 
   // A stable key for `media` (callers build a new object on every render).
@@ -289,10 +301,24 @@ export function SlideLayers({
       if (
         spec &&
         at &&
-        (at.fit !== spec.fit || at.poster !== spec.poster || at.paused !== spec.paused)
+        (at.fit !== spec.fit ||
+          at.poster !== spec.poster ||
+          at.paused !== spec.paused ||
+          JSON.stringify(at.clock) !== JSON.stringify(spec.clock))
       ) {
-        const next = { ...at, fit: spec.fit, poster: spec.poster, paused: spec.paused }
+        const next = {
+          ...at,
+          fit: spec.fit,
+          poster: spec.poster,
+          paused: spec.paused,
+          clock: spec.clock
+        }
         commit(ls.map((l, j) => (j === i ? { ...l, spec: next } : l)))
+        // The operator's play, pause, seek or loop reaches the playing video in place.
+        const v = videos.current.get(ls[i].key)
+        if (spec.clock && v && ls[i].ready && !ls[i].failed) {
+          syncMedia(v, spec.clock, syncState(ls[i].key))?.catch((e: unknown) => fail(ls[i].key, e))
+        }
       }
       return
     }
@@ -306,7 +332,7 @@ export function SlideLayers({
     ])
     // Black needs no decoding.
     if (spec === null) reveal(key)
-  }, [mediaKey, fade, reveal, commit])
+  }, [mediaKey, fade, reveal, commit, fail, syncState])
 
   /** Decodes the layer's own <img> (a preload elsewhere does not help this element). */
   const decode = (key: number) => (img: HTMLImageElement | null) => {

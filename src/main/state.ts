@@ -33,6 +33,7 @@ function same(a: ProgramState, b: ProgramState): boolean {
     a.zoom.scale === b.zoom.scale &&
     a.zoom.cx === b.zoom.cx &&
     a.zoom.cy === b.zoom.cy &&
+    a.media === b.media &&
     a.canvas.width === b.canvas.width &&
     a.canvas.height === b.canvas.height &&
     a.canvas.origin === b.canvas.origin &&

@@ -104,8 +104,10 @@ import {
   type InvokeChannel,
   type HdmiStatus,
   type InvokeMap,
-  type RenderedDeck
+  type RenderedDeck,
+  type MediaImport
 } from '../shared/ipc'
+import { MEDIA_FILE_RE, MEDIA_MIME } from '../shared/media'
 import { isOrderItem } from '../shared/sections'
 import { kvOnAir, type Action, type ProgramState } from '../shared/program'
 import { canInstallNow, UNSUPPORTED_UPDATE_STATUS, type UpdateSettings } from '../shared/update'
@@ -304,13 +306,17 @@ function tempDir(): string {
 }
 
 /**
- * Serves an MP4 with byte ranges, reading only the requested slice. Every
+ * Serves a video file with byte ranges, reading only the requested slice. Every
  * answer is a 206 of at most VIDEO_CHUNK_BYTES (also for a request without
  * Range or with an open-ended `bytes=0-`), so a large clip never sits in memory.
  */
-async function videoResponse(file: string, rangeHeader: string | null): Promise<Response> {
+async function videoResponse(
+  file: string,
+  rangeHeader: string | null,
+  contentType: string
+): Promise<Response> {
   const headers = {
-    'content-type': 'video/mp4',
+    'content-type': contentType,
     'accept-ranges': 'bytes',
     'cache-control': 'no-store',
     // The output plays video through Web Audio, which needs a CORS-clean source (silent otherwise).
@@ -346,6 +352,12 @@ async function videoResponse(file: string, rangeHeader: string | null): Promise<
   }
 }
 
+/** Content type of a stored video file by extension; null for anything that is not a video. */
+function videoMime(file: string): string | null {
+  const ext = path.extname(file).slice(1).toLowerCase()
+  return Object.prototype.hasOwnProperty.call(MEDIA_MIME, ext) ? MEDIA_MIME[ext] : null
+}
+
 function registerSlideProtocol(root: string, lib: Library): void {
   protocol.handle('slide', async (req) => {
     // Forms: slide://<deckId>/<file> (a slide), slide://<deckId>/thumbs/<n>.jpg (its thumbnail) and slide://kv/<eventId>/<file> (an event's KV).
@@ -354,15 +366,16 @@ function registerSlideProtocol(root: string, lib: Library): void {
     const parsed = kv || thumb ? null : parseSlideUrl(req.url)
     if (!kv && !thumb && !parsed) return new Response('Bad request', { status: 400 })
     try {
+      const videoType = parsed ? videoMime(parsed.file) : null
       const file = kv
         ? lib.kvFilePath(kv.eventId, kv.file)
         : thumb
           ? await lib.thumbFilePath(thumb.deckId, thumb.file)
-          : parsed!.file.endsWith('.mp4')
+          : videoType
             ? lib.videoFilePath(parsed!.deckId, parsed!.file)
             : lib.slideFilePath(parsed!.deckId, parsed!.file)
       if (!isInside(root, file)) return new Response('Forbidden', { status: 403 })
-      if (parsed?.file.endsWith('.mp4')) return await videoResponse(file, req.headers.get('range'))
+      if (videoType) return await videoResponse(file, req.headers.get('range'), videoType)
       // A thumbnail is a JPEG, or the full PNG when generation failed.
       const type = kv
         ? kvMimeType(kv.file)
@@ -523,8 +536,20 @@ function registerIpc(
         try {
           const deck = await readVideoDeck(job.path, out, grabPoster)
           progress({ id: job.id, name: job.name, percent: 90, status: 'busy' })
-          // Same source as a folder deck: playback, volume and the strip play mark are unchanged.
-          lib.addDeck(eventId, { ...deck, source: 'folder' })
+          if (deck.duration && Number.isFinite(deck.duration) && deck.duration > 0) {
+            // A media deck: the operator media bar plays it (same as a video added from the Library).
+            await lib.addMediaDeck(eventId, {
+              name: deck.name,
+              width: deck.width,
+              height: deck.height,
+              posterPath: deck.slides[0].pngPath,
+              videoPath: job.path,
+              duration: deck.duration
+            })
+          } else {
+            // Same source as a folder deck: playback, volume and the strip play mark are unchanged.
+            lib.addDeck(eventId, { ...deck, source: 'folder' })
+          }
           state.refresh()
         } finally {
           fs.rmSync(out, { recursive: true, force: true })
@@ -757,6 +782,48 @@ function registerIpc(
         converted.delete(payload.sourcePath as string)
         fs.rmSync(conv.dir, { recursive: true, force: true })
       }
+    }
+  })
+
+  handle(Invoke.decksAddMedia, async (eventId, payload: MediaImport) => {
+    assertString(eventId, 'Event ID')
+    const bad = 'The video details are not valid. Choose the video file again.'
+    if (!payload || typeof payload !== 'object') throw new Error(bad)
+    const { path: file, duration, width, height, poster } = payload
+    if (typeof file !== 'string' || !file || !path.isAbsolute(file)) throw new Error(bad)
+    if (!MEDIA_FILE_RE.test(file)) {
+      throw new Error(
+        'This file type is not supported. Choose an MP4, M4V, MOV, WebM, MKV or OGV video.'
+      )
+    }
+    if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(
+        'The video file was not found. Check that it was not moved, then choose it again.'
+      )
+    }
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error(bad)
+    if (!(Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0)) {
+      throw new Error(bad)
+    }
+    if (!(poster instanceof Uint8Array) || poster.length === 0) throw new Error(bad)
+    const name =
+      (typeof payload.name === 'string' ? payload.name.trim() : '') || path.parse(file).name
+    const out = tempDir()
+    try {
+      const posterPath = join(out, '001.png')
+      await fs.promises.writeFile(posterPath, poster)
+      const deck = await lib.addMediaDeck(eventId, {
+        name,
+        width,
+        height,
+        posterPath,
+        videoPath: file,
+        duration
+      })
+      state.refresh()
+      return deck
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true })
     }
   })
 
