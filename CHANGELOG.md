@@ -4,6 +4,16 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-11-26
+
+### Added
+
+- Media player: a video file (.mp4, .m4v, .mov, .webm, .mkv, .ogv) imports as a Video deck. While it is on air, a media bar under the Program monitor plays, pauses, restarts, seeks and loops it; HDMI, OMT and NDI show only the picture, with no controls. Black and KV hide it and it comes back where the clock is. A file this PC cannot decode is refused at import with a hint to convert it to MP4 (H.264). Windows only in this release; the Linux build follows.
+
+### Changed
+
+- Prepare window (web decks): the preview zooms and pans on the stage itself. Ctrl+wheel or pinch zooms about the pointer (25% to 400%), drag, wheel and the arrow keys pan, and the toolbar has -, the zoom level (Fit, 100%, 200%, 50%), + and Fit, with Ctrl+=, Ctrl+- and Ctrl+0. The mini-map is gone. This zoom is for the preview only and never changes the output.
+
 ## [0.1.15] - 2026-11-24
 
 ### Fixed
