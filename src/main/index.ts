@@ -37,6 +37,7 @@ import { createDisplayMediaRoute, installDisplayMediaHandler } from './slideshow
 const displayRoute = createDisplayMediaRoute()
 import { importPptx, configureImport, importEngine } from './import'
 import { importPptxPowerPoint } from './import/pptx'
+import { pptxClicks, unzipPart } from './import/pptx-clicks'
 import { importPptxLibreOffice, installedFonts } from './import/libreoffice'
 import {
   detectEngine,
@@ -752,17 +753,27 @@ function registerIpc(
         })
       )
       // macOS with PowerPoint for Mac: a converted PowerPoint file plays native (source.pptx + source.pdf).
+      const fields = renderedDeckFields({
+        source,
+        sourcePath: payload.sourcePath,
+        original: conv?.original,
+        engine: importEngine()
+      })
+      // The PDF pages carry no animation steps; a native deck reads them from the PowerPoint file
+      // (without them Bridgecast takes PowerPoint's animations for an overshoot).
+      const counts =
+        fields.playback === 'native' && conv && /\.pptx$/i.test(conv.original)
+          ? await pptxClicks(conv.original, unzipPart)
+          : null
       const deck = lib.addDeck(eventId, {
         name: String(payload.name),
         width: Number(payload.width),
         height: Number(payload.height),
-        slides,
-        ...renderedDeckFields({
-          source,
-          sourcePath: payload.sourcePath,
-          original: conv?.original,
-          engine: importEngine()
-        })
+        slides:
+          counts && counts.length === slides.length
+            ? slides.map((s, i) => ({ ...s, clicks: counts[i] }))
+            : slides,
+        ...fields
       })
       state.refresh()
       return deck
