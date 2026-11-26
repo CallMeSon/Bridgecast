@@ -74,15 +74,15 @@ final class SoundTap: NSObject, SCStreamOutput, SCStreamDelegate {
     stream = nil
     lock.lock()
     if clientFd >= 0 {
-      close(clientFd)
+      Darwin.close(clientFd)
       clientFd = -1
     }
     if serverFd >= 0 {
-      close(serverFd)
+      Darwin.close(serverFd)
       serverFd = -1
     }
     lock.unlock()
-    unlink(socketPath)
+    Darwin.unlink(socketPath)
   }
 
   /// Handles audio sample buffers; screen buffers are ignored.
@@ -113,14 +113,14 @@ final class SoundTap: NSObject, SCStreamOutput, SCStreamDelegate {
 
   /// Opens the Unix domain socket server, removing any stale socket file.
   private func openServer() throws {
-    unlink(socketPath)
-    let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+    Darwin.unlink(socketPath)
+    let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { throw Self.error(2) }
     var addr = sockaddr_un()
     addr.sun_family = sa_family_t(AF_UNIX)
     let pathBytes = Array(socketPath.utf8)
     guard pathBytes.count < MemoryLayout.size(ofValue: addr.sun_path) else {
-      close(fd)
+      Darwin.close(fd)
       throw Self.error(2)
     }
     withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
@@ -131,14 +131,14 @@ final class SoundTap: NSObject, SCStreamOutput, SCStreamDelegate {
     }
     let size = socklen_t(MemoryLayout<sockaddr_un>.size)
     let bound = withUnsafePointer(to: &addr) { ptr in
-      ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, size) }
+      ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, size) }
     }
     guard bound == 0 else {
-      close(fd)
+      Darwin.close(fd)
       throw Self.error(2)
     }
-    guard listen(fd, 1) == 0 else {
-      close(fd)
+    guard Darwin.listen(fd, 1) == 0 else {
+      Darwin.close(fd)
       throw Self.error(2)
     }
     serverFd = fd
@@ -148,12 +148,12 @@ final class SoundTap: NSObject, SCStreamOutput, SCStreamDelegate {
   /// Accepts clients until the server socket is closed.
   private func acceptLoop() {
     while true {
-      let fd = accept(serverFd, nil, nil)
+      let fd = Darwin.accept(serverFd, nil, nil)
       if fd < 0 { return }
       var one: Int32 = 1
-      setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
+      Darwin.setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
       lock.lock()
-      if clientFd >= 0 { close(clientFd) }
+      if clientFd >= 0 { Darwin.close(clientFd) }
       clientFd = fd
       lock.unlock()
     }
@@ -175,7 +175,7 @@ final class SoundTap: NSObject, SCStreamOutput, SCStreamDelegate {
       return true
     }
     if !ok {
-      close(clientFd)
+      Darwin.close(clientFd)
       clientFd = -1
     }
   }
