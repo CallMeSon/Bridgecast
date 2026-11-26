@@ -4,6 +4,10 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Fixed
+
+- After "Skip this version", Settings > About > "Check for updates" said "You're up to date." while a newer version existed. A manual check now brings the skipped version back and downloads it again; only the automatic checks keep honoring the skip.
+
 ## [0.1.16] - 2026-11-26
 
 ### Added

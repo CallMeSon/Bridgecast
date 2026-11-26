@@ -969,7 +969,7 @@ function registerIpc(
   })
   appHandle(Invoke.updateCheck, async (e) => {
     operatorOnly(e)
-    await updateManager?.check()
+    await updateManager?.check({ manual: true })
     return updateManager?.status ?? noopStatus
   })
   appHandle(Invoke.updateDownload, async (e) => {
