@@ -3,22 +3,26 @@ import {
   centred,
   clampPan,
   layout,
-  miniMap,
+  cycleZoom,
+  effectiveZoom,
+  MAX_ZOOM,
+  MIN_ZOOM,
   panBy,
-  panFromMiniMap,
+  stepZoom,
   toPage,
+  zoomAt,
   type View
 } from './prepare-view'
 import { stageRect } from './stage'
 
 const canvas = { width: 1920, height: 1080 }
 const box = { width: 1084, height: 610 }
-const actual = (panX = 0, panY = 0): View => ({ mode: 'actual', panX, panY })
+const actual = (panX = 0, panY = 0): View => ({ mode: 'zoom', zoom: 1, panX, panY })
 
 describe('layout', () => {
   it('fit equals stageRect', () => {
     const b = { width: 1084, height: 700 }
-    const l = layout(canvas, b, { mode: 'fit', panX: 0, panY: 0 }, 1)
+    const l = layout(canvas, b, { mode: 'fit', zoom: 1, panX: 0, panY: 0 }, 1)
     expect(l).toMatchObject(stageRect(canvas, b))
     expect(l.width).toBe(1084)
     expect(l.height).toBeCloseTo(609.75)
@@ -28,7 +32,7 @@ describe('layout', () => {
 
   it('actual at dpr 1 is cropped and centred pan is (418, 235)', () => {
     const c = centred(canvas, box, 1)
-    expect(c).toEqual({ mode: 'actual', panX: 418, panY: 235 })
+    expect(c).toEqual({ mode: 'zoom', zoom: 1, panX: 418, panY: 235 })
     const l = layout(canvas, box, c, 1)
     expect(l.width).toBe(1920)
     expect(l.cropped).toBe(true)
@@ -62,7 +66,7 @@ describe('toPage', () => {
 
   it('fit centre is (0.5, 0.5)', () => {
     const b = { width: 1084, height: 700 }
-    const l = layout(canvas, b, { mode: 'fit', panX: 0, panY: 0 }, 1)
+    const l = layout(canvas, b, { mode: 'fit', zoom: 1, panX: 0, panY: 0 }, 1)
     const p = toPage(stage.left + 542, stage.top + 350, stage, l)
     expect(p!.x).toBeCloseTo(0.5)
     expect(p!.y).toBeCloseTo(0.5)
@@ -97,37 +101,74 @@ describe('toPage', () => {
   })
 })
 
-describe('miniMap', () => {
-  it('has the canvas aspect and a full rect at fit', () => {
-    const m = miniMap(canvas, box, { mode: 'fit', panX: 0, panY: 0 }, 1)
-    expect(m.width).toBe(168)
-    expect(m.height).toBeCloseTo(94.5)
-    expect(m.rect).toEqual({ x: 0, y: 0, w: 168, h: m.height })
+describe('zoom', () => {
+  const fit: View = { mode: 'fit', zoom: 1, panX: 0, panY: 0 }
+
+  it('zoomAt keeps the page point under the pointer fixed', () => {
+    const start = zoomAt(canvas, box, centred(canvas, box, 1), 1, 1, 300, 200)
+    const before = layout(canvas, box, start, 1)
+    const pageX = (300 - before.left) / before.scale
+    const pageY = (200 - before.top) / before.scale
+    const v = zoomAt(canvas, box, start, 1, 2, 300, 200)
+    const after = layout(canvas, box, v, 1)
+    expect(v.zoom).toBe(2)
+    expect((300 - after.left) / after.scale).toBeCloseTo(pageX)
+    expect((200 - after.top) / after.scale).toBeCloseTo(pageY)
   })
 
-  it('shows the visible part at actual', () => {
-    const m = miniMap(canvas, box, centred(canvas, box, 1), 1)
-    const ms = 168 / 1920
-    expect(m.rect.x).toBeCloseTo(418 * ms)
-    expect(m.rect.y).toBeCloseTo(235 * ms)
-    expect(m.rect.w).toBeCloseTo(1084 * ms)
-    expect(m.rect.h).toBeCloseTo(610 * ms)
+  it('zoomAt from Fit keeps the page point and ends in zoom mode', () => {
+    const l = layout(canvas, box, fit, 1)
+    const px = 700
+    const py = 400
+    const pageX = (px - l.left) / l.scale
+    const v = zoomAt(canvas, box, fit, 1, 1, px, py)
+    expect(v.mode).toBe('zoom')
+    const after = layout(canvas, box, v, 1)
+    expect((px - after.left) / after.scale).toBeCloseTo(pageX)
   })
 
-  it('height is at least 24', () => {
-    expect(miniMap({ width: 1920, height: 100 }, box, actual(), 1).height).toBe(24)
+  it('clamps the zoom and the pan', () => {
+    expect(zoomAt(canvas, box, fit, 1, 99, 0, 0).zoom).toBe(MAX_ZOOM)
+    expect(zoomAt(canvas, box, fit, 1, 0.01, 0, 0).zoom).toBe(MIN_ZOOM)
+    const v = zoomAt(canvas, box, fit, 1, 4, 1084, 610)
+    expect(v.panX).toBeLessThanOrEqual(1920 - 1084 / 4)
+    expect(v.panY).toBeLessThanOrEqual(1080 - 610 / 4)
   })
 
-  it('panFromMiniMap at the centre equals centred', () => {
-    const m = miniMap(canvas, box, actual(), 1)
-    const v = panFromMiniMap(canvas, box, 1, m.width / 2, m.height / 2)
-    expect(v.mode).toBe('actual')
-    expect(v.panX).toBeCloseTo(418)
-    expect(v.panY).toBeCloseTo(235)
+  it('toPage maps a drawn page pixel back at 200% and 50%', () => {
+    for (const z of [2, 0.5]) {
+      const v = zoomAt(canvas, box, fit, 1, z, 400, 300)
+      const l = layout(canvas, box, v, 1)
+      const p = toPage(
+        10 + l.left + 1000 * l.scale,
+        20 + l.top + 500 * l.scale,
+        { left: 10, top: 20 },
+        l
+      )
+      expect(p!.x).toBeCloseTo(1000 / 1920, 6)
+      expect(p!.y).toBeCloseTo(500 / 1080, 6)
+    }
   })
 
-  it('panFromMiniMap clamps at the corners', () => {
-    expect(panFromMiniMap(canvas, box, 1, 0, 0)).toEqual(actual(0, 0))
-    expect(panFromMiniMap(canvas, box, 1, 168, 94.5)).toEqual(actual(836, 470))
+  it('effectiveZoom reads the Fit scale and the zoom', () => {
+    expect(effectiveZoom(canvas, box, fit, 1)).toBeCloseTo(1084 / 1920)
+    expect(effectiveZoom(canvas, box, actual(), 1)).toBe(1)
+  })
+
+  it('stepZoom walks the stops and stops at the ends', () => {
+    expect(stepZoom(1, 1)).toBe(1.5)
+    expect(stepZoom(1, -1)).toBe(0.75)
+    expect(stepZoom(0.56, 1)).toBe(0.75)
+    expect(stepZoom(0.56, -1)).toBe(0.5)
+    expect(stepZoom(4, 1)).toBe(4)
+    expect(stepZoom(0.25, -1)).toBe(0.25)
+  })
+
+  it('cycleZoom goes Fit, 100, 200, 50, Fit', () => {
+    expect(cycleZoom(fit, 0.56)).toBe(1)
+    expect(cycleZoom(actual(), 1)).toBe(2)
+    expect(cycleZoom({ ...actual(), zoom: 2 }, 2)).toBe(0.5)
+    expect(cycleZoom({ ...actual(), zoom: 0.5 }, 0.5)).toBe('fit')
+    expect(cycleZoom({ ...actual(), zoom: 1.5 }, 1.5)).toBe(1)
   })
 })
