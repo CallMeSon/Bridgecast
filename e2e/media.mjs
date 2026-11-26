@@ -93,13 +93,10 @@ try {
       bounds: { x: b.x + b.width - 960, y: b.y + b.height - 540, width: 960, height: 540 }
     }
   ])
-  const tab = win.getByRole('tab', { name: 'Output' })
-  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
-  const pop = win.getByTestId('output-panel')
-  for (const name of ['Output', 'Network']) {
-    const head = pop.getByRole('button', { name, exact: true })
-    if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click()
-  }
+  // Output chip in the header opens the HDMI popover.
+  const pop = win.locator('[data-testid=output-popover][data-popover=hdmi]')
+  if (!(await pop.isVisible().catch(() => false))) await win.getByTestId('output-chip-hdmi').click()
+  await pop.waitFor()
   const select = pop.getByLabel('Target display')
   await select.locator(`option[value="${PROBE_ID}"]`).waitFor({ state: 'attached' })
   await select.selectOption(String(PROBE_ID))
@@ -288,8 +285,8 @@ try {
 
   await deck('clip').click()
   await media$.waitFor()
-  await win.getByTestId('controls-offair').click()
-  await win.getByTestId('controls-offair-yes').click()
+  await win.getByTestId('header-offair').click()
+  await win.getByTestId('header-offair-yes').click()
   await media$.waitFor({ state: 'detached', timeout: 5000 })
   check(true, 'Off air removes the MediaBar')
 
