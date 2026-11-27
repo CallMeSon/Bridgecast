@@ -120,21 +120,6 @@ export function parseRange(
   return { start, end }
 }
 
-/** Most bytes one video response carries; the player asks for the next range as it plays. */
-export const VIDEO_CHUNK_BYTES = 4 * 1024 * 1024
-
-/**
- * Shortens an inclusive byte range to at most `maxBytes` bytes (same start).
- * The response is then a 206 for the shortened range, which players accept for
- * open-ended requests such as `bytes=0-`.
- */
-export function capRange(
-  range: { start: number; end: number },
-  maxBytes: number
-): { start: number; end: number } {
-  return { start: range.start, end: Math.min(range.end, range.start + maxBytes - 1) }
-}
-
 /** True when `file` resolves to a location strictly inside `root`. */
 export function isInside(root: string, file: string): boolean {
   const rel = path.relative(path.resolve(root), path.resolve(file))

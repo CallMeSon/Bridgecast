@@ -28,6 +28,7 @@
     "test:e2e:update": "electron-vite build && node e2e/update.mjs",
     "test:e2e:network": "electron-vite build && node e2e/network.mjs",
     "test:e2e:media": "electron-vite build && node e2e/media.mjs",
+    "test:e2e:media-omt": "electron-vite build && node e2e/media-omt.mjs",
     "test:e2e:web": "electron-vite build && node e2e/web.mjs",
     "test:e2e:native": "electron-vite build && node e2e/native.mjs",
     "test:e2e:web-bridge": "electron-vite build && node e2e/web-bridge.mjs",

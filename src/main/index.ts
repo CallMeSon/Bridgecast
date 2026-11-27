@@ -16,6 +16,7 @@ import {
 import * as path from 'path'
 import { join } from 'path'
 import * as fs from 'fs'
+import { Readable } from 'stream'
 import * as os from 'os'
 import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
@@ -53,8 +54,6 @@ import type { DeckMeta } from '../shared/types'
 import { DeckEditor } from './slideshow/editor'
 import type { ImportedDeck } from './import'
 import {
-  VIDEO_CHUNK_BYTES,
-  capRange,
   isInside,
   kvMimeType,
   parseKvUrl,
@@ -306,9 +305,8 @@ function tempDir(): string {
 }
 
 /**
- * Serves a video file with byte ranges, reading only the requested slice. Every
- * answer is a 206 of at most VIDEO_CHUNK_BYTES (also for a request without
- * Range or with an open-ended `bytes=0-`), so a large clip never sits in memory.
+ * Serves a video file with byte ranges as a stream of the requested slice (206, also for a
+ * request without Range), so a large clip never sits in memory.
  */
 async function videoResponse(
   file: string,
@@ -333,23 +331,18 @@ async function videoResponse(
       headers: { ...headers, 'content-range': `bytes */${size}` }
     })
   }
-  const range = capRange(parsed ?? { start: 0, end: size - 1 }, VIDEO_CHUNK_BYTES)
-  const length = range.end - range.start + 1
-  const handle = await fs.promises.open(file, 'r')
-  try {
-    const buf = Buffer.alloc(length)
-    const { bytesRead } = await handle.read(buf, 0, length, range.start)
-    return new Response(buf.subarray(0, bytesRead), {
-      status: 206,
-      headers: {
-        ...headers,
-        'content-range': `bytes ${range.start}-${range.start + bytesRead - 1}/${size}`,
-        'content-length': String(bytesRead)
-      }
-    })
-  } finally {
-    await handle.close()
-  }
+  const range = parsed ?? { start: 0, end: size - 1 }
+  // Streamed, not capped: a clip whose moov atom sits at the end (no faststart) is only
+  // playable when the player gets the whole range it asked for (a capped 206 ends in error 4).
+  const body = Readable.toWeb(fs.createReadStream(file, range)) as ReadableStream
+  return new Response(body, {
+    status: 206,
+    headers: {
+      ...headers,
+      'content-range': `bytes ${range.start}-${range.end}/${size}`,
+      'content-length': String(range.end - range.start + 1)
+    }
+  })
 }
 
 /** Content type of a stored video file by extension; null for anything that is not a video. */
@@ -1916,9 +1909,7 @@ Location: ${root}`
   // Linux: web pages in the PC's Chrome (opt-in). Chosen once here; a changed setting applies
   // after a restart, so a page on air is never touched.
   const chromeDetect: ChromeDetection =
-    process.platform === 'linux'
-      ? detectLinuxChrome(process.env)
-      : { browser: null, problem: null }
+    process.platform === 'linux' ? detectLinuxChrome(process.env) : { browser: null, problem: null }
   const webChoice = pickWebBackend({
     packaged: app.isPackaged,
     resourcesPath: process.resourcesPath,
