@@ -4,6 +4,8 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-27
+
 ### Added
 
 - Program sound meter: a small bar left of the sound buttons under the Program monitor shows the live level of the Program sound (video, web and PowerPoint). It rests empty when silent and shows "Muted" (hatched, with the word) while the output is muted.
