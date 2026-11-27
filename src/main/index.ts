@@ -8,6 +8,7 @@ import {
   ipcMain,
   MessageChannelMain,
   nativeImage,
+  powerSaveBlocker,
   protocol,
   screen,
   session,
@@ -20,7 +21,7 @@ import * as fs from 'fs'
 import { Readable } from 'stream'
 import * as os from 'os'
 import { randomUUID } from 'crypto'
-import { spawn } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { Library, PPTX_RE } from './library'
@@ -64,6 +65,7 @@ import {
 } from './slide-protocol'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import { HdmiOutput, screenDisplays } from './display-output'
+import { createDesktopGuard, guardSupported, type DesktopGuard } from './desktop-guard'
 import { NetOutput } from './net-output'
 import type { ScreenDisplay } from './hdmi-plan'
 import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
@@ -1521,8 +1523,31 @@ class SettingsStore {
   }
 }
 
+/**
+ * GNOME only, and never in automated runs (they must not touch the real desktop settings). Only
+ * built once the single instance lock is held, so one copy never restores another's journal.
+ */
+function createHdmiDesktopGuard(root: string): DesktopGuard | null {
+  if (!guardSupported(process.platform, process.env)) return null
+  if (process.env['PPT_SHARE_USER_DATA'] || process.env['PPT_OUTPUT_DUMP']) return null
+  return createDesktopGuard({
+    file: join(root, 'desktop-guard.json'),
+    gsettings: (args) =>
+      execFileSync('gsettings', args, {
+        encoding: 'utf8',
+        timeout: 2000,
+        env: childEnv(process.env)
+      }).trim(),
+    blocker: {
+      start: () => powerSaveBlocker.start('prevent-display-sleep'),
+      stop: (id) => powerSaveBlocker.stop(id)
+    },
+    log: (message, err) => console.warn(`[desktop-guard] ${message}`, err)
+  })
+}
+
 /** HDMI output on a second display; its status and the display list are pushed to the UI. */
-function createHdmiOutput(settings: SettingsStore): HdmiOutput {
+function createHdmiOutput(settings: SettingsStore, guard: DesktopGuard | null): HdmiOutput {
   // PPT_OUTPUT_DUMP (dev/e2e only): HDMI window state on globalThis.__pptHdmi,
   // and __pptHdmiFakeDisplays(list | null) to simulate plugging and unplugging
   // a second display on a machine that has only one.
@@ -1531,6 +1556,7 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
     settings.get().hdmi,
     (s: HdmiStatus) => {
       broadcast(Broadcast.hdmiStatus, s)
+      guard?.setActive(s.state === 'showing')
       queueMicrotask(() => outputsMaybeChanged())
     },
     (d) => broadcast(Broadcast.displaysChanged, d),
@@ -1855,6 +1881,9 @@ app.whenReady().then(async () => {
   )
 
   const root = app.getPath('userData')
+  // First, so settings left off by a crash come back even if the rest of the start fails.
+  const desktopGuard = createHdmiDesktopGuard(root)
+  desktopGuard?.restore()
   // Which program plays PowerPoint files here: by platform only (PowerPoint, LibreOffice, none).
   const engineInfo = detectEngine({
     platform: process.platform,
@@ -1912,7 +1941,7 @@ Location: ${root}`
       console.error('[settings] auto advance could not be saved:', err)
     }
   })
-  const hdmi = createHdmiOutput(settings)
+  const hdmi = createHdmiOutput(settings, desktopGuard)
   // Presentation clicker: PageUp/PageDown and the arrows while Bridgecast is in the background.
   // They go through AppState.dispatch, the same path as the operator window's own keys (web
   // page key forwarding, engine gates and the native slide show all hang off that).
@@ -2133,6 +2162,7 @@ Location: ${root}`
     updateCheckTimer = null
     updateCheckFirstTimer = null
     hdmi.shutdown()
+    desktopGuard?.setActive(false)
     host.shutdown()
     slideShow.manager.dispose()
     slideShow.sound.dispose()

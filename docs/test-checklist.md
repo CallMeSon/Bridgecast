@@ -388,6 +388,21 @@ silently.
 - [ ] Di aplikasi lain, PageUp, PageDown, panah kiri dan kanan tidak lagi bekerja di sana selama Bridgecast jalan (itu memang disengaja). Matikan Settings > "Clicker works when Bridgecast is in the background": tombol kembali ke aplikasi lain tanpa restart.
 - [ ] Jalankan aplikasi lain yang sudah memakai tombol itu secara global: Settings menampilkan catatan yang menyebut tombol yang tidak bisa diambil, dan Bridgecast tidak error.
 
+## Penjaga desktop HDMI (Linux)
+
+**UNVERIFIED on real hardware.** GNOME only, with a real second display and an installed build or `npm run dev`. Check the setting with `gsettings get org.gnome.mutter overlay-key`.
+
+- [ ] HDMI showing: press Super, Super+A, Super+D, Super+P and push the pointer into the hot corner. None of them changes the HDMI screen, and `overlay-key` is `''`.
+- [ ] HDMI showing, leave the laptop idle past the screen blank time: the screens stay awake.
+- [ ] HDMI off: `overlay-key` is `'Super_L'` again, and Super, the hot corner and the shortcuts work as before.
+- [ ] HDMI showing, unplug the cable: `overlay-key` is `'Super_L'`. Plug it back in: the guard is on again.
+- [ ] HDMI showing, quit the app: `overlay-key` is `'Super_L'`.
+- [ ] HDMI showing, log out or shut down, then log back in. Before starting Bridgecast, note whether Super works.
+- [ ] HDMI showing, `kill -9` the app, then reopen it with HDMI off: `overlay-key` is `'Super_L'`.
+- [ ] Repeat the checks above from the AppImage.
+- [ ] Repeat the checks above from the `.deb`.
+- [ ] Note whether the three-finger swipe still opens Activities (expected: it does, a known limit).
+
 ## Selesai
 
 - [ ] Uninstall lewat Settings → Apps berjalan bersih.
