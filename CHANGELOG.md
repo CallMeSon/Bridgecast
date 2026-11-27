@@ -4,6 +4,10 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Added
+
+- Clicker works when Bridgecast is in the background: while another app has focus, PageDown and the Right arrow step Next, PageUp and the Left arrow step Previous, exactly like the same keys in the operator window (web pages get their arrow key, native slides walk their steps). The keys are claimed only while no Bridgecast window is focused, so there is never a double step. Settings > "Clicker works when Bridgecast is in the background" turns it off (on by default, applies at once). If another app already uses one of the keys, Settings names it; on Linux Wayland global keys may be refused.
+
 ## [0.2.1] - 2026-11-27
 
 ### Added

@@ -378,6 +378,16 @@ silently.
 - [ ] Mute (speaker button): the bar rests empty with a hatched track and the word "Muted"; unmute restores it. Deck volume 0 also rests the bar.
 - [ ] A saved Sound device is used by the operator too (headphones in Settings > Sound).
 
+## Clicker saat Bridgecast di latar belakang (Windows)
+
+**BELUM DIVERIFIKASI di perangkat nyata:** e2e hanya menguji pendaftaran tombol dan handler-nya, bukan clicker fisik.
+
+- [ ] Pakai clicker presentasi asli (USB receiver). Deck gambar/PDF di Program, buka aplikasi lain (mis. Notepad atau browser) sampai Bridgecast tidak fokus: tombol Next dan Prev clicker menggerakkan slide di Program, satu klik satu langkah.
+- [ ] Klik jendela Bridgecast lagi: clicker tetap satu langkah per klik (tidak dobel). Di dalam kolom teks Bridgecast (nama event), tombol panah tetap menggerakkan kursor.
+- [ ] Deck web di Program (WebView2): clicker dari aplikasi lain mengirim satu panah ke halaman web, posisi Program tidak berubah. Deck PowerPoint native: clicker menjalankan langkah animasi lalu slide berikutnya.
+- [ ] Di aplikasi lain, PageUp, PageDown, panah kiri dan kanan tidak lagi bekerja di sana selama Bridgecast jalan (itu memang disengaja). Matikan Settings > "Clicker works when Bridgecast is in the background": tombol kembali ke aplikasi lain tanpa restart.
+- [ ] Jalankan aplikasi lain yang sudah memakai tombol itu secara global: Settings menampilkan catatan yang menyebut tombol yang tidak bisa diambil, dan Bridgecast tidak error.
+
 ## Selesai
 
 - [ ] Uninstall lewat Settings → Apps berjalan bersih.

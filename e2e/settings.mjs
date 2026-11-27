@@ -56,6 +56,19 @@ try {
   )
   await page.click('[data-testid=settings-reduce-motion]')
   check((await attr('reduceMotion')) !== undefined, 'reduce motion attr set')
+  // Clicker: on by default, the switch saves at once.
+  check(
+    (await page.getAttribute('[data-testid=settings-global-clicker]', 'aria-checked')) === 'true',
+    'global clicker is on by default'
+  )
+  await page.click('[data-testid=settings-global-clicker]')
+  await page.waitForFunction(async () => !(await window.api.getSettings()).globalClicker)
+  check(
+    JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).globalClicker === false,
+    'global clicker off is saved'
+  )
+  await page.click('[data-testid=settings-global-clicker]')
+  await page.waitForFunction(async () => (await window.api.getSettings()).globalClicker)
   // Sound section: route and device mirror the Sound chip popover.
   await page.waitForSelector('[data-testid=settings-audio-device]')
   check((await checked('settings-audio-route')) === LABEL[await routeNow()], 'Settings route matches the saved route')
