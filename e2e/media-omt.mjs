@@ -80,7 +80,13 @@ async function scenario(omtOn) {
     if (omtOn)
       await win.evaluate(() => window.api.setOmt({ enabled: true, name: 'Bridgecast', fps: 30 }))
     await win.evaluate(() =>
-      window.api.setAudio({ deviceId: null, muted: false, masterVolume: 100, route: 'local' })
+      window.api.setAudio({
+        deviceId: null,
+        muted: false,
+        masterVolume: 100,
+        route: 'local',
+        monitor: false
+      })
     )
     await win.setInputFiles('[data-testid=file-input]', [mp4])
     const deck = win.locator('.deck:not(.busy):not(.err)').first()
@@ -134,6 +140,61 @@ async function scenario(omtOn) {
     } else {
       check(o2 === 'no-window', 'no output window exists, so nothing plays the sound')
     }
+
+    // The operator window is the one that plays when no output does, and the meter moves with it.
+    const meter = () =>
+      win.evaluate(() => {
+        const m = document.querySelector('[data-testid=audio-meter]')
+        const v = [...document.querySelectorAll('.screen .pgm-layer video')].pop()
+        return m
+          ? {
+              local: m.dataset.local,
+              sound: m.dataset.sound,
+              state: m.dataset.state,
+              vmuted: v?.muted
+            }
+          : null
+      })
+    const waitMeter = async (want, ms = 5000) => {
+      for (let i = 0; i < ms / 100; i++) {
+        const m = await meter()
+        if (m && want(m)) return m
+        await sleep(100)
+      }
+      return meter()
+    }
+    const base = await waitMeter((m) => m.state === 'live')
+    check(base?.state === 'live', `${what}: the level meter moves with the video sound`)
+    check(base.vmuted === false, `${what}: the operator <video> is not muted at the element`)
+    if (omtOn) {
+      check(
+        base.local === 'false' && base.sound === 'off',
+        'OMT plays locally: the operator is silent'
+      )
+      await win.click('[data-testid=transport-monitor]')
+      const on = await waitMeter((m) => m.local === 'true')
+      check(on.local === 'true' && on.sound === 'monitor', 'Monitor makes the operator play too')
+      check(
+        (await win.evaluate(() => window.api.getSettings())).audio.monitor === true,
+        'Monitor is saved in the settings'
+      )
+      await win.click('[data-testid=transport-monitor]')
+      const off = await waitMeter((m) => m.local === 'false')
+      check(off.local === 'false', 'Monitor off: the operator is silent again')
+    } else {
+      check(
+        base.local === 'true' && base.sound === 'auto',
+        'no output: the operator plays the sound'
+      )
+    }
+    await win.click('[data-testid=transport-mute]')
+    const muted = await waitMeter((m) => m.state === 'muted')
+    check(muted.state === 'muted', `${what}: muted shows the muted state on the meter`)
+    check(
+      (await win.locator('[data-testid=audio-meter] .ameter-note').textContent()) === 'Muted',
+      `${what}: the muted state says Muted in words`
+    )
+    await win.click('[data-testid=transport-mute]')
   } finally {
     await app.close().catch(() => {})
     fs.rmSync(userData, { recursive: true, force: true })

@@ -4,6 +4,12 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Added
+
+- Program sound meter: a small bar left of the sound buttons under the Program monitor shows the live level of the Program sound (video, web and PowerPoint). It rests empty when silent and shows "Muted" (hatched, with the word) while the output is muted.
+- The operator window plays the Program sound itself when no output window does (HDMI off and no OMT or NDI running), on the Sound device from Settings, with deck and master volume and Mute all. As soon as an output takes over, it stops, so the sound is never doubled.
+- Monitor (headphones button next to Mute): the operator window also plays the Program sound while an output does. Off by default and saved in the settings.
+
 ## [0.2.0] - 2026-11-27
 
 ### Changed

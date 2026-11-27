@@ -1397,7 +1397,7 @@ let slideNote: string | null = null
 /**
  * slideshow:* channels. The capture id answers app windows only (never a web page), only
  * for the deck's own slide show window, and rejects otherwise (the output shows the PNG).
- * The sound port goes to the HDMI and OMT windows.
+ * The sound port goes to the HDMI, OMT and operator windows.
  */
 function registerSlideshowIpc(
   host: SlideShowHost,
@@ -1419,7 +1419,8 @@ function registerSlideshowIpc(
   ipcMain.on(Send.slideshowAudioPortRequest, (e: IpcMainEvent) => {
     if (!fromAppWindow(e)) return
     const role = roleOf(e.sender)
-    if (role !== 'hdmi' && role !== 'omt') return
+    // The operator window takes the sound too (level meter, and playing it when no output does).
+    if (role !== 'hdmi' && role !== 'omt' && role !== 'operator') return
     const { port1, port2 } = new MessageChannelMain()
     const id = e.sender.id
     host.sound.fanout.add(id, port2)

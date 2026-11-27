@@ -22,6 +22,8 @@ import { AppTour } from './components/AppTour'
 import { markTourDone, shouldOpenTour, tourDone } from './app-tour'
 import { DeckSettings } from './components/DeckSettings'
 import { useOutputSettings } from './components/useOutputSettings'
+import { useMonitorSound } from './use-monitor-sound'
+import { networkRunning } from '../../shared/omt'
 import {
   loadOpenSections,
   loadPanelTab,
@@ -350,6 +352,22 @@ function App({
       (e) => setActionError(errorMessage(e))
     )
   }, [api, outputAudio, setOutputAudio])
+  const toggleMonitor = useCallback(() => {
+    if (!outputAudio) return
+    api.patchAudio({ monitor: !outputAudio.monitor }).then(
+      (s) => {
+        setOutputAudio(s.audio)
+        setActionError(null)
+      },
+      (e) => setActionError(errorMessage(e))
+    )
+  }, [api, outputAudio, setOutputAudio])
+  const monitorSound = useMonitorSound(
+    program,
+    outputAudio,
+    output.status ? output.status.state === 'showing' : null,
+    networkRunning(output.omtStatus, output.ndiStatus)
+  )
   const goto = useCallback((index: number) => dispatch({ type: 'goto', index }), [dispatch])
 
   const finishTour = useCallback(() => {
@@ -1388,6 +1406,9 @@ function App({
             canFreeze={reduce(program, { type: 'toggleFreeze' }, decks, sections) !== program}
             muted={outputAudio?.muted ?? null}
             onToggleMute={toggleMute}
+            sound={monitorSound}
+            monitorOn={outputAudio?.monitor ?? null}
+            onToggleMonitor={toggleMonitor}
             onAction={dispatch}
             stream={monitorStream}
             emptyHint={eventId ? undefined : 'Create an event first with New in the header.'}

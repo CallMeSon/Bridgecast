@@ -16,6 +16,7 @@ import { TransportBar } from './TransportBar'
 import { MediaBar } from './MediaBar'
 import { audienceNote, standbyCard } from './program-copy'
 import { useIdlePointer } from '../use-idle-pointer'
+import type { MonitorSound } from '../use-monitor-sound'
 
 /**
  * The Program column: title row with the state tag, the monitor, one meta line and the
@@ -37,6 +38,9 @@ export function Program({
   airEventName = null,
   muted,
   onToggleMute,
+  sound,
+  monitorOn,
+  onToggleMonitor,
   onAction
 }: {
   state: ProgramState
@@ -45,7 +49,7 @@ export function Program({
   emptyHint?: string
   /** Version of the live web deck's snapshot (reloads the poster when it is rewritten). */
   posterVersion?: number
-  /** How the monitor captures a live web page (video only, 30 fps; no sound). */
+  /** How the monitor captures a live web page (30 fps; its sound feeds the meter and Monitor). */
   stream?: StreamOptions
   /** 'Slide 4 · step 2/3' for a live native slide with steps. */
   stepLabel?: string | null
@@ -59,6 +63,11 @@ export function Program({
   /** Output sound muted; null while the settings load. */
   muted: boolean | null
   onToggleMute(): void
+  /** This window's sound: the meter's source and, when no output plays, the speakers. */
+  sound: MonitorSound
+  /** Monitor setting; null while the settings load. */
+  monitorOn: boolean | null
+  onToggleMonitor(): void
   onAction(a: Action): void
 }): React.JSX.Element {
   const t = tally(state)
@@ -147,7 +156,9 @@ export function Program({
                 <SlideLayers
                   media={media}
                   fade={state.transition === 'fade'}
-                  muted
+                  // Never muted at the element: the gain stage (mute, volume, who plays) decides.
+                  muted={false}
+                  audio={sound.out}
                   layerClass="slide pgm-layer"
                   stream={stream}
                   imgAttrs={(_key, url) => ({
@@ -218,6 +229,9 @@ export function Program({
         canFreeze={canFreeze}
         muted={muted}
         onToggleMute={onToggleMute}
+        sound={sound}
+        monitor={monitorOn}
+        onToggleMonitor={onToggleMonitor}
         onAction={onAction}
       />
     </div>

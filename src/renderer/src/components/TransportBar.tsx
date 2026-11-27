@@ -3,6 +3,7 @@ import {
   CaretLeftIcon,
   CaretRightIcon,
   EyeSlashIcon,
+  HeadphonesIcon,
   ImageIcon,
   SnowflakeIcon,
   SpeakerHighIcon,
@@ -11,6 +12,8 @@ import {
 import { kvOnAir, type Action, type ProgramState } from '../../../shared/program'
 import type { DeckMeta } from '../../../shared/types'
 import { positionParts } from './transport'
+import { AudioMeter } from './AudioMeter'
+import type { MonitorSound } from '../use-monitor-sound'
 
 /** How long the Black toast stays up. */
 const TOAST_MS = 4000
@@ -28,6 +31,9 @@ export function TransportBar({
   canFreeze,
   muted,
   onToggleMute,
+  sound,
+  monitor,
+  onToggleMonitor,
   onAction
 }: {
   state: ProgramState
@@ -39,6 +45,11 @@ export function TransportBar({
   /** Output sound muted; null while the settings load (the button is disabled). */
   muted: boolean | null
   onToggleMute(): void
+  /** The operator window's sound (level meter source). */
+  sound: MonitorSound
+  /** Monitor: this window plays the sound while an output does too; null while settings load. */
+  monitor: boolean | null
+  onToggleMonitor(): void
   onAction(a: Action): void
 }): React.JSX.Element {
   const [toast, setToast] = useState(false)
@@ -119,6 +130,22 @@ export function TransportBar({
         Black <kbd>B</kbd>
       </button>
       <span className="spacer" />
+      <AudioMeter sound={sound} muted={muted === true} />
+      <button
+        className="tbtn icon sound"
+        aria-label="Monitor on this PC"
+        aria-pressed={monitor === true}
+        disabled={monitor === null}
+        title={
+          monitor
+            ? 'Monitor on: this window plays the Program sound too. Click to stop.'
+            : 'Monitor: also play the Program sound in this window (for headphones).'
+        }
+        data-testid="transport-monitor"
+        onClick={onToggleMonitor}
+      >
+        <HeadphonesIcon size={18} weight={monitor ? 'fill' : 'regular'} aria-hidden="true" />
+      </button>
       <button
         className="tbtn icon sound"
         aria-label="Mute output sound"

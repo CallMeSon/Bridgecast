@@ -358,6 +358,19 @@ silently.
 - [ ] A deck with a modal Keynote dialog (missing fonts) or a 200-slide file: the import fails with a message after about 3 minutes and Keynote is not left hanging.
 - [ ] Packaged build (hardened runtime): Apple events are not silently refused (the entitlement `com.apple.security.automation.apple-events` is present).
 
+## Program sound meter and operator Monitor (Windows)
+
+**UNVERIFIED on real hardware:** the e2e covers a video deck with the fake OMT sender only.
+
+- [ ] Video deck on air with HDMI off and no OMT/NDI: the bar left of the sound buttons moves with the sound, and the operator window plays it on the Sound device from Settings (once, never doubled).
+- [ ] Turn HDMI on (second display showing): the operator goes silent at once and the HDMI window plays the sound. The bar keeps moving.
+- [ ] HDMI on, press Monitor (headphones button): the sound plays in both the HDMI window and the operator window (use headphones); the setting survives a restart. Press it again: the operator is silent.
+- [ ] OMT or NDI only (HDMI off, route Local device): the OMT window plays, the operator is silent. Route "Network only": nobody plays on this PC, the bar still moves, and only Monitor makes the operator play.
+- [ ] Web deck (WebView2 and the Electron fallback): the bar moves with the page sound; no echo or double sound with Monitor off; the page sound is still correct on the HDMI window.
+- [ ] Native PowerPoint deck with sound (loopback pipe): the bar moves with the PowerPoint sound, with HDMI off the operator plays it in sync with the slide, Black and KV make the bar fall silent.
+- [ ] Mute (speaker button): the bar rests empty with a hatched track and the word "Muted"; unmute restores it. Deck volume 0 also rests the bar.
+- [ ] A saved Sound device is used by the operator too (headphones in Settings > Sound).
+
 ## Selesai
 
 - [ ] Uninstall lewat Settings → Apps berjalan bersih.

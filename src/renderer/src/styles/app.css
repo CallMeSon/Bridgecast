@@ -4666,3 +4666,36 @@ button > svg,
     flex-direction: column;
   }
 }
+
+/* Program sound meter (AudioMeter.tsx): a thin bar in the transport row, left of the sound buttons. */
+.ameter {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+.ameter-track {
+  display: block;
+  width: 72px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--raised-hi);
+}
+.ameter-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+/* Muted: a hatched track and the word, so it never depends on colour. */
+.ameter[data-state='muted'] .ameter-track {
+  background: repeating-linear-gradient(135deg, var(--raised-hi) 0 3px, var(--line-hi) 3px 6px);
+}
+.ameter-note {
+  font: 600 12px/1 var(--font-sans);
+  color: var(--text-2);
+}
