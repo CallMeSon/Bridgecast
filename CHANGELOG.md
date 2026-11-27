@@ -1,11 +1,18 @@
 # Changelog
 
-Versions restart at 0.x because the app is in development.
+Versions restarted at 0.x during development. 2.0.0 is the first major release after the 0.1.x series.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-27
+
+### Changed
+
+- Program monitor: the live slide zooms and pans on the monitor itself. Ctrl+wheel or pinch zooms about the pointer, drag or wheel moves, double-click resets. Zoom out, the zoom level, Zoom in and Reset stay under the monitor; the mini-map and the pan arrows are gone.
+
 ### Fixed
 
+- A video deck could show only a still image on the Program monitor and on every output, with no sound, while its media bar kept running. Large clips whose index sits at the end of the file (MP4 without "fast start") failed to load. They now play, with or without HDMI, OMT or NDI connected.
 - After "Skip this version", Settings > About > "Check for updates" said "You're up to date." while a newer version existed. A manual check now brings the skipped version back and downloads it again; only the automatic checks keep honoring the skip.
 
 ## [0.1.16] - 2026-11-26
