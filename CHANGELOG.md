@@ -1,10 +1,10 @@
 # Changelog
 
-Versions restarted at 0.x during development. 2.0.0 is the first major release after the 0.1.x series.
+Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-11-27
+## [0.2.0] - 2026-11-27
 
 ### Changed
 
