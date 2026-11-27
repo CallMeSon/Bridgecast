@@ -238,25 +238,29 @@ try {
   check(true, 'Play resumes the output')
 
   // --- Seek ---
+  // Real pointer click on the bar: the pointer x maps exactly to time (no thumb offset).
   const seek = async (to) => {
-    await win.evaluate((v) => {
-      const el = document.querySelector('[aria-label="Seek video"]')
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, String(v))
-      el.dispatchEvent(new Event('input', { bubbles: true }))
-    }, to)
-    await sleep(100)
-    // The component commits on pointerup (React listens for it at the root).
-    await win.evaluate(() =>
-      document
-        .querySelector('[aria-label="Seek video"]')
-        .dispatchEvent(new PointerEvent('pointerup', { bubbles: true }))
-    )
+    const dur = await win.evaluate(() => {
+      const m = document
+        .querySelector('[data-testid=media-time] small')
+        .textContent.match(/(\d+):(\d+)/)
+      return Number(m[1]) * 60 + Number(m[2])
+    })
+    const box = await win.locator('[data-testid=media-seek]').boundingBox()
+    await win.mouse.click(box.x + (box.width * to) / dur, box.y + box.height / 2)
   }
   await win.getByRole('button', { name: 'Pause video' }).click()
   await waitOut((s) => s.video?.paused, 'paused before seeking')
   await seek(4)
   const sk = await waitOut((s) => s.video && Math.abs(s.video.t - 4) <= 0.6, 'output seeks to 4 s')
   check(true, `Seek to 4.0 s moves the output to ${sk.video.t.toFixed(2)} s`)
+  // The thumb keeps the released spot (never snaps back), and the arrow keys step 1 s.
+  const thumb = win.locator('[aria-label="Seek video"]')
+  check(Math.abs(Number(await thumb.getAttribute('aria-valuenow')) - 4) < 0.6, 'thumb at 4 s')
+  await thumb.focus()
+  await win.keyboard.press('ArrowRight')
+  await waitOut((s) => s.video && Math.abs(s.video.t - 5) <= 0.6, 'ArrowRight seeks +1 s')
+  check(true, 'ArrowRight on the seek slider moves 1 s')
 
   // --- Restart ---
   await win.getByRole('button', { name: 'Restart video' }).click()
