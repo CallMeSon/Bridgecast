@@ -42,7 +42,8 @@ export class UpdateManager {
     this.deps.onStatus(status)
   }
 
-  async check(): Promise<void> {
+  /** A manual check (Settings > About) brings a skipped version back; scheduled checks honor the skip. */
+  async check({ manual = false }: { manual?: boolean } = {}): Promise<void> {
     if (this.current.kind === 'available') {
       this.autoDownload()
       return
@@ -69,8 +70,11 @@ export class UpdateManager {
       return
     }
     if (this.deps.getSkipped() === result.version) {
-      this.set({ kind: 'idle' })
-      return
+      if (!manual) {
+        this.set({ kind: 'idle' })
+        return
+      }
+      this.deps.setSkipped(null)
     }
     this.set({ kind: 'available', version: result.version, notes: result.notes })
     this.autoDownload()

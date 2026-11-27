@@ -87,12 +87,24 @@ export function UpdateBanner({
           </button>
         )}
         {banner.showLater && (
-          <button type="button" className="btn sm" data-testid="update-later" onClick={onLater}>
+          <button
+            type="button"
+            className="btn sm"
+            data-testid="update-later"
+            title="Hide this banner. The update stays ready and installs when you close Bridgecast with nothing on air."
+            onClick={onLater}
+          >
             Later
           </button>
         )}
         {banner.showSkip && (
-          <button type="button" className="btn sm" data-testid="update-skip" onClick={onSkip}>
+          <button
+            type="button"
+            className="btn sm"
+            data-testid="update-skip"
+            title="Never install this version. Check for updates in Settings brings it back."
+            onClick={onSkip}
+          >
             Skip this version
           </button>
         )}

@@ -128,3 +128,5 @@ acceptable for v1; mention it in the UI hint only if the user asks.
 - Whether zoom actions go through the existing action IPC or need their own channel (prefer the
   existing one).
 - Minimap thumbnail source (reuse the monitor's media; a still of the PNG is fine for streams).
+
+**Pembaruan:** minimap dan empat tombol panah dihapus. Zoom dan geser kini langsung di monitor Program: Ctrl+scroll/pinch zoom di titik pointer (`zoomAtPoint`, aksi `zoomSet`), drag atau scroll biasa menggeser, klik dua kali reset. Tombol Zoom out, Zoom in dan Reset tetap. Teks bagian minimap di atas sudah usang.

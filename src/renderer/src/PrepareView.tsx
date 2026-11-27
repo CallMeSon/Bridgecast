@@ -7,7 +7,8 @@ import {
   CursorClickIcon,
   DotsThreeVerticalIcon,
   HouseSimpleIcon,
-  MapTrifoldIcon,
+  MinusIcon,
+  PlusIcon,
   SignOutIcon,
   WarningIcon,
   XIcon
@@ -43,10 +44,21 @@ import {
   stageCursor,
   zoomLabel
 } from './prepare-ui'
-import { PrepareMiniMap } from './components/PrepareMiniMap'
 import { useIdlePointer } from './use-idle-pointer'
 import { VIDEO_ONLY_FPS } from './stream'
-import { centred, clampPan, layout, panBy, type View, type ViewMode } from './prepare-view'
+import {
+  centred,
+  clampPan,
+  clampZoom,
+  cycleZoom,
+  effectiveZoom,
+  FIT,
+  layout,
+  panBy,
+  stepZoom,
+  zoomAt,
+  type View
+} from './prepare-view'
 import { useWebInteract } from './use-web-interact'
 
 /**
@@ -55,27 +67,23 @@ import { useWebInteract } from './use-web-interact'
  */
 const PREVIEW_FPS = VIDEO_ONLY_FPS
 const VIEW_KEY = 'prepare-view'
-const MAP_KEY = 'prepare-map'
 /** How long the "keyboard released" note stays in the status line. */
 const RELEASED_MS = 4000
 /** Main refused an input while Interact was on: the page is not taking input any more. */
 const INTERACT_REFUSED =
   'Interact stopped: the page is not taking input. Turn on Interact again to continue.'
 
-function readMapShown(): boolean {
+/** Last preview zoom: 'fit', or a factor relative to 100% ('actual' is the old name for 1). */
+function readZoom(): { mode: 'fit' | 'zoom'; zoom: number } {
   try {
-    return localStorage.getItem(MAP_KEY) !== 'hidden'
+    const v = localStorage.getItem(VIEW_KEY)
+    if (v === 'actual') return { mode: 'zoom', zoom: 1 }
+    const n = Number(v)
+    if (v && Number.isFinite(n) && n > 0) return { mode: 'zoom', zoom: clampZoom(n) }
   } catch {
-    return true
+    /* no storage: start at Fit */
   }
-}
-
-function readViewMode(): ViewMode {
-  try {
-    return localStorage.getItem(VIEW_KEY) === 'actual' ? 'actual' : 'fit'
-  } catch {
-    return 'fit'
-  }
+  return { mode: 'fit', zoom: 1 }
 }
 
 /** Device pixels per CSS pixel; follows the window to a display with another scale. */
@@ -113,16 +121,16 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   const [edited, setEdited] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [box, setBox] = useState({ width: 0, height: 0 })
-  const [mode, setMode] = useState<ViewMode>(readViewMode)
+  const [zoomState, setZoomState] = useState(readZoom)
+  const { mode, zoom: previewZoom } = zoomState
   const [pan, setPan] = useState<{ x: number; y: number } | null>(null)
   const [panning, setPanning] = useState(false)
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [interact, setInteract] = useState(false)
-  const [mapShown, setMapShown] = useState(readMapShown)
-  // Hides the resting pointer over the page image.
-  const pointer = useIdlePointer()
   const [stageFocused, setStageFocused] = useState(false)
   const [released, setReleased] = useState(false)
+  // Hides the resting pointer over the page image.
+  const pointer = useIdlePointer()
   const dpr = useDpr()
 
   const wrap = useRef<HTMLDivElement>(null)
@@ -216,6 +224,7 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
 
   const banner = program ? prepareBanner(program, deckId) : null
   const live = banner === 'live'
+
   // Interact follows the deck's state (nextInteract). Going live or leaving air with it on turns
   // it off here, and main drops its switch too; a change of state is handled once.
   useEffect(() => {
@@ -232,15 +241,16 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
   }, [api, banner, deckId, interact])
   useEffect(() => () => window.clearTimeout(releasedTimer.current), [])
   const canvas = program?.canvas
-  // Fit draws the whole page in the box; 100% draws one page pixel per device pixel and pans.
-  // A pan of null means centred; it is re-clamped on every render, so a resize never strands it.
+  // Fit draws the whole page in the box; zoom draws it at previewZoom x 100% (100% = one page pixel
+  // per device pixel) and pans. A pan of null means centred; it is re-clamped on every render, so
+  // a resize never strands it. This never touches the page or the output.
   const view: View = !canvas
-    ? { mode: 'fit', panX: 0, panY: 0 }
+    ? FIT
     : mode === 'fit'
-      ? { mode: 'fit', panX: 0, panY: 0 }
+      ? FIT
       : pan
-        ? clampPan(canvas, box, { mode: 'actual', panX: pan.x, panY: pan.y }, dpr)
-        : centred(canvas, box, dpr)
+        ? clampPan(canvas, box, { mode: 'zoom', zoom: previewZoom, panX: pan.x, panY: pan.y }, dpr)
+        : centred(canvas, box, dpr, previewZoom)
   const lay = canvas
     ? layout(canvas, box, view, dpr)
     : { left: 0, top: 0, width: 0, height: 0, scale: 0, cropped: false }
@@ -250,18 +260,75 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
       : { width: box.width, height: box.height }
   const pageLeft = mode === 'fit' ? 0 : lay.left
   const pageTop = mode === 'fit' ? 0 : lay.top
-  const setView = (m: ViewMode): void => {
-    setMode(m)
-    setPan(null)
+  const shownZoom = canvas ? effectiveZoom(canvas, box, view, dpr) : 1
+  const persistZoom = (v: string): void => {
     try {
-      localStorage.setItem(VIEW_KEY, m)
+      localStorage.setItem(VIEW_KEY, v)
     } catch {
       /* private window: the choice just is not remembered */
     }
   }
+  const setFit = (): void => {
+    setZoomState({ mode: 'fit', zoom: 1 })
+    setPan(null)
+    persistZoom('fit')
+  }
+  /** Zoom about a point of the box (default its centre); the page point there stays put. */
+  const zoomTo = (z: number, px = box.width / 2, py = box.height / 2): void => {
+    if (!canvas) return
+    const v = zoomAt(canvas, box, view, dpr, z, px, py)
+    setZoomState({ mode: 'zoom', zoom: v.zoom })
+    setPan({ x: v.panX, y: v.panY })
+    persistZoom(String(Math.round(v.zoom * 1000) / 1000))
+  }
+  const stepBy = (dir: 1 | -1): void => zoomTo(stepZoom(shownZoom, dir))
+  const cycle = (): void => {
+    const next = cycleZoom(view, shownZoom)
+    if (next === 'fit') setFit()
+    else zoomTo(next)
+  }
   const panTo = (v: View): void => {
     if (canvas) setPan({ x: v.panX, y: v.panY })
   }
+  // The latest handlers for the native listeners below (they are bound once).
+  const zoomRef = useRef({ zoomTo, shownZoom, setFit, stepBy })
+  useEffect(() => {
+    zoomRef.current = { zoomTo, shownZoom, setFit, stepBy }
+  })
+
+  // Ctrl+wheel and trackpad pinch (Chromium sends it as wheel with ctrlKey) zoom the preview about
+  // the pointer. Native and not passive, so the window itself is not zoomed.
+  const stageUp = Boolean(canvas && deck && stageSize.width > 0)
+  useEffect(() => {
+    const el = stage.current
+    if (!el) return
+    const onWheel = (e: WheelEvent): void => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      const r = wrap.current?.getBoundingClientRect()
+      if (!r) return
+      const { zoomTo: to, shownZoom: now } = zoomRef.current
+      to(now * Math.exp(-e.deltaY * 0.01), e.clientX - r.left, e.clientY - r.top)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [stageUp])
+
+  // Ctrl+= / Ctrl+- / Ctrl+0 zoom the preview unless the page holds the keyboard.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+      if (interact && document.activeElement === stage.current) return
+      const z = zoomRef.current
+      if (e.key === '=' || e.key === '+') z.stepBy(1)
+      else if (e.key === '-' || e.key === '_') z.stepBy(-1)
+      else if (e.key === '0') z.setFit()
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [interact])
 
   // On air with Interact off: app shortcuts work here (a clicker presses Next). With Interact on
   // the keys belong to the page, so the shortcuts stand aside.
@@ -387,6 +454,7 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
     web.onMouse(e)
   }
   const onWheel = (e: React.WheelEvent): void => {
+    if (e.ctrlKey) return // preview zoom: the native listener handles it
     // Interact off: the wheel pans a cropped page. Otherwise it scrolls the page.
     if (!canSend) {
       if (canvas && canPan) panTo(panBy(canvas, box, view, dpr, -e.deltaX / dpr, -e.deltaY / dpr))
@@ -435,6 +503,14 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
       return
     }
     if (route === 'page') web.onKey(e)
+    // Arrow keys move a zoomed-in preview by a tenth of the stage.
+    else if (route === 'none' && canvas && canPan && e.type === 'keydown') {
+      const dx = e.key === 'ArrowLeft' ? 1 : e.key === 'ArrowRight' ? -1 : 0
+      const dy = e.key === 'ArrowUp' ? 1 : e.key === 'ArrowDown' ? -1 : 0
+      if (!dx && !dy) return
+      e.preventDefault()
+      panTo(panBy(canvas, box, view, dpr, dx * box.width * 0.1, dy * box.height * 0.1))
+    }
   }
 
   const run = (p: Promise<unknown>): void => {
@@ -711,45 +787,51 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
       )}
 
       <div className="prepare-viewrow">
-        <div className="prepare-seg" role="group" aria-label="Page view">
+        <div
+          className="prepare-seg"
+          role="group"
+          aria-label="Preview zoom"
+          title="Preview zoom (does not change the output)"
+        >
           <button
             type="button"
-            className="prepare-segbtn"
-            aria-pressed={mode === 'fit'}
-            title="Fit the whole page in the window"
-            onClick={() => setView('fit')}
+            className="prepare-segbtn prepare-segicon"
+            aria-label="Zoom out preview"
+            title="Zoom out the preview (Ctrl+-). Does not change the output."
+            disabled={shownZoom <= 0.25}
+            onClick={() => stepBy(-1)}
           >
-            Fit
+            <MinusIcon size={16} weight="bold" aria-hidden="true" />
           </button>
           <button
             type="button"
-            className="prepare-segbtn"
-            aria-pressed={mode === 'actual'}
-            title="One page pixel per screen pixel. Drag or use the mini-map to move."
-            onClick={() => setView('actual')}
+            className="prepare-segbtn prepare-segpct"
+            aria-label={`Preview zoom ${Math.round(shownZoom * 100)}%. Click to cycle 100%, 200%, 50%, Fit.`}
+            title="Preview zoom (does not change the output). Click to cycle 100%, 200%, 50%, Fit."
+            onClick={cycle}
           >
-            100%
+            {Math.round(shownZoom * 100)}%
+          </button>
+          <button
+            type="button"
+            className="prepare-segbtn prepare-segicon"
+            aria-label="Zoom in preview"
+            title="Zoom in the preview (Ctrl+=). Does not change the output."
+            disabled={shownZoom >= 4}
+            onClick={() => stepBy(1)}
+          >
+            <PlusIcon size={16} weight="bold" aria-hidden="true" />
           </button>
         </div>
-        {mode === 'actual' && lay.cropped && (
-          <button
-            type="button"
-            className="prepare-togglebtn"
-            aria-pressed={mapShown}
-            title={mapShown ? 'Hide the mini-map to reach the corner' : 'Show the mini-map'}
-            onClick={() => {
-              setMapShown(!mapShown)
-              try {
-                localStorage.setItem(MAP_KEY, mapShown ? 'hidden' : 'shown')
-              } catch {
-                /* the choice just is not remembered */
-              }
-            }}
-          >
-            <MapTrifoldIcon size={16} weight="bold" aria-hidden="true" />
-            Map
-          </button>
-        )}
+        <button
+          type="button"
+          className="prepare-togglebtn"
+          aria-pressed={mode === 'fit'}
+          title="Fit the whole page in the window (Ctrl+0). Preview only."
+          onClick={setFit}
+        >
+          Fit
+        </button>
         {zoomText && (
           <span
             className="prepare-zoomlabel"
@@ -844,15 +926,6 @@ export function PrepareView({ deckId }: { deckId: string }): React.JSX.Element {
                 />
               </div>
             </div>
-          )}
-          {canvas && mode === 'actual' && mapShown && (
-            <PrepareMiniMap
-              canvas={canvas}
-              box={box}
-              view={view}
-              dpr={dpr}
-              onPan={(v) => panTo(clampPan(canvas, box, v, dpr))}
-            />
           )}
         </div>
       </div>

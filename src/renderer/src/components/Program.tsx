@@ -6,14 +6,17 @@ import type { PrepareInput } from '../../../shared/web'
 import { errorMessage, INTERACTING_TEXT, outputSource, tally } from '../model'
 import { claimKeys, useWebInteract, type WebInteractHandlers } from '../use-web-interact'
 import { zoomTransform } from '../../../shared/zoom'
+import { useMonitorZoom } from '../use-monitor-zoom'
 import { useInstantZoom } from '../use-instant-zoom'
 import { EndCard } from './Slide'
 import { StatusTag } from './StatusTag'
 import { SlideLayers, type StreamOptions } from './SlideLayers'
 import { ZoomControls } from './ZoomControls'
 import { TransportBar } from './TransportBar'
+import { MediaBar } from './MediaBar'
 import { audienceNote, standbyCard } from './program-copy'
 import { useIdlePointer } from '../use-idle-pointer'
+import type { MonitorSound } from '../use-monitor-sound'
 
 /**
  * The Program column: title row with the state tag, the monitor, one meta line and the
@@ -35,6 +38,9 @@ export function Program({
   airEventName = null,
   muted,
   onToggleMute,
+  sound,
+  monitorOn,
+  onToggleMonitor,
   onAction
 }: {
   state: ProgramState
@@ -43,7 +49,7 @@ export function Program({
   emptyHint?: string
   /** Version of the live web deck's snapshot (reloads the poster when it is rewritten). */
   posterVersion?: number
-  /** How the monitor captures a live web page (video only, 30 fps; no sound). */
+  /** How the monitor captures a live web page (30 fps; its sound feeds the meter and Monitor). */
   stream?: StreamOptions
   /** 'Slide 4 · step 2/3' for a live native slide with steps. */
   stepLabel?: string | null
@@ -57,6 +63,11 @@ export function Program({
   /** Output sound muted; null while the settings load. */
   muted: boolean | null
   onToggleMute(): void
+  /** This window's sound: the meter's source and, when no output plays, the speakers. */
+  sound: MonitorSound
+  /** Monitor setting; null while the settings load. */
+  monitorOn: boolean | null
+  onToggleMonitor(): void
   onAction(a: Action): void
 }): React.JSX.Element {
   const t = tally(state)
@@ -71,6 +82,7 @@ export function Program({
   const zoom = useRef<HTMLDivElement>(null)
   const capture = useRef<HTMLDivElement>(null)
   const monitor = useMonitorInteract(liveWeb, state.frozen, zoom, screen, capture)
+  useMonitorZoom(screen, zoomOn && !monitor.on, state.zoom, onAction)
   // The pointer over the picture rests out of the way (moving shows it again).
   const pointer = useIdlePointer()
   return (
@@ -129,6 +141,7 @@ export function Program({
             data-black={state.black}
             data-transition={state.transition}
             data-interact={String(monitor.on)}
+            data-zoomed={zoomOn && state.zoom.scale > 1}
             style={{ cursor: pointer.hidden ? 'none' : undefined }}
           >
             <div
@@ -143,7 +156,9 @@ export function Program({
                 <SlideLayers
                   media={media}
                   fade={state.transition === 'fade'}
-                  muted
+                  // Never muted at the element: the gain stage (mute, volume, who plays) decides.
+                  muted={false}
+                  audio={sound.out}
                   layerClass="slide pgm-layer"
                   stream={stream}
                   imgAttrs={(_key, url) => ({
@@ -191,13 +206,7 @@ export function Program({
           {monitor.note}
         </p>
       )}
-      <ZoomControls
-        zoom={state.zoom}
-        canvas={state.canvas}
-        disabled={!zoomOn}
-        media={media}
-        onAction={onAction}
-      />
+      <ZoomControls zoom={state.zoom} disabled={!zoomOn} onAction={onAction} />
       <div className="pgm-meta">
         <span className="mono">
           {state.canvas.width} × {state.canvas.height}
@@ -211,6 +220,7 @@ export function Program({
         {nextLabel && <span data-testid="next-label">{nextLabel}</span>}
         <span className="note">{audienceNote(state, t, deck?.source === 'web')}</span>
       </div>
+      {state.media && <MediaBar clock={state.media} onAction={onAction} />}
       <TransportBar
         state={state}
         deck={deck}
@@ -219,6 +229,9 @@ export function Program({
         canFreeze={canFreeze}
         muted={muted}
         onToggleMute={onToggleMute}
+        sound={sound}
+        monitor={monitorOn}
+        onToggleMonitor={onToggleMonitor}
         onAction={onAction}
       />
     </div>

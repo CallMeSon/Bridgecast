@@ -1875,6 +1875,73 @@ main {
   color: var(--text-3);
   cursor: not-allowed;
 }
+/* Media bar (MediaBar.tsx): the player row of a video deck, same look as the transport row. */
+.transport.mediabar {
+  height: 48px;
+  gap: 8px;
+  /* The seek time tooltip rises above the bar. */
+  overflow: visible;
+}
+.mediabar .tpos {
+  min-width: 96px;
+}
+/* Seek slider (Radix): the pointer maps to the whole width of the bar, so a click lands where
+   the pointer is; the thumb is narrow to keep its end-stop offset small. */
+.mediabar .mseek {
+  position: relative;
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  height: var(--h-sm);
+  margin: 0;
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+.mseek[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.mseek-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  background: var(--line-hi);
+  border-radius: 2px;
+}
+.mseek-range {
+  position: absolute;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.mseek-thumb {
+  display: block;
+  width: 10px;
+  height: 18px;
+  background: var(--text);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-sm);
+  outline: none;
+}
+.mseek-thumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mseek-tip {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r-sm);
+  pointer-events: none;
+  white-space: nowrap;
+}
 /* Hold buttons (Freeze, KV, Black): default, hover, active, pressed, disabled. */
 .tbtn.hold {
   padding: 0 12px;
@@ -1969,6 +2036,14 @@ main {
 @container stage (max-width: 519px) {
   .transport {
     gap: 2px;
+    /* Two rows when the controls do not fit one; the sound group moves down, right-aligned. */
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 56px;
+    padding-block: 4px;
+  }
+  .ameter-track {
+    width: 40px;
   }
   .transport .sepv {
     margin: 0 2px;
@@ -3032,7 +3107,7 @@ footer .empty {
 .prepare-page {
   position: absolute;
 }
-/* View row: Fit | 100% segmented control. */
+/* View row: preview zoom (- % +) segmented control, Fit, Interact. */
 .prepare-viewrow {
   display: flex;
   align-items: center;
@@ -3055,23 +3130,33 @@ footer .empty {
   border: 0;
   cursor: pointer;
 }
+.prepare-segicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 0;
+}
+.prepare-segpct {
+  min-width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+.prepare-segbtn:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
 .prepare-segbtn + .prepare-segbtn {
   border-left: 1px solid var(--edge);
 }
 .prepare-segbtn:hover {
   background: var(--raised);
 }
-.prepare-segbtn[aria-pressed='true'] {
-  color: var(--on-accent);
-  background: var(--accent-fill);
-}
 .prepare-segbtn:focus-visible,
-.prepare-togglebtn:focus-visible,
-.prepare-map:focus-visible {
+.prepare-togglebtn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
-/* Interact and Map toggles: pressed = filled accent plus the word On, so state is not colour alone. */
+/* Fit and Interact toggles: pressed = filled accent plus the word On, so state is not colour alone. */
 .prepare-togglebtn {
   display: inline-flex;
   align-items: center;
@@ -3130,23 +3215,6 @@ footer .empty {
 .prepare-released {
   margin-left: 12px;
   font-weight: 600;
-}
-/* Mini-map: page outline with a filled rectangle for the part in view. */
-.prepare-map {
-  position: absolute;
-  right: 20px;
-  bottom: 16px;
-  background: var(--chip);
-  border: 1px solid var(--chip-ink);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  touch-action: none;
-}
-.prepare-map-view {
-  position: absolute;
-  background: color-mix(in srgb, var(--accent) 55%, transparent);
-  border: 1px solid var(--chip-ink);
-  pointer-events: none;
 }
 .prepare-stage:focus-visible {
   outline: 2px solid var(--focus);
@@ -4596,7 +4664,7 @@ button > svg,
   color: var(--text);
 }
 
-/* Zoom controls (ZoomControls.tsx): buttons left, minimap right; wraps when narrow. */
+/* Zoom controls (ZoomControls.tsx): buttons and a hint; wraps when narrow. */
 .pgm-zoom {
   flex: none;
   display: flex;
@@ -4642,41 +4710,53 @@ button > svg,
   color: var(--text);
   font: 600 14px/1 var(--font-mono);
 }
-.pgm-zoom-map {
-  flex: none;
+.pgm-zoom-hint {
+  color: var(--text-3);
+  font-size: 12px;
 }
-.pgm-zoom-box {
-  position: relative;
-  /* Width and height come inline from the canvas (minimapSize): always its aspect. */
-  overflow: hidden;
-  background: var(--raised);
-  border: 1px solid var(--line-hi);
-  border-radius: var(--r-sm);
+/* Zoomed monitor: drag to pan. */
+.screen[data-zoomed='true'] {
+  cursor: grab;
   touch-action: none;
-  cursor: crosshair;
-  user-select: none;
 }
-.pgm-zoom-box[data-off='true'] {
-  opacity: 0.55;
-  cursor: default;
-}
-.pgm-zoom-still {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;
-}
-.pgm-zoom-view {
-  position: absolute;
-  box-sizing: border-box;
-  border: 2px solid var(--tally);
-  background: var(--accent-soft);
-  pointer-events: none;
+.screen[data-zoomed='true'][data-panning='true'] {
+  cursor: grabbing;
 }
 @media (max-width: 559px) {
   .pgm-zoom {
     flex-direction: column;
   }
+}
+
+/* Program sound meter (AudioMeter.tsx): a thin bar in the transport row, left of the sound buttons. */
+.ameter {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+.ameter-track {
+  display: block;
+  width: 72px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--raised-hi);
+}
+.ameter-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+/* Muted: a hatched track and the word, so it never depends on colour. */
+.ameter[data-state='muted'] .ameter-track {
+  background: repeating-linear-gradient(135deg, var(--raised-hi) 0 3px, var(--line-hi) 3px 6px);
+}
+.ameter-note {
+  font: 600 12px/1 var(--font-sans);
+  color: var(--text-2);
 }

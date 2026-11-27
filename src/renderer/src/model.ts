@@ -3,11 +3,11 @@ import { playbackOf, type EngineState } from '../../shared/playback'
 import type { DeckFit } from '../../shared/canvas'
 import { kvOnAir, pendingTake, reduce, type Action, type ProgramState } from '../../shared/program'
 import { segmentsOf } from '../../shared/sections'
+import { MEDIA_FILE_RE, type MediaClock } from '../../shared/media'
 import { slideUrl, type HdmiStatus } from '../../shared/ipc'
 import { DEFAULT_AUDIO, type AudioSettings, type HdmiSettings } from '../../shared/settings'
 import { DEFAULT_DECK_AUDIO, effectiveGain, type DeckAudio } from '../../shared/audio-levels'
 import type { PrepareInput, WebCaptureWarning, WebStatus } from '../../shared/web'
-import { VIDEO_EXTENSIONS_RE } from '../../shared/video-file'
 import { IMAGE_EXTENSIONS_RE } from '../../shared/image-file'
 import { posterWithVersion, type StreamSourceKind } from './stream'
 
@@ -220,8 +220,8 @@ export type FileKind = 'pptx' | 'pdf' | 'video' | 'image' | 'unsupported'
 export function fileKind(name: string): FileKind {
   if (/\.pptx?$/i.test(name)) return 'pptx'
   if (/\.pdf$/i.test(name)) return 'pdf'
-  if (VIDEO_EXTENSIONS_RE.test(name)) return 'video'
   if (IMAGE_EXTENSIONS_RE.test(name)) return 'image'
+  if (MEDIA_FILE_RE.test(name)) return 'video'
   return 'unsupported'
 }
 
@@ -286,7 +286,15 @@ export function baseName(name: string): string {
  */
 export type OutputMedia =
   | { kind: 'image'; url: string; fit: DeckFit }
-  | { kind: 'video'; url: string; poster: string; take: number; fit: DeckFit }
+  | {
+      kind: 'video'
+      url: string
+      poster: string
+      take: number
+      fit: DeckFit
+      /** A media deck's shared clock (the operator controls it); absent = plays once. */
+      clock?: MediaClock
+    }
   /**
    * A vector deck: page `page` (1-based) of its source.pdf drawn by pdf.js. `poster` is
    * the slide's PNG, shown while the page is not drawn and when it cannot be.
@@ -359,7 +367,14 @@ export function outputSource(s: ProgramState, posterVersion = 0): OutputMedia | 
       }
     }
     return video
-      ? { kind: 'video', url: versioned(video), poster, take: s.take, fit }
+      ? {
+          kind: 'video',
+          url: versioned(video),
+          poster,
+          take: s.take,
+          fit,
+          ...(s.media ? { clock: s.media } : {})
+        }
       : { kind: 'image', url: poster, fit }
   }
   return s.kvUrl ? { kind: 'image', url: s.kvUrl, fit: 'fit' } : null

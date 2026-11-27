@@ -8,6 +8,8 @@ export interface PosterGrab {
   png: Buffer
   width: number
   height: number
+  /** Length in seconds; the media player needs it. Absent: stored as a plain video slide. */
+  duration?: number
 }
 
 /** Takes a poster frame from `file`; injected so `readVideoDeck` is testable without Electron. */
@@ -28,7 +30,7 @@ export async function readVideoDeck(
   file: string,
   outDir: string,
   grab: GrabPoster
-): Promise<FolderDeck> {
+): Promise<FolderDeck & { duration?: number }> {
   if (!VIDEO_EXTENSIONS_RE.test(file)) throw new Error(VIDEO_CANNOT_PLAY)
   let size: number
   try {
@@ -51,6 +53,7 @@ export async function readVideoDeck(
     name: path.basename(file).replace(VIDEO_EXTENSIONS_RE, ''),
     width: poster.width,
     height: poster.height,
-    slides: [{ pngPath, notes: '', videoPath: file }]
+    slides: [{ pngPath, notes: '', videoPath: file }],
+    duration: poster.duration
   }
 }

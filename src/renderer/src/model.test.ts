@@ -695,7 +695,8 @@ describe('outputGain', () => {
     deviceId: null,
     muted,
     masterVolume,
-    route: 'local'
+    route: 'local',
+    monitor: false
   })
 
   it('is deck volume times master volume', () => {

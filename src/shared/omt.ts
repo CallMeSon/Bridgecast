@@ -126,6 +126,21 @@ export function audioPlan(
   return { local: owner && route !== 'omt', tap: role === 'omt' && route !== 'local' }
 }
 
+/**
+ * Whether the operator window plays the Program sound. Automatic: no output window owns the
+ * sound (HDMI not showing, no network sender running), so the operator is the one window that
+ * plays it. Manual (`monitor`): it plays too, for headphones, even while an output does.
+ * Route 'omt' with a sender running is on purpose silent here, so only Monitor plays it then.
+ */
+export function operatorPlays(
+  hdmiShowing: boolean,
+  networkRunning: boolean,
+  monitor: boolean
+): { local: boolean; auto: boolean } {
+  const auto = !hdmiShowing && !networkRunning
+  return { local: auto || monitor, auto }
+}
+
 import { CANVAS_CHANGE_LIVE, CANVAS_LIVE_NOTICE } from './canvas'
 
 // UI copy, shared by the components and their tests.

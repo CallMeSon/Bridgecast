@@ -153,3 +153,5 @@ Behavior (UI task: load the `impeccable` skill, follow `DESIGN.md`):
 - [ ] **Step 2:** Run `npm run test:e2e` (headless: `xvfb-run -a -s '-screen 0 2560x1440x24' npm run test:e2e`). Expected: PASS.
 - [ ] **Step 3:** Add a "Zoom" block to `docs/test-checklist.md` (Indonesian): zoom in/out, panah, minimap klik dan geser, reset otomatis saat slide berikutnya, tombol nonaktif saat STANDBY, zoom di slide web dengan Interact (klik tepat sasaran), OMT/NDI tidak ikut zoom.
 - [ ] **Step 4:** Run `npm test && npm run typecheck`. Expected: PASS. Commit `test(zoom): e2e smoke and field checklist`.
+
+> Pembaruan: minimap dan panah pada Task 4 sudah diganti zoom/geser dengan pointer di monitor (lihat spec).

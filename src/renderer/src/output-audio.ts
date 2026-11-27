@@ -1,3 +1,5 @@
+import { rms } from '../../shared/audio-meter'
+
 /** AudioContext.setSinkId is not in every lib.dom version. */
 type SinkContext = AudioContext & { setSinkId?: (id: string) => Promise<void> }
 type SinkElement = HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }
@@ -71,6 +73,8 @@ export class OutputAudio {
   private pcmNode: AudioWorkletNode | null = null
   private pcmLoad: Promise<boolean> | null = null
   private pcmPort: MessagePort | null = null
+  private analyser: AnalyserNode | null = null
+  private block: Float32Array<ArrayBuffer> | null = null
 
   constructor(
     private readonly create: () => AudioContext = () =>
@@ -331,6 +335,17 @@ export class OutputAudio {
     return this.gain
   }
 
+  /**
+   * Linear level (0–1, RMS of the last 2048 samples) of the sound after the gain, whether or not
+   * it is played here. 0 when nothing is attached or Web Audio is not usable (a fallback element
+   * has no graph to read).
+   */
+  signal(): number {
+    if (!this.analyser || !this.block) return 0
+    this.analyser.getFloatTimeDomainData(this.block)
+    return rms(this.block)
+  }
+
   /** Sets the gain (0–1) of everything attached. */
   setGain(g: number): void {
     this.gain = Math.min(1, Math.max(0, g))
@@ -362,6 +377,7 @@ export class OutputAudio {
     const ctx = this.ctx
     this.ctx = null
     this.node = null
+    this.analyser = null
     this.localOn = false
     ctx?.close().catch(() => undefined)
   }
@@ -374,12 +390,32 @@ export class OutputAudio {
       this.ctx = ctx
       this.node = node
       this.localOn = false
+      this.addAnalyser(ctx, node)
       this.applyLocal()
     } catch (e) {
       this.useFallback(e)
       return
     }
     if (this.sink !== '') void this.sinkContext(this.ctx, this.sink)
+  }
+
+  /** The level meter's tap: a silent branch, so it never changes what is heard. */
+  private addAnalyser(ctx: AudioContext, node: GainNode): void {
+    try {
+      const a = ctx.createAnalyser()
+      a.fftSize = 2048
+      const mute = ctx.createGain()
+      mute.gain.value = 0
+      node.connect(a)
+      // An analyser nothing pulls on may not run: end it in a silent sink like the OMT tap.
+      a.connect(mute)
+      mute.connect(ctx.destination)
+      this.analyser = a
+      this.block = new Float32Array(a.fftSize)
+    } catch {
+      // No analyser (a test double): the meter stays empty, the sound is unaffected.
+      this.analyser = null
+    }
   }
 
   /** Autoplay can leave a new context suspended, and then nothing is heard. */
@@ -406,6 +442,7 @@ export class OutputAudio {
     // them for good); only the ones that cannot be connected use their volume.
     if (this.sources.size === 0) {
       this.node = null
+      this.analyser = null
       this.ctx?.close().catch(() => undefined)
       this.ctx = null
     }

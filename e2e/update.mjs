@@ -141,6 +141,22 @@ const status = (win) => win.evaluate(() => window.api.getUpdateStatus())
       await app.close()
     }
   }
+  {
+    const { app, win } = await launch(userData)
+    try {
+      // A manual check from Settings > About brings the skipped version back.
+      await win.click('button.gear')
+      await win.getByTestId('update-check').click()
+      await win.getByTestId('update-chip').waitFor({ timeout: 10_000 })
+      check(true, 'Check for updates in Settings brings the skipped version back')
+      check(
+        !/up to date/i.test(await win.locator('.about-update-status').innerText()),
+        'About does not say up to date for a skipped newer version'
+      )
+    } finally {
+      await app.close()
+    }
+  }
 }
 
 console.log(`\nUPDATE: ${passed} ok, ${failed} FAIL`)

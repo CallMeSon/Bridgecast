@@ -42,13 +42,20 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
 - [ ] **Zoom in/out:** dengan slide LIVE, klik "Zoom in" beberapa kali: HDMI dan monitor operator
       membesar bersamaan ke tengah slide. "Zoom out" mengecilkan lagi; di 1.00 gambar kembali
       utuh tanpa pergeseran.
-- [ ] **Panah:** saat diperbesar, tombol panah (kiri, kanan, atas, bawah) menggeser bagian yang
-      terlihat di HDMI dan monitor. Di tepi slide panah tidak membawa gambar keluar dari bingkai.
-- [ ] **Minimap:** klik di minimap memindahkan bagian yang terlihat ke titik itu; geser (drag)
-      kotak minimap menggeser gambar halus tanpa lompatan.
+- [ ] **Zoom dengan pointer di monitor:** Ctrl+scroll (atau pinch di trackpad) pada monitor Program
+      memperbesar tepat di titik pointer; jendela aplikasi sendiri tidak ikut membesar. Saat
+      sudah zoom, geser (drag) menggeser gambar halus (kursor grab/grabbing), scroll biasa juga
+      menggeser, dan klik dua kali mengembalikan ke 1.00. Tidak ada minimap dan tidak ada panah.
+- [ ] **Panah geser:** saat zoom aktif, klik panah (Pan left/up/down/right) menggeser satu langkah besar
+      dengan animasi cepat; tahan panah menggeser halus dan konstan sampai dilepas atau mentok tepi
+      (panah itu lalu nonaktif). Di 1.00 semua panah nonaktif. Enter/Spasi pada panah yang fokus sama;
+      menahan tombol menggeser terus.
+- [ ] **Slider seek video:** seret thumb lalu lepas: tidak melompat balik ke posisi lama. Klik di titik
+      tertentu mendarat tepat di bawah kursor. Tooltip waktu mm:ss muncul saat hover/seret. Panah kiri/kanan
+      = 1 dtk, PageUp/PageDown = 10 dtk, Home/End ke ujung.
 - [ ] **Reset otomatis:** dengan zoom aktif, ambil slide berikutnya (Space): zoom kembali ke 1.00
       pada HDMI dan monitor. "Reset zoom" juga mengembalikan ke 1.00.
-- [ ] **STANDBY:** saat STANDBY (belum ada slide live), tombol zoom dan panah nonaktif; HDMI tetap
+- [ ] **STANDBY:** saat STANDBY (belum ada slide live), tombol zoom nonaktif dan zoom dengan pointer tidak bereaksi; HDMI tetap
       hitam dan tidak pernah menampilkan transform.
 - [ ] **Slide web dengan Interact:** di deck web, perbesar lalu aktifkan Interact: klik pada
       halaman mengenai elemen tepat di bawah kursor pada gambar yang diperbesar (bukan elemen di
@@ -134,9 +141,9 @@ Butuh PC kedua di LAN yang sama dengan vMix 29+ dan OBS 31+ dengan plugin OMT. R
 - [ ] **Prepare hanya untuk event yang terbuka**: deck web live dari event lain (setelah ganti event) tidak bisa dibuka di Prepare ("This web page is not part of the open event. Close this window."). Batas yang diketahui: untuk menyiapkannya, buka lagi event deck itu.
 - [ ] Prepare: saat deck live dan tidak frozen, klik dan ketik di jendela Prepare ditolak (banner "ON AIR: input locked. Press F to freeze before you click."); setelah Freeze (F) diterima; pop-up yang dibuka halaman saat tidak live muncul sebagai jendela biasa di layar operator, bukan di HDMI.
 
-**Jendela Prepare sebagai browser (belum dijalankan di Windows).** Otomatis: `npm run test:e2e:web` (toolbar 16 px, Back/Forward, Fit dan 100%, klik dan ketik, Interact, Esc dan F6, kursor, zoom 150% per deck, terkunci saat live). Daftar `<select>` (Task 9) tidak dikerjakan.
+**Jendela Prepare sebagai browser (belum dijalankan di Windows).** Otomatis: `npm run test:e2e:web` (toolbar 16 px, Back/Forward, zoom preview Fit/100%/200%, klik dan ketik, Interact, Esc dan F6, kursor, zoom 150% per deck, terkunci saat live). Daftar `<select>` (Task 9) tidak dikerjakan.
 
-- [ ] **Skala layar 125% dan 150%, Fit dan 100%**: set skala layar Windows 125%, lalu 150%. Buka Prepare untuk halaman dengan tombol kecil (mis. Canva). Di Fit dan di 100% klik tombol kecil dan kolom teks: klik mendarat tepat di target, teks di 100% tajam (satu piksel halaman per piksel layar), akurasi tetap setelah digeser ke tiap sudut.
+- [ ] **Skala layar 125% dan 150%, Fit, 100% dan 200%**: set skala layar Windows 125%, lalu 150%. Buka Prepare untuk halaman dengan tombol kecil (mis. Canva). Di Fit, 100% dan 200% klik tombol kecil dan kolom teks: klik mendarat tepat di target, teks di 100% tajam (satu piksel halaman per piksel layar), akurasi tetap setelah digeser ke tiap sudut.
 - [ ] **Pindah jendela Prepare antar monitor**: seret jendela ke monitor dengan skala berbeda. Gambar tetap utuh, klik tetap akurat, jendela halaman yang memberi gambar ke output tetap seukuran canvas.
 - [ ] **Ukuran dan posisi diingat**: ubah ukuran dan posisi jendela, tutup, buka lagi, tutup aplikasi, buka lagi: ukuran dan posisi kembali. Ulangi dengan jendela di layar kedua; cabut layar kedua lalu buka Prepare: jendela muncul di layar yang ada, bukan di luar layar.
 - [ ] **Situs sungguhan termasuk login**: Canva (email), YouTube dan satu situs dengan login. Klik, scroll, ketik, login lalu Present berjalan; kursor mengikuti halaman (pointer di tombol, I-beam di kolom).
@@ -377,6 +384,44 @@ silently.
 - [ ] File PowerPoint milik operator yang sedang terbuka tetap terbuka setelah Bridgecast Beta ditutup; PowerPoint yang dibuka Bridgecast ditutup lagi hanya kalau tidak ada file lain.
 - [ ] Force Quit PowerPoint saat deck live: output menampilkan PNG slide yang sama (tidak hitam, tidak desktop), chip Fallback; setelah PowerPoint kembali, Resume mengembalikan Native.
 - [ ] Deck menu > Edit in PowerPoint: muncul pesan "Edit in PowerPoint is not available on Mac yet." dan show tidak terganggu.
+
+## Program sound meter and operator Monitor (Windows)
+
+**UNVERIFIED on real hardware:** the e2e covers a video deck with the fake OMT sender only.
+
+- [ ] Video deck on air with HDMI off and no OMT/NDI: the bar left of the sound buttons moves with the sound, and the operator window plays it on the Sound device from Settings (once, never doubled).
+- [ ] Turn HDMI on (second display showing): the operator goes silent at once and the HDMI window plays the sound. The bar keeps moving.
+- [ ] HDMI on, press Monitor (headphones button): the sound plays in both the HDMI window and the operator window (use headphones); the setting survives a restart. Press it again: the operator is silent.
+- [ ] OMT or NDI only (HDMI off, route Local device): the OMT window plays, the operator is silent. Route "Network only": nobody plays on this PC, the bar still moves, and only Monitor makes the operator play.
+- [ ] Web deck (WebView2 and the Electron fallback): the bar moves with the page sound; no echo or double sound with Monitor off; the page sound is still correct on the HDMI window.
+- [ ] Native PowerPoint deck with sound (loopback pipe): the bar moves with the PowerPoint sound, with HDMI off the operator plays it in sync with the slide, Black and KV make the bar fall silent.
+- [ ] Mute (speaker button): the bar rests empty with a hatched track and the word "Muted"; unmute restores it. Deck volume 0 also rests the bar.
+- [ ] A saved Sound device is used by the operator too (headphones in Settings > Sound).
+
+## Clicker saat Bridgecast di latar belakang (Windows)
+
+**BELUM DIVERIFIKASI di perangkat nyata:** e2e hanya menguji pendaftaran tombol dan handler-nya, bukan clicker fisik.
+
+- [ ] Pakai clicker presentasi asli (USB receiver). Deck gambar/PDF di Program, buka aplikasi lain (mis. Notepad atau browser) sampai Bridgecast tidak fokus: tombol Next dan Prev clicker menggerakkan slide di Program, satu klik satu langkah.
+- [ ] Klik jendela Bridgecast lagi: clicker tetap satu langkah per klik (tidak dobel). Di dalam kolom teks Bridgecast (nama event), tombol panah tetap menggerakkan kursor.
+- [ ] Deck web di Program (WebView2): clicker dari aplikasi lain mengirim satu panah ke halaman web, posisi Program tidak berubah. Deck PowerPoint native: clicker menjalankan langkah animasi lalu slide berikutnya.
+- [ ] Di aplikasi lain, PageUp, PageDown, panah kiri dan kanan tidak lagi bekerja di sana selama Bridgecast jalan (itu memang disengaja). Matikan Settings > "Clicker works when Bridgecast is in the background": tombol kembali ke aplikasi lain tanpa restart.
+- [ ] Jalankan aplikasi lain yang sudah memakai tombol itu secara global: Settings menampilkan catatan yang menyebut tombol yang tidak bisa diambil, dan Bridgecast tidak error.
+
+## Penjaga desktop HDMI (Linux)
+
+**UNVERIFIED on real hardware.** GNOME only, with a real second display and an installed build or `npm run dev`. Check the setting with `gsettings get org.gnome.mutter overlay-key`.
+
+- [ ] HDMI showing: press Super, Super+A, Super+D, Super+P and push the pointer into the hot corner. None of them changes the HDMI screen, and `overlay-key` is `''`.
+- [ ] HDMI showing, leave the laptop idle past the screen blank time: the screens stay awake.
+- [ ] HDMI off: `overlay-key` is `'Super_L'` again, and Super, the hot corner and the shortcuts work as before.
+- [ ] HDMI showing, unplug the cable: `overlay-key` is `'Super_L'`. Plug it back in: the guard is on again.
+- [ ] HDMI showing, quit the app: `overlay-key` is `'Super_L'`.
+- [ ] HDMI showing, log out or shut down, then log back in. Before starting Bridgecast, note whether Super works.
+- [ ] HDMI showing, `kill -9` the app, then reopen it with HDMI off: `overlay-key` is `'Super_L'`.
+- [ ] Repeat the checks above from the AppImage.
+- [ ] Repeat the checks above from the `.deb`.
+- [ ] Note whether the three-finger swipe still opens Activities (expected: it does, a known limit).
 
 ## Selesai
 

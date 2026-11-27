@@ -231,6 +231,38 @@ describe('UpdateManager.check after a failed download', () => {
   })
 })
 
+describe('UpdateManager manual check', () => {
+  it('brings a skipped version back and downloads it; a scheduled check does not', async () => {
+    const calls: (string | null)[] = []
+    let skipped: string | null = '1.2.0'
+    const { manager, engine } = makeManager({
+      getSkipped: () => skipped,
+      setSkipped: (v) => {
+        calls.push(v)
+        skipped = v
+      }
+    })
+    engine.checkResult = available
+    await manager.check()
+    expect(manager.status).toEqual({ kind: 'idle' })
+    expect(calls).toEqual([])
+    await manager.check({ manual: true })
+    expect(calls).toEqual([null])
+    await vi.waitFor(() => expect(manager.status.kind).toBe('ready'))
+    expect(engine.downloadCalls).toBe(1)
+  })
+
+  it('stays ready when a manual check runs after the download', async () => {
+    const { manager, engine } = makeManager()
+    engine.checkResult = available
+    await manager.check()
+    await vi.waitFor(() => expect(manager.status.kind).toBe('ready'))
+    await manager.check({ manual: true })
+    expect(manager.status).toEqual({ kind: 'ready', version: '1.2.0', notes: 'Notes' })
+    expect(engine.checkCalls).toBe(1)
+  })
+})
+
 describe('UpdateManager.skip', () => {
   it('records the skipped version and returns to idle', async () => {
     const calls: (string | null)[] = []

@@ -5,6 +5,7 @@ import type { AudioSettings } from '../../shared/settings'
 import { outputGain, outputSource } from './model'
 import { OutputAudio } from './output-audio'
 import { useLibreOfficeSound } from './lo-sound'
+import { useSlideshowSound } from './slideshow-sound'
 import { stageRect } from './stage'
 import tapModuleUrl from './omt-tap.worklet.ts?worker&url'
 import pcmModuleUrl from './pcm-source.worklet.ts?worker&url'
@@ -199,32 +200,8 @@ export function OutputView({ role = 'hdmi' }: { role?: 'hdmi' | 'omt' }): React.
     }
   }, [role])
 
-  // PowerPoint's sound (a native deck): main sends it over a MessagePort to both output
-  // windows, which play it through the same gain as a video. A new port replaces the old.
-  useEffect(() => {
-    let current: MessagePort | null = null
-    const onMessage = (e: MessageEvent): void => {
-      if (e.data !== 'slideshow:audio-port' || !e.ports[0]) return
-      const port = e.ports[0]
-      if (current && current !== port) current.close()
-      current = port
-      out
-        .setPcmPort(port)
-        .then((ok) => {
-          // No sound path here: close the port so main's blocks are not queued unread.
-          if (!ok && current === port) port.close()
-        })
-        .catch((err: unknown) => console.warn('[audio] PowerPoint sound failed:', err))
-    }
-    window.addEventListener('message', onMessage)
-    window.api.requestSlideshowAudioPort()
-    return () => {
-      window.removeEventListener('message', onMessage)
-      current?.close()
-      current = null
-      void out.setPcmPort(null)
-    }
-  }, [out])
+  // PowerPoint's (and a web-bridge page's) sound arrives over a MessagePort from main.
+  useSlideshowSound(out)
 
   // One window plays the sound here (HDMI while it shows, else OMT while a
   // network sender runs); the OMT window also taps it for the sender.

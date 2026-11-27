@@ -1,4 +1,5 @@
 import type { DeckFit } from '../../../shared/canvas'
+import type { MediaClock } from '../../../shared/media'
 import type { OutputMedia } from '../model'
 import type { StreamSourceKind } from '../stream'
 
@@ -15,6 +16,8 @@ export interface LayerSpec {
   source?: StreamSourceKind
   deckId?: string
   paused?: boolean
+  /** Video layers of a media deck: the shared clock (updates in place, not part of `id`). */
+  clock?: MediaClock
   /** How the media fills the stage; changing it never makes a new layer (not part of `id`). */
   fit: DeckFit
 }
@@ -67,7 +70,8 @@ export function layerFor(
     }
   }
   const id = `v:${media.url}#${media.take}`
-  if (played.has(media.take) && id !== topId) {
+  // A clocked video (media deck) is never swapped for its poster: the operator controls it.
+  if (played.has(media.take) && id !== topId && !media.clock) {
     return { id: media.poster, kind: 'image', url: media.poster, fit: media.fit }
   }
   return {
@@ -76,6 +80,7 @@ export function layerFor(
     url: media.url,
     poster: media.poster,
     take: media.take,
-    fit: media.fit
+    fit: media.fit,
+    ...(media.clock ? { clock: media.clock } : {})
   }
 }

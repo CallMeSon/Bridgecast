@@ -630,7 +630,10 @@ async function main() {
     check((await addr()).endsWith('/prepare'), `Back returns to /prepare (${await addr()})`)
     await sleep(800)
     // 100%: page width is 1920 / dpr, a drag pans (Interact off), a click lands (Interact on)
-    await prep.getByRole('button', { name: '100%', exact: true }).click()
+    // The preview zoom button cycles Fit -> 100% -> 200% -> 50% -> Fit.
+    const zoomBtn = prep.getByRole('button', { name: /^Preview zoom \d+%/ })
+    await zoomBtn.click()
+    check((await zoomBtn.innerText()).trim() === '100%', 'the zoom button shows 100%')
     const dpr = await prep.evaluate(() => window.devicePixelRatio)
     const pw = await prep.$eval('.prepare-page', (e) => e.getBoundingClientRect().width)
     check(Math.abs(pw - 1920 / dpr) < 1, `100% draws the page at 1920 / dpr (${pw}, dpr ${dpr})`)
@@ -677,6 +680,61 @@ async function main() {
     await prep.keyboard.press('F6')
     await sleep(300)
     check((await pg('window.__keys.length')) === keysBefore, 'F6 sends nothing to the page')
+    // 200%: the page is 3840 / dpr wide, and a click still lands after panning to the corner.
+    const innerBefore = await pg('window.innerWidth')
+    await zoomBtn.click()
+    check((await zoomBtn.innerText()).trim() === '200%', 'the zoom button cycles to 200%')
+    const pw2 = await prep.$eval('.prepare-page', (e) => e.getBoundingClientRect().width)
+    check(Math.abs(pw2 - 3840 / dpr) < 1, `200% draws the page at 3840 / dpr (${pw2})`)
+    await interactBtn.click()
+    const sc2 = await prep.$eval('.prepare-stage', (e) => {
+      const b = e.getBoundingClientRect()
+      return { x: b.left + b.width / 2, y: b.top + b.height / 2 }
+    })
+    for (let i = 0; i < 6; i++) {
+      await prep.mouse.move(sc2.x - 150, sc2.y - 100)
+      await prep.mouse.down()
+      await prep.mouse.move(sc2.x + 150, sc2.y + 100, { steps: 6 })
+      await prep.mouse.up()
+    }
+    await interactBtn.click()
+    c = await clientOf('#email')
+    const sb2 = await prep.$eval('.prepare-stage', (e) => e.getBoundingClientRect().toJSON())
+    check(
+      c.x > sb2.left && c.x < sb2.right && c.y > sb2.top && c.y < sb2.bottom,
+      `the email field is inside the stage after panning at 200% (${JSON.stringify(c)})`
+    )
+    await prep.mouse.click(c.x, c.y)
+    await prep.keyboard.press('Control+a')
+    await prep.keyboard.type('bob@example.com')
+    await sleep(400)
+    check(
+      (await pg("document.getElementById('email').value")) === 'bob@example.com',
+      'a click and typing at 200% land in the email field'
+    )
+    // Ctrl+- steps down to 150% (the page holds the keyboard now, so the stage stays quiet); the
+    // wheel with Ctrl zooms about the pointer; Fit and the keys only change the preview.
+    await prep.locator('.prepare-interact').focus()
+    await prep.keyboard.press('Control+-')
+    check((await zoomBtn.innerText()).trim() === '150%', 'Ctrl+- zooms the preview out one step')
+    await prep.mouse.move(sb2.left + 200, sb2.top + 150)
+    await prep.keyboard.down('Control')
+    await prep.mouse.wheel(0, -100)
+    await prep.keyboard.up('Control')
+    await sleep(200)
+    check(
+      Number((await zoomBtn.innerText()).trim().replace('%', '')) > 150,
+      'Ctrl+wheel up zooms the preview in'
+    )
+    await prep.keyboard.press('Control+0')
+    await prep.getByRole('button', { name: 'Fit', exact: true }).waitFor()
+    check(
+      (await prep
+        .getByRole('button', { name: 'Fit', exact: true })
+        .getAttribute('aria-pressed')) === 'true',
+      'Ctrl+0 fits the page'
+    )
+    check((await pg('window.innerWidth')) === innerBefore, 'preview zoom does not change the page')
     // Page zoom is per deck and survives Reload.
     const zoomP = (z) => win.evaluate(([d, v]) => window.api.setWebZoom(d, v), [P.id, z])
     await zoomP(1.5)

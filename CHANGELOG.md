@@ -12,6 +12,52 @@ Versions restart at 0.x because the app is in development.
 
 - macOS: when Microsoft PowerPoint is installed, Bridgecast uses it first to turn an imported PowerPoint file into a PDF, so fonts and layout match what the speaker made. Keynote and then LibreOffice are still used when PowerPoint is missing or fails. The first import asks for permission to control PowerPoint (System Settings > Privacy & Security > Automation), and PowerPoint asks once to grant access to its working folder (Library/Application Support/bridgecast/PowerPoint export): choose Select…, then Grant Access. It is still a Vector deck without animations. Not verified on a real Mac yet.
 
+## [0.2.3] - 2026-11-27
+
+### Fixed
+
+- Linux (GNOME): pressing Super no longer opens Activities over the HDMI output. While HDMI shows, Super, hot corners, show desktop and Super+P are off and the screen does not sleep; your settings come back afterwards.
+
+## [0.2.2] - 2026-11-27
+
+### Added
+
+- Clicker works when Bridgecast is in the background: while another app has focus, PageDown and the Right arrow step Next, PageUp and the Left arrow step Previous, exactly like the same keys in the operator window (web pages get their arrow key, native slides walk their steps). The keys are claimed only while no Bridgecast window is focused, so there is never a double step. Settings > "Clicker works when Bridgecast is in the background" turns it off (on by default, applies at once). If another app already uses one of the keys, Settings names it; on Linux Wayland global keys may be refused.
+
+## [0.2.1] - 2026-11-27
+
+### Added
+
+- Program sound meter: a small bar left of the sound buttons under the Program monitor shows the live level of the Program sound (video, web and PowerPoint). It rests empty when silent and shows "Muted" (hatched, with the word) while the output is muted.
+- The operator window plays the Program sound itself when no output window does (HDMI off and no OMT or NDI running), on the Sound device from Settings, with deck and master volume and Mute all. As soon as an output takes over, it stops, so the sound is never doubled.
+- Monitor (headphones button next to Mute): the operator window also plays the Program sound while an output does. Off by default and saved in the settings.
+- Pan arrows are back next to the zoom controls: a click moves the view one big step, holding an arrow pans smoothly until you let go or reach the edge. Enter and Space work too. No mini-map.
+
+### Fixed
+
+- Video seek slider: the thumb no longer jumps back after you release it, a click lands exactly under the pointer, and a time tooltip shows where you will seek. Arrow keys step 1 s, PageUp/PageDown 10 s, Home/End jump to the ends. Built on Radix Slider.
+
+## [0.2.0] - 2026-11-27
+
+### Changed
+
+- Program monitor: the live slide zooms and pans on the monitor itself. Ctrl+wheel or pinch zooms about the pointer, drag or wheel moves, double-click resets. Zoom out, the zoom level, Zoom in and Reset stay under the monitor; the mini-map and the pan arrows are gone.
+
+### Fixed
+
+- A video deck could show only a still image on the Program monitor and on every output, with no sound, while its media bar kept running. Large clips whose index sits at the end of the file (MP4 without "fast start") failed to load. They now play, with or without HDMI, OMT or NDI connected.
+- After "Skip this version", Settings > About > "Check for updates" said "You're up to date." while a newer version existed. A manual check now brings the skipped version back and downloads it again; only the automatic checks keep honoring the skip.
+
+## [0.1.16] - 2026-11-26
+
+### Added
+
+- Media player: a video file (.mp4, .m4v, .mov, .webm, .mkv, .ogv) imports as a Video deck. While it is on air, a media bar under the Program monitor plays, pauses, restarts, seeks and loops it; HDMI, OMT and NDI show only the picture, with no controls. Black and KV hide it and it comes back where the clock is. A file this PC cannot decode is refused at import with a hint to convert it to MP4 (H.264). Windows only in this release; the Linux build follows.
+
+### Changed
+
+- Prepare window (web decks): the preview zooms and pans on the stage itself. Ctrl+wheel or pinch zooms about the pointer (25% to 400%), drag, wheel and the arrow keys pan, and the toolbar has -, the zoom level (Fit, 100%, 200%, 50%), + and Fit, with Ctrl+=, Ctrl+- and Ctrl+0. The mini-map is gone. This zoom is for the preview only and never changes the output.
+
 ## [0.1.15] - 2026-11-24
 
 ### Fixed

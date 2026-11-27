@@ -10,6 +10,7 @@ import type { DeckAudio } from './audio-levels'
 import type { SlideshowStatus } from './playback'
 import type { UpdateStatus } from './update'
 import type { CropRect } from './crop'
+import type { ClickerStatus } from './clicker'
 import type {
   PrepareInput,
   WebCaptureSource,
@@ -31,6 +32,7 @@ export const Invoke = {
   decksImport: 'decks:import',
   decksAddRendered: 'decks:addRendered',
   decksConvertPptx: 'decks:convertPptx',
+  decksAddMedia: 'decks:addMedia',
   decksReorder: 'decks:reorder',
   slidesReorder: 'slides:reorder',
   decksRemove: 'decks:remove',
@@ -81,6 +83,8 @@ export const Invoke = {
   webChromeStatus: 'web:chromeStatus',
   webChromeSet: 'web:chromeSet',
   webChromeSignIn: 'web:chromeSignIn',
+  clickerStatus: 'clicker:status',
+  clickerSet: 'clicker:set',
   webStatuses: 'web:statuses',
   webOutputs: 'web:outputs',
   webCaptureFailed: 'web:captureFailed',
@@ -136,6 +140,7 @@ export const Broadcast = {
   webOutputs: 'web:outputs',
   webCaptureWarnings: 'web:captureWarnings',
   webChromeStatus: 'web:chromeStatus',
+  clickerStatus: 'clicker:status',
   slideshowNote: 'slideshow:note',
   slideshowStatus: 'slideshow:status',
   deckPending: 'deck:pending',
@@ -213,6 +218,22 @@ export interface WebStatusEvent {
   warning?: string
 }
 
+/**
+ * A video file probed in the renderer (a <video> on a blob URL), handed to main to store as a
+ * media deck: one slide, the poster PNG and a copy of the file.
+ */
+export interface MediaImport {
+  name: string
+  /** Absolute path of the video on disk (`pathForFile`). */
+  path: string
+  /** Length in seconds (finite, > 0). */
+  duration: number
+  width: number
+  height: number
+  /** PNG of a frame near the start. */
+  poster: Uint8Array
+}
+
 export interface ImportRequest {
   id: string
   path: string
@@ -243,6 +264,7 @@ export interface InvokeMap {
   'decks:import': { args: [eventId: string, files: ImportRequest[]]; result: void }
   'decks:addRendered': { args: [eventId: string, payload: RenderedDeck]; result: DeckMeta }
   'decks:convertPptx': { args: [file: string]; result: ConvertedPptx }
+  'decks:addMedia': { args: [eventId: string, payload: MediaImport]; result: DeckMeta }
   'decks:reorder': { args: [eventId: string, items: OrderItem[]]; result: void }
   'slides:reorder': { args: [deckId: string, order: number[]]; result: void }
   'decks:remove': { args: [eventId: string, deckId: string]; result: void }
@@ -333,6 +355,10 @@ export interface InvokeMap {
   'web:chromeSet': { args: [on: boolean]; result: WebChromeStatus }
   /** Linux: open Chrome on the Bridgecast profile to sign in to Google (refused with the fix). */
   'web:chromeSignIn': { args: []; result: WebChromeStatus }
+  /** Global clicker keys (PageUp/PageDown, arrows while Bridgecast is in the background). */
+  'clicker:status': { args: []; result: ClickerStatus }
+  /** Turns the global clicker on or off; it applies at once. */
+  'clicker:set': { args: [on: boolean]; result: ClickerStatus }
   /** Current load state of every open page (later changes arrive as `web:status`). */
   'web:statuses': { args: []; result: WebStatusEvent[] }
   /** Which outputs main counts for the ready gate (later changes arrive as `web:outputs`). */
@@ -393,6 +419,7 @@ export interface BroadcastMap {
   'web:outputs': WebOutputs
   'web:captureWarnings': WebCaptureWarning[]
   'web:chromeStatus': WebChromeStatus
+  'clicker:status': ClickerStatus
   'slideshow:note': string | null
   'slideshow:status': SlideshowStatus
   'deck:pending': DeckPendingEvent
@@ -440,6 +467,7 @@ export interface Api {
   addRendered(eventId: string, payload: RenderedDeck): Promise<DeckMeta>
   /** macOS only: converts a PowerPoint file to PDF (PowerPoint, else Keynote, else LibreOffice). */
   convertPptx(file: string): Promise<ConvertedPptx>
+  addMedia(eventId: string, payload: MediaImport): Promise<DeckMeta>
   reorderDecks(eventId: string, items: OrderItem[]): Promise<void>
   addSection(eventId: string, at: number | 'end'): Promise<{ event: EventMeta; sectionId: string }>
   renameSection(eventId: string, sectionId: string, name: string): Promise<EventMeta>
@@ -529,6 +557,9 @@ export interface Api {
   /** Opens Chrome on the Bridgecast profile; its closing arrives through `onWebChromeStatus`. */
   signInGoogle(): Promise<WebChromeStatus>
   onWebChromeStatus(cb: (s: WebChromeStatus) => void): () => void
+  clickerStatus(): Promise<ClickerStatus>
+  setClicker(on: boolean): Promise<ClickerStatus>
+  onClickerStatus(cb: (s: ClickerStatus) => void): () => void
   webStatuses(): Promise<WebStatusEvent[]>
   onWebStatus(cb: (s: WebStatusEvent) => void): () => void
   /** Which outputs are active for the ready gate (who captures pages that are not live yet). */

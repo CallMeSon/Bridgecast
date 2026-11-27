@@ -1,4 +1,5 @@
 import { sanitizeVolume } from './audio-levels'
+import { sanitizeGlobalClicker } from './clicker'
 import { DEFAULT_CANVAS, sanitizeCanvas, type Canvas } from './canvas'
 import { sanitizeUpdates, type UpdateSettings } from './update'
 import {
@@ -29,6 +30,8 @@ export interface AudioSettings {
   muted: boolean
   masterVolume: number
   route: AudioRoute
+  /** Operator Monitor: the operator window also plays the Program sound while an output does. */
+  monitor: boolean
 }
 
 /**
@@ -81,6 +84,8 @@ export interface Settings {
   pptImportFormat: PptImportFormat
   /** Linux: web decks run in the PC's Chrome (see DEFAULT_WEB_CHROME). */
   webChrome: boolean
+  /** PageUp/PageDown and the arrows step the Program while Bridgecast is in the background. */
+  globalClicker: boolean
   updates: UpdateSettings
 }
 
@@ -93,7 +98,8 @@ export const DEFAULT_AUDIO: Readonly<AudioSettings> = Object.freeze({
   deviceId: null,
   muted: false,
   masterVolume: 100,
-  route: 'local'
+  route: 'local',
+  monitor: false
 })
 
 const AUDIO_ROUTES: readonly AudioRoute[] = ['local', 'omt', 'both']
@@ -125,7 +131,8 @@ export function sanitizeAudio(raw: unknown): AudioSettings {
     masterVolume: sanitizeVolume(a.masterVolume, DEFAULT_AUDIO.masterVolume),
     route: AUDIO_ROUTES.includes(a.route as AudioRoute)
       ? (a.route as AudioRoute)
-      : DEFAULT_AUDIO.route
+      : DEFAULT_AUDIO.route,
+    monitor: typeof a.monitor === 'boolean' ? a.monitor : DEFAULT_AUDIO.monitor
   }
 }
 
@@ -146,6 +153,7 @@ export function mergeAudio(saved: AudioSettings, patch: unknown): AudioSettings 
   if (typeof patch.muted === 'boolean') out.muted = clean.muted
   if (Number.isFinite(patch.masterVolume)) out.masterVolume = clean.masterVolume
   if (AUDIO_ROUTES.includes(patch.route as AudioRoute)) out.route = clean.route
+  if (typeof patch.monitor === 'boolean') out.monitor = clean.monitor
   return out
 }
 
@@ -165,6 +173,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     sendContentOnly: sanitizeSendContentOnly(r.sendContentOnly),
     pptImportFormat: sanitizePptImportFormat(r.pptImportFormat),
     webChrome: sanitizeWebChrome(r.webChrome),
+    globalClicker: sanitizeGlobalClicker(r.globalClicker),
     updates: sanitizeUpdates(r.updates)
   }
 }

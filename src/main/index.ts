@@ -4,9 +4,11 @@ import {
   BrowserWindow,
   desktopCapturer,
   dialog,
+  globalShortcut,
   ipcMain,
   MessageChannelMain,
   nativeImage,
+  powerSaveBlocker,
   protocol,
   screen,
   session,
@@ -16,9 +18,10 @@ import {
 import * as path from 'path'
 import { join } from 'path'
 import * as fs from 'fs'
+import { Readable } from 'stream'
 import * as os from 'os'
 import { randomUUID } from 'crypto'
-import { spawn } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { Library, PPTX_RE } from './library'
@@ -59,8 +62,6 @@ import type { DeckMeta } from '../shared/types'
 import { DeckEditor } from './slideshow/editor'
 import type { ImportedDeck } from './import'
 import {
-  VIDEO_CHUNK_BYTES,
-  capRange,
   isInside,
   kvMimeType,
   parseKvUrl,
@@ -70,6 +71,7 @@ import {
 } from './slide-protocol'
 import { loadSettings, saveSettings, type Settings } from './settings'
 import { HdmiOutput, screenDisplays } from './display-output'
+import { createDesktopGuard, guardSupported, type DesktopGuard } from './desktop-guard'
 import { NetOutput } from './net-output'
 import type { ScreenDisplay } from './hdmi-plan'
 import { hdmiSettingsError, resolveHdmi } from '../shared/displays'
@@ -110,8 +112,10 @@ import {
   type InvokeChannel,
   type HdmiStatus,
   type InvokeMap,
-  type RenderedDeck
+  type RenderedDeck,
+  type MediaImport
 } from '../shared/ipc'
+import { MEDIA_FILE_RE, MEDIA_MIME } from '../shared/media'
 import { isOrderItem } from '../shared/sections'
 import { kvOnAir, type Action, type ProgramState } from '../shared/program'
 import { canInstallNow, UNSUPPORTED_UPDATE_STATUS, type UpdateSettings } from '../shared/update'
@@ -145,6 +149,7 @@ import {
   type SignInChild
 } from './web/chrome-signin'
 import type { WebChromeStatus } from '../shared/web'
+import { GlobalClicker } from './clicker'
 
 import { setWebLogFile } from './web/web-log'
 import type { PageBackend } from './web/page-backend'
@@ -310,13 +315,16 @@ function tempDir(): string {
 }
 
 /**
- * Serves an MP4 with byte ranges, reading only the requested slice. Every
- * answer is a 206 of at most VIDEO_CHUNK_BYTES (also for a request without
- * Range or with an open-ended `bytes=0-`), so a large clip never sits in memory.
+ * Serves a video file with byte ranges as a stream of the requested slice (206, also for a
+ * request without Range), so a large clip never sits in memory.
  */
-async function videoResponse(file: string, rangeHeader: string | null): Promise<Response> {
+async function videoResponse(
+  file: string,
+  rangeHeader: string | null,
+  contentType: string
+): Promise<Response> {
   const headers = {
-    'content-type': 'video/mp4',
+    'content-type': contentType,
     'accept-ranges': 'bytes',
     'cache-control': 'no-store',
     // The output plays video through Web Audio, which needs a CORS-clean source (silent otherwise).
@@ -333,23 +341,24 @@ async function videoResponse(file: string, rangeHeader: string | null): Promise<
       headers: { ...headers, 'content-range': `bytes */${size}` }
     })
   }
-  const range = capRange(parsed ?? { start: 0, end: size - 1 }, VIDEO_CHUNK_BYTES)
-  const length = range.end - range.start + 1
-  const handle = await fs.promises.open(file, 'r')
-  try {
-    const buf = Buffer.alloc(length)
-    const { bytesRead } = await handle.read(buf, 0, length, range.start)
-    return new Response(buf.subarray(0, bytesRead), {
-      status: 206,
-      headers: {
-        ...headers,
-        'content-range': `bytes ${range.start}-${range.start + bytesRead - 1}/${size}`,
-        'content-length': String(bytesRead)
-      }
-    })
-  } finally {
-    await handle.close()
-  }
+  const range = parsed ?? { start: 0, end: size - 1 }
+  // Streamed, not capped: a clip whose moov atom sits at the end (no faststart) is only
+  // playable when the player gets the whole range it asked for (a capped 206 ends in error 4).
+  const body = Readable.toWeb(fs.createReadStream(file, range)) as ReadableStream
+  return new Response(body, {
+    status: 206,
+    headers: {
+      ...headers,
+      'content-range': `bytes ${range.start}-${range.end}/${size}`,
+      'content-length': String(range.end - range.start + 1)
+    }
+  })
+}
+
+/** Content type of a stored video file by extension; null for anything that is not a video. */
+function videoMime(file: string): string | null {
+  const ext = path.extname(file).slice(1).toLowerCase()
+  return Object.prototype.hasOwnProperty.call(MEDIA_MIME, ext) ? MEDIA_MIME[ext] : null
 }
 
 function registerSlideProtocol(root: string, lib: Library): void {
@@ -360,15 +369,16 @@ function registerSlideProtocol(root: string, lib: Library): void {
     const parsed = kv || thumb ? null : parseSlideUrl(req.url)
     if (!kv && !thumb && !parsed) return new Response('Bad request', { status: 400 })
     try {
+      const videoType = parsed ? videoMime(parsed.file) : null
       const file = kv
         ? lib.kvFilePath(kv.eventId, kv.file)
         : thumb
           ? await lib.thumbFilePath(thumb.deckId, thumb.file)
-          : parsed!.file.endsWith('.mp4')
+          : videoType
             ? lib.videoFilePath(parsed!.deckId, parsed!.file)
             : lib.slideFilePath(parsed!.deckId, parsed!.file)
       if (!isInside(root, file)) return new Response('Forbidden', { status: 403 })
-      if (parsed?.file.endsWith('.mp4')) return await videoResponse(file, req.headers.get('range'))
+      if (videoType) return await videoResponse(file, req.headers.get('range'), videoType)
       // A thumbnail is a JPEG, or the full PNG when generation failed.
       const type = kv
         ? kvMimeType(kv.file)
@@ -399,7 +409,8 @@ function registerIpc(
   syncWeb: () => void,
   operatorWindow: () => BrowserWindow | null,
   updateManager: UpdateManager | null,
-  webChrome: WebChromeControl
+  webChrome: WebChromeControl,
+  clicker: GlobalClicker
 ): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
@@ -529,8 +540,20 @@ function registerIpc(
         try {
           const deck = await readVideoDeck(job.path, out, grabPoster)
           progress({ id: job.id, name: job.name, percent: 90, status: 'busy' })
-          // Same source as a folder deck: playback, volume and the strip play mark are unchanged.
-          lib.addDeck(eventId, { ...deck, source: 'folder' })
+          if (deck.duration && Number.isFinite(deck.duration) && deck.duration > 0) {
+            // A media deck: the operator media bar plays it (same as a video added from the Library).
+            await lib.addMediaDeck(eventId, {
+              name: deck.name,
+              width: deck.width,
+              height: deck.height,
+              posterPath: deck.slides[0].pngPath,
+              videoPath: job.path,
+              duration: deck.duration
+            })
+          } else {
+            // Same source as a folder deck: playback, volume and the strip play mark are unchanged.
+            lib.addDeck(eventId, { ...deck, source: 'folder' })
+          }
           state.refresh()
         } finally {
           fs.rmSync(out, { recursive: true, force: true })
@@ -786,6 +809,48 @@ function registerIpc(
     }
   })
 
+  handle(Invoke.decksAddMedia, async (eventId, payload: MediaImport) => {
+    assertString(eventId, 'Event ID')
+    const bad = 'The video details are not valid. Choose the video file again.'
+    if (!payload || typeof payload !== 'object') throw new Error(bad)
+    const { path: file, duration, width, height, poster } = payload
+    if (typeof file !== 'string' || !file || !path.isAbsolute(file)) throw new Error(bad)
+    if (!MEDIA_FILE_RE.test(file)) {
+      throw new Error(
+        'This file type is not supported. Choose an MP4, M4V, MOV, WebM, MKV or OGV video.'
+      )
+    }
+    if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(
+        'The video file was not found. Check that it was not moved, then choose it again.'
+      )
+    }
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error(bad)
+    if (!(Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0)) {
+      throw new Error(bad)
+    }
+    if (!(poster instanceof Uint8Array) || poster.length === 0) throw new Error(bad)
+    const name =
+      (typeof payload.name === 'string' ? payload.name.trim() : '') || path.parse(file).name
+    const out = tempDir()
+    try {
+      const posterPath = join(out, '001.png')
+      await fs.promises.writeFile(posterPath, poster)
+      const deck = await lib.addMediaDeck(eventId, {
+        name,
+        width,
+        height,
+        posterPath,
+        videoPath: file,
+        duration
+      })
+      state.refresh()
+      return deck
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true })
+    }
+  })
+
   handle(Invoke.decksReorder, (eventId, items) => {
     assertString(eventId, 'Event ID')
     if (!Array.isArray(items) || !items.every(isOrderItem)) {
@@ -928,7 +993,7 @@ function registerIpc(
   })
   appHandle(Invoke.updateCheck, async (e) => {
     operatorOnly(e)
-    await updateManager?.check()
+    await updateManager?.check({ manual: true })
     return updateManager?.status ?? noopStatus
   })
   appHandle(Invoke.updateDownload, async (e) => {
@@ -960,6 +1025,18 @@ function registerIpc(
   appHandle(Invoke.webChromeSignIn, (e) => {
     operatorOnly(e)
     return webChrome.signIn()
+  })
+  appHandle(Invoke.clickerStatus, (e) => {
+    operatorOnly(e)
+    return clicker.status()
+  })
+  appHandle(Invoke.clickerSet, (e, on) => {
+    operatorOnly(e)
+    if (typeof on !== 'boolean')
+      throw new Error('The clicker setting is not valid. Reload the app, then try again.')
+    settings.saveGlobalClicker(on)
+    clicker.sync()
+    return clicker.status()
   })
   handle(Invoke.appVersion, () => app.getVersion())
 
@@ -1363,7 +1440,7 @@ let slideNote: string | null = null
 /**
  * slideshow:* channels. The capture id answers app windows only (never a web page), only
  * for the deck's own slide show window, and rejects otherwise (the output shows the PNG).
- * The sound port goes to the HDMI and OMT windows.
+ * The sound port goes to the HDMI, OMT and operator windows.
  */
 function registerSlideshowIpc(
   host: SlideShowHost,
@@ -1394,7 +1471,8 @@ function registerSlideshowIpc(
   ipcMain.on(Send.slideshowAudioPortRequest, (e: IpcMainEvent) => {
     if (!fromAppWindow(e)) return
     const role = roleOf(e.sender)
-    if (role !== 'hdmi' && role !== 'omt') return
+    // The operator window takes the sound too (level meter, and playing it when no output does).
+    if (role !== 'hdmi' && role !== 'omt' && role !== 'operator') return
     const { port1, port2 } = new MessageChannelMain()
     const id = e.sender.id
     host.sound.fanout.add(id, port2)
@@ -1455,6 +1533,10 @@ class SettingsStore {
     return this.save({ ...this.settings, webChrome })
   }
 
+  saveGlobalClicker(globalClicker: boolean): Settings {
+    return this.save({ ...this.settings, globalClicker })
+  }
+
   saveAutoAdvance(autoAdvance: boolean): Settings {
     return this.save({ ...this.settings, autoAdvance })
   }
@@ -1476,8 +1558,31 @@ class SettingsStore {
   }
 }
 
+/**
+ * GNOME only, and never in automated runs (they must not touch the real desktop settings). Only
+ * built once the single instance lock is held, so one copy never restores another's journal.
+ */
+function createHdmiDesktopGuard(root: string): DesktopGuard | null {
+  if (!guardSupported(process.platform, process.env)) return null
+  if (process.env['PPT_SHARE_USER_DATA'] || process.env['PPT_OUTPUT_DUMP']) return null
+  return createDesktopGuard({
+    file: join(root, 'desktop-guard.json'),
+    gsettings: (args) =>
+      execFileSync('gsettings', args, {
+        encoding: 'utf8',
+        timeout: 2000,
+        env: childEnv(process.env)
+      }).trim(),
+    blocker: {
+      start: () => powerSaveBlocker.start('prevent-display-sleep'),
+      stop: (id) => powerSaveBlocker.stop(id)
+    },
+    log: (message, err) => console.warn(`[desktop-guard] ${message}`, err)
+  })
+}
+
 /** HDMI output on a second display; its status and the display list are pushed to the UI. */
-function createHdmiOutput(settings: SettingsStore): HdmiOutput {
+function createHdmiOutput(settings: SettingsStore, guard: DesktopGuard | null): HdmiOutput {
   // PPT_OUTPUT_DUMP (dev/e2e only): HDMI window state on globalThis.__pptHdmi,
   // and __pptHdmiFakeDisplays(list | null) to simulate plugging and unplugging
   // a second display on a machine that has only one.
@@ -1486,6 +1591,7 @@ function createHdmiOutput(settings: SettingsStore): HdmiOutput {
     settings.get().hdmi,
     (s: HdmiStatus) => {
       broadcast(Broadcast.hdmiStatus, s)
+      guard?.setActive(s.state === 'showing')
       queueMicrotask(() => outputsMaybeChanged())
     },
     (d) => broadcast(Broadcast.displaysChanged, d),
@@ -1819,6 +1925,9 @@ app.whenReady().then(async () => {
   }
 
   const root = app.getPath('userData')
+  // First, so settings left off by a crash come back even if the rest of the start fails.
+  const desktopGuard = createHdmiDesktopGuard(root)
+  desktopGuard?.restore()
   // Which program plays PowerPoint files here: by platform only (PowerPoint, LibreOffice, none).
   const engineInfo = detectEngine({
     platform: process.platform,
@@ -1882,7 +1991,28 @@ Location: ${root}`
       console.error('[settings] auto advance could not be saved:', err)
     }
   })
-  const hdmi = createHdmiOutput(settings)
+  const hdmi = createHdmiOutput(settings, desktopGuard)
+  // Presentation clicker: PageUp/PageDown and the arrows while Bridgecast is in the background.
+  // They go through AppState.dispatch, the same path as the operator window's own keys (web
+  // page key forwarding, engine gates and the native slide show all hang off that).
+  const clicker: GlobalClicker = new GlobalClicker({
+    register: (accelerator, cb) => globalShortcut.register(accelerator, cb),
+    unregister: (accelerator) => globalShortcut.unregister(accelerator),
+    dispatch: (action) => void state.dispatch(action),
+    enabled: () => settings.get().globalClicker,
+    operatorOpen: () => !!operator && !operator.isDestroyed(),
+    bridgecastFocused: () =>
+      BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isFocused()),
+    wayland: process.platform === 'linux' && sessionType === 'wayland',
+    onChange: (st) => broadcast(Broadcast.clickerStatus, st),
+    warn: (m) => console.warn(m)
+  })
+  app.on('browser-window-focus', () => clicker.sync())
+  app.on('browser-window-blur', () => clicker.sync())
+  app.on('will-quit', () => clicker.dispose())
+  if (process.env['PPT_OUTPUT_DUMP']) {
+    Object.defineProperty(globalThis, '__pptClicker', { configurable: true, value: clicker })
+  }
   const net = createNetOutput(settings, state, lib)
   let operator: BrowserWindow | null = null
   const webDevUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
@@ -2083,6 +2213,7 @@ Location: ${root}`
     updateCheckTimer = null
     updateCheckFirstTimer = null
     hdmi.shutdown()
+    desktopGuard?.setActive(false)
     host.shutdown()
     slideShow.manager.dispose()
     slideShow.sound.dispose()
@@ -2111,7 +2242,8 @@ Location: ${root}`
     syncWeb,
     () => operator,
     updateManager,
-    webChrome
+    webChrome,
+    clicker
   )
 
   const startOutputs = (): void => {
@@ -2126,12 +2258,15 @@ Location: ${root}`
   operator = createWindow(onOperatorShown)
   operatorWindowRef = () => operator
   hdmi.watchOperator(operator)
+  operator.on('closed', () => clicker.sync())
+  clicker.sync()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) {
       operator = createWindow(onOperatorShown)
       operatorWindowRef = () => operator
       hdmi.watchOperator(operator)
+      operator.on('closed', () => clicker.sync())
     }
   })
 })

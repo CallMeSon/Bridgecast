@@ -4,7 +4,6 @@ import {
   isInside,
   kvMimeType,
   parseKvUrl,
-  capRange,
   parseRange,
   parseSlideUrl,
   parseThumbUrl,
@@ -153,9 +152,10 @@ describe('isInside', () => {
 })
 
 describe('video URLs', () => {
-  it('parseSlideUrl accepts NNN.mp4 and nothing else video-like', () => {
+  it('parseSlideUrl accepts NNN.<video ext> and nothing else video-like', () => {
     expect(parseSlideUrl(`slide://${ID}/003.mp4`)).toEqual({ deckId: ID, file: '003.mp4' })
-    expect(parseSlideUrl(`slide://${ID}/003.mov`)).toBeNull()
+    expect(parseSlideUrl(`slide://${ID}/003.webm`)).toEqual({ deckId: ID, file: '003.webm' })
+    expect(parseSlideUrl(`slide://${ID}/003.avi`)).toBeNull()
     // The URL parser already collapses a plain `/../`; encoded or nested forms must not match.
     expect(parseSlideUrl(`slide://${ID}/..%2F003.mp4`)).toBeNull()
     expect(parseSlideUrl(`slide://${ID}/x/003.mp4`)).toBeNull()
@@ -180,24 +180,6 @@ describe('parseRange', () => {
     expect(parseRange('bytes=2000-', 1000)).toBe('invalid')
     expect(parseRange('bytes=0-1,5-6', 1000)).toBeNull()
     expect(parseRange(null, 1000)).toBeNull()
-  })
-})
-
-describe('capRange', () => {
-  const MAX = 4 * 1024 * 1024
-
-  it('shortens a long range to maxBytes from the same start', () => {
-    expect(capRange({ start: 0, end: 99_999_999 }, MAX)).toEqual({ start: 0, end: MAX - 1 })
-    expect(capRange({ start: 1000, end: 99_999_999 }, MAX)).toEqual({
-      start: 1000,
-      end: 1000 + MAX - 1
-    })
-  })
-
-  it('leaves a range that already fits, including exactly maxBytes', () => {
-    expect(capRange({ start: 10, end: 99 }, MAX)).toEqual({ start: 10, end: 99 })
-    expect(capRange({ start: 0, end: MAX - 1 }, MAX)).toEqual({ start: 0, end: MAX - 1 })
-    expect(capRange({ start: 5, end: 5 }, MAX)).toEqual({ start: 5, end: 5 })
   })
 })
 

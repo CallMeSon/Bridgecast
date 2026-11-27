@@ -104,6 +104,21 @@ describe('layerFor', () => {
     expect(b?.id).toBe('s:desktop:n')
     expect(b?.poster).toBe('slide://n/002.png')
   })
+  it('a clocked video is never swapped for its poster and the clock is not part of the id', () => {
+    const c = { playing: true, at: 0, since: 1, loop: false, seek: 0, duration: 9 }
+    const a: Extract<OutputMedia, { kind: 'video' }> = {
+      kind: 'video',
+      url: 'slide://d/001.mp4',
+      poster: 'slide://d/001.png',
+      take: 4,
+      fit: 'fit',
+      clock: c
+    }
+    expect(layerFor(a, new Set([4]), null)).toMatchObject({ kind: 'video', clock: c })
+    expect(layerFor({ ...a, clock: { ...c, playing: false, seek: 2 } }, new Set(), null)?.id).toBe(
+      layerFor(a, new Set(), null)?.id
+    )
+  })
   it('a poster for a played take keeps the fit', () => {
     const v = { ...video(4), fit: 'stretch' as const }
     expect(layerFor(v, new Set([4]), null)).toMatchObject({ kind: 'image', fit: 'stretch' })

@@ -3,17 +3,17 @@ import {
   ZOOM_OFF,
   ZOOM_MAX,
   coalesce,
-  panDisabled,
   clampZoom,
   centreOn,
   isZoomed,
   zoomInstant,
-  minimapSize,
   panBy,
-  pointToCentre,
+  panDisabled,
+  zoomAtPoint,
   viewRect,
   zoomBy,
-  zoomTransform
+  zoomTransform,
+  type Zoom
 } from './zoom'
 
 describe('zoom maths', () => {
@@ -64,29 +64,24 @@ describe('zoom maths', () => {
     expect(r.w).toBe(r.h)
   })
 
-  it('pointToCentre', () => {
-    expect(pointToCentre(1.5, -1)).toEqual({ cx: 1, cy: 0 })
-    expect(pointToCentre(0.3, 0.6)).toEqual({ cx: 0.3, cy: 0.6 })
+  it('zoomAtPoint keeps the point under the pointer fixed', () => {
+    const at = (z: Zoom, px: number, py: number): { x: number; y: number } => {
+      const r = viewRect(z)
+      return { x: r.x + px * r.w, y: r.y + py * r.h }
+    }
+    const z = { scale: 2, cx: 0.5, cy: 0.5 }
+    const next = zoomAtPoint(z, 1.5, 0.25, 0.75)
+    expect(next.scale).toBe(3)
+    expect(at(next, 0.25, 0.75).x).toBeCloseTo(at(z, 0.25, 0.75).x)
+    expect(at(next, 0.25, 0.75).y).toBeCloseTo(at(z, 0.25, 0.75).y)
   })
-})
 
-describe('panDisabled', () => {
-  it('disables every arrow at 1x', () => {
-    expect(panDisabled(ZOOM_OFF)).toEqual({ left: true, right: true, up: true, down: true })
-  })
-  it('disables only the arrows facing a reached edge', () => {
-    expect(panDisabled({ scale: 2, cx: 0.25, cy: 0.5 })).toEqual({
-      left: true,
-      right: false,
-      up: false,
-      down: false
-    })
-    expect(panDisabled({ scale: 2, cx: 0.75, cy: 0.75 })).toEqual({
-      left: false,
-      right: true,
-      up: false,
-      down: true
-    })
+  it('zoomAtPoint from 1x, at the edges and at the limits', () => {
+    const z = zoomAtPoint(ZOOM_OFF, 2, 0, 0)
+    expect(z).toEqual({ scale: 2, cx: 0.25, cy: 0.25 })
+    expect(zoomAtPoint(ZOOM_OFF, 0.5, 0.5, 0.5)).toEqual(ZOOM_OFF)
+    expect(zoomAtPoint({ scale: 3, cx: 0.5, cy: 0.5 }, 10, 0.5, 0.5).scale).toBe(ZOOM_MAX)
+    expect(zoomAtPoint({ scale: 2, cx: 0.5, cy: 0.5 }, 0.1, 0.9, 0.9)).toEqual(ZOOM_OFF)
   })
 })
 
@@ -122,21 +117,6 @@ describe('coalesce', () => {
   })
 })
 
-describe('minimapSize', () => {
-  it('16:9 keeps the 96 px wide box', () => {
-    expect(minimapSize({ width: 1920, height: 1080 })).toEqual({ width: 96, height: 54 })
-  })
-  it('1:1 is square', () => {
-    expect(minimapSize({ width: 1080, height: 1080 })).toEqual({ width: 96, height: 96 })
-  })
-  it('9:16 is 96 px tall, narrow, with the canvas aspect', () => {
-    expect(minimapSize({ width: 1080, height: 1920 })).toEqual({ width: 54, height: 96 })
-  })
-  it('an empty canvas falls back to a square', () => {
-    expect(minimapSize({ width: 0, height: 1080 })).toEqual({ width: 96, height: 96 })
-  })
-})
-
 describe('zoomInstant', () => {
   const live = { take: 3, applies: true }
   it('zoom in, out, pan and Reset on the same take animate', () => {
@@ -148,5 +128,15 @@ describe('zoomInstant', () => {
   it('KV on or off (the zoom stops or starts applying) is a cut', () => {
     expect(zoomInstant(live, { take: 3, applies: false })).toBe(true)
     expect(zoomInstant({ take: 3, applies: false }, live)).toBe(true)
+  })
+})
+
+describe('panDisabled', () => {
+  it('disables every arrow at 1x', () => {
+    expect(panDisabled(ZOOM_OFF)).toEqual({ left: true, right: true, up: true, down: true })
+  })
+  it('disables only the arrow facing a reached edge', () => {
+    const z = clampZoom({ scale: 2, cx: 0, cy: 0.5 })
+    expect(panDisabled(z)).toEqual({ left: true, right: false, up: false, down: false })
   })
 })

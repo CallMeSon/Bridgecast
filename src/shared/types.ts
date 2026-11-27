@@ -9,6 +9,8 @@ export interface SlideMeta {
   file: string
   notes: string
   video?: string
+  /** Length of `video` in seconds (media decks); absent = unknown. */
+  duration?: number
   /** Click animations (on-click effects) on this slide; absent = 0. */
   clicks?: number
   /** The slide is hidden in PowerPoint; absent = shown. */
@@ -21,7 +23,7 @@ export type Playback = 'native' | 'vector' | 'images'
 export interface DeckMeta {
   id: string
   name: string
-  source: 'pptx' | 'pdf' | 'folder' | 'image' | 'web'
+  source: 'pptx' | 'pdf' | 'folder' | 'image' | 'web' | 'media'
   width: number
   height: number
   slides: SlideMeta[]

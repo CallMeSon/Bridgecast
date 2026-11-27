@@ -4,6 +4,7 @@ import { segmentsOf } from './sections'
 import { ZOOM_OFF, ZOOM_STEP, clampZoom, zoomBy, panBy, centreOn, type Zoom } from './zoom'
 import { DEFAULT_CANVAS, sanitizeFit, type DeckFit, type ResolvedCanvas } from './canvas'
 import { DEFAULT_DECK_AUDIO, sanitizeDeckAudio, type DeckAudio } from './audio-levels'
+import { mediaEnded, mediaPosition, startClock, type MediaClock } from './media'
 
 /**
  * The slide on the output. `file` is the slide's image in its deck and never
@@ -81,6 +82,11 @@ export interface ProgramState {
   airEvent: string | null
   /** Zoom of the live picture; reset by every take and Off air. Set only by the zoom actions. */
   zoom: Zoom
+  /**
+   * The media player clock while a media deck's video is on air (`shown`); absent otherwise.
+   * A new take starts it from 0; only the media actions change it after that.
+   */
+  media?: MediaClock
 }
 
 export type Action =
@@ -108,7 +114,14 @@ export type Action =
   | { type: 'zoomOut' }
   | { type: 'zoomPan'; dx: number; dy: number }
   | { type: 'zoomTo'; cx: number; cy: number }
+  | { type: 'zoomSet'; scale: number; cx: number; cy: number }
   | { type: 'zoomReset' }
+  /** Media player (the media deck on air): play, pause, jump, start over, loop. */
+  | { type: 'mediaPlay' }
+  | { type: 'mediaPause' }
+  | { type: 'mediaSeek'; at: number }
+  | { type: 'mediaRestart' }
+  | { type: 'mediaLoop'; on: boolean }
 
 type DeckLike = Pick<DeckMeta, 'id' | 'slides' | 'fit' | 'audio'> &
   Partial<Pick<DeckMeta, 'source' | 'web' | 'playback'>>
@@ -402,11 +415,82 @@ function withZoom(state: ProgramState, next: Zoom): ProgramState {
   return { ...state, zoom: z }
 }
 
+/**
+ * The reducer. `now` (ms since epoch) stamps the media clock; main passes its own time, never
+ * one from the renderer. Returns the same object when the action changes nothing.
+ */
 export function reduce(
   state: ProgramState,
   action: Action,
   decks: DeckLike[],
-  sections: SectionMeta[] = []
+  sections: SectionMeta[] = [],
+  now = Date.now()
+): ProgramState {
+  if (typeof action.type === 'string' && action.type.startsWith('media'))
+    return reduceMedia(state, action, now)
+  const next = reduceCore(state, action, decks, sections)
+  return next ? withMedia(state, next, decks, now) : next
+}
+
+/** A media deck's slide is on air: its clock starts on each new take and goes with the slide. */
+function withMedia(
+  prev: ProgramState,
+  next: ProgramState,
+  decks: DeckLike[],
+  now: number
+): ProgramState {
+  const shown = next.shown
+  const deck = shown ? decks.find((d) => d.id === shown.deckId) : undefined
+  const isMedia = deck?.source === 'media' && !!shown?.video
+  if (!isMedia) {
+    if (!next.media) return next
+    const rest = { ...next }
+    delete rest.media
+    return rest
+  }
+  if (next.media && next.take === prev.take) return next
+  const duration = deck.slides[shown.index]?.duration
+  return { ...next, media: startClock(now, typeof duration === 'number' ? duration : 0) }
+}
+
+function reduceMedia(state: ProgramState, action: Action, now: number): ProgramState {
+  const m = state.media
+  if (!m) return state
+  const pos = mediaPosition(m, now)
+  const end = m.duration > 0 ? m.duration : Infinity
+  switch (action.type) {
+    case 'mediaPlay':
+      if (m.playing && !mediaEnded(m, now)) return state
+      return {
+        ...state,
+        media: mediaEnded(m, now)
+          ? { ...m, playing: true, at: 0, since: now, seek: m.seek + 1 }
+          : { ...m, playing: true, at: pos, since: now }
+      }
+    case 'mediaPause':
+      if (!m.playing) return state
+      return { ...state, media: { ...m, playing: false, at: pos, since: now } }
+    case 'mediaSeek': {
+      if (typeof action.at !== 'number' || !Number.isFinite(action.at)) return state
+      const at = Math.min(Math.max(0, action.at), end)
+      return { ...state, media: { ...m, at, since: now, seek: m.seek + 1 } }
+    }
+    case 'mediaRestart':
+      return { ...state, media: { ...m, playing: true, at: 0, since: now, seek: m.seek + 1 } }
+    case 'mediaLoop':
+      if (typeof action.on !== 'boolean' || action.on === m.loop) return state
+      // Rebased at the current position, so turning loop on after the end does not jump.
+      return { ...state, media: { ...m, loop: action.on, at: pos, since: now } }
+    default:
+      return state
+  }
+}
+
+function reduceCore(
+  state: ProgramState,
+  action: Action,
+  decks: DeckLike[],
+  sections: SectionMeta[]
 ): ProgramState {
   switch (action.type) {
     case 'next':
@@ -545,10 +629,19 @@ export function reduce(
     case 'zoomTo':
       if (!Number.isFinite(action.cx) || !Number.isFinite(action.cy)) return state
       return withZoom(state, centreOn(state.zoom, action.cx, action.cy))
+    case 'zoomSet':
+      if (![action.scale, action.cx, action.cy].every(Number.isFinite)) return state
+      return withZoom(state, { scale: action.scale, cx: action.cx, cy: action.cy })
     case 'setTransition':
       return { ...state, transition: action.transition }
     case 'setAutoAdvance':
       return typeof action.on === 'boolean' ? { ...state, autoAdvance: action.on } : state
+    case 'mediaPlay':
+    case 'mediaPause':
+    case 'mediaSeek':
+    case 'mediaRestart':
+    case 'mediaLoop':
+      return state
   }
 }
 
@@ -587,5 +680,8 @@ export function reconcile(state: ProgramState, decks: DeckLike[]): ProgramState 
     frozen === state.frozen
   )
     return state
-  return { ...state, deckId, index, shown, frozen }
+  const next = { ...state, deckId, index, shown, frozen }
+  // The media deck on air is gone: its clock goes with it.
+  if (!shown) delete next.media
+  return next
 }

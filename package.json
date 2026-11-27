@@ -1,6 +1,6 @@
 {
   "name": "bridgecast",
-  "version": "0.1.15",
+  "version": "0.2.3",
   "description": "Bridgecast: slide deck output to a second display (HDMI)",
   "main": "./out/main/index.js",
   "author": "Bridgecast",
@@ -27,13 +27,16 @@
     "test:e2e": "electron-vite build && node e2e/smoke.mjs",
     "test:e2e:update": "electron-vite build && node e2e/update.mjs",
     "test:e2e:network": "electron-vite build && node e2e/network.mjs",
+    "test:e2e:media": "electron-vite build && node e2e/media.mjs",
+    "test:e2e:media-omt": "electron-vite build && node e2e/media-omt.mjs",
     "test:e2e:web": "electron-vite build && node e2e/web.mjs",
     "test:e2e:native": "electron-vite build && node e2e/native.mjs",
     "test:e2e:web-bridge": "electron-vite build && node e2e/web-bridge.mjs",
     "test:e2e:web-bridge:real": "electron-vite build && node e2e/web-bridge-real.mjs",
+    "test:e2e:clicker": "electron-vite build && node e2e/clicker.mjs",
     "test:e2e:settings": "electron-vite build && node e2e/settings.mjs",
     "test:e2e:layout": "electron-vite build && node e2e/layout.mjs",
-    "test:e2e:all": "electron-vite build && node e2e/smoke.mjs && node e2e/network.mjs && node e2e/web.mjs && node e2e/web-bridge.mjs && node e2e/native.mjs && node e2e/settings.mjs && node e2e/layout.mjs && node e2e/tour.mjs && node e2e/update.mjs && node e2e/new-event.mjs",
+    "test:e2e:all": "electron-vite build && node e2e/smoke.mjs && node e2e/network.mjs && node e2e/web.mjs && node e2e/media.mjs && node e2e/web-bridge.mjs && node e2e/native.mjs && node e2e/settings.mjs && node e2e/layout.mjs && node e2e/tour.mjs && node e2e/update.mjs && node e2e/new-event.mjs && node e2e/clicker.mjs",
     "test:e2e:native:win": "electron-vite build && node e2e/native-real.mjs",
     "test:packaged": "node e2e/packaged.mjs",
     "test:e2e:tour": "electron-vite build && node e2e/tour.mjs",
@@ -45,6 +48,7 @@
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
     "@ghostery/adblocker-electron": "^2.20.3",
+    "@radix-ui/react-slider": "^1.6.1",
     "electron-updater": "^6.8.11",
     "koffi": "3.3.6"
   },

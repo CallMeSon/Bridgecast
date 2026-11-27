@@ -9,89 +9,115 @@ import {
   MagnifyingGlassPlusIcon
 } from '@phosphor-icons/react'
 import type { Action } from '../../../shared/program'
-import {
-  PAN_STEP,
-  ZOOM_MAX,
-  coalesce,
-  isZoomed,
-  minimapSize,
-  panDisabled,
-  pointToCentre,
-  viewRect,
-  type Zoom
-} from '../../../shared/zoom'
-import type { outputSource } from '../model'
+import { panPress, type PanDir } from '../../../shared/pan-hold'
+import { ZOOM_MAX, isZoomed, panDisabled, type Zoom } from '../../../shared/zoom'
 
-const pct = (n: number): number => Math.round(n * 100)
+const nowMs = (): number => performance.now()
 
-/** The still behind the minimap rectangle: the live image, or a poster; else a neutral tile. */
-function stillUrl(media: ReturnType<typeof outputSource>): string | null {
-  if (!media) return null
-  if (media.kind === 'image') return media.url
-  if (media.kind === 'pdf' || media.kind === 'video' || media.kind === 'stream') return media.poster
-  return null
-}
+const ARROWS: { dir: PanDir; label: string; icon: React.ReactNode }[] = [
+  { dir: 'left', label: 'Pan left', icon: <CaretLeftIcon size={16} weight="bold" /> },
+  { dir: 'up', label: 'Pan up', icon: <CaretUpIcon size={16} weight="bold" /> },
+  { dir: 'down', label: 'Pan down', icon: <CaretDownIcon size={16} weight="bold" /> },
+  { dir: 'right', label: 'Pan right', icon: <CaretRightIcon size={16} weight="bold" /> }
+]
 
 /**
- * Zoom and pan of the Program output: buttons plus a minimap of the whole picture with the
- * visible window. Everything dispatches reducer actions; the reducer clamps.
+ * Pan arrows: a click is one big step, holding pans smoothly (pan-hold.ts). The hold sends one
+ * zoomPan per animation frame, so it never floods IPC. Enter/Space work like a press.
  */
-export function ZoomControls({
+function PanPad({
   zoom,
-  canvas,
   disabled,
-  media,
   onAction
 }: {
   zoom: Zoom
-  canvas: { width: number; height: number }
   disabled: boolean
-  media: ReturnType<typeof outputSource>
+  onAction(a: Action): void
+}): React.JSX.Element {
+  const edge = panDisabled(zoom)
+  const live = useRef(onAction)
+  useEffect(() => {
+    live.current = onAction
+  })
+  const active = useRef<{ dir: PanDir; press: ReturnType<typeof panPress>; raf: number } | null>(
+    null
+  )
+  const stop = (tap: boolean): void => {
+    const a = active.current
+    if (!a) return
+    active.current = null
+    cancelAnimationFrame(a.raf)
+    const d = tap ? a.press.release(nowMs()) : null
+    if (d) live.current({ type: 'zoomPan', ...d })
+  }
+  const start = (dir: PanDir): void => {
+    if (active.current) return
+    const press = panPress(dir, nowMs())
+    const a = { dir, press, raf: 0 }
+    const loop = (now: number): void => {
+      const d = press.tick(now)
+      if (d) live.current({ type: 'zoomPan', ...d })
+      a.raf = requestAnimationFrame(loop)
+    }
+    a.raf = requestAnimationFrame(loop)
+    active.current = a
+  }
+  // A held arrow stops at its edge (the button turns disabled), and on unmount.
+  useEffect(() => {
+    if (active.current && (disabled || edge[active.current.dir])) stop(false)
+  })
+  useEffect(() => () => stop(false), [])
+  return (
+    <div className="pgm-zoom-pad" role="group" aria-label="Pan">
+      {ARROWS.map(({ dir, label, icon }) => (
+        <button
+          key={dir}
+          type="button"
+          className="pgm-zoom-btn"
+          aria-label={label}
+          title={`${label} (hold to keep moving)`}
+          disabled={disabled || edge[dir]}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.currentTarget.setPointerCapture(e.pointerId)
+            start(dir)
+          }}
+          onPointerUp={() => stop(true)}
+          onPointerCancel={() => stop(false)}
+          onLostPointerCapture={() => stop(false)}
+          onBlur={() => stop(false)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return
+            e.preventDefault()
+            if (!e.repeat) start(dir)
+          }}
+          onKeyUp={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return
+            e.preventDefault()
+            stop(true)
+          }}
+        >
+          {icon}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Zoom buttons of the Program output. Pointer zoom and pan happen on the monitor itself
+ * (use-monitor-zoom.ts). Everything dispatches reducer actions; the reducer clamps.
+ */
+export function ZoomControls({
+  zoom,
+  disabled,
+  onAction
+}: {
+  zoom: Zoom
+  disabled: boolean
   onAction(a: Action): void
 }): React.JSX.Element {
   const zoomed = isZoomed(zoom)
-  const edge = panDisabled(zoom)
-  const r = viewRect(zoom)
-  const still = stillUrl(media)
-  const size = minimapSize(canvas)
-  const box = useRef<HTMLDivElement>(null)
-  const dragging = useRef(false)
-  // One zoomTo per animation frame while dragging.
-  const drag = useRef<ReturnType<typeof coalesce<{ cx: number; cy: number }>> | null>(null)
-  useEffect(() => {
-    drag.current = coalesce<{ cx: number; cy: number }>(
-      (c) => onAction({ type: 'zoomTo', cx: c.cx, cy: c.cy }),
-      (run) => {
-        requestAnimationFrame(run)
-      }
-    )
-  }, [onAction])
-  const point = (e: React.PointerEvent): { cx: number; cy: number } | null => {
-    const b = box.current?.getBoundingClientRect()
-    if (!b || b.width === 0 || b.height === 0) return null
-    return pointToCentre((e.clientX - b.left) / b.width, (e.clientY - b.top) / b.height)
-  }
-  const minimapOff = disabled || !zoomed
-  const pan = (dx: number, dy: number): void => onAction({ type: 'zoomPan', dx, dy })
-  const arrow = (
-    label: string,
-    off: boolean,
-    dx: number,
-    dy: number,
-    icon: React.ReactNode,
-    cls: string
-  ): React.JSX.Element => (
-    <button
-      type="button"
-      className={`pgm-zoom-btn ${cls}`}
-      aria-label={label}
-      title={label}
-      disabled={disabled || off}
-      onClick={() => pan(dx, dy)}
-    >
-      {icon}
-    </button>
-  )
   return (
     <div className="pgm-zoom" data-testid="zoom-controls" role="group" aria-label="Zoom">
       <div className="pgm-zoom-row">
@@ -129,87 +155,10 @@ export function ZoomControls({
           <ArrowCounterClockwiseIcon size={18} weight="bold" aria-hidden="true" />
         </button>
       </div>
-      <div className="pgm-zoom-pad">
-        {arrow(
-          'Pan up',
-          edge.up,
-          0,
-          -PAN_STEP,
-          <CaretUpIcon size={16} weight="bold" aria-hidden="true" />,
-          'pan-up'
-        )}
-        {arrow(
-          'Pan left',
-          edge.left,
-          -PAN_STEP,
-          0,
-          <CaretLeftIcon size={16} weight="bold" aria-hidden="true" />,
-          'pan-left'
-        )}
-        {arrow(
-          'Pan right',
-          edge.right,
-          PAN_STEP,
-          0,
-          <CaretRightIcon size={16} weight="bold" aria-hidden="true" />,
-          'pan-right'
-        )}
-        {arrow(
-          'Pan down',
-          edge.down,
-          0,
-          PAN_STEP,
-          <CaretDownIcon size={16} weight="bold" aria-hidden="true" />,
-          'pan-down'
-        )}
-      </div>
-      <div className="pgm-zoom-map" role="group" aria-label="Zoom position">
-        <div
-          ref={box}
-          className="pgm-zoom-box"
-          data-off={minimapOff}
-          style={{
-            width: `${size.width}px`,
-            height: `${size.height}px`,
-            aspectRatio: `${canvas.width} / ${canvas.height}`
-          }}
-          onPointerDown={(e) => {
-            if (minimapOff) return
-            const c = point(e)
-            if (!c) return
-            e.currentTarget.setPointerCapture(e.pointerId)
-            dragging.current = true
-            onAction({ type: 'zoomTo', cx: c.cx, cy: c.cy })
-          }}
-          onPointerMove={(e) => {
-            if (!dragging.current) return
-            const c = point(e)
-            if (c) drag.current?.push(c)
-          }}
-          onPointerUp={() => {
-            dragging.current = false
-            drag.current?.flush()
-          }}
-          onPointerCancel={() => {
-            dragging.current = false
-            drag.current?.flush()
-          }}
-        >
-          {still && <img className="pgm-zoom-still" src={still} alt="" draggable={false} />}
-          <div
-            className="pgm-zoom-view"
-            style={{
-              left: `${r.x * 100}%`,
-              top: `${r.y * 100}%`,
-              width: `${r.w * 100}%`,
-              height: `${r.h * 100}%`
-            }}
-          />
-        </div>
-        <span className="visually-hidden">
-          Zoom centre {pct(zoom.cx)}% / {pct(zoom.cy)}%
-        </span>
-      </div>
+      <PanPad zoom={zoom} disabled={disabled} onAction={onAction} />
+      <span className="pgm-zoom-hint" aria-hidden="true">
+        Ctrl+scroll to zoom, drag to move
+      </span>
     </div>
   )
 }
