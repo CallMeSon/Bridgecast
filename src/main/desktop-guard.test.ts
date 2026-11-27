@@ -102,8 +102,10 @@ describe('createDesktopGuard', () => {
 
   it('second activation keeps the true originals', () => {
     makeGuard().setActive(true)
+    values.set(SUPER, "'Super_R'")
     const next = makeGuard()
     next.setActive(true)
+    expect(journal()).toEqual(Object.fromEntries(ORIGINALS))
     next.restore()
     expect(values.get(SUPER)).toBe("'Super_L'")
   })
