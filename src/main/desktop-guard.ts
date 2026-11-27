@@ -5,6 +5,7 @@
  * changes, so a crash can be undone at the next start.
  */
 import * as fs from 'fs'
+import { dirname } from 'path'
 
 /** `[schema, key, off value]`; values are GVariant text, as `gsettings get` prints them. */
 const GUARDED: readonly (readonly [string, string, string])[] = [
@@ -78,15 +79,35 @@ export function createDesktopGuard({
     }
   }
 
-  /** Atomic, so a power cut cannot leave half a journal; removes an empty one. */
+  /**
+   * Synced to a temp file, then renamed, so a power cut leaves the old journal or
+   * the new one, never an empty or half one. Throws if the data cannot be synced.
+   * Removes an empty journal.
+   */
   const writeJournal = (journal: Journal): void => {
     if (Object.keys(journal).length === 0) {
       fs.rmSync(file, { force: true })
       return
     }
     const tmp = `${file}.tmp`
-    fs.writeFileSync(tmp, JSON.stringify(journal, null, 2), 'utf8')
+    const fd = fs.openSync(tmp, 'w')
+    try {
+      // On a descriptor this loops over writeSync, so there are no short writes.
+      fs.writeFileSync(fd, JSON.stringify(journal, null, 2), 'utf8')
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
     fs.renameSync(tmp, file)
+    // Makes the rename itself durable. Best effort: not every filesystem allows it.
+    attempt(`could not sync the folder of ${file}`, () => {
+      const dir = fs.openSync(dirname(file), 'r')
+      try {
+        fs.fsyncSync(dir)
+      } finally {
+        fs.closeSync(dir)
+      }
+    })
   }
 
   const turnOff = (): void => {
@@ -120,7 +141,10 @@ export function createDesktopGuard({
       if (typeof original !== 'string') continue
       try {
         // Anything but the off value was changed by the user meanwhile: leave it.
-        if (gsettings(['get', schema, key]) === off) gsettings(['set', schema, key, original])
+        if (gsettings(['get', schema, key]) !== off) continue
+        gsettings(['set', schema, key, original])
+        // `set` can exit cleanly without writing; only a read back proves it.
+        if (gsettings(['get', schema, key]) === off) throw new Error(`${id} is still ${off}`)
       } catch (err) {
         remaining[id] = original
         log(`could not restore ${id}`, err)

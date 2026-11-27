@@ -387,6 +387,7 @@ silently.
 - [ ] HDMI off: `overlay-key` is `'Super_L'` again, and Super, the hot corner and the shortcuts work as before.
 - [ ] HDMI showing, unplug the cable: `overlay-key` is `'Super_L'`. Plug it back in: the guard is on again.
 - [ ] HDMI showing, quit the app: `overlay-key` is `'Super_L'`.
+- [ ] HDMI showing, log out or shut down, then log back in. Before starting Bridgecast, note whether Super works.
 - [ ] HDMI showing, `kill -9` the app, then reopen it with HDMI off: `overlay-key` is `'Super_L'`.
 - [ ] Repeat the checks above from the AppImage.
 - [ ] Repeat the checks above from the `.deb`.

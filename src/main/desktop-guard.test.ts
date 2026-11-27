@@ -4,6 +4,13 @@ import * as os from 'os'
 import { join } from 'path'
 import { createDesktopGuard, guardSupported } from './desktop-guard'
 
+// Real fs, with fsync observable and breakable.
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>()
+  return { ...actual, fsyncSync: vi.fn(actual.fsyncSync) }
+})
+const { fsyncSync: realFsync } = await vi.importActual<typeof import('fs')>('fs')
+
 const ORIGINALS: [string, string][] = [
   ['org.gnome.mutter overlay-key', "'Super_L'"],
   ['org.gnome.desktop.interface enable-hot-corners', 'true'],
@@ -64,6 +71,7 @@ beforeEach(() => {
   values = new Map(ORIGINALS)
   fail = () => {}
   onSet = () => {}
+  vi.mocked(fs.fsyncSync).mockImplementation(realFsync)
 })
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
 
@@ -149,6 +157,50 @@ describe('createDesktopGuard', () => {
     guard.restore()
     expect([...values]).toEqual(ORIGINALS)
     expect(fs.existsSync(file)).toBe(false)
+  })
+
+  it('keeps the original when a restore silently does nothing', () => {
+    const guard = makeGuard()
+    guard.setActive(true)
+    gsettings.mockImplementationOnce(() => "''") // get: still off
+    gsettings.mockImplementationOnce(() => '') // set: no error, no change
+    guard.setActive(false)
+    expect(values.get(SUPER)).toBe("''")
+    expect(journal()).toEqual({ [SUPER]: "'Super_L'" })
+    expect(log).toHaveBeenCalled()
+
+    guard.restore()
+    expect([...values]).toEqual(ORIGINALS)
+    expect(fs.existsSync(file)).toBe(false)
+  })
+
+  it('syncs the journal and its directory before the first set', () => {
+    let synced = 0
+    onSet = () => {
+      synced ||= vi.mocked(fs.fsyncSync).mock.calls.length
+    }
+    makeGuard().setActive(true)
+    expect(synced).toBe(2)
+  })
+
+  it('changes nothing when the journal cannot be synced', () => {
+    vi.mocked(fs.fsyncSync).mockImplementation(() => {
+      throw new Error('EIO')
+    })
+    expect(() => makeGuard().setActive(true)).not.toThrow()
+    expect(setCalls()).toEqual([])
+    expect(fs.existsSync(file)).toBe(false)
+    expect(log).toHaveBeenCalled()
+  })
+
+  it('still writes the journal when the directory cannot be synced', () => {
+    vi.mocked(fs.fsyncSync).mockImplementation((fd) => {
+      if (fs.fstatSync(fd).isDirectory()) throw new Error('EINVAL')
+      realFsync(fd)
+    })
+    makeGuard().setActive(true)
+    expect(journal()).toEqual(Object.fromEntries(ORIGINALS))
+    expect(Object.fromEntries(values)).toEqual(OFF)
   })
 
   it('ignores a damaged journal', () => {
