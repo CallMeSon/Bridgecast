@@ -29,6 +29,8 @@ export interface AudioSettings {
   muted: boolean
   masterVolume: number
   route: AudioRoute
+  /** Operator Monitor: the operator window also plays the Program sound while an output does. */
+  monitor: boolean
 }
 
 /**
@@ -93,7 +95,8 @@ export const DEFAULT_AUDIO: Readonly<AudioSettings> = Object.freeze({
   deviceId: null,
   muted: false,
   masterVolume: 100,
-  route: 'local'
+  route: 'local',
+  monitor: false
 })
 
 const AUDIO_ROUTES: readonly AudioRoute[] = ['local', 'omt', 'both']
@@ -125,7 +128,8 @@ export function sanitizeAudio(raw: unknown): AudioSettings {
     masterVolume: sanitizeVolume(a.masterVolume, DEFAULT_AUDIO.masterVolume),
     route: AUDIO_ROUTES.includes(a.route as AudioRoute)
       ? (a.route as AudioRoute)
-      : DEFAULT_AUDIO.route
+      : DEFAULT_AUDIO.route,
+    monitor: typeof a.monitor === 'boolean' ? a.monitor : DEFAULT_AUDIO.monitor
   }
 }
 
@@ -146,6 +150,7 @@ export function mergeAudio(saved: AudioSettings, patch: unknown): AudioSettings 
   if (typeof patch.muted === 'boolean') out.muted = clean.muted
   if (Number.isFinite(patch.masterVolume)) out.masterVolume = clean.masterVolume
   if (AUDIO_ROUTES.includes(patch.route as AudioRoute)) out.route = clean.route
+  if (typeof patch.monitor === 'boolean') out.monitor = clean.monitor
   return out
 }
 

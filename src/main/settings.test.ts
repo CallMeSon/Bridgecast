@@ -24,7 +24,13 @@ describe('loadSettings / saveSettings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
+      audio: {
+        deviceId: null,
+        muted: false,
+        masterVolume: 100,
+        route: 'local' as const,
+        monitor: false
+      },
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: false, name: 'Bridgecast' },
@@ -40,7 +46,13 @@ describe('loadSettings / saveSettings', () => {
     const s = {
       hdmi: { enabled: true, displayId: 2528732444 },
       autoAdvance: true,
-      audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
+      audio: {
+        deviceId: null,
+        muted: false,
+        masterVolume: 100,
+        route: 'local' as const,
+        monitor: false
+      },
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: true, name: 'Aula', fps: 60 as const },
       ndi: { enabled: true, name: 'Sala NDI' },
@@ -88,7 +100,13 @@ describe('hdmi settings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: false, displayId: null },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
+      audio: {
+        deviceId: null,
+        muted: false,
+        masterVolume: 100,
+        route: 'local' as const,
+        monitor: false
+      },
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: false, name: 'Aula' },
@@ -105,7 +123,13 @@ describe('hdmi settings', () => {
     expect(loadSettings(file)).toEqual({
       hdmi: { enabled: true, displayId: 7 },
       autoAdvance: false,
-      audio: { deviceId: null, muted: false, masterVolume: 100, route: 'local' as const },
+      audio: {
+        deviceId: null,
+        muted: false,
+        masterVolume: 100,
+        route: 'local' as const,
+        monitor: false
+      },
       canvas: { width: 1920, height: 1080 },
       omt: { enabled: false, name: 'Bridgecast', fps: 30 },
       ndi: { enabled: true, name: 'Bridgecast' },
@@ -150,13 +174,15 @@ describe('audio settings', () => {
       deviceId: null,
       muted: false,
       masterVolume: 100,
-      route: 'local' as const
+      route: 'local' as const,
+      monitor: false
     })
     expect(sanitizeSettings({}).audio).toEqual({
       deviceId: null,
       muted: false,
       masterVolume: 100,
-      route: 'local' as const
+      route: 'local' as const,
+      monitor: false
     })
   })
 
@@ -166,7 +192,8 @@ describe('audio settings', () => {
         deviceId: null,
         muted: false,
         masterVolume: 100,
-        route: 'local' as const
+        route: 'local' as const,
+        monitor: false
       })
     }
   })
@@ -176,13 +203,15 @@ describe('audio settings', () => {
       deviceId: 'abc123',
       muted: true,
       masterVolume: 100,
-      route: 'local'
+      route: 'local',
+      monitor: false
     })
     expect(sanitizeSettings({ audio: { deviceId: 'abc123', muted: true } }).audio).toEqual({
       deviceId: 'abc123',
       muted: true,
       masterVolume: 100,
-      route: 'local'
+      route: 'local',
+      monitor: false
     })
   })
 
@@ -191,7 +220,8 @@ describe('audio settings', () => {
       deviceId: null,
       muted: true,
       masterVolume: 100,
-      route: 'local'
+      route: 'local',
+      monitor: false
     })
     expect(sanitizeAudio({ deviceId: 'x'.repeat(512) }).deviceId).toBe('x'.repeat(512))
     expect(sanitizeAudio({ deviceId: 'x'.repeat(513) }).deviceId).toBeNull()
@@ -202,21 +232,29 @@ describe('audio settings', () => {
       deviceId: null,
       muted: false,
       masterVolume: 100,
-      route: 'local'
+      route: 'local',
+      monitor: false
     })
   })
 
   it('save then load keeps audio', () => {
     const s = {
       ...DEFAULT_SETTINGS,
-      audio: { deviceId: 'hdmi-1', muted: true, masterVolume: 100, route: 'local' as const }
+      audio: {
+        deviceId: 'hdmi-1',
+        muted: true,
+        masterVolume: 100,
+        route: 'local' as const,
+        monitor: false
+      }
     }
     saveSettings(file, s)
     expect(loadSettings(file).audio).toEqual({
       deviceId: 'hdmi-1',
       muted: true,
       masterVolume: 100,
-      route: 'local'
+      route: 'local',
+      monitor: false
     })
   })
 })
@@ -253,7 +291,8 @@ describe('master volume', () => {
       deviceId: 'hdmi-1',
       muted: true,
       masterVolume: 100,
-      route: 'local' as const
+      route: 'local' as const,
+      monitor: false
     })
   })
 
@@ -267,7 +306,7 @@ describe('master volume', () => {
     expect(sanitizeAudio({ masterVolume: 30 }).masterVolume).toBe(30)
     saveSettings(file, {
       ...DEFAULT_SETTINGS,
-      audio: { deviceId: null, muted: false, masterVolume: 30, route: 'local' }
+      audio: { deviceId: null, muted: false, masterVolume: 30, route: 'local', monitor: false }
     })
     expect(loadSettings(file).audio.masterVolume).toBe(30)
   })
@@ -358,7 +397,13 @@ describe('send content only setting', () => {
 })
 
 describe('mergeAudio', () => {
-  const saved = { deviceId: 'dev', muted: false, masterVolume: 60, route: 'both' as const }
+  const saved = {
+    deviceId: 'dev',
+    muted: false,
+    masterVolume: 60,
+    route: 'both' as const,
+    monitor: false
+  }
 
   it('changes only the keys present', () => {
     expect(mergeAudio(saved, { muted: true })).toEqual({ ...saved, muted: true })
@@ -383,5 +428,17 @@ describe('mergeAudio', () => {
   })
   it('ignores unknown keys', () => {
     expect(mergeAudio(saved, { foo: 1, muted: true })).toEqual({ ...saved, muted: true })
+  })
+})
+
+describe('audio monitor flag', () => {
+  it('defaults to off, keeps a boolean and merges it from a patch', () => {
+    expect(sanitizeAudio({}).monitor).toBe(false)
+    expect(sanitizeAudio({ monitor: 'yes' }).monitor).toBe(false)
+    expect(sanitizeAudio({ monitor: true }).monitor).toBe(true)
+    const saved = sanitizeAudio({})
+    expect(mergeAudio(saved, { monitor: true }).monitor).toBe(true)
+    expect(mergeAudio({ ...saved, monitor: true }, { muted: true }).monitor).toBe(true)
+    expect(mergeAudio(saved, { monitor: 1 }).monitor).toBe(false)
   })
 })
