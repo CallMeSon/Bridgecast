@@ -9,6 +9,7 @@ import type { NewEventOptions } from './event-outputs'
 import type { DeckAudio } from './audio-levels'
 import type { SlideshowStatus } from './playback'
 import type { UpdateStatus } from './update'
+import type { ClickerStatus } from './clicker'
 import type {
   PrepareInput,
   WebCaptureSource,
@@ -81,6 +82,8 @@ export const Invoke = {
   webChromeStatus: 'web:chromeStatus',
   webChromeSet: 'web:chromeSet',
   webChromeSignIn: 'web:chromeSignIn',
+  clickerStatus: 'clicker:status',
+  clickerSet: 'clicker:set',
   webStatuses: 'web:statuses',
   webOutputs: 'web:outputs',
   webCaptureFailed: 'web:captureFailed',
@@ -135,6 +138,7 @@ export const Broadcast = {
   webOutputs: 'web:outputs',
   webCaptureWarnings: 'web:captureWarnings',
   webChromeStatus: 'web:chromeStatus',
+  clickerStatus: 'clicker:status',
   slideshowNote: 'slideshow:note',
   slideshowStatus: 'slideshow:status',
   deckPending: 'deck:pending',
@@ -349,6 +353,10 @@ export interface InvokeMap {
   'web:chromeSet': { args: [on: boolean]; result: WebChromeStatus }
   /** Linux: open Chrome on the Bridgecast profile to sign in to Google (refused with the fix). */
   'web:chromeSignIn': { args: []; result: WebChromeStatus }
+  /** Global clicker keys (PageUp/PageDown, arrows while Bridgecast is in the background). */
+  'clicker:status': { args: []; result: ClickerStatus }
+  /** Turns the global clicker on or off; it applies at once. */
+  'clicker:set': { args: [on: boolean]; result: ClickerStatus }
   /** Current load state of every open page (later changes arrive as `web:status`). */
   'web:statuses': { args: []; result: WebStatusEvent[] }
   /** Which outputs main counts for the ready gate (later changes arrive as `web:outputs`). */
@@ -407,6 +415,7 @@ export interface BroadcastMap {
   'web:outputs': WebOutputs
   'web:captureWarnings': WebCaptureWarning[]
   'web:chromeStatus': WebChromeStatus
+  'clicker:status': ClickerStatus
   'slideshow:note': string | null
   'slideshow:status': SlideshowStatus
   'deck:pending': DeckPendingEvent
@@ -544,6 +553,9 @@ export interface Api {
   /** Opens Chrome on the Bridgecast profile; its closing arrives through `onWebChromeStatus`. */
   signInGoogle(): Promise<WebChromeStatus>
   onWebChromeStatus(cb: (s: WebChromeStatus) => void): () => void
+  clickerStatus(): Promise<ClickerStatus>
+  setClicker(on: boolean): Promise<ClickerStatus>
+  onClickerStatus(cb: (s: ClickerStatus) => void): () => void
   webStatuses(): Promise<WebStatusEvent[]>
   onWebStatus(cb: (s: WebStatusEvent) => void): () => void
   /** Which outputs are active for the ready gate (who captures pages that are not live yet). */

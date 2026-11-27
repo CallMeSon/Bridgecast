@@ -4,6 +4,7 @@ import {
   BrowserWindow,
   desktopCapturer,
   dialog,
+  globalShortcut,
   ipcMain,
   MessageChannelMain,
   nativeImage,
@@ -140,6 +141,7 @@ import {
   type SignInChild
 } from './web/chrome-signin'
 import type { WebChromeStatus } from '../shared/web'
+import { GlobalClicker } from './clicker'
 
 import { setWebLogFile } from './web/web-log'
 import type { PageBackend } from './web/page-backend'
@@ -399,7 +401,8 @@ function registerIpc(
   syncWeb: () => void,
   operatorWindow: () => BrowserWindow | null,
   updateManager: UpdateManager | null,
-  webChrome: WebChromeControl
+  webChrome: WebChromeControl,
+  clicker: GlobalClicker
 ): void {
   const progress = (p: ImportProgress): void => broadcast(Broadcast.importProgress, p)
 
@@ -995,6 +998,18 @@ function registerIpc(
     operatorOnly(e)
     return webChrome.signIn()
   })
+  appHandle(Invoke.clickerStatus, (e) => {
+    operatorOnly(e)
+    return clicker.status()
+  })
+  appHandle(Invoke.clickerSet, (e, on) => {
+    operatorOnly(e)
+    if (typeof on !== 'boolean')
+      throw new Error('The clicker setting is not valid. Reload the app, then try again.')
+    settings.saveGlobalClicker(on)
+    clicker.sync()
+    return clicker.status()
+  })
   handle(Invoke.appVersion, () => app.getVersion())
 
   handle(Invoke.displaysList, () => hdmi.displays())
@@ -1481,6 +1496,10 @@ class SettingsStore {
     return this.save({ ...this.settings, webChrome })
   }
 
+  saveGlobalClicker(globalClicker: boolean): Settings {
+    return this.save({ ...this.settings, globalClicker })
+  }
+
   saveAutoAdvance(autoAdvance: boolean): Settings {
     return this.save({ ...this.settings, autoAdvance })
   }
@@ -1894,6 +1913,27 @@ Location: ${root}`
     }
   })
   const hdmi = createHdmiOutput(settings)
+  // Presentation clicker: PageUp/PageDown and the arrows while Bridgecast is in the background.
+  // They go through AppState.dispatch, the same path as the operator window's own keys (web
+  // page key forwarding, engine gates and the native slide show all hang off that).
+  const clicker: GlobalClicker = new GlobalClicker({
+    register: (accelerator, cb) => globalShortcut.register(accelerator, cb),
+    unregister: (accelerator) => globalShortcut.unregister(accelerator),
+    dispatch: (action) => void state.dispatch(action),
+    enabled: () => settings.get().globalClicker,
+    operatorOpen: () => !!operator && !operator.isDestroyed(),
+    bridgecastFocused: () =>
+      BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isFocused()),
+    wayland: process.platform === 'linux' && sessionType === 'wayland',
+    onChange: (st) => broadcast(Broadcast.clickerStatus, st),
+    warn: (m) => console.warn(m)
+  })
+  app.on('browser-window-focus', () => clicker.sync())
+  app.on('browser-window-blur', () => clicker.sync())
+  app.on('will-quit', () => clicker.dispose())
+  if (process.env['PPT_OUTPUT_DUMP']) {
+    Object.defineProperty(globalThis, '__pptClicker', { configurable: true, value: clicker })
+  }
   const net = createNetOutput(settings, state, lib)
   let operator: BrowserWindow | null = null
   const webDevUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
@@ -2121,7 +2161,8 @@ Location: ${root}`
     syncWeb,
     () => operator,
     updateManager,
-    webChrome
+    webChrome,
+    clicker
   )
 
   const startOutputs = (): void => {
@@ -2136,12 +2177,15 @@ Location: ${root}`
   operator = createWindow(onOperatorShown)
   operatorWindowRef = () => operator
   hdmi.watchOperator(operator)
+  operator.on('closed', () => clicker.sync())
+  clicker.sync()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) {
       operator = createWindow(onOperatorShown)
       operatorWindowRef = () => operator
       hdmi.watchOperator(operator)
+      operator.on('closed', () => clicker.sync())
     }
   })
 })
