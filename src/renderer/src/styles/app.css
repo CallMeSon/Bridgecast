@@ -1879,16 +1879,68 @@ main {
 .transport.mediabar {
   height: 48px;
   gap: 8px;
+  /* The seek time tooltip rises above the bar. */
+  overflow: visible;
 }
 .mediabar .tpos {
   min-width: 96px;
 }
+/* Seek slider (Radix): the pointer maps to the whole width of the bar, so a click lands where
+   the pointer is; the thumb is narrow to keep its end-stop offset small. */
 .mediabar .mseek {
+  position: relative;
   flex: 1;
   min-width: 80px;
-  accent-color: var(--accent);
+  display: flex;
+  align-items: center;
   height: var(--h-sm);
   margin: 0;
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+.mseek[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.mseek-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  background: var(--line-hi);
+  border-radius: 2px;
+}
+.mseek-range {
+  position: absolute;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.mseek-thumb {
+  display: block;
+  width: 10px;
+  height: 18px;
+  background: var(--text);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-sm);
+  outline: none;
+}
+.mseek-thumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mseek-tip {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r-sm);
+  pointer-events: none;
+  white-space: nowrap;
 }
 /* Hold buttons (Freeze, KV, Black): default, hover, active, pressed, disabled. */
 .tbtn.hold {
@@ -4615,7 +4667,8 @@ button > svg,
   padding: 8px var(--pad);
   color: var(--text-2);
 }
-.pgm-zoom-row {
+.pgm-zoom-row,
+.pgm-zoom-pad {
   display: flex;
   align-items: center;
   gap: 4px;

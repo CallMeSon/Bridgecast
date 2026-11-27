@@ -9,6 +9,11 @@ Versions restart at 0.x because the app is in development.
 - Program sound meter: a small bar left of the sound buttons under the Program monitor shows the live level of the Program sound (video, web and PowerPoint). It rests empty when silent and shows "Muted" (hatched, with the word) while the output is muted.
 - The operator window plays the Program sound itself when no output window does (HDMI off and no OMT or NDI running), on the Sound device from Settings, with deck and master volume and Mute all. As soon as an output takes over, it stops, so the sound is never doubled.
 - Monitor (headphones button next to Mute): the operator window also plays the Program sound while an output does. Off by default and saved in the settings.
+- Pan arrows are back next to the zoom controls: a click moves the view one big step, holding an arrow pans smoothly until you let go or reach the edge. Enter and Space work too. No mini-map.
+
+### Fixed
+
+- Video seek slider: the thumb no longer jumps back after you release it, a click lands exactly under the pointer, and a time tooltip shows where you will seek. Arrow keys step 1 s, PageUp/PageDown 10 s, Home/End jump to the ends. Built on Radix Slider.
 
 ## [0.2.0] - 2026-11-27
 
