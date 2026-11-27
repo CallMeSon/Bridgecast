@@ -80,6 +80,25 @@ export function zoomInstant(prev: ZoomFrame, next: ZoomFrame): boolean {
   return prev.take !== next.take || prev.applies !== next.applies
 }
 
+const EDGE_EPS = 1e-6
+
+/** Which pan arrows are disabled: all at 1x, and the one facing a canvas edge already reached. */
+export function panDisabled(z: Zoom): {
+  left: boolean
+  right: boolean
+  up: boolean
+  down: boolean
+} {
+  if (!isZoomed(z)) return { left: true, right: true, up: true, down: true }
+  const r = viewRect(z)
+  return {
+    left: r.x <= EDGE_EPS,
+    right: r.x + r.w >= 1 - EDGE_EPS,
+    up: r.y <= EDGE_EPS,
+    down: r.y + r.h >= 1 - EDGE_EPS
+  }
+}
+
 /** Keeps only the newest value and hands it to `send` once per `schedule` tick (a frame). */
 export function coalesce<T>(
   send: (v: T) => void,

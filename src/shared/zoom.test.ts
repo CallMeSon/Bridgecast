@@ -8,6 +8,7 @@ import {
   isZoomed,
   zoomInstant,
   panBy,
+  panDisabled,
   zoomAtPoint,
   viewRect,
   zoomBy,
@@ -127,5 +128,15 @@ describe('zoomInstant', () => {
   it('KV on or off (the zoom stops or starts applying) is a cut', () => {
     expect(zoomInstant(live, { take: 3, applies: false })).toBe(true)
     expect(zoomInstant({ take: 3, applies: false }, live)).toBe(true)
+  })
+})
+
+describe('panDisabled', () => {
+  it('disables every arrow at 1x', () => {
+    expect(panDisabled(ZOOM_OFF)).toEqual({ left: true, right: true, up: true, down: true })
+  })
+  it('disables only the arrow facing a reached edge', () => {
+    const z = clampZoom({ scale: 2, cx: 0, cy: 0.5 })
+    expect(panDisabled(z)).toEqual({ left: true, right: false, up: false, down: false })
   })
 })

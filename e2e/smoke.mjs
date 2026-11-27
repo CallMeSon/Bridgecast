@@ -1433,8 +1433,9 @@ async function simulatedHdmiChecks(win, real) {
     }
     // Pointer zoom on the monitor: Ctrl+wheel zooms about the pointer, a drag pans.
     check(
-      (await win.locator('.pgm-zoom button[aria-label^="Pan"], .pgm-zoom-box').count()) === 0,
-      'no pan arrows and no minimap in the zoom controls'
+      (await win.locator('.pgm-zoom-box').count()) === 0 &&
+        (await win.locator('.pgm-zoom button[aria-label^="Pan"]:disabled').count()) === 4,
+      'pan arrows present (disabled at 1x), no minimap'
     )
     const screenBox = await win.locator('.pgm-stack .screen').boundingBox()
     const mx = screenBox.x + screenBox.width * 0.5
@@ -1461,6 +1462,26 @@ async function simulatedHdmiChecks(win, real) {
       'dragging the monitor pans the HDMI window'
     )
     check(z2.zoom === z1.zoom, `a drag keeps the zoom at ${z1.zoom} (${JSON.stringify(z2)})`)
+    // Pan arrows: a click is one big step, a hold keeps moving.
+    const arrowBtn = win.locator('.pgm-zoom button[aria-label="Pan right"]')
+    const before = (await hdmiZoom()).transform
+    const bb = await arrowBtn.boundingBox()
+    await win.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2)
+    const z3 = await waitHdmiZoom(
+      (z) => z.transform !== before,
+      'a Pan right click moves the HDMI window'
+    )
+    await win.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2)
+    await win.mouse.down()
+    await sleep(1200)
+    await win.mouse.up()
+    await sleep(500)
+    const z4 = await hdmiZoom()
+    check(z4.transform !== z3.transform, 'holding Pan right keeps moving the HDMI window')
+    check(
+      await win.locator('.pgm-zoom button[aria-label="Pan right"]').isDisabled(),
+      'Pan right is disabled at the right edge'
+    )
     await win.mouse.dblclick(mx, my)
     await waitHdmiZoom(
       (z) => z.zoom === '1.00' && z.transform === 'none',

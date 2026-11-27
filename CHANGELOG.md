@@ -4,6 +4,14 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Added
+
+- Pan arrows are back next to the zoom controls: a click moves the view one big step, holding an arrow pans smoothly until you let go or reach the edge. Enter and Space work too. No mini-map.
+
+### Fixed
+
+- Video seek slider: the thumb no longer jumps back after you release it, a click lands exactly under the pointer, and a time tooltip shows where you will seek. Arrow keys step 1 s, PageUp/PageDown 10 s, Home/End jump to the ends. Built on Radix Slider.
+
 ## [0.2.0] - 2026-11-27
 
 ### Changed

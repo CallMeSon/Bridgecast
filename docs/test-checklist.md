@@ -46,6 +46,13 @@ Catat hasil tiap butir: **OK**, atau tulis apa yang terjadi.
       memperbesar tepat di titik pointer; jendela aplikasi sendiri tidak ikut membesar. Saat
       sudah zoom, geser (drag) menggeser gambar halus (kursor grab/grabbing), scroll biasa juga
       menggeser, dan klik dua kali mengembalikan ke 1.00. Tidak ada minimap dan tidak ada panah.
+- [ ] **Panah geser:** saat zoom aktif, klik panah (Pan left/up/down/right) menggeser satu langkah besar
+      dengan animasi cepat; tahan panah menggeser halus dan konstan sampai dilepas atau mentok tepi
+      (panah itu lalu nonaktif). Di 1.00 semua panah nonaktif. Enter/Spasi pada panah yang fokus sama;
+      menahan tombol menggeser terus.
+- [ ] **Slider seek video:** seret thumb lalu lepas: tidak melompat balik ke posisi lama. Klik di titik
+      tertentu mendarat tepat di bawah kursor. Tooltip waktu mm:ss muncul saat hover/seret. Panah kiri/kanan
+      = 1 dtk, PageUp/PageDown = 10 dtk, Home/End ke ujung.
 - [ ] **Reset otomatis:** dengan zoom aktif, ambil slide berikutnya (Space): zoom kembali ke 1.00
       pada HDMI dan monitor. "Reset zoom" juga mengembalikan ke 1.00.
 - [ ] **STANDBY:** saat STANDBY (belum ada slide live), tombol zoom nonaktif dan zoom dengan pointer tidak bereaksi; HDMI tetap
