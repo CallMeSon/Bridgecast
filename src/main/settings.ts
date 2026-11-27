@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import { dirname } from 'path'
 import { randomUUID } from 'crypto'
 import { DEFAULT_CANVAS } from '../shared/canvas'
+import { DEFAULT_GLOBAL_CLICKER } from '../shared/clicker'
 import { DEFAULT_NDI, DEFAULT_OMT } from '../shared/omt'
 import { DEFAULT_UPDATES } from '../shared/update'
 import {
@@ -27,6 +28,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   sendContentOnly: DEFAULT_SEND_CONTENT_ONLY,
   pptImportFormat: DEFAULT_PPT_IMPORT_FORMAT,
   webChrome: DEFAULT_WEB_CHROME,
+  globalClicker: DEFAULT_GLOBAL_CLICKER,
   updates: DEFAULT_UPDATES
 })
 

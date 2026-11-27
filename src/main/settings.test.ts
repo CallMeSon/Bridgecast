@@ -37,6 +37,7 @@ describe('loadSettings / saveSettings', () => {
       sendContentOnly: true,
       pptImportFormat: 'odp',
       webChrome: false,
+      globalClicker: true,
       updates: { skippedVersion: null }
     })
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)
@@ -59,6 +60,7 @@ describe('loadSettings / saveSettings', () => {
       sendContentOnly: false,
       pptImportFormat: 'original' as const,
       webChrome: true,
+      globalClicker: false,
       updates: { skippedVersion: null }
     }
     saveSettings(file, s)
@@ -113,6 +115,7 @@ describe('hdmi settings', () => {
       sendContentOnly: true,
       pptImportFormat: 'odp',
       webChrome: false,
+      globalClicker: true,
       updates: { skippedVersion: null }
     })
   })
@@ -136,6 +139,7 @@ describe('hdmi settings', () => {
       sendContentOnly: true,
       pptImportFormat: 'odp',
       webChrome: false,
+      globalClicker: true,
       updates: { skippedVersion: null }
     })
   })
@@ -370,6 +374,14 @@ describe('ndi setting', () => {
     expect(loadSettings(file).pptImportFormat).toBe('odp')
     fs.writeFileSync(file, JSON.stringify({ pptImportFormat: 'original' }))
     expect(loadSettings(file).pptImportFormat).toBe('original')
+  })
+
+  it('globalClicker defaults to on and accepts only booleans', () => {
+    expect(DEFAULT_SETTINGS.globalClicker).toBe(true)
+    fs.writeFileSync(file, JSON.stringify({ globalClicker: 'no' }))
+    expect(loadSettings(file).globalClicker).toBe(true)
+    fs.writeFileSync(file, JSON.stringify({ globalClicker: false }))
+    expect(loadSettings(file).globalClicker).toBe(false)
   })
 
   it('webChrome defaults to off and accepts only booleans', () => {

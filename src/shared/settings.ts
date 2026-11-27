@@ -1,4 +1,5 @@
 import { sanitizeVolume } from './audio-levels'
+import { sanitizeGlobalClicker } from './clicker'
 import { DEFAULT_CANVAS, sanitizeCanvas, type Canvas } from './canvas'
 import { sanitizeUpdates, type UpdateSettings } from './update'
 import {
@@ -83,6 +84,8 @@ export interface Settings {
   pptImportFormat: PptImportFormat
   /** Linux: web decks run in the PC's Chrome (see DEFAULT_WEB_CHROME). */
   webChrome: boolean
+  /** PageUp/PageDown and the arrows step the Program while Bridgecast is in the background. */
+  globalClicker: boolean
   updates: UpdateSettings
 }
 
@@ -170,6 +173,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     sendContentOnly: sanitizeSendContentOnly(r.sendContentOnly),
     pptImportFormat: sanitizePptImportFormat(r.pptImportFormat),
     webChrome: sanitizeWebChrome(r.webChrome),
+    globalClicker: sanitizeGlobalClicker(r.globalClicker),
     updates: sanitizeUpdates(r.updates)
   }
 }
