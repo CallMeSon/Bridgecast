@@ -209,6 +209,23 @@ try {
   )
   check(!s2.mediabar, 'no media bar in the output window')
 
+  // The operator monitor plays the same clock (muted), never a still.
+  const monitorPlays = async (what) => {
+    const read = () =>
+      win.evaluate(() => {
+        const v = [...document.querySelectorAll('.screen .pgm-layer video')].pop()
+        return v ? { t: v.currentTime, paused: v.paused, ready: v.readyState } : null
+      })
+    const a = await read()
+    await sleep(700)
+    const b = await read()
+    check(
+      !!a && !!b && !b.paused && b.t !== a.t,
+      `monitor <video> plays ${what} (${JSON.stringify(a)} -> ${JSON.stringify(b)})`
+    )
+  }
+  await monitorPlays('after the take')
+
   // --- Pause / Play ---
   await win.getByRole('button', { name: 'Pause video' }).click()
   await waitOut((s) => s.video?.paused, 'output paused after Pause')
@@ -275,16 +292,20 @@ try {
     `Black off brings the video back as a playing <video> at ${back.video.t.toFixed(2)} s`
   )
 
+  await monitorPlays('after Black off')
+
   // --- Leave the media deck: MediaBar goes away ---
   await deck('clip2').click()
   await sleep(300)
   check((await media$.count()) === 1, 'taking another video deck keeps a MediaBar')
+  await monitorPlays('after taking another video deck')
   await win.locator('.deck', { has: win.locator('.name', { hasText: /^sample$/ }) }).click()
   await media$.waitFor({ state: 'detached', timeout: 5000 })
   check(true, 'taking a non-media deck removes the MediaBar')
 
   await deck('clip').click()
   await media$.waitFor()
+  await monitorPlays('when a video deck follows a non-media deck')
   await win.getByTestId('header-offair').click()
   await win.getByTestId('header-offair-yes').click()
   await media$.waitFor({ state: 'detached', timeout: 5000 })
