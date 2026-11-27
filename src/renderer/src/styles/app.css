@@ -2036,6 +2036,14 @@ main {
 @container stage (max-width: 519px) {
   .transport {
     gap: 2px;
+    /* Two rows when the controls do not fit one; the sound group moves down, right-aligned. */
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 56px;
+    padding-block: 4px;
+  }
+  .ameter-track {
+    width: 40px;
   }
   .transport .sepv {
     margin: 0 2px;

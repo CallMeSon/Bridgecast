@@ -1761,8 +1761,8 @@ async function videoChecks(win, tally) {
     return v ? { muted: v.muted, src: v.getAttribute('src') } : null
   })
   check(
-    !top1.muted && pgm?.muted === true && pgm.src.endsWith('/001.mp4'),
-    `output plays with sound, the Program monitor plays the same video muted (${JSON.stringify(pgm)})`
+    !top1.muted && pgm?.muted === false && pgm.src.endsWith('/001.mp4'),
+    `output plays with sound, the Program monitor video is never muted at the element: the gain stage decides (${JSON.stringify(pgm)})`
   )
 
   // 1b. Audio (Task 5): the HDMI section lists the sound devices and mutes the
