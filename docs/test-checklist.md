@@ -378,6 +378,20 @@ silently.
 - [ ] Mute (speaker button): the bar rests empty with a hatched track and the word "Muted"; unmute restores it. Deck volume 0 also rests the bar.
 - [ ] A saved Sound device is used by the operator too (headphones in Settings > Sound).
 
+## Penjaga desktop HDMI (Linux)
+
+**UNVERIFIED on real hardware.** GNOME only, with a real second display and an installed build or `npm run dev`. Check the setting with `gsettings get org.gnome.mutter overlay-key`.
+
+- [ ] HDMI showing: press Super, Super+A, Super+D, Super+P and push the pointer into the hot corner. None of them changes the HDMI screen, and `overlay-key` is `''`.
+- [ ] HDMI showing, leave the laptop idle past the screen blank time: the screens stay awake.
+- [ ] HDMI off: `overlay-key` is `'Super_L'` again, and Super, the hot corner and the shortcuts work as before.
+- [ ] HDMI showing, unplug the cable: `overlay-key` is `'Super_L'`. Plug it back in: the guard is on again.
+- [ ] HDMI showing, quit the app: `overlay-key` is `'Super_L'`.
+- [ ] HDMI showing, `kill -9` the app, then reopen it with HDMI off: `overlay-key` is `'Super_L'`.
+- [ ] Repeat the checks above from the AppImage.
+- [ ] Repeat the checks above from the `.deb`.
+- [ ] Note whether the three-finger swipe still opens Activities (expected: it does, a known limit).
+
 ## Selesai
 
 - [ ] Uninstall lewat Settings → Apps berjalan bersih.

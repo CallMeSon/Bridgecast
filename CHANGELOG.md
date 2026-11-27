@@ -4,6 +4,10 @@ Versions restart at 0.x because the app is in development.
 
 ## [Unreleased]
 
+### Fixed
+
+- Linux (GNOME): pressing Super no longer opens Activities over the HDMI output. While HDMI shows, Super, hot corners, show desktop and Super+P are off and the screen does not sleep; your settings come back afterwards.
+
 ## [0.2.1] - 2026-11-27
 
 ### Added
